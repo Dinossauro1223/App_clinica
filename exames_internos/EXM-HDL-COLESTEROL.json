@@ -1,0 +1,26 @@
+{
+  "id": "EXM-HDL-COLESTEROL",
+  "nome": "HDL-Colesterol (HDL-c)",
+  "unidade_medida": "mg/dL",
+  "categoria": "Perfil Lipídico",
+  "versao_conteudo": 1,
+  "bandas": [
+    {
+      "valor_max": 40,
+      "inclusivo": false,
+      "rotulo": "Limítrofe (HDL baixo — risco cardiovascular)"
+    },
+    {
+      "valor_max": 60,
+      "inclusivo": false,
+      "rotulo": "Desejável"
+    },
+    {
+      "valor_max": null,
+      "rotulo": "Alto (ótimo — proteção cardiovascular)"
+    }
+  ],
+  "padroes_combinados_categoria": [],
+  "ref_min": 50.0,
+  "ref_max": null
+}

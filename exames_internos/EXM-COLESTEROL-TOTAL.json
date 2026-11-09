@@ -1,0 +1,26 @@
+{
+  "id": "EXM-COLESTEROL-TOTAL",
+  "nome": "Colesterol Total (CT)",
+  "unidade_medida": "mg/dL",
+  "categoria": "Perfil Lipídico",
+  "versao_conteudo": 1,
+  "bandas": [
+    {
+      "valor_max": 200,
+      "inclusivo": false,
+      "rotulo": "Desejável"
+    },
+    {
+      "valor_max": 240,
+      "inclusivo": false,
+      "rotulo": "Limítrofe"
+    },
+    {
+      "valor_max": null,
+      "rotulo": "Alto"
+    }
+  ],
+  "padroes_combinados_categoria": [],
+  "ref_min": null,
+  "ref_max": 190.0
+}

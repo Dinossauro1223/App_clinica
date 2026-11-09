@@ -1,0 +1,26 @@
+{
+  "id": "EXM-HBA1C",
+  "nome": "Hemoglobina Glicada (HbA1c)",
+  "unidade_medida": "%",
+  "categoria": "Metabolismo da Glicose",
+  "versao_conteudo": 1,
+  "bandas": [
+    {
+      "valor_max": 5.7,
+      "inclusivo": false,
+      "rotulo": "Resultado normal (baixo risco para diabetes)"
+    },
+    {
+      "valor_max": 6.5,
+      "inclusivo": false,
+      "rotulo": "Indica pré-diabetes"
+    },
+    {
+      "valor_max": null,
+      "rotulo": "Sugestivo de diabetes"
+    }
+  ],
+  "padroes_combinados_categoria": [],
+  "ref_min": null,
+  "ref_max": 5.7
+}

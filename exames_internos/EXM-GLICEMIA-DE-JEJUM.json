@@ -1,0 +1,31 @@
+{
+  "id": "EXM-GLICEMIA-DE-JEJUM",
+  "nome": "Glicemia de Jejum",
+  "unidade_medida": "mg/dL",
+  "categoria": "Metabolismo da Glicose",
+  "versao_conteudo": 1,
+  "bandas": [
+    {
+      "valor_max": 70,
+      "inclusivo": false,
+      "rotulo": "Hipoglicemia"
+    },
+    {
+      "valor_max": 100,
+      "inclusivo": false,
+      "rotulo": "Glicemia normal"
+    },
+    {
+      "valor_max": 126,
+      "inclusivo": false,
+      "rotulo": "Risco de pré-diabetes"
+    },
+    {
+      "valor_max": null,
+      "rotulo": "Alterado — provável diabetes (≥126 mg/dL)"
+    }
+  ],
+  "padroes_combinados_categoria": [],
+  "ref_min": null,
+  "ref_max": 100.0
+}

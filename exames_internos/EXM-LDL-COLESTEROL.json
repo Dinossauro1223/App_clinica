@@ -1,0 +1,26 @@
+{
+  "id": "EXM-LDL-COLESTEROL",
+  "nome": "LDL-Colesterol (LDL-c)",
+  "unidade_medida": "mg/dL",
+  "categoria": "Perfil Lipídico",
+  "versao_conteudo": 1,
+  "bandas": [
+    {
+      "valor_max": 130,
+      "inclusivo": false,
+      "rotulo": "Desejável"
+    },
+    {
+      "valor_max": 160,
+      "inclusivo": false,
+      "rotulo": "Limítrofe"
+    },
+    {
+      "valor_max": null,
+      "rotulo": "Alto"
+    }
+  ],
+  "padroes_combinados_categoria": [],
+  "ref_min": null,
+  "ref_max": null
+}

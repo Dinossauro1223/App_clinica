@@ -1,0 +1,502 @@
+# -*- coding: utf-8 -*-
+"""Teste de fumaça da interface (mapa_ui) com widgets simulados.
+
+Não abre janelas: injeta versões falsas de tkinter/customtkinter que guardam o estado
+dos campos, e percorre os fluxos principais (mapa, registro, histórico, leitos,
+suplementos, gráficos). Pega erros de lógica e chamadas inexistentes; NÃO valida a
+aparência real nem opções específicas de cada widget do CustomTkinter.
+"""
+import os
+import sys
+import tempfile
+import types
+import unittest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.dirname(__file__))
+
+
+# ------------------------------------------------------------------ widgets falsos
+class W:
+    def __init__(self, *args, **kw):
+        self.master = args[0] if args else kw.get("master")
+        self.opts = dict(kw)
+        self.children, self.bindings, self.destroyed = [], {}, False
+        if isinstance(self.master, W):
+            self.master.children.append(self)
+        self._text, self._val = "", ""
+
+    def configure(self, **kw):
+        self.opts.update(kw)
+
+    config = configure
+
+    def cget(self, k):
+        return self.opts.get(k)
+
+    def pack(self, *a, **kw):
+        pass
+
+    def pack_forget(self):
+        pass
+
+    def grid(self, *a, **kw):
+        pass
+
+    def bind(self, ev, fn, add=None):
+        self.bindings[ev] = fn
+
+    def after(self, ms, fn=None, *a):
+        return "id"
+
+    def destroy(self):
+        self.destroyed = True
+        for c in self.children:
+            c.destroy()
+
+    def winfo_children(self):
+        return [c for c in self.children if not c.destroyed]
+
+    def winfo_width(self):
+        return 1300
+
+    def winfo_screenheight(self):
+        return 900
+
+    def title(self, *a):
+        pass
+
+    def geometry(self, *a):
+        pass
+
+    def attributes(self, *a):
+        pass
+
+    def protocol(self, *a):
+        pass
+
+    def lift(self):
+        pass
+
+    def focus_force(self):
+        pass
+
+    def grab_set(self):
+        pass
+
+    def update_idletasks(self):
+        pass
+
+    def yview(self, *a):
+        pass
+
+    def set(self, *a):  # Scrollbar.set (Combo/Seg sobrescrevem)
+        pass
+
+    def heading(self, *a, **kw):
+        pass
+
+    def column(self, *a, **kw):
+        pass
+
+    def tag_configure(self, *a, **kw):
+        pass
+
+
+class Entry(W):
+    def get(self):
+        return self._text
+
+    def insert(self, i, t):
+        self._text = (str(t) + self._text) if i == 0 else self._text + str(t)
+
+    def delete(self, a, b=None):
+        self._text = ""
+
+
+class Combo(W):
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self._text = kw.get("values", [""])[0] if False else ""
+
+    def get(self):
+        return self._text
+
+    def set(self, v):
+        self._text = v
+
+
+class Seg(W):
+    def get(self):
+        return self._val
+
+    def set(self, v):
+        self._val = v
+
+    def click(self, v):
+        self._val = v
+        if self.opts.get("command"):
+            self.opts["command"](v)
+
+
+class Textbox(W):
+    def get(self, a=None, b=None):
+        return self._text
+
+    def insert(self, i, t):
+        self._text += t
+
+    def delete(self, a, b=None):
+        self._text = ""
+
+
+class Tree(W):
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.items, self._sel, self._n = {}, [], 0
+
+    def insert(self, parent, index, iid=None, values=(), tags=()):
+        iid = iid if iid is not None else f"I{self._n}"
+        self._n += 1
+        self.items[iid] = tuple(values)
+        return iid
+
+    def delete(self, *ids):
+        for i in ids:
+            self.items.pop(i, None)
+
+    def get_children(self, *a):
+        return list(self.items)
+
+    def selection(self):
+        return list(self._sel)
+
+    def selection_set(self, i):
+        self._sel = [i]
+
+
+class IntVar:
+    def __init__(self, value=0):
+        self.v = value
+
+    def get(self):
+        return self.v
+
+    def set(self, v):
+        self.v = v
+
+
+class Frame(W):
+    pass
+
+
+class Image:
+    def __init__(self, **kw):
+        self.kw = kw
+
+
+class Caixas:
+    """messagebox falso: registra as chamadas e responde 'sim'."""
+
+    def __init__(self):
+        self.chamadas = []
+        self.resposta = True
+
+    def _reg(self, nome):
+        def f(titulo, msg, **kw):
+            self.chamadas.append((nome, titulo, msg))
+            return self.resposta
+        return f
+
+    def __getattr__(self, nome):
+        return self._reg(nome)
+
+
+def instalar_falsos():
+    ctk = types.ModuleType("customtkinter")
+    for n in ("CTkFrame", "CTkLabel", "CTkButton", "CTkCheckBox", "CTkScrollableFrame", "CTkToplevel"):
+        setattr(ctk, n, type(n, (W,), {}))
+    ctk.CTkEntry, ctk.CTkComboBox, ctk.CTkSegmentedButton, ctk.CTkTextbox = Entry, Combo, Seg, Textbox
+    ctk.CTkFont = lambda **kw: ("font", kw)
+    ctk.CTkImage = Image
+    tk = types.ModuleType("tkinter")
+    tk.TclError = type("TclError", (Exception,), {})
+    tk.IntVar = IntVar
+    ttk = types.ModuleType("tkinter.ttk")
+    ttk.Treeview, ttk.Scrollbar = Tree, W
+    ttk.Style = type("Style", (), {"configure": lambda s, *a, **k: None, "map": lambda s, *a, **k: None,
+                                   "theme_use": lambda s, *a: None})
+    mb = Caixas()
+    fd = types.SimpleNamespace(asksaveasfilename=lambda **kw: fd.destino, askdirectory=lambda **kw: fd.pasta,
+                               destino="", pasta="")
+    tk.ttk, tk.messagebox, tk.filedialog = ttk, mb, fd
+    sys.modules.update({"customtkinter": ctk, "tkinter": tk, "tkinter.ttk": ttk, "tkinter.messagebox": mb,
+                        "tkinter.filedialog": fd})
+    return mb, fd
+
+
+MB, FD = instalar_falsos()
+import mapa_db as mdb  # noqa: E402
+import mapa_ui  # noqa: E402
+import mapa_export as mex  # noqa: E402
+from fake_fpdf import FakePDF  # noqa: E402
+
+
+class AppFalso(W):
+    def __init__(self):
+        super().__init__()
+        self.area_principal = Frame()
+
+    def limpar_area_principal(self):
+        self.area_principal = Frame()
+
+
+class TestInterface(unittest.TestCase):
+    def setUp(self):
+        fd, self.db = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        mdb.inicializar(self.db)
+        self.setor = mdb.listar_setores(self.db)[0]["id_setor"]
+        mdb.criar_leitos_sequencia(self.db, self.setor, "L", 1, 4)
+        self.app = AppFalso()
+        self.ui = mapa_ui.MapaUI(self.app, self.db, os.path.dirname(self.db))
+        MB.chamadas.clear()
+        MB.resposta = True
+
+    def tearDown(self):
+        os.remove(self.db)
+
+    def _primeiro_leito(self):
+        return self.ui.linhas[0]
+
+    def test_mapa_lista_leitos_e_vagos(self):
+        self.ui.mostrar_mapa()
+        self.assertEqual(len(self.ui.tree.items), 4)
+        self.assertTrue(all(v[2] == "— vago —" for v in self.ui.tree.items.values()))
+        self.assertIn("0 de 4 leitos", self.ui.lbl_resumo.opts["text"])
+
+    def _preencher_form(self, form, nome="Maria de Souza"):
+        form.e_nome.insert(0, nome)
+        form.seg_acomp.set("Sim")
+        form.e_idade.insert(0, "72")
+        form.seg_sexo.set("Mulher")
+        form.seg_cor.set("Negro")
+        form.e_aj.insert(0, "46,5")
+        form.e_pp.insert(0, "31")
+        form.e_pb.insert(0, "26,5")
+
+    def test_registro_estimar_calcular_salvar(self):
+        self.ui.mostrar_mapa()
+        form = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self._preencher_form(form)
+        form._estimar_altura()  # Chumlea 1985 (padrão): 84,88 - 0,24*72 + 1,83*46,5 = 152,7
+        self.assertEqual(form.e_altura.get(), "152,7")
+        self.assertEqual(form.seg_alt.get(), "Estimada")
+        form._estimar_peso()  # 1,50*46,5 + 2,58*26,5 - 84,22 = 53,9
+        self.assertEqual(form.e_peso.get(), "53,9")
+        self.assertEqual(form.seg_peso.get(), "Estimado")
+        self.assertEqual(form.lbl_imc.opts["text"], "23,1")
+        self.assertEqual(form.lbl_class.opts["text"], "(Eutrofia)")  # Lipschitz 22-27
+        # altera para peso real
+        form.e_peso.delete(0)
+        form.e_peso.insert(0, "70")
+        form.seg_peso.click("Real")
+        self.assertEqual(form.lbl_class.opts["text"], "(Sobrepeso)")  # 70 kg / 1,527 m = 30,0 -> idoso > 27
+        form.seg_via.set("Oral")
+        form.seg_cons.set("Pastosa")
+        form.var_carac["dm"].set(1)
+        form.var_carac["constipante"].set(1)
+        form.e_reav.insert(0, "30/10/2026")
+        form.t_sim.insert("1.0", "mamão")
+        form.t_nao.insert("1.0", "leite")
+        form.seg_fi.click("Presente")
+        self.assertEqual(form.e_fi_freq.get(), "1")
+        # suplemento: filtra por módulo e adiciona
+        form.cb_mod.set("Módulo probiótico/simbiótico")
+        form._filtrar_sup()
+        self.assertEqual(form.cb_sup.get(), "Simbioflora")
+        form.e_qtd.insert(0, "1")
+        form._add_sup()
+        self.assertEqual(len(form._suplementos), 1)
+        form.cb_sup.set("Simbioflora")
+        form._add_sup()  # duplicado
+        self.assertEqual(len(form._suplementos), 1)
+        form._salvar()
+        self.assertTrue(form.destroyed)
+        reg = mdb.obter_registro(self.db, self.ui.data.isoformat(), self._primeiro_leito()["leito"]["id_leito"])
+        self.assertEqual((reg["nome_paciente"], reg["sexo"], reg["cor"], reg["idade_anos"]), ("Maria de Souza", "M", "N", 72))
+        self.assertEqual((reg["altura_cm"], reg["altura_origem"], reg["peso_kg"], reg["peso_origem"]), (152.7, "E", 70.0, "R"))
+        self.assertEqual(reg["altura_metodo"], "Chumlea et al. (1985), 60-90 anos")
+        self.assertIsNone(reg["peso_metodo"])  # peso real não guarda método
+        self.assertEqual((reg["via"], reg["consistencia"], reg["dm"], reg["constipante"], reg["has"]), ("Oral", "Pastosa", 1, 1, 0))
+        self.assertEqual((reg["data_reavaliacao"], reg["obs_sim"], reg["obs_nao"]), ("2026-10-30", "mamão", "leite"))
+        self.assertEqual((reg["fi_estado"], reg["fi_freq"]), ("P", 1.0))
+        self.assertEqual(reg["suplementos"][0]["nome"], "Simbioflora")
+        self.assertEqual(reg["suplementos"][0]["qtd_dia"], 1.0)
+        # a lista do mapa foi atualizada
+        linha = self.ui.tree.items[str(self._primeiro_leito()["leito"]["id_leito"])]
+        self.assertEqual(linha[2], "Maria de Souza")
+        self.assertIn("Sobrepeso", linha[4])
+        self.assertIn("1 de 4 leitos", self.ui.lbl_resumo.opts["text"])
+        self.assertIn("1 em dieta pastosa", self.ui.lbl_resumo.opts["text"])
+        self.assertIn("1 com acompanhante", self.ui.lbl_resumo.opts["text"])
+
+    def test_reabrir_edita_e_vinculo_de_paciente(self):
+        self.ui.mostrar_mapa()
+        f1 = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self._preencher_form(f1)
+        f1._salvar()
+        self.ui._recarregar()
+        f2 = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self.assertEqual(f2.e_nome.get(), "Maria de Souza")
+        self.assertEqual((f2.seg_sexo.get(), f2.seg_cor.get(), f2.seg_acomp.get()), ("Mulher", "Negro", "Sim"))
+        self.assertEqual(f2.e_aj.get(), "46,5")
+        self.assertEqual(f2.e_pp.get(), "31")
+        dados = f2._coletar()
+        self.assertEqual((dados["aj_cm"], dados["pp_cm"], dados["pb_cm"], dados["idade_anos"]), (46.5, 31.0, 26.5, 72))
+        id_pac = dados["id_paciente"]
+        self.assertTrue(id_pac)
+        f2.e_pb.delete(0)
+        f2.e_pb.insert(0, "27")
+        f2._salvar()
+        reg = mdb.obter_registro(self.db, self.ui.data.isoformat(), self._primeiro_leito()["leito"]["id_leito"])
+        self.assertEqual((reg["pb_cm"], reg["id_paciente"]), (27.0, id_pac))  # mesmo paciente, sem duplicar
+        # troca o nome no mesmo leito: é outro paciente (novo cadastro)
+        f3 = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        f3.e_nome.delete(0)
+        f3.e_nome.insert(0, "João Pereira")
+        f3._salvar()
+        reg3 = mdb.obter_registro(self.db, self.ui.data.isoformat(), self._primeiro_leito()["leito"]["id_leito"])
+        self.assertNotEqual(reg3["id_paciente"], id_pac)
+        # nome igual a cadastro existente em outro leito: pergunta e vincula ('sim')
+        ocupado = [l for l in self.ui.linhas if l["registro"] is None][0]
+        f4 = mapa_ui.FormRegistro(self.ui, ocupado)
+        f4.e_nome.insert(0, "Maria de Souza")
+        MB.resposta = True
+        f4._salvar()
+        self.assertTrue(any(c[0] == "askyesnocancel" for c in MB.chamadas))
+        reg4 = mdb.obter_registro(self.db, self.ui.data.isoformat(), ocupado["leito"]["id_leito"])
+        self.assertEqual(reg4["id_paciente"], id_pac)
+
+    def test_validacoes_na_tela(self):
+        self.ui.mostrar_mapa()
+        form = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        form._salvar()  # sem nome
+        self.assertFalse(form.destroyed)
+        self.assertEqual(MB.chamadas[-1][0], "showwarning")
+        MB.chamadas.clear()
+        form.e_nome.insert(0, "Fulano")
+        form.e_peso.insert(0, "abc")
+        form._salvar()
+        self.assertIn("Peso", MB.chamadas[-1][2])
+        form.e_peso.delete(0)
+        form.e_reav.insert(0, "31/02/2026")
+        form._salvar()
+        self.assertIn("reavaliação", MB.chamadas[-1][2])
+        MB.chamadas.clear()
+        form.e_reav.delete(0)
+        form._estimar_altura()  # faltam dados
+        self.assertEqual(MB.chamadas[-1][0], "showwarning")
+
+    def test_historico_copiar_remover(self):
+        self.ui.mostrar_mapa()
+        f = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self._preencher_form(f)
+        f._salvar()
+        # copia para o dia seguinte
+        self.ui._mudar_dia(1)
+        self.ui._copiar_ultimo()
+        self.assertEqual(sum(1 for l in self.ui.linhas if l["registro"]), 1)
+        self.assertIn("dia futuro", self.ui.lbl_aviso.opts["text"])
+        self.ui.tree.selection_set(str(self._primeiro_leito()["leito"]["id_leito"]))
+        self.ui._historico()
+        # histórico em janela (último filho de nenhum pai: instanciar direto)
+        h = mapa_ui.DialogHistorico(self.ui, self._primeiro_leito()["registro"])
+        self.assertEqual(len(h.tree.items), 2)
+        h.tree.selection_set(list(h.tree.items)[0])
+        h._abrir()  # abre formulário somente leitura
+        # remover
+        self.ui._remover()
+        self.assertTrue(all(l["registro"] is None for l in self.ui.linhas))
+        self.ui._ir_hoje()
+        self.assertEqual(self.ui.lbl_aviso.opts["text"], "")
+
+    def test_somente_leitura_trava_campos(self):
+        self.ui.mostrar_mapa()
+        f = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self._preencher_form(f)
+        f._salvar()
+        self.ui._recarregar()
+        ro = mapa_ui.FormRegistro(self.ui, self._primeiro_leito(), somente_leitura=True)
+        self.assertEqual(ro.e_nome.opts.get("state"), "disabled")
+        self.assertEqual(ro.seg_sexo.opts.get("state"), "disabled")
+
+    def test_exportar_pelas_telas(self):
+        self.ui.mostrar_mapa()
+        f = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self._preencher_form(f)
+        f._salvar()
+        self.ui._recarregar()
+        FD.destino = os.path.join(tempfile.gettempdir(), "teste_ui.xlsx")
+        self.ui._exportar_excel()
+        self.assertTrue(os.path.exists(FD.destino))
+        # PDF com o FPDF simulado (a biblioteca real não existe neste ambiente de teste)
+        original = mex.exportar_pdf
+        mex.exportar_pdf = lambda c, l, d, s, **kw: original(c, l, d, s, pdf_factory=FakePDF)
+        try:
+            FD.destino = os.path.join(tempfile.gettempdir(), "teste_ui.pdf")
+            self.ui._exportar_pdf()
+            self.assertTrue(os.path.exists(FD.destino))
+        finally:
+            mex.exportar_pdf = original
+
+    def test_leitos_suplementos_config(self):
+        self.ui.mostrar_mapa()
+        d = mapa_ui.DialogLeitos(self.ui)
+        d.e_novo_setor.insert(0, "UTI")
+        d._criar_setor()
+        self.assertEqual(d.cb_setor.get(), "UTI")
+        d.e_pref.insert(0, "U")
+        d.e_de.insert(0, "1")
+        d.e_ate.insert(0, "3")
+        d._gerar()
+        self.assertEqual(len(d.tree.items), 3)
+        d.e_codigo.insert(0, "U10")
+        d._adicionar()
+        self.assertEqual(len(d.tree.items), 4)
+        d._fechar()
+        self.assertEqual(len(self.ui.tree.items), 4)  # mapa passou a mostrar o setor UTI (U01..U03 + U10)
+        self.ui.mostrar_suplementos()
+        self.assertEqual(len(self.ui.tree_sup.items), 6)
+        ds = mapa_ui.DialogSuplemento(self.ui, None)
+        ds.e["nome"].insert(0, "Módulo de fibra X")
+        ds.cb_mod.set("Módulo de fibras")
+        ds.e["kcal_100"].insert(0, "200,5")
+        ds.e["preco"].insert(0, "19,9")
+        ds.cb_un.set("g")
+        ds._salvar()
+        self.assertEqual(len(self.ui.tree_sup.items), 7)
+        novo = [v for v in self.ui.tree_sup.items.values() if v[0] == "Módulo de fibra X"][0]
+        self.assertEqual((novo[1], novo[3], novo[8]), ("Módulo de fibras", "200,5", "19,90"))
+        dc = mapa_ui.DialogConfig(self.ui)
+        dc.cb_imc.set(mapa_ui.nc.CRITERIOS_IMC_IDOSO["opas"])
+        dc.cb_alt.set(mapa_ui.nc.METODOS_ALTURA_IDOSO["chumlea1998"])
+        dc._salvar()
+        self.assertEqual((self.ui.criterio_idoso, self.ui.metodo_altura_idoso), ("opas", "chumlea1998"))
+
+    def test_graficos(self):
+        from test_mapa import popular_mes
+        popular_mes(self.db, n_leitos=6)
+        self.ui.mostrar_graficos()
+        self.assertEqual(len(self.ui._imagens), 7)
+        self.assertEqual(self.ui.cb_mes.get(), "Outubro")
+        self.ui.cb_mes.set("Fevereiro")
+        self.ui._gerar_graficos()  # mês sem dados: gráficos vazios, sem erro
+        self.assertEqual(len(self.ui._imagens), 7)
+        FD.pasta = tempfile.mkdtemp()
+        self.ui._salvar_graficos()
+        self.assertEqual(len(os.listdir(FD.pasta)), 7)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
