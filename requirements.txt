@@ -1,0 +1,19 @@
+# NutriLab — dependências de EXECUÇÃO com versões fixadas.
+#
+# Python de referência: 3.12.x (64 bits). Mínimo exigido pelos pacotes abaixo: 3.10.
+# Critério de escolha: somente versões publicadas há mais de 14 dias (11/2026) e que
+# instalam juntas sem conflito (`pip check`) em Python 3.12.
+#
+# ATENÇÃO — compatibilidade com o código do app NÃO foi validada na sessão que gerou este
+# arquivo (repositório privado inacessível). A validação real é:
+#   python tools/verificar_ambiente.py
+#   python -m unittest discover -s tests -v
+#
+# IMPORTANTE: instalar `fpdf2`, NUNCA `fpdf`/`pyfpdf` juntos: todos fornecem o módulo `fpdf`
+# e se sobrepõem. O verificador de ambiente falha se encontrar essa combinação.
+customtkinter==5.2.2   # última 5.x (2024-01-10). O major 6.0.0 (2026-06-24) exige tarefa própria com teste de interface
+fpdf2==2.8.9
+pillow==12.3.0
+openpyxl==3.1.5
+matplotlib==3.10.9
+tzdata==2026.5         # banco de fusos IANA; no Windows é obrigatório para zoneinfo "America/Recife"

@@ -1,0 +1,65 @@
+name: CI
+
+# Fase 0 (ROADMAP): pipeline de testes automatizados e verificações básicas.
+# Não usa segredos nem dados reais. Executa em Windows (alvo do produto) e Linux.
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**", "docs/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUTF8: "1"
+
+jobs:
+  testes:
+    name: Testes (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python: ["3.12"]
+    steps:
+      - name: Baixar o código (histórico completo, para a auditoria)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Instalar o Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Atualizar o pip
+        run: python -m pip install --upgrade pip
+
+      - name: Instalar dependências fixadas
+        run: python -m pip install -r requirements.txt
+
+      - name: Verificar ambiente (versões fixadas, fpdf2, fuso America/Recife)
+        run: python tools/verificar_ambiente.py --estrito
+
+      - name: Auditoria de dados sensíveis (arquivos, histórico e .gitignore)
+        run: python tools/auditar_repositorio.py --ci
+
+      - name: Testes (Windows)
+        if: runner.os == 'Windows'
+        run: python -m unittest discover -s tests -v
+
+      - name: Testes (Linux, com display virtual para o Tk)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb python3-tk
+          xvfb-run -a python -m unittest discover -s tests -v
