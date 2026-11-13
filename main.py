@@ -242,7 +242,8 @@ class AppClinica(ctk.CTk):
         self.menu_mapa.grid(row=4, column=0, sticky="new")
         for texto, comando in (("Mapa Nutricional", self.tela_mapa),
                                ("Gráficos do Mês", self.tela_mapa_graficos),
-                               ("Suplementos", self.tela_suplementos)):
+                               ("Suplementos", self.tela_suplementos),
+                               ("Mobile (copa)", self.tela_mobile)):
             ctk.CTkButton(self.menu_mapa, text=texto, command=comando, fg_color="#4caf50", hover_color="#388e3c",
                           text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold")).pack(padx=20, pady=10)
 
@@ -271,6 +272,10 @@ class AppClinica(ctk.CTk):
 
     def tela_suplementos(self):
         self.mapa.mostrar_suplementos()
+
+    def tela_mobile(self):
+        from mobile_ui import MobileUI
+        MobileUI(self, os.path.join(get_base_path(), 'clinica.db'), get_base_path()).mostrar()
 
     def configurar_banco_dados(self):
         caminho = caminho_do_banco()
