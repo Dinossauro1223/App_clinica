@@ -366,7 +366,7 @@ class TestExportacao(unittest.TestCase):
         with zipfile.ZipFile(caminho) as z:
             xml = z.read("xl/worksheets/sheet1.xml").decode("utf-8")  # strings inline (texto rico)
         self.assertIn("FFFF0000", xml)
-        self.assertIn('<rFont val="Arial"/>', xml)
+        self.assertRegex(xml, r'<rFont val="Arial"\s*/>')   # o espaço antes de '/>' varia com o serializador XML
         # leito vago
         vago = [r for r in range(4, ws.max_row + 1) if ws.cell(r, 3).value == "Vago"]
         self.assertTrue(vago)
