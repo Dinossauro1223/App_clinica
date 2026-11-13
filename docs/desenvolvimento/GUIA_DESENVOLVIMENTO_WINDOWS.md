@@ -44,9 +44,8 @@ python main.py
 ```
 
 Em desenvolvimento use **banco sintético/descartável**, nunca uma cópia do banco real. O serviço `db_service.py` aceita
-`NUTRILAB_DATA_DIR` (pasta) ou `NUTRILAB_DB_PATH` (arquivo) para apontar para um banco de teste — **mas o código legado
-ainda não foi adaptado para usar o serviço** (ver ADR-0001, pendência 1); por enquanto essas variáveis só valem para os
-módulos novos e para os testes.
+`NUTRILAB_DATA_DIR` (pasta) ou `NUTRILAB_DB_PATH` (arquivo) para apontar para um banco de teste — **o `main.py`, o `setup_db.py` e o mapa já usam o serviço** (ADR-0004): com `NUTRILAB_DB_PATH` ou `NUTRILAB_DATA_DIR`
+definidas, o programa abre esse banco em vez do `clinica.db` da pasta do projeto.
 
 ## 4. Testes
 
