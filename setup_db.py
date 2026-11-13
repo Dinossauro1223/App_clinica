@@ -1,9 +1,11 @@
 import sqlite3
 import os
 
+import db_service
+
 def inicializar_banco():
     # Conecta (ou cria) o arquivo do banco de dados local
-    conexao = sqlite3.connect('clinica.db')
+    conexao = sqlite3.connect(str(db_service.caminho_banco()))
     cursor = conexao.cursor()
 
     # Criando as tabelas principais
