@@ -24,6 +24,7 @@ set "SAIDA=%~dp0saida"
 set "LOG=%~dp0gerar_apk_log.txt"
 set "JDKURL=https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse"
 set "CMDURL=https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip"
+set "CMDURL2=https://dl.google.com/android/repository/commandlinetools-win-9477386_latest.zip"
 
 echo.
 echo ===== NutriLab: gerando o APK =====
@@ -53,7 +54,10 @@ set "SDKMGR=%SDK%\cmdline-tools\latest\bin\sdkmanager.bat"
 if exist "%SDKMGR%" goto :cmd_ok
 echo       Baixando: so na primeira vez, cerca de 150 MB...
 call :baixar "%CMDURL%" "%DL%\cmdline-tools.zip"
+if not errorlevel 1 goto :cmd_baixado
+call :baixar "%CMDURL2%" "%DL%\cmdline-tools.zip"
 if errorlevel 1 goto :falha_download
+:cmd_baixado
 if exist "%SDK%\cmdline-tools" rmdir /s /q "%SDK%\cmdline-tools"
 mkdir "%SDK%\cmdline-tools"
 echo       Extraindo...
