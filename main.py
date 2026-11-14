@@ -13,6 +13,8 @@ from datetime import datetime
 from fpdf import FPDF
 from PIL import Image
 import mapa_db
+import db_service
+import db_migracoes
 from mapa_ui import MapaUI
 
 
@@ -50,8 +52,145 @@ def get_writable_path(filename):
     return os.path.join(get_base_path(), filename)
 
 
+def caminho_do_banco():
+    """Caminho ÚNICO do banco (db_service.caminho_banco; ADR-0001).
+
+    Em desenvolvimento é a pasta do projeto; no executável, a pasta do .exe — nunca `_internal`/`_MEIPASS`.
+    Na primeira execução do executável, se houver um banco-modelo embutido (em `_MEIPASS`), ele é copiado para o local
+    gravável; depois disso o banco do usuário nunca é sobrescrito.
+    """
+    destino = db_service.caminho_banco()
+    if db_service.esta_empacotado() and not destino.exists():
+        embutido = os.path.join(get_base_path(), destino.name)
+        if os.path.exists(embutido):
+            try:
+                shutil.copy2(embutido, destino)
+            except OSError:
+                pass  # sem permissão de escrita: o SQLite criará um banco novo (vazio) no destino
+    return str(destino)
+
+
 ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("green")
+
+def banco_interno_com_dados(destino):
+    """Executável: devolve o caminho de OUTRO banco (em `_MEIPASS`/`_internal`) que contenha pacientes, ou None.
+
+    Versões anteriores gravavam pacientes em `_internal/clinica.db`; o programa agora usa só `destino`. Esta checagem
+    apenas DETECTA a divisão (somente leitura): nada é copiado, movido ou apagado.
+    """
+    if not db_service.esta_empacotado():
+        return None
+    interno = os.path.join(get_base_path(), os.path.basename(str(destino)))
+    if not os.path.exists(interno) or not os.path.exists(destino) or os.path.samefile(interno, destino):
+        return None
+    try:
+        conexao = sqlite3.connect(db_service.Path(interno).resolve().as_uri() + "?mode=ro", uri=True)
+        try:
+            return interno if conexao.execute("SELECT COUNT(*) FROM Pacientes").fetchone()[0] > 0 else None
+        finally:
+            conexao.close()
+    except sqlite3.Error:
+        return None
+
+
+def garantir_esquema_legado(conexao):
+    """Cria/atualiza, de forma IDEMPOTENTE, as tabelas do esquema legado e a semente de exames.
+
+    Não faz commit nem fecha a conexão: pode rodar dentro da transação da migração baseline
+    (db_migracoes) ou, depois dela, numa conexão comum.
+    """
+    cursor = conexao.cursor()
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Consultas (
+        id_consulta INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_paciente INTEGER,
+        data_consulta TEXT,
+        anamnese TEXT,
+        peso TEXT,
+        altura TEXT,
+        gordura TEXT,
+        conduta TEXT
+    )
+    ''')
+
+    cursor.execute("PRAGMA table_info(Consultas)")
+    colunas = [col[1] for col in cursor.fetchall()]
+    if 'tmb' not in colunas:
+        cursor.execute("ALTER TABLE Consultas ADD COLUMN tmb TEXT")
+        cursor.execute("ALTER TABLE Consultas ADD COLUMN vet TEXT")
+        cursor.execute("ALTER TABLE Consultas ADD COLUMN naf TEXT")
+        cursor.execute("ALTER TABLE Consultas ADD COLUMN metodo_tmb TEXT")
+    if 'analise_exames' not in colunas:
+        cursor.execute("ALTER TABLE Consultas ADD COLUMN analise_exames TEXT")
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Exames_Solicitados (
+        id_solicitacao INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_consulta INTEGER,
+        id_exame TEXT
+    )
+    ''')
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Arquivos_Paciente (
+        id_arquivo INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_paciente INTEGER,
+        nome_arquivo TEXT,
+        caminho_arquivo TEXT,
+        data_upload TEXT
+    )
+    ''')
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Exames_Catalogo (
+        id_exame TEXT PRIMARY KEY,
+        nome_amigavel TEXT
+    )
+    ''')
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Regras_Complementares (
+        id_regra INTEGER PRIMARY KEY AUTOINCREMENT,
+        exame_gatilho TEXT,
+        exame_sugerido TEXT
+    )
+    ''')
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Resultados_Exames (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_consulta INTEGER,
+        id_exame TEXT,
+        valor REAL,
+        status TEXT
+    )
+    ''')
+
+    cursor.execute("SELECT COUNT(*) FROM Exames_Catalogo")
+    if cursor.fetchone()[0] == 0:
+        exames_basicos = [
+            ('EXM-GLICEMIA-DE-JEJUM', 'GLICEMIA DE JEJUM'),
+            ('EXM-HOMA-IR', 'HOMA IR'),
+            ('EXM-HBA1C', 'HBA1C'),
+            ('EXM-TOTG-2H', 'TOTG 2H'),
+            ('EXM-COLESTEROL-TOTAL', 'COLESTEROL TOTAL'),
+            ('EXM-HDL-COLESTEROL', 'HDL COLESTEROL'),
+            ('EXM-LDL-COLESTEROL', 'LDL COLESTEROL'),
+            ('EXM-TRIGLICERIDEOS', 'TRIGLICERIDEOS'),
+            ('EXM-FERRO-SERICO', 'FERRO SERICO'),
+            ('EXM-FERRITINA-SERICA', 'FERRITINA SERICA'),
+            ('EXM-SATURACAO-DE-TRANSFERRINA', 'SATURACAO DE TRANSFERRINA'),
+            ('EXM-TIBC', 'TIBC'),
+            ('EXM-B12-SERICA', 'B12 SERICA'),
+            ('EXM-ACIDO-METILMALONICO', 'ACIDO METILMALONICO'),
+            ('EXM-HOMOCISTEINA-SERICA', 'HOMOCISTEINA SERICA')
+        ]
+        cursor.executemany("INSERT OR IGNORE INTO Exames_Catalogo (id_exame, nome_amigavel) VALUES (?, ?)", exames_basicos)
+
+    cursor.execute('''
+        INSERT INTO Regras_Complementares (exame_gatilho, exame_sugerido)
+        SELECT 'EXM-GLICEMIA-DE-JEJUM', 'EXM-HOMA-IR'
+        WHERE NOT EXISTS (SELECT 1 FROM Regras_Complementares WHERE exame_gatilho = 'EXM-GLICEMIA-DE-JEJUM')
+    ''')
+
 
 class AppClinica(ctk.CTk):
     def __init__(self):
@@ -66,7 +205,7 @@ class AppClinica(ctk.CTk):
         self.configurar_banco_dados()
 
         # Mapa Nutricional: usa o mesmo banco da tela Pacientes (get_base_path) para unificar os dados.
-        db_mapa = os.path.join(get_base_path(), 'clinica.db')
+        db_mapa = caminho_do_banco()
         mapa_db.inicializar(db_mapa)
         self.mapa = MapaUI(self, db_mapa, get_base_path())
 
@@ -134,97 +273,27 @@ class AppClinica(ctk.CTk):
         self.mapa.mostrar_suplementos()
 
     def configurar_banco_dados(self):
-        conexao = sqlite3.connect(get_writable_path('clinica.db'))
-        cursor = conexao.cursor()
-        
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Consultas (
-            id_consulta INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_paciente INTEGER,
-            data_consulta TEXT,
-            anamnese TEXT,
-            peso TEXT,
-            altura TEXT,
-            gordura TEXT,
-            conduta TEXT
-        )
-        ''')
-        
-        cursor.execute("PRAGMA table_info(Consultas)")
-        colunas = [col[1] for col in cursor.fetchall()]
-        if 'tmb' not in colunas:
-            cursor.execute("ALTER TABLE Consultas ADD COLUMN tmb TEXT")
-            cursor.execute("ALTER TABLE Consultas ADD COLUMN vet TEXT")
-            cursor.execute("ALTER TABLE Consultas ADD COLUMN naf TEXT")
-            cursor.execute("ALTER TABLE Consultas ADD COLUMN metodo_tmb TEXT")
-        if 'analise_exames' not in colunas:
-            cursor.execute("ALTER TABLE Consultas ADD COLUMN analise_exames TEXT")
-
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Exames_Solicitados (
-            id_solicitacao INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_consulta INTEGER,
-            id_exame TEXT
-        )
-        ''')
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Arquivos_Paciente (
-            id_arquivo INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_paciente INTEGER,
-            nome_arquivo TEXT,
-            caminho_arquivo TEXT,
-            data_upload TEXT
-        )
-        ''')
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Exames_Catalogo (
-            id_exame TEXT PRIMARY KEY,
-            nome_amigavel TEXT
-        )
-        ''')
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Regras_Complementares (
-            id_regra INTEGER PRIMARY KEY AUTOINCREMENT,
-            exame_gatilho TEXT,
-            exame_sugerido TEXT
-        )
-        ''')
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Resultados_Exames (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_consulta INTEGER,
-            id_exame TEXT,
-            valor REAL,
-            status TEXT
-        )
-        ''')
-
-        cursor.execute("SELECT COUNT(*) FROM Exames_Catalogo")
-        if cursor.fetchone()[0] == 0:
-            exames_basicos = [
-                ('EXM-GLICEMIA-DE-JEJUM', 'GLICEMIA DE JEJUM'),
-                ('EXM-HOMA-IR', 'HOMA IR'),
-                ('EXM-HBA1C', 'HBA1C'),
-                ('EXM-TOTG-2H', 'TOTG 2H'),
-                ('EXM-COLESTEROL-TOTAL', 'COLESTEROL TOTAL'),
-                ('EXM-HDL-COLESTEROL', 'HDL COLESTEROL'),
-                ('EXM-LDL-COLESTEROL', 'LDL COLESTEROL'),
-                ('EXM-TRIGLICERIDEOS', 'TRIGLICERIDEOS'),
-                ('EXM-FERRO-SERICO', 'FERRO SERICO'),
-                ('EXM-FERRITINA-SERICA', 'FERRITINA SERICA'),
-                ('EXM-SATURACAO-DE-TRANSFERRINA', 'SATURACAO DE TRANSFERRINA'),
-                ('EXM-TIBC', 'TIBC'),
-                ('EXM-B12-SERICA', 'B12 SERICA'),
-                ('EXM-ACIDO-METILMALONICO', 'ACIDO METILMALONICO'),
-                ('EXM-HOMOCISTEINA-SERICA', 'HOMOCISTEINA SERICA')
-            ]
-            cursor.executemany("INSERT OR IGNORE INTO Exames_Catalogo (id_exame, nome_amigavel) VALUES (?, ?)", exames_basicos)
-        
-        cursor.execute('''
-            INSERT INTO Regras_Complementares (exame_gatilho, exame_sugerido)
-            SELECT 'EXM-GLICEMIA-DE-JEJUM', 'EXM-HOMA-IR'
-            WHERE NOT EXISTS (SELECT 1 FROM Regras_Complementares WHERE exame_gatilho = 'EXM-GLICEMIA-DE-JEJUM')
-        ''')
+        caminho = caminho_do_banco()
+        interno = banco_interno_com_dados(caminho)
+        if interno:
+            messagebox.showwarning(
+                "Dois bancos de dados encontrados",
+                f"Este programa agora usa SOMENTE este banco:\n{caminho}\n\n"
+                f"Mas existe outro banco COM PACIENTES em:\n{interno}\n\n"
+                "Nada foi apagado nem copiado. Se você usava o programa antes desta atualização, seus dados podem estar "
+                "nesse outro arquivo. NÃO apague nenhum dos dois: faça uma cópia de ambos e consulte "
+                "docs/desenvolvimento/GUIA_DESENVOLVIMENTO_WINDOWS.md (seção 6) antes de registrar novos pacientes.")
+        # Controle de versão do esquema (ADR-0001). Em banco NOVO a baseline cria o esquema legado numa transação; em banco
+        # legado já existente apenas ADOTA a baseline (nenhuma tabela é alterada) depois de um backup verificado em backups/.
+        try:
+            db_migracoes.aplicar_migracoes(caminho, inicializador_legado=garantir_esquema_legado)
+        except Exception as erro:
+            messagebox.showwarning(
+                "Banco de dados",
+                "Não foi possível registrar a versão do banco de dados (nenhuma alteração foi feita nos seus dados).\n\n"
+                f"Detalhe técnico: {erro}")
+        conexao = sqlite3.connect(caminho)
+        garantir_esquema_legado(conexao)
         conexao.commit()
         conexao.close()
 
@@ -335,7 +404,7 @@ class AppClinica(ctk.CTk):
         if nome.strip() == "":
             self.lbl_mensagem.configure(text="Erro: O nome é obrigatório.", text_color="#c62828")
             return
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute('INSERT INTO Pacientes (nome, data_nascimento, sexo) VALUES (?, ?, ?)', (nome, nasc, sexo))
         conexao.commit()
@@ -348,7 +417,7 @@ class AppClinica(ctk.CTk):
     def carregar_tabela_pacientes(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute("SELECT id_paciente, nome, data_nascimento, sexo FROM Pacientes")
         linhas = cursor.fetchall()
@@ -376,7 +445,7 @@ class AppClinica(ctk.CTk):
         if not confirmar:
             return
 
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute("DELETE FROM Pacientes WHERE id_paciente = ?", (id_paciente,))
         conexao.commit()
@@ -413,7 +482,7 @@ class AppClinica(ctk.CTk):
         scroll_hist = ctk.CTkScrollableFrame(aba_hist, fg_color="transparent")
         scroll_hist.pack(fill="both", expand=True, padx=10, pady=10)
 
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute('''
             SELECT id_consulta, data_consulta, anamnese, peso, altura, gordura, conduta, tmb, vet, naf, metodo_tmb, analise_exames
@@ -512,7 +581,7 @@ class AppClinica(ctk.CTk):
             # 2) Conexão única para ler analise_exames (fallback), exames
             #    solicitados (fonte da verdade) e resultados.
             # ------------------------------------------------------------------
-            conexao_pdf = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+            conexao_pdf = sqlite3.connect(caminho_do_banco())
             cursor_pdf = conexao_pdf.cursor()
 
             if not analise_exames:
@@ -751,14 +820,14 @@ class AppClinica(ctk.CTk):
     def anexar_arquivo_paciente(self):
         caminho_origem = filedialog.askopenfilename(title="Selecione o Exame", filetypes=[("Documentos e Imagens", "*.pdf *.png *.jpg *.jpeg *.doc *.docx")])
         if not caminho_origem: return
-        base_dir = get_base_path()
-        pasta_paciente = os.path.join(base_dir, "arquivos_pacientes", f"paciente_{self.paciente_atual_id}")
+        base_dir = get_writable_path("arquivos_pacientes")
+        pasta_paciente = os.path.join(base_dir, f"paciente_{self.paciente_atual_id}")
         os.makedirs(pasta_paciente, exist_ok=True)
         nome_arquivo = os.path.basename(caminho_origem)
         caminho_destino = os.path.join(pasta_paciente, nome_arquivo)
         try:
             shutil.copy2(caminho_origem, caminho_destino)
-            conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+            conexao = sqlite3.connect(caminho_do_banco())
             cursor = conexao.cursor()
             cursor.execute('INSERT INTO Arquivos_Paciente (id_paciente, nome_arquivo, caminho_arquivo, data_upload) VALUES (?, ?, ?, ?)', 
                            (self.paciente_atual_id, nome_arquivo, caminho_destino, datetime.now().strftime("%d/%m/%Y %H:%M")))
@@ -770,7 +839,7 @@ class AppClinica(ctk.CTk):
 
     def carregar_lista_arquivos(self):
         for widget in self.scroll_arquivos.winfo_children(): widget.destroy()
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute('SELECT nome_arquivo, caminho_arquivo, data_upload FROM Arquivos_Paciente WHERE id_paciente = ? ORDER BY id_arquivo DESC', (self.paciente_atual_id,))
         arquivos = cursor.fetchall()
@@ -806,7 +875,7 @@ class AppClinica(ctk.CTk):
         self.paciente_atual_nasc = ""
         self.paciente_atual_sexo = ""
         try:
-            conexao_pac = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+            conexao_pac = sqlite3.connect(caminho_do_banco())
             cursor_pac = conexao_pac.cursor()
             cursor_pac.execute('SELECT data_nascimento, sexo FROM Pacientes WHERE id_paciente = ?', (self.paciente_atual_id,))
             linha_pac = cursor_pac.fetchone()
@@ -873,7 +942,7 @@ class AppClinica(ctk.CTk):
         frame_exames = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_exames.pack(fill="x", padx=20, pady=5)
 
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute("SELECT id_exame, nome_amigavel FROM Exames_Catalogo")
         self.catalogo_exames_dict = {f"{linha[1]} ({linha[0]})": linha[0] for linha in cursor.fetchall()}
@@ -1393,7 +1462,7 @@ class AppClinica(ctk.CTk):
         self._frame_indices.pack(fill="x", pady=(0, 8))
 
         # Cache id_exame -> nome_amigavel para reusar labels
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute("SELECT id_exame, nome_amigavel FROM Exames_Catalogo")
         mapa_nomes = {row[0]: row[1] for row in cursor.fetchall()}
@@ -1562,7 +1631,7 @@ class AppClinica(ctk.CTk):
         self.verificar_regras_inteligentes(id_exame)
 
     def verificar_regras_inteligentes(self, id_gatilho):
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute('''SELECT E.id_exame, E.nome_amigavel FROM Regras_Complementares R
                           JOIN Exames_Catalogo E ON R.exame_sugerido = E.id_exame
@@ -1719,7 +1788,7 @@ class AppClinica(ctk.CTk):
         analise_exames = self.txt_analise_exames.get("1.0", "end-1c")
 
         data_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute('''
             INSERT INTO Consultas (id_paciente, data_consulta, anamnese, peso, altura, gordura, conduta, tmb, vet, naf, metodo_tmb, analise_exames)
@@ -1799,7 +1868,7 @@ class AppClinica(ctk.CTk):
         frame_regras = ctk.CTkFrame(aba_regras, fg_color="transparent")
         frame_regras.pack(pady=20)
         
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute("SELECT id_exame, nome_amigavel FROM Exames_Catalogo ORDER BY nome_amigavel")
         exames_banco = cursor.fetchall()
@@ -1825,7 +1894,7 @@ class AppClinica(ctk.CTk):
     def carregar_tabela_exames(self):
         for item in self.tree_exames.get_children():
             self.tree_exames.delete(item)
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute("SELECT id_exame, nome_amigavel FROM Exames_Catalogo ORDER BY nome_amigavel")
         linhas = cursor.fetchall()
@@ -1842,7 +1911,7 @@ class AppClinica(ctk.CTk):
             return
             
         try:
-            conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+            conexao = sqlite3.connect(caminho_do_banco())
             cursor = conexao.cursor()
             cursor.execute("INSERT INTO Exames_Catalogo (id_exame, nome_amigavel) VALUES (?, ?)", (id_exame, nome))
             conexao.commit()
@@ -1870,7 +1939,7 @@ class AppClinica(ctk.CTk):
             self.lbl_msg_regra.configure(text="Erro: O gatilho e a sugestão não podem ser o mesmo exame.", text_color="#c62828")
             return
             
-        conexao = sqlite3.connect(os.path.join(get_base_path(), 'clinica.db'))
+        conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         
         # Verifica se a regra já existe
