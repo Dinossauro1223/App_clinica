@@ -1,7 +1,7 @@
 # NutriLab — integração desktop ⇄ mobile e APK
 
 Entregue em **12/11/2026** (terceira entrega do mobile no dia). **Substitui a seção 9 de `INTEGRACAO_MOBILE.md`** ("Integração com o desktop, próximo chat").
-Depende do servidor mobile da entrega anterior (`mobile/servidor.py`, pacote "Att 12.11.26 Mobile 2").
+Precisa do servidor mobile atualizado (`mobile/servidor.py` da versão 2, que vem junto no pacote "Att 14.11.26 Mobile Completo"). Com o servidor da primeira versão a tela avisa que está desatualizado.
 
 ## 1. Como o desktop conversa com o mobile
 
@@ -54,13 +54,13 @@ Nenhuma tabela existente foi alterada; `mapa_db.py` não foi tocado. Setores e l
 `Gerar_APK.bat` gera `saida\NutriLab-Mobile.apk`: uma casca Android (WebView, minSdk 26) que pede o endereço do servidor na primeira vez e abre a página servida pelo computador.
 Sem Gradle nem Android Studio: baixa o JDK 17 e as ferramentas do Android para `%LOCALAPPDATA%\NutriLabApk` (uma vez, ~600 MB) e monta o APK com `aapt2`, `javac`, `d8`, `zipalign` e `apksigner`.
 A chave de assinatura fica nessa mesma pasta (atualizações instalam por cima). Ao final oferece servir o APK pelo Wi-Fi (`servir_apk.py`, porta 8000) para baixar no celular. Detalhes: `mobile/apk/LEIA-ME.txt`.
-A tela do app é a do servidor; mudar o visual **não** exige gerar o APK de novo.
+A tela do app é a do servidor; mudar o visual **não** exige gerar o APK de novo. Caminho do projeto com acento (como `C:\Users\fulano nutrição`): o `aapt2` do Android não abre pastas com acento, então o gerador compila numa pasta de trabalho sem acento (a pasta das ferramentas usa o caminho curto do perfil) e devolve o APK para `saida\`.
 
 ## 7. Limites
 
 Desktop e servidor precisam estar no mesmo computador (para outro computador seria preciso um modo HTTP). Rodando como programa empacotado (PyInstaller) a pasta `mobile` precisa ir junto; pelo código-fonte funciona direto.
 Não feito: tela de estoque/refeições dentro do desktop (os dados já chegam nas tabelas `Mobile_*`), decisão de correções de refeição/estoque pelo desktop, notificação com o app do celular fechado.
-O APK não foi compilado nem instalado em aparelho aqui (sem Windows/Android no ambiente de desenvolvimento): o primeiro teste real é o seu, e o registro do `.bat` (`gerar_apk_log.txt`) mostra qualquer falha.
+O APK ainda não foi confirmado em aparelho: o primeiro teste real (14/11/2026) parou no `aapt2` por causa do acento no caminho do usuário, o que foi corrigido; o registro do `.bat` (`gerar_apk_log.txt`) mostra qualquer falha nova.
 
 ## 8. Commits (todos com o dia na mensagem)
 
