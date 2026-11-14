@@ -66,19 +66,26 @@ def _servidor():
         from mobile import servidor
     except ImportError as e:
         raise ErroMobile("Não encontrei o servidor do mobile (pasta 'mobile'). Aplique antes o pacote "
-                         "'Att 12.11.26 Mobile 2'.") from e
+                         "'Att 14.11.26 Mobile Completo'.") from e
     return servidor
 
 
 def _abrir_mobile(mobile_db):
     sv = _servidor()
+    if not all(hasattr(sv, n) for n in ("migrar", "publicar", "decidir", "linhas_mapa", "exportar")):
+        raise ErroMobile("O servidor mobile instalado é de uma versão antiga e não serve para esta integração.\n"
+                         "Aplique o pacote 'Att 14.11.26 Mobile Completo', que atualiza o servidor.")
     if not os.path.exists(mobile_db):
         raise ErroMobile("O banco do mobile ainda não existe:\n%s\nLigue o servidor uma vez (mobile\\iniciar_servidor.bat)." % mobile_db)
     c = sv.conectar(mobile_db)
-    c.execute("PRAGMA busy_timeout=15000")
-    c.executescript(sv.ESQUEMA)  # bancos criados pela primeira versão do mobile
-    sv.migrar(c)
-    c.commit()
+    try:
+        c.execute("PRAGMA busy_timeout=15000")
+        c.executescript(sv.ESQUEMA)  # bancos criados pela primeira versão do mobile
+        sv.migrar(c)
+        c.commit()
+    except Exception:
+        c.close()  # no Windows, conexão esquecida aberta trava o arquivo
+        raise
     return sv, c
 
 

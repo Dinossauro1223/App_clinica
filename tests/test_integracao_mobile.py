@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Testes da integração desktop <-> mobile (criado em 12/11/2026). Dados sintéticos; sem interface gráfica real."""
 import os
+import shutil
 import sys
 import tempfile
+import types
 import unittest
 from contextlib import closing
 from datetime import date
@@ -17,6 +19,8 @@ try:
     from mobile import servidor as sv
 except ImportError:  # pacote do mobile ainda não instalado: os testes que dependem do servidor são pulados
     sv = None
+# servidor da versão 2 em diante (a primeira versão não tem publicar/migrar e não serve para a integração)
+SERVIDOR_OK = sv is not None and all(hasattr(sv, n) for n in ("migrar", "publicar", "decidir", "linhas_mapa"))
 
 DIA = "2026-11-12"
 
@@ -35,11 +39,18 @@ def exportacao(linhas, correcoes=()):
                             "id_item": 1, "qtd": 2.0, "divergente": 1}]}
 
 
+def _remover(caminho):
+    try:
+        os.remove(caminho)
+    except OSError:  # no Windows o arquivo pode ficar preso por um instante; não vale falhar o teste por isso
+        pass
+
+
 class _Base(unittest.TestCase):
     def setUp(self):
         fd, self.db = tempfile.mkstemp(suffix=".db")
         os.close(fd)
-        self.addCleanup(os.remove, self.db)
+        self.addCleanup(_remover, self.db)
         mdb.inicializar(self.db)
         mdb.criar_setor(self.db, "Clinica A")
         self.sid = next(s["id_setor"] for s in mdb.listar_setores(self.db) if s["nome"] == "Clinica A")
@@ -63,6 +74,13 @@ class TestMapeamento(unittest.TestCase):
         self.assertEqual(im.dieta_para_mobile({"consistencia": "Livre"}), "Geral")
         self.assertEqual(im.dieta_para_mobile({"via": "Enteral", "consistencia": "Branda"}), "Enteral")
         self.assertEqual(im.diagnostico_para_mobile({"dm": 1, "has": 0, "drc": 1}), "DM, DRC")
+
+    def test_servidor_antigo_da_erro_claro(self):
+        antigo = types.SimpleNamespace(ESQUEMA="", conectar=lambda *_: None)  # como o servidor da 1ª versão: sem migrar/publicar
+        with mock.patch.object(im, "_servidor", return_value=antigo):
+            with self.assertRaises(im.ErroMobile) as erro:
+                im.ler_mobile(os.path.join(tempfile.gettempdir(), "qualquer.db"), DIA)
+        self.assertIn("versão antiga", str(erro.exception))
 
 
 class TestReceber(_Base):
@@ -129,13 +147,13 @@ class TestReceber(_Base):
         self.assertEqual((r["estoques"][0]["estoque"], r["estoques"][0]["itens"], r["movimentos"], r["divergentes"]), ("copa", 1, 1, 1))
 
 
-@unittest.skipIf(sv is None, "pacote do mobile (mobile/servidor.py) não instalado")
+@unittest.skipIf(not SERVIDOR_OK, "servidor mobile atualizado (pacote Mobile Completo) não instalado")
 class TestComServidor(_Base):
     def setUp(self):
         super().setUp()
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.mdb = os.path.join(tmp.name, "mobile.db")
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        self.mdb = os.path.join(tmp, "mobile.db")
         sv.preparar_banco(self.mdb)
         self.salvar("A01", nome_paciente="Maria Teste", idade_anos=70, consistencia="Branda", dm=1, obs_sim="fruta")
 
@@ -226,11 +244,11 @@ class TestTela(_Base):
         ui.mostrar()
         self.assertTrue(ui.mobile_db.endswith(os.path.join("mobile", "dados", "mobile.db")))
 
-    @unittest.skipIf(sv is None, "pacote do mobile (mobile/servidor.py) não instalado")
+    @unittest.skipIf(not SERVIDOR_OK, "servidor mobile atualizado (pacote Mobile Completo) não instalado")
     def test_tela_confere_e_aplica(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        mob = os.path.join(tmp.name, "mobile.db")
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        mob = os.path.join(tmp, "mobile.db")
         sv.preparar_banco(mob)
         c = sv.conectar(mob)
         sid = sv.criar_setor(c, {"nome": "Clinica A", "prefixo": "A", "inicio": 1, "fim": 4})["id"]
