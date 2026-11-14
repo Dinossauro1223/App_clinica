@@ -1,0 +1,365 @@
+Relatório de fórmulas e estimativas antropométricas em nutrição clínica
+NutriLab (app_clinica) · levantamento para o Mapa Nutricional e para os módulos de cálculo · 25/10/2026 · versão 1, para revisão do nutricionista responsável
+1. Resumo
+Este relatório reúne as fórmulas de estimativa (estatura, peso, composição corporal, gasto energético e índices de risco) encontradas em artigos, protocolos de hospitais universitários brasileiros e documentos oficiais. Cada fórmula vem com autor, ano, população de origem e limitações, organizada por ciclo de vida. São ferramentas de apoio à decisão: não substituem a medida direta nem o julgamento clínico.
+Principais pontos:
+• Base para o Mapa (Sexo, Cor, AJ, PP, PB). As equações de Chumlea et al. usam exatamente essas variáveis: peso estimado por AJ + CB (PB), por sexo, cor (branca/negra) e faixa etária (6–18, 19–59 e 60–80 anos); estatura por AJ (6–18 e 18–60 anos, Chumlea 1994) e, a partir dos 60 anos, Chumlea 1985 (só sexo) ou Chumlea 1998/NHANES III (sexo + cor). Um protocolo recente de hospital universitário da rede EBSERH usa esse mesmo conjunto.
+• A PP (panturrilha) não entra nessas equações. Ela serve como indicador de massa muscular: ≤ 33 cm (mulheres) e ≤ 34 cm (homens) sugerem perda muscular; a OMS (1995) usa < 31 cm.
+• “Densidade muscular a partir do perímetro do pulso”. Não encontrei fórmula validada com essa finalidade. O punho é usado para estimar compleição óssea (r = estatura ÷ perímetro do punho); a massa muscular é estimada por outras medidas (seção 8). Preciso que você confirme o que o setor quer calcular aqui.
+• Validade. As equações de Chumlea nasceram em populações norte-americanas. Em lares de idosos de Natal (RN), nenhuma das 23 equações de estatura testadas foi aplicável a mulheres idosas nem a pessoas com 70 anos ou mais; nesses casos a recomendação dos autores é não estimar a estatura e usar perímetros e dobras (Lima et al., 2018). Para o peso, os estudos brasileiros divergem sobre qual equação erra menos (seção 5.6).
+• Fica para a próxima etapa: tabelas OMS de IMC por idade (crianças e adolescentes), tabela de Atalah (gestantes) e coeficientes que não consegui reconfirmar (marcados “conferir”).
+2. Como ler este relatório
+Abreviações. AJ = altura do joelho (cm); CB = circunferência (perímetro) do braço, “PB” no Mapa (cm); CP = circunferência da panturrilha, “PP” no Mapa (cm); CA = circunferência abdominal (cm); DCT = dobra cutânea tricipital (mm); DCSE = dobra cutânea subescapular (mm); I = idade em anos; E/2 = meia envergadura (cm); UL = comprimento da ulna (cm); CT = comprimento da tíbia (cm); S = sexo; P = peso (kg); E = estatura (cm, salvo indicação).
+Decimais. Uso vírgula nos números deste texto; no programa, os campos aceitam vírgula ou ponto.
+Status de verificação. [verificada] = reconferi os coeficientes em pelo menos uma fonte consultada nesta pesquisa (artigo, resumo do original ou protocolo institucional). [conferir] = fórmula consagrada cujos coeficientes vêm do meu conhecimento prévio e que não consegui reconfirmar agora; confira na fonte original antes de implementar ou citar.
+Principais fontes de conferência. Lima et al. (PLoS ONE, 2018) e Lima et al. (Rev Bras Epidemiol, 2016), ambos com idosos de Natal; Silva et al. (Geriatr Gerontol Aging, 2018); Demetra (2019); BRASPEN J (2022); POP.EMTN.002 do HU-UFGD/EBSERH (2024); resumos dos originais de Chumlea (1994), Stevenson (1995), Gauld (2004) e Lee (2000). A lista completa está na seção 13.
+3. Medidas: técnica resumida
+Resumo de Lohman et al. (1988) e do POP.EMTN.002 (2024). Medidas feitas no leito têm erro maior do que em pé; sempre registrar se o valor é medido ou estimado.
+• AJ. Paciente em decúbito dorsal ou sentado, joelho e tornozelo a 90°. Régua ou paquímetro com a parte fixa sob o calcanhar e a móvel na face anterior da coxa, sobre os côndilos do fêmur (um pouco acima da patela). Perna esquerda, em duplicata, ao 0,1 cm.
+• CB (PB). Braço fletido a 90°; marcar o ponto médio entre o acrômio e o olécrano; com o braço estendido ao longo do corpo, contornar com fita inelástica, sem comprimir.
+• CP (PP). Perna a 90°; maior perímetro da panturrilha.
+• Meia envergadura. Do esterno à ponta do dedo médio, braço estendido na altura do ombro, sem flexionar o cotovelo; envergadura = 2 × meia envergadura.
+• Ulna. Do olécrano ao processo estiloide, antebraço sobre o peito.
+• Punho. Menor perímetro, logo acima do processo estiloide.
+• Comprimento recumbente. Decúbito dorsal com o leito totalmente horizontal; marcar o lençol no topo da cabeça e na planta dos pés e medir a distância com fita inelástica.
+4. Estimativa da estatura por ciclo de vida
+4.1 Lactentes e pré-escolares (menores de 6 anos)
+Nas fontes consultadas não há equação de AJ de uso geral para menores de 6 anos. O recomendado é o comprimento recumbente (infantômetro ou régua). Em crianças com paralisia cerebral (PC), usam-se segmentos corporais:
+Stevenson (1995), crianças com PC de 0 a 12 anos [verificada]
+• AJ: Estatura (cm) = (2,69 × AJ) + 24,2 (erro-padrão 1,1 cm)
+• Comprimento da tíbia: Estatura = (3,26 × CT) + 30,8 (erro-padrão 1,4 cm)
+• Comprimento do braço (úmero): Estatura = (4,35 × comprimento do braço) + 21,8 (erro-padrão 1,7 cm)
+• Origem em crianças com PC; em crianças sem PC, use com cautela. Para desenvolvimento típico, Kihara propõe: Estatura = (3,25 × CT) + 34,45 [verificada em estudo que a cita].
+4.2 Crianças e adolescentes (6 a 18 anos)
+Chumlea, Guo e Steinbaugh (1994), AJ, por sexo e cor [verificada]
+• Meninos brancos: Estatura = 40,54 + (2,22 × AJ) (erro-padrão 4,21 cm)
+• Meninos negros: Estatura = 39,60 + (2,18 × AJ)
+• Meninas brancas: Estatura = 43,21 + (2,15 × AJ) (erro-padrão 3,90 cm)
+• Meninas negras: Estatura = 46,59 + (2,02 × AJ)
+• Derivadas em crianças típicas (amostras nacionais dos EUA, 1960–70) e aplicadas a crianças com limitação de mobilidade.
+Gauld et al. (2004), comprimento da ulna, 5 a 19 anos [verificada]
+• Meninos: Estatura = (4,605 × UL) + (1,308 × I) + 28,003 (R² = 0,96)
+• Meninas: Estatura = (4,459 × UL) + (1,315 × I) + 31,485 (R² = 0,94)
+• Amostra: 2.343 escolares australianos sem deficiência; reprodutibilidade alta (variação intra-observador 0,41%).
+AJ ou tíbia + idade (≥ 7 anos), atribuídas a Gauld et al. (2004) em uma revisão italiana sobre PC [conferir]
+• Meninos: Estatura = (2,423 × AJ) + (1,327 × I) + 21,818; ou (2,758 × CT) + (1,717 × I) + 36,509
+• Meninas: Estatura = (2,473 × AJ) + (1,187 × I) + 21,151; ou (2,771 × CT) + (1,457 × I) + 37,748
+As equações de Stevenson (4.1) também valem de 6 a 12 anos em crianças com PC.
+4.3 Adultos (18/19 a 59 anos)
+Chumlea, Guo e Steinbaugh (1994), AJ, por sexo e cor [verificada]
+• Homens brancos: Estatura = 71,85 + (1,88 × AJ)
+• Homens negros: Estatura = 73,42 + (1,79 × AJ)
+• Mulheres brancas: Estatura = 70,25 + (1,87 × AJ) − (0,06 × I)
+• Mulheres negras: Estatura = 68,10 + (1,86 × AJ) − (0,06 × I)
+Comprimento da ulna, tabela MUST (Elia, 2003; Madden et al., 2012) [verificada para menores de 65 anos]
+• Homens: Estatura = 79,2 + (3,60 × UL)
+• Mulheres: Estatura = 95,6 + (2,77 × UL)
+• Para 65 anos ou mais, a MUST usa outra tabela (BAPEN), que não reproduzi aqui.
+Meia envergadura [verificada]
+• Kwok e Whitelaw (1991): Estatura = 2 × E/2
+• OMS (manual de desnutrição grave, 1999): Estatura (m) = 0,73 × (2 × E/2, em m) + 0,43
+• Bassey (1986), demi-span, desenvolvida para estimar a estatura máxima de adultos jovens e não a estatura atual de idosos [conferir os coeficientes: homens 57,8 + 1,40 × demi-span; mulheres 60,1 + 1,35 × demi-span]
+Rabito et al. (2006/2008), pacientes hospitalizados brasileiros [verificada]
+• Rabito I: Estatura = 58,694 − (2,974 × S) − (0,0736 × I) + (0,4958 × CB) + (1,132 × E/2)
+• Rabito II: Estatura = 63,525 − (3,237 × S) − (0,06904 × I) + (1,293 × E/2)
+• S: 1 = masculino; 2 = feminino. Exigem meia envergadura, que muitos pacientes acamados não conseguem manter.
+4.4 Idosos (60 anos ou mais)
+Chumlea, Roche e Steinbaugh (1985), 60 a 90 anos, sem distinção de cor [verificada]
+• Homens: Estatura = 64,19 − (0,04 × I) + (2,02 × AJ)
+• Mulheres: Estatura = 84,88 − (0,24 × I) + (1,83 × AJ)
+• Atenção: um protocolo institucional de 2024 imprime 2,04 para homens, provável erro de digitação; o original é 2,02.
+Chumlea e Guo (1992), brancos e negros idosos [verificada]
+• Homens brancos: Estatura = 59,01 + (2,08 × AJ)
+• Homens negros: Estatura = 95,79 + (1,37 × AJ)
+• Mulheres brancas: Estatura = 75,00 + (1,91 × AJ) − (0,17 × I)
+• Mulheres negras: Estatura = 58,72 + (1,96 × AJ)
+Chumlea et al. (1998), NHANES III, 60 anos ou mais [verificada]
+• Brancos não hispânicos: homens 78,31 + (1,94 × AJ) − (0,14 × I), R² 0,68; mulheres 82,21 + (1,85 × AJ) − (0,21 × I), R² 0,63
+• Negros não hispânicos: homens 79,69 + (1,85 × AJ) − (0,14 × I), R² 0,69; mulheres 89,58 + (1,61 × AJ) − (0,17 × I), R² 0,57
+• Mexicano-americanos: homens 82,77 + (1,83 × AJ) − (0,16 × I), R² 0,61; mulheres 84,25 + (1,82 × AJ) − (0,26 × I), R² 0,58
+Bermúdez et al. (1999), idosos hispânicos nos EUA [verificada]
+• Hispânicos, só AJ: mulheres 59,29 + (1,92 × AJ); homens 70,28 + (1,81 × AJ)
+• Hispânicos, AJ + idade: mulheres 68,68 + (1,90 × AJ) − (0,123 × I); homens 76,02 + (1,79 × AJ) − (0,07 × I)
+• Porto-riquenhos, só AJ: mulheres 55,98 + (1,99 × AJ); homens 53,42 + (2,13 × AJ)
+• Porto-riquenhos, AJ + idade: mulheres 66,80 + (1,94 × AJ) − (0,123 × I); homens 52,95 + (2,13 × AJ) − (0,006 × I)
+Palloni e Guend (2005), estudo SABE, sete cidades da América Latina [verificada]
+• Só AJ: mulheres 94,0667 + (1,2110 × AJ); homens 98,1691 + (1,2948 × AJ)
+• AJ + idade: mulheres 106,0251 + (1,1914 × AJ) − (0,1539 × I); homens 105,9638 + (1,2867 × AJ) − (0,1030 × I)
+Lera et al. (2005), SABE, São Paulo, Santiago e Cidade do México [verificada]
+• São Paulo: mulheres 69,87 + (1,85 × AJ) − (0,11 × I); homens 67,20 + (1,96 × AJ) − (0,08 × I)
+• Santiago: mulheres 75,17 + (1,78 × AJ) − (0,10 × I); homens 64,88 + (2,09 × AJ) − (0,10 × I)
+• Cidade do México (ambos os sexos): 63,88 + (1,99 × AJ) − (0,06 × I)
+Silveira et al. (1994), pacientes hospitalizados no Brasil [verificada]
+• Homens: Estatura = 72,803 + (1,830 × AJ)
+• Mulheres: Estatura = 51,875 + (2,184 × AJ)
+• Superestimou a estatura de idosos em mais de 5 cm nos dois estudos brasileiros que a testaram.
+Rabito I e II e meia envergadura (OMS, 1999) valem também para idosos; ver 4.3.
+4.5 O que a evidência brasileira recente mostra
+• Lima et al. (2018), lares de idosos de Natal, n = 168, 23 equações. A de Bermúdez e Tucker (porto-riquenhos, AJ + idade) foi a mais aplicável no conjunto, nos homens (ICC 0,838) e entre 60 e 69 anos (ICC 0,895). Nenhuma equação foi aplicável a mulheres idosas nem a pessoas com 70 anos ou mais. Conclusão dos autores: sem equação validada, é preferível não estimar a estatura e usar perímetros e dobras.
+• Silva et al. (2018), idosos de ambulatório em Lagarto (SE), n = 63. A equação de Rabito com CB e meia envergadura teve a menor diferença média (0,16 cm); a de Palloni e Guend só com AJ também ficou próxima (cerca de 2 cm); Chumlea 1985 superestimou a estatura em cerca de 5 cm.
+• Demetra (2019), adultos e idosos hospitalizados. Em adultos, as equações de Chumlea tiveram a melhor concordância (ICC 0,95 para peso e 0,88 para estatura); em idosos, a estatura por Rabito e o peso por Chumlea foram os mais adequados.
+• Melo et al. (2014), adultos hospitalizados, n = 142. Só a estatura estimada por AJ nos homens não diferiu da medida.
+• Perda de estatura. A estatura diminui cerca de 1,0 a 2,5 cm por década depois dos 40 anos; a AJ é pouco afetada porque depende de ossos longos.
+4.6 Sugestão de uso inicial no programa
+• 6 a 18 anos: Chumlea 1994 (AJ, sexo, cor). Menores de 6 anos: não estimar; registrar comprimento medido.
+• 19 a 59 anos: Chumlea 1994 (AJ, sexo, cor, idade para mulheres). Alternativas: meia envergadura (OMS) e ulna (MUST).
+• 60 anos ou mais: Chumlea 1985 como padrão, por ser o mais difundido no país, com a opção de trocar por Chumlea 1998 (sexo + cor). Mostrar sempre o aviso de precisão reduzida (mulheres e ≥ 70 anos) e marcar a estatura como “estimada”.
+• O programa deve gravar, junto do valor, o nome da equação usada, para auditoria.
+5. Estimativa do peso por ciclo de vida
+Sempre que possível, pesar (balança, cama-balança ou guincho). Estimar só quando a pesagem for impossível e registrar o valor como “estimado”.
+5.1 Crianças e adolescentes (6 a 18 anos): Chumlea, AJ + CB [verificada]
+• Meninos brancos: P = (0,68 × AJ) + (2,64 × CB) − 50,08
+• Meninos negros: P = (0,59 × AJ) + (2,73 × CB) − 48,32
+• Meninas brancas: P = (0,77 × AJ) + (2,47 × CB) − 50,16
+• Meninas negras: P = (0,71 × AJ) + (2,59 × CB) − 50,43
+• Tabela reproduzida no POP.EMTN.002 (HU-UFGD, 2024); a citação original varia entre publicações (Chumlea et al., 1988, 1994 ou 1998).
+5.2 Adultos e idosos: Chumlea, AJ + CB, por sexo, cor e faixa etária [verificada]
+Homens
+• Brancos, 19 a 59 anos: P = (1,19 × AJ) + (3,21 × CB) − 86,82
+• Negros, 19 a 59 anos: P = (1,09 × AJ) + (3,14 × CB) − 83,72
+• Brancos, 60 a 80 anos: P = (1,10 × AJ) + (3,07 × CB) − 75,81
+• Negros, 60 a 80 anos: P = (0,44 × AJ) + (2,86 × CB) − 39,21
+Mulheres
+• Brancas, 19 a 59 anos: P = (1,01 × AJ) + (2,81 × CB) − 66,04
+• Negras, 19 a 59 anos: P = (1,24 × AJ) + (2,97 × CB) − 82,48
+• Brancas, 60 a 80 anos: P = (1,09 × AJ) + (2,68 × CB) − 65,51
+• Negras, 60 a 80 anos: P = (1,50 × AJ) + (2,58 × CB) − 84,22
+Observações: a faixa validada pelos autores é até 80 anos; acima disso, usar com cautela. A fonte aparece na literatura brasileira como Chumlea, Roche e Mukherjee (1987, Ross), Chumlea et al. (1988) ou Chumlea e Guo (1994). Uma apostila traz “60,04” no lugar de 66,04 para mulheres brancas de 19 a 59 anos: é erro de digitação.
+5.3 Chumlea et al. (1988), por sexo, em idosos brancos de 65 a 104 anos [verificada]
+Aqui a panturrilha (PP) entra na equação. A Eq. 1 só precisa de CB e CP, duas medidas que o Mapa já coleta.
+• Eq. 1 (CB + CP): mulheres P = (1,63 × CB) + (1,43 × CP) − 37,46; homens P = (2,31 × CB) + (1,50 × CP) − 50,10
+• Eq. 2 (CB + CP + DCSE): mulheres P = (0,92 × CB) + (1,50 × CP) + (0,42 × DCSE) − 26,19; homens P = (1,92 × CB) + (1,44 × CP) + (0,26 × DCSE) − 39,97
+• Eq. 3 (CB + CP + DCSE + AJ): mulheres P = (0,98 × CB) + (1,27 × CP) + (0,40 × DCSE) + (0,87 × AJ) − 62,35; homens P = (1,73 × CB) + (0,98 × CP) + (0,37 × DCSE) + (1,16 × AJ) − 81,69
+5.4 Rabito et al. (2006/2008), pacientes hospitalizados brasileiros [verificada]
+• Rabito I: P = (0,5030 × CB) + (0,5634 × CA) + (1,318 × CP) + (0,0339 × DCSE) − 43,156
+• Rabito II: P = (0,4808 × CB) + (0,5646 × CA) + (1,316 × CP) − 42,245
+• Rabito III: P = (0,5759 × CB) + (0,5263 × CA) + (1,2452 × CP) − (4,8689 × S) − 32,9241, com S = 1 (masculino) ou 2 (feminino)
+• Exigem a circunferência abdominal, difícil de medir em acamados. A numeração (I, II, III…) muda de um artigo para outro; cite pelas variáveis usadas.
+5.5 Outras equações recentes para idosos [coeficientes não verificados]
+Guerra et al. (2021, J Hum Nutr Diet 34:841–8), Cattermole et al. (2017, peso pela circunferência do braço em emergência) e Katherina e Sudiarti (2020). Entram na fase 2: preciso dos artigos originais para transcrever os coeficientes sem erro.
+5.6 Qual equação erra menos? Evidência brasileira
+• Lima et al. (2016), lares de idosos de Natal, n = 315. As equações de Chumlea (1988) por sexo subestimaram o peso; a de Rabito (CB + CA + CP) foi a que melhor se ajustou (R² de 0,85, superestimando cerca de 2 kg).
+• Silva et al. (2018), idosos de ambulatório, n = 63. Chumlea (CP, AJ, CB, DCSE) teve a menor diferença média (cerca de 0,7 kg); as de Rabito superestimaram o peso em 5 a 8 kg.
+• Melo et al. (2014), adultos hospitalizados. O melhor desempenho variou conforme o sexo.
+• Demetra (2019). Em adultos, Chumlea teve a melhor concordância; em idosos, Chumlea para peso e Rabito para estatura.
+• Conclusão prática: não há equação universalmente melhor. Vale validar localmente: pesar 30 a 50 pacientes que consigam ser pesados, estimar o peso deles e acompanhar o viés do setor.
+5.7 Peso a partir da idade (pediatria, emergência)
+• APLS (2011) [verificada]: até 12 meses, P = (0,5 × idade em meses) + 4; 1 a 5 anos, P = (2 × idade) + 8; 6 a 12 anos, P = (3 × idade) + 7.
+• Luscombe e Owens (2007): P = (3 × idade em anos) + 7 [conferir a faixa etária].
+• Best Guess (Tinning e Acworth, 2007) [conferir]: menores de 1 ano, P = (idade em meses + 9) ÷ 2; 1 a 5 anos, P = 2 × (idade + 5); 5 a 14 anos, P = 4 × idade.
+• Servem para dose de emergência, não para avaliação nutricional. Erram bastante em crianças desnutridas ou obesas; preferir métodos por comprimento e pesar assim que possível.
+6. Peso de referência e correções do peso
+6.1 Peso ideal ou desejável
+Por IMC de referência (OMS, 1985; OPAS, 2001) [verificada]: PI = IMC ideal × estatura² (m). IMC médio de referência: homens 22 kg/m²; mulheres 20,8 kg/m²; idosos, mulheres 23,5 e homens 25 kg/m². É a prática em protocolo hospitalar brasileiro recente.
+Por estatura [conferir], com “polegadas” = polegadas acima de 60 pol (152,4 cm):
+• Hamwi (1964): homens 48,0 kg + 2,7 kg por polegada; mulheres 45,5 kg + 2,2 kg por polegada
+• Devine (1974): homens 50 kg + 2,3 kg por polegada; mulheres 45,5 kg + 2,3 kg por polegada
+• Robinson (1983): homens 52 kg + 1,9 kg por polegada; mulheres 49 kg + 1,7 kg por polegada
+• Miller (1983): homens 56,2 kg + 1,41 kg por polegada; mulheres 53,1 kg + 1,36 kg por polegada
+• Lorentz (usada no GNRI, seção 11): homens, E − 100 − [(E − 150) ÷ 4]; mulheres, E − 100 − [(E − 150) ÷ 2,5], com E em cm
+• Tabelas Metropolitan Life (1959, 1983), por compleição: não reproduzidas aqui.
+6.2 Peso ajustado [verificada]
+PA = (peso atual − peso ideal) × 0,25 + peso ideal. Usado para calcular necessidades em obesos. O fator 0,25 é convenção; alguns serviços usam até 0,50.
+6.3 Peso habitual, adequação e perda de peso [verificada]
+• Peso habitual: o peso antes de adoecer, referido pelo paciente (Rosa, 2008).
+• Adequação do peso (%) = peso atual ÷ peso ideal × 100. Classificação de Blackburn e Thornton (1979): < 70 desnutrição grave; 70 a 79,9 moderada; 80 a 89,9 leve; 90 a 110 eutrofia; 110 a 120 sobrepeso; > 120 obesidade. (Confirmada para a adequação da CB; para o peso, a mesma tabela é de uso corrente, mas confira.)
+• Perda de peso (%) = (peso habitual − peso atual) ÷ peso habitual × 100.
+• Significado por tempo (Blackburn et al., 1977), perda significativa / grave: 1 semana, 1 a 2% / > 2%; 1 mês, 5% / > 5%; 3 meses, 7,5% / > 7,5%; 6 meses, 10% / > 10%.
+6.4 Peso seco: edema e ascite [verificada]
+• Peso seco = peso atual − peso do edema ou da ascite.
+• Edema (Duarte e Castellani, 2002): + tornozelo, 1 kg; ++ joelho, 3 a 4 kg; +++ raiz da coxa, 5 a 6 kg; ++++ anasarca, 10 a 12 kg.
+• James (1989): ascite leve 2,2 kg, moderada 6,0 kg, grave 14,0 kg; edema periférico leve 1,0 kg, moderado 5,0 kg, grave 10,0 kg.
+• A evidência é fraca: Lamarti e Hickson (2020) mediram peso ascítico de 4,5 a 20 kg (média de 8,7 kg), acima de 14 kg em 11% dos casos. Os valores clássicos podem subestimar; registre qual critério foi usado.
+6.5 Amputados [verificada]
+• Peso corrigido = peso atual × 100 ÷ (100 − % de amputação).
+• Percentuais (Martins e Riella, 2001): mão 0,8%; antebraço 2,3%; braço até o ombro 6,6%; pé 1,7%; perna abaixo do joelho 7,0%; perna acima do joelho 11,0%; perna inteira 18,6%. Em amputações bilaterais, dobrar os percentuais.
+• Peso ideal do amputado: calcular o peso ideal habitual e descontar o percentual do segmento. O protocolo consultado não detalha a conta, e Osterkamp (1995) propõe percentuais um pouco diferentes [conferir].
+7. IMC e classificação por faixa etária
+IMC = peso (kg) ÷ estatura² (m). Quando peso ou estatura são estimados, o IMC herda o erro: o programa deve avisar.
+7.1 Adultos (19 a 59 anos): OMS [verificada]
+< 16,0 magreza grau III; 16,0 a 16,9 magreza grau II; 17,0 a 18,4 magreza grau I; 18,5 a 24,9 eutrofia; 25,0 a 29,9 pré-obesidade (sobrepeso); 30,0 a 34,9 obesidade grau I; 35,0 a 39,9 obesidade grau II; ≥ 40,0 obesidade grau III.
+7.2 Idosos (60 anos ou mais) [verificada]
+• Lipschitz (1994): < 22 baixo peso; 22 a 27 eutrofia; > 27 sobrepeso. É a recomendada pelo Ministério da Saúde na prática clínica e a que o programa já usa.
+• OPAS (2001, estudo SABE): < 23 baixo peso; 23 a 27,9 eutrofia; 28 a 29,9 sobrepeso; ≥ 30 obesidade. Adotada em protocolo hospitalar recente da rede EBSERH.
+• Os valores exatos de corte (22,0 e 27,0) podem ser tratados de modo diferente entre publicações (≤ ou <). O programa deve permitir escolher o critério e registrar qual foi usado.
+7.3 Crianças e adolescentes (0 a 19 anos): escore z do IMC para idade [verificada]
+Referências OMS 2006 (0 a 5 anos) e OMS 2007 (5 a 19 anos); classificação adotada pelo Ministério da Saúde (SISVAN).
+• 0 a menos de 5 anos: z < −3 magreza acentuada; −3 ≤ z < −2 magreza; −2 ≤ z ≤ +1 eutrofia; +1 < z ≤ +2 risco de sobrepeso; +2 < z ≤ +3 sobrepeso; z > +3 obesidade.
+• 5 a 19 anos: z < −3 magreza acentuada; −3 ≤ z < −2 magreza; −2 ≤ z ≤ +1 eutrofia; +1 < z ≤ +2 sobrepeso; +2 < z ≤ +3 obesidade; z > +3 obesidade grave.
+• Método LMS: z = [(IMC ÷ M)^L − 1] ÷ (L × S) quando L ≠ 0; z = ln(IMC ÷ M) ÷ S quando L = 0. L, M e S dependem do sexo e da idade em meses (tabelas da OMS). Para |z| > 3 a OMS aplica um ajuste no software oficial [conferir].
+• Pendência: carregar no programa as tabelas LMS da OMS (0 a 228 meses, por sexo). Enquanto não estiverem carregadas, o Mapa mostra “classificação pediátrica pendente” em vez de chutar um valor.
+7.4 Gestantes [conferir]
+• Estado nutricional pelo IMC por semana gestacional: Atalah et al. (1997), adotada pelo SISVAN. A tabela semana a semana (6ª a 42ª semana) não foi reproduzida nesta versão.
+• Ganho de peso recomendado (IOM, 2009) pelo IMC pré-gestacional: baixo peso 12,5 a 18 kg; adequado 11,5 a 16 kg; sobrepeso 7 a 11,5 kg; obesidade 5 a 9 kg. Taxa no 2º e 3º trimestres: 0,51 (0,44 a 0,58), 0,42 (0,35 a 0,50), 0,28 (0,23 a 0,33) e 0,22 (0,17 a 0,27) kg/semana, respectivamente; 1º trimestre, 0,5 a 2 kg no total.
+• Gestação gemelar (IOM, 2009, provisório): peso normal 16,8 a 24,5 kg; sobrepeso 14,1 a 22,7 kg; obesidade 11,3 a 19,1 kg.
+7.5 Outros indicadores de adiposidade em adultos [conferir]
+• Circunferência da cintura (OMS, 2000): risco aumentado ≥ 94 cm (homens) e ≥ 80 cm (mulheres); muito aumentado ≥ 102 cm e ≥ 88 cm.
+• Relação cintura-quadril (OMS, 2008): risco ≥ 0,90 (homens) e ≥ 0,85 (mulheres).
+• Relação cintura-estatura: ≥ 0,5.
+• Índice de conicidade (Valdez, 1991): C = CC (m) ÷ [0,109 × √(peso ÷ estatura em m)].
+• ABSI (Krakauer e Krakauer, 2012): ABSI = CC (m) ÷ (IMC^(2/3) × estatura(m)^(1/2)).
+8. Massa muscular, compleição óssea e perímetros (incluindo o punho)
+8.1 Perímetro do punho: compleição (estrutura corporal) [verificada em fontes secundárias]
+• r = estatura (cm) ÷ perímetro do punho (cm).
+• Homens: r > 10,4 compleição pequena; 9,6 a 10,4 média; < 9,6 grande.
+• Mulheres: r > 11,0 pequena; 10,1 a 11,0 média; < 10,1 grande.
+• Atribuído a Grant et al. (1981) e difundido em livros-texto de avaliação nutricional [conferir a citação original].
+• Uso: ajudar a interpretar peso ideal e IMC, que não separam massa óssea, muscular e gordura.
+• Limitações: em idosos, a concordância com a largura do cotovelo é baixa (menos da metade dos casos), e nos homens a razão sofre influência da gordura corporal. Não usar como critério único em idosos ou obesos. A alternativa é a largura do cotovelo (Frisancho, 1984), com tabelas por sexo e estatura que não reproduzi.
+8.2 “Densidade muscular a partir do perímetro do pulso”
+Não encontrei fórmula que estime densidade ou massa muscular a partir do perímetro do punho. O que existe com o punho é: (a) a compleição de 8.1; (b) a massa óssea por fracionamento antropométrico (Von Döbeln, modificada por Rocha, 1975), que usa a largura biestiloide (diâmetro, não perímetro) junto com a largura do fêmur [conferir]: Massa óssea (kg) = 3,02 × (E² × DBE × DBF × 400)^0,712, com estatura E, diâmetro biestiloide DBE e diâmetro bicondilar do fêmur DBF, todos em metros. Para músculo, as medidas com apoio na literatura estão em 8.3 a 8.5. Se o setor usa uma fórmula específica com o punho (por exemplo, uma planilha interna), envie para eu incluir e documentar a origem.
+8.3 Perímetros e áreas do braço [conferir, exceto onde indicado]
+• CMB (cm) = CB − (π × DCT em cm) (Jelliffe, 1966). Com a DCT em mm: CMB = CB − (0,314 × DCT).
+• AMB (cm²) = (CB − π × DCT)² ÷ (4π) (Gurney e Jelliffe, 1973).
+• AMB corrigida, sem osso (Heymsfield et al., 1982): homens = [(CB − π × DCT)² ÷ 4π] − 10; mulheres = [(CB − π × DCT)² ÷ 4π] − 6,5.
+• Área total do braço AB = CB² ÷ (4π); área de gordura AGB = AB − AMB (Frisancho, 1981).
+• Adequação da CB (%) = CB ÷ CB do percentil 50 × 100 [verificada]. Classificação de Blackburn e Thornton (1979): > 120 obesidade; 110 a 120 sobrepeso; 90 a 110 eutrofia; 80 a 90 desnutrição leve; 70 a 80 moderada; < 70 grave.
+• Percentis da CB (cm) em idosos, NHANES III (1988–1994), apud Sampaio (2004), reproduzidos no POP do HU-UFGD (2024) [verificada]. Ordem: P10 / P15 / P25 / P50 / P75 / P85 / P90.
+    ◦ Homens 60–69 anos: 28,4 / 29,2 / 30,6 / 32,7 / 35,2 / 36,2 / 37,0
+    ◦ Homens 70–79 anos: 27,5 / 28,2 / 29,3 / 31,3 / 33,4 / 35,1 / 36,1
+    ◦ Homens ≥ 80 anos: 25,5 / 26,2 / 27,3 / 29,5 / 31,5 / 32,6 / 33,3
+    ◦ Mulheres 60–69 anos: 26,2 / 26,9 / 28,3 / 31,2 / 34,3 / 36,5 / 38,3
+    ◦ Mulheres 70–79 anos: 25,4 / 26,1 / 27,4 / 30,1 / 33,1 / 35,1 / 36,7
+    ◦ Mulheres ≥ 80 anos: 23,0 / 23,8 / 25,5 / 28,4 / 31,5 / 33,2 / 34,0
+• Leitura por percentil (OMS, 1995): P > 95 obesidade; P 90 a 95 excesso de peso; P 15 a 90 normal; P 5 a 15 depleção leve a moderada; P < 5 depleção grave.
+8.4 Panturrilha e músculo adutor do polegar [verificada]
+• CP: a OMS (1995) considera < 31 cm indicativo de depleção muscular. Na campanha nacional “Diga não à desnutrição” (BRASPEN, 2018) usam-se ≤ 33 cm (mulheres) e ≤ 34 cm (homens). Medir com a perna a 90°, no ponto de maior perímetro.
+• EMAP (espessura do músculo adutor do polegar; Lameu et al., 2004): inadequada se < 10,5 mm (mulheres) ou < 12,5 mm (homens), conforme o protocolo consultado.
+8.5 Massa muscular esquelética por antropometria: Lee et al. (2000) [verificada]
+Correção de cada perímetro pela dobra correspondente: C corrigido (cm) = C − (π × dobra em cm), usando braço e tríceps (CBc), coxa média e dobra da coxa (CCxc) e panturrilha e dobra da panturrilha medial (CPc).
+• Modelo 1: MME (kg) = E × (0,00744 × CBc² + 0,00088 × CCxc² + 0,00441 × CPc²) + (2,4 × S) − (0,048 × I) + R + 7,8, com E em metros.
+• Modelo 2: MME (kg) = (0,244 × peso) + (7,8 × E) + (6,6 × S) − (0,098 × I) + R − 3,3.
+• S: 1 = homem, 0 = mulher. R (raça): −2,0 asiáticos; +1,1 afro-americanos; 0 brancos e hispânicos [conferir a codificação].
+• Desenvolvida e validada contra ressonância magnética em adultos; precisa de dobras de braço, coxa e panturrilha. Edema invalida as perimetrias.
+8.6 Outros marcadores de sarcopenia e de massa magra [conferir]
+• EWGSOP2 (2019): força de preensão < 27 kg (homens) e < 16 kg (mulheres); massa muscular apendicular < 20 kg (homens) e < 15 kg (mulheres), ou por estatura² < 7,0 e < 5,5 kg/m²; desempenho físico com velocidade de marcha ≤ 0,8 m/s.
+• Índice de massa livre de gordura = massa livre de gordura (kg) ÷ estatura² (m). Exige BIA, DXA ou dobras.
+9. Composição corporal por dobras cutâneas
+9.1 Densidade corporal (D, em g/mL)
+Durnin e Womersley (1974) [verificada]: D = c − (m × log10 de Σ4), com Σ4 = bíceps + tríceps + subescapular + supra-ilíaca, em mm. Pares (c; m):
+• Homens: < 17 anos (1,1533; 0,0643); 17 a 19 (1,1620; 0,0630); 20 a 29 (1,1631; 0,0632); 30 a 39 (1,1422; 0,0544); 40 a 49 (1,1620; 0,0700); ≥ 50 (1,1715; 0,0779)
+• Mulheres: < 17 anos (1,1369; 0,0598); 17 a 19 (1,1549; 0,0678); 20 a 29 (1,1599; 0,0717); 30 a 39 (1,1423; 0,0632); 40 a 49 (1,1333; 0,0612); ≥ 50 (1,1339; 0,0645)
+• Os coeficientes de menores de 17 anos costumam ser atribuídos a Durnin e Rahaman (1967) [conferir a atribuição].
+Jackson e Pollock
+• Homens, 18 a 61 anos, 3 dobras (peitoral, abdominal, coxa), 1978 [verificada]: D = 1,10938 − (0,0008267 × Σ3) + (0,0000016 × Σ3²) − (0,0002574 × I)
+• Mulheres, 3 dobras (tríceps, supra-ilíaca, coxa), Jackson, Pollock e Ward, 1980 [parcialmente verificada]: D = 1,0994921 − (0,0009929 × Σ3) + (0,0000023 × Σ3²) − (0,0001392 × I)
+• 7 dobras (peitoral, axilar média, tríceps, subescapular, abdominal, supra-ilíaca, coxa) [parcialmente verificada]: homens D = 1,112 − (0,00043499 × Σ7) + (0,00000055 × Σ7²) − (0,00028826 × I); mulheres D = 1,097 − (0,00046971 × Σ7) + (0,00000056 × Σ7²) − (0,00012828 × I)
+Petroski (1995), brasileiros de 18 a 61 anos — homens, 4 dobras (subescapular, tríceps, supra-ilíaca, panturrilha medial) [verificada]: D = 1,10726863 − (0,00081201 × Σ4) + (0,00000212 × Σ4²) − (0,00041761 × I). A equação feminina (quatro dobras, idade, peso e perímetro do quadril) precisa ser conferida no original.
+9.2 Percentual de gordura
+• Siri (1961) [verificada]: %G = (4,95 ÷ D − 4,50) × 100
+• Brozek (1963) [conferir]: %G = (4,57 ÷ D − 4,142) × 100
+• Lohman (1986), crianças e adolescentes: mesma estrutura, com constantes por idade, sexo e maturação [tabela a conferir no original antes de implementar].
+• Slaughter et al. (1988), crianças e adolescentes, tríceps + subescapular (Σ): se Σ > 35 mm, meninos %G = (0,783 × Σ) + 1,6 e meninas %G = (0,546 × Σ) + 9,7 [verificada]; para Σ ≤ 35 mm há equações quadráticas por estágio puberal e cor [conferir no original].
+• Massa gorda (kg) = peso × %G ÷ 100; massa livre de gordura = peso − massa gorda.
+10. Gasto energético e necessidades
+10.1 Taxa metabólica basal ou gasto de repouso (P em kg, E em cm, I em anos; resultado em kcal/dia)
+• Harris e Benedict (1919), já no programa [verificada]: homens = 66,473 + (13,7516 × P) + (5,0033 × E) − (6,755 × I); mulheres = 655,0955 + (9,5634 × P) + (1,8496 × E) − (4,6756 × I)
+• Roza e Shizgal (1984), revisão da anterior [conferir]: homens = 88,362 + (13,397 × P) + (4,799 × E) − (5,677 × I); mulheres = 447,593 + (9,247 × P) + (3,098 × E) − (4,330 × I)
+• Mifflin-St Jeor (1990), já no programa: homens = (10 × P) + (6,25 × E) − (5 × I) + 5; mulheres = (10 × P) + (6,25 × E) − (5 × I) − 161
+• Owen (1986, 1987) [conferir]: homens = 879 + (10,2 × P); mulheres = 795 + (7,18 × P)
+• Cunningham (1980), já no programa: 500 + (22 × MLG). Katch-McArdle (1975) [conferir]: 370 + (21,6 × MLG). MLG em kg.
+• FAO/OMS/UNU (1985), por peso [verificada]:
+    ◦ Homens: 0–3 anos 60,9 × P − 54; 3–10 anos 22,7 × P + 495; 10–18 anos 17,5 × P + 651; 18–30 anos 15,3 × P + 679; 30–60 anos 11,6 × P + 879; > 60 anos 13,5 × P + 487
+    ◦ Mulheres: 0–3 anos 61,0 × P − 51; 3–10 anos 22,5 × P + 499; 10–18 anos 12,2 × P + 746; 18–30 anos 14,7 × P + 496; 30–60 anos 8,7 × P + 829; > 60 anos 10,5 × P + 596
+• Henry/Oxford (2005), por peso [parcialmente verificada]:
+    ◦ Homens: 3–10 anos 22,706 × P + 504,3; 10–18 anos 17,686 × P + 658,2; 18–30 anos 15,057 × P + 692,2; 30–60 anos 11,472 × P + 873,1; > 60 anos 11,711 × P + 587,7
+    ◦ Mulheres: 3–10 anos 20,315 × P + 485,9; 10–18 anos 13,384 × P + 692,6; 18–30 anos 14,818 × P + 486,6; 30–60 anos 8,126 × P + 845,6; > 60 anos 9,082 × P + 658,5. (Conferir as de 3–10 e 18–30 anos em mulheres.)
+10.2 Necessidade energética estimada (EER), IOM/DRI (2005), todas as fases da vida [verificada, salvo indicação]
+P em kg, E em metros, I em anos; resultado em kcal/dia. NAF = coeficiente de atividade física, na ordem sedentário / pouco ativo / ativo / muito ativo.
+• Lactentes e primeira infância [conferir]: 0–3 meses (89 × P − 100) + 175; 4–6 meses (89 × P − 100) + 56; 7–12 meses (89 × P − 100) + 22; 13–35 meses (89 × P − 100) + 20
+• Meninos 3 a 8 anos: 88,5 − (61,9 × I) + NAF × (26,7 × P + 903 × E) + 20; NAF 1,00 / 1,13 / 1,26 / 1,42. Meninos 9 a 18 anos: mesma fórmula com + 25 no final.
+• Meninas 3 a 8 anos: 135,3 − (30,8 × I) + NAF × (10,0 × P + 934 × E) + 20; NAF 1,00 / 1,16 / 1,31 / 1,56. Meninas 9 a 18 anos: mesma fórmula com + 25 no final.
+• Homens ≥ 19 anos: 662 − (9,53 × I) + NAF × (15,91 × P + 539,6 × E); NAF 1,00 / 1,11 / 1,25 / 1,48
+• Mulheres ≥ 19 anos: 354 − (6,91 × I) + NAF × (9,36 × P + 726 × E); NAF 1,00 / 1,12 / 1,27 / 1,45
+• Gestação: EER da não gestante + 0 (1º trimestre), + 340 (2º) e + 452 kcal/dia (3º). Lactação: + 330 kcal/dia (0 a 6 meses) e + 400 kcal/dia (7 a 12 meses).
+• Adultos com IMC ≥ 25 (manutenção do peso): homens 1086 − (10,1 × I) + NAF × (13,7 × P + 416 × E), NAF 1,00 / 1,12 / 1,29 / 1,59; mulheres 448 − (7,95 × I) + NAF × (11,4 × P + 619 × E), NAF 1,00 / 1,16 / 1,27 / 1,44.
+• Crianças e adolescentes de 3 a 18 anos com excesso de peso: meninos 114 − (50,9 × I) + NAF × (19,5 × P + 1161,4 × E); meninas 389 − (41,2 × I) + NAF × (15,0 × P + 701,6 × E). Uma fonte consultada imprime 1162,4 no coeficiente da estatura dos meninos, e os NAF dessa faixa não foram reconfirmados: conferir no relatório do IOM.
+10.3 Pacientes críticos e hospitalizados [conferir]
+• Ireton-Jones (revisão de 2002): em ventilação mecânica, GEE = 1784 − (11 × I) + (5 × P) + (244 × S) + (239 × T) + (804 × Q), com S = 1 (homem) ou 0 (mulher), T = trauma (1/0) e Q = queimadura (1/0); respirando espontaneamente, GEE = 629 − (11 × I) + (25 × P) − (609 × O), com O = obesidade (IMC > 27; 1/0).
+• Penn State (Frankenfield et al.): versão 2003 com Mifflin, TMR = (0,96 × Mifflin) + (167 × Tmax) + (31 × VM) − 6212; versão 2010 para obesos com 60 anos ou mais, TMR = (0,71 × Mifflin) + (85 × Tmax) + (64 × VM) − 3085. Tmax em °C (máxima das últimas 24 h) e VM = volume-minuto ventilatório em L/min.
+• Estimativa simples nas diretrizes (ASPEN/SCCM, ESPEN): 25 a 30 kcal/kg/dia; calorimetria indireta quando disponível. As diretrizes mudam: confirme a versão vigente em 2026.
+• Fatores sobre a TMB (Long et al., 1979 e adaptações; faixas variam entre fontes): acamado 1,2; deambulando 1,3; cirurgia eletiva 1,0 a 1,2; politrauma 1,3 a 1,5; sepse 1,4 a 1,8; queimadura 1,5 a 2,1. Usar a tabela institucional do setor.
+10.4 Proteína, líquidos e superfície corporal [conferir]
+• Proteína (g/kg/dia): RDA de adulto saudável 0,8; idosos saudáveis pelo menos 1,0; idosos com doença aguda ou crônica 1,2 a 1,5 (ESPEN); pacientes críticos cerca de 1,3 (ESPEN, 2019). Confirmar nas diretrizes vigentes.
+• Holliday e Segar (1957), mL/dia: 100 × P para os primeiros 10 kg + 50 × P para os 10 kg seguintes + 20 × P para cada kg acima de 20 kg. Em adultos usa-se 30 a 35 mL/kg/dia; em idosos, em torno de 25 a 30 mL/kg/dia.
+• Superfície corporal (m²): Mosteller (1987) = √(E em cm × P ÷ 3600); Du Bois e Du Bois (1916) = 0,007184 × P^0,425 × E^0,725; Haycock (1978) = 0,024265 × P^0,5378 × E^0,3964; Gehan e George (1970) = 0,0235 × P^0,51456 × E^0,42246 (E em cm, P em kg).
+11. Triagem, risco nutricional e cálculos de terapia nutricional
+11.1 Índices e relações [conferir]
+• GNRI (Bouillanne, 2005) = (1,489 × albumina em g/L) + [41,7 × (peso atual ÷ peso ideal de Lorentz)]; se o peso atual for maior que o ideal, usar razão = 1. Risco: > 98 sem risco; 92 a 98 baixo; 82 a 91 moderado; < 82 grave.
+• NRI (Buzby, 1980) = (1,519 × albumina em g/L) + [41,7 × (peso atual ÷ peso habitual)]: > 100 normal; 97,5 a 100 desnutrição leve; 83,5 a 97,5 moderada; < 83,5 grave.
+• Índice nutricional prognóstico (Onodera, 1984): PNI = (10 × albumina em g/dL) + (0,005 × linfócitos totais por mm³).
+• Waterlow (1972), crianças: peso/estatura (%) = peso atual ÷ peso do P50 para a estatura × 100 (> 90 normal; 80 a 90 leve; 70 a 80 moderada; < 70 grave); estatura/idade (%) = estatura ÷ estatura do P50 para a idade × 100 (> 95; 90 a 95; 85 a 90; < 85).
+• Gómez (1956), peso/idade em % do P50: > 90 normal; 76 a 90 grau I; 61 a 75 grau II; ≤ 60 grau III.
+• Balanço nitrogenado (g/dia) = (proteína ingerida ÷ 6,25) − (nitrogênio ureico urinário + 4); a constante de perdas não medidas varia de 2 a 4 g entre fontes.
+• Relação calorias não proteicas por nitrogênio (RCNP) = (kcal totais − kcal de proteína) ÷ (g de proteína ÷ 6,25).
+• Índice creatinina-altura (Blackburn, 1977) = creatinina urinária de 24 h ÷ creatinina esperada para a estatura × 100, com esperada = 23 mg/kg (homens) ou 18 mg/kg (mulheres) de peso ideal: 60 a 80% leve; 40 a 60% moderada; < 40% grave.
+11.2 Instrumentos de triagem e diagnóstico (sem fórmula) [conferir]
+NRS-2002; MUST; MNA e MNA-SF (idosos); ASG e ASG-PPP (oncologia); NUTRIC (UTI). Critérios GLIM (2019): fenotípicos (perda de peso > 5% em 6 meses ou > 10% além de 6 meses; IMC < 20 se menor de 70 anos ou < 22 se 70 anos ou mais; redução de massa muscular) mais etiológicos (redução de ingestão ou absorção; inflação ou carga de doença).
+11.3 Cálculos de terapia nutricional e de suplementos (base da ficha técnica)
+Todos partem da composição por 100 mL ou 100 g do rótulo (kcal, proteína, lipídio, carboidrato, sódio).
+• Nutriente fornecido = (quantidade administrada ÷ 100) × valor por 100.
+• Densidade calórica (kcal/mL) = kcal por 100 ÷ 100. Volume necessário (mL) = kcal alvo ÷ densidade calórica.
+• Número de embalagens = volume ÷ mL (ou g) da embalagem. Custo = número de embalagens × preço.
+• % do VET = kcal do suplemento ÷ VET × 100. Proteína por kg = proteína fornecida ÷ peso.
+• Velocidade de infusão (mL/h) = volume ÷ horas. Gotas por minuto = volume (mL) ÷ (horas × 3), com 1 mL = 20 gotas.
+• Água livre da dieta = volume × % de água da fórmula (do rótulo); água a complementar = necessidade hídrica − água da fórmula.
+• Osmolaridade: vem do rótulo; não calcular.
+12. Do relatório ao programa
+Primeira etapa (Mapa). Estimativa de peso e estatura por Chumlea (sexo, cor, idade, AJ, PB), IMC com classificação por faixa etária (adulto OMS; idoso Lipschitz ou OPAS; criança e adolescente dependendo das tabelas OMS), sempre gravando a equação usada e marcando o valor como estimado.
+Segunda etapa (suplementos). Ficha técnica por 100 mL/g, classificação por módulo e os cálculos de 11.3.
+Terceira etapa (calculadoras). Necessidades energéticas (Harris-Benedict, Mifflin, FAO/OMS, IOM, Ireton-Jones, Penn State), composição corporal, índices de risco e massa muscular.
+O que preciso de você:
+• o que o setor quer calcular com o perímetro do punho (8.2);
+• qual equação de peso e de estatura o setor usa hoje, e se o critério de IMC do idoso é Lipschitz ou OPAS;
+• a lista de leitos e a lista completa de suplementos com as fichas técnicas.
+O que ainda preciso conferir nas fontes originais: Petroski feminino; constantes de Lohman; Slaughter para Σ ≤ 35 mm; tabela de Atalah; tabelas LMS da OMS; Guerra (2021) e Cattermole (2017); MUST para 65 anos ou mais; NAF pediátrico de excesso de peso do IOM; fatores de lesão; valores das diretrizes ESPEN/ASPEN/BRASPEN vigentes; e todos os itens marcados “conferir”.
+13. Referências
+Estimativa de estatura e peso
+• Chumlea WC, Roche AF, Steinbaugh ML. Estimating stature from knee height for persons 60 to 90 years of age. J Am Geriatr Soc. 1985;33(2):116-20.
+• Chumlea WC, Guo S. Equations for predicting stature in white and black elderly individuals. J Gerontol. 1992;47(6):M197-203.
+• Chumlea WC, Guo SS, Steinbaugh ML. Prediction of stature from knee height for black and white adults and children with application to mobility-impaired or handicapped persons. J Am Diet Assoc. 1994;94(12):1385-8.
+• Chumlea WC, Guo SS, Wholihan K, et al. Stature prediction equations for elderly non-Hispanic white, non-Hispanic black, and Mexican-American persons developed from NHANES III data. J Am Diet Assoc. 1998;98(2):137-42.
+• Chumlea WC, Guo S, Roche AF, Steinbaugh ML. Prediction of body weight for the nonambulatory elderly from anthropometry. J Am Diet Assoc. 1988;88(5):564-8.
+• Chumlea WC, Roche AF, Mukherjee D. Nutritional assessment of the elderly through anthropometry. Columbus: Ross Laboratories; 1987.
+• Stevenson RD. Use of segmental measures to estimate stature in children with cerebral palsy. Arch Pediatr Adolesc Med. 1995;149(6):658-62.
+• Gauld LM, Kappers J, Carlin JB, Robertson CF. Height prediction from ulna length. Dev Med Child Neurol. 2004;46(7):475-80.
+• Elia M. The ‘MUST’ report. BAPEN; 2003. Madden AM, Tsikoura T, Stott DJ. The estimation of body height from ulna length in healthy adults from different ethnic groups. J Hum Nutr Diet. 2012;25(2):121-8.
+• Bermúdez OI, Becker EK, Tucker KL. Development of sex-specific equations for estimating stature of frail elderly Hispanics living in New England. JPEN. 1999;23(5):217-21.
+• Palloni A, Guend A. Equações de predição de estatura em idosos da América Latina, estudo SABE, 2005; Lera L et al., 2005 (SABE: São Paulo, Santiago, Cidade do México); Silveira et al., 1994; Kwok T, Whitelaw MN. J Am Geriatr Soc. 1991;39:492-6; todas citadas em Lima et al., 2018.
+• Bassey EJ. Demi-span as a measure of skeletal size. Ann Hum Biol. 1986;13:499-502.
+• Rabito EI, Vannucchi GB, Suen VMM, Castilho Neto LL, Marchini JS. Weight and height prediction of immobilized patients. Rev Nutr. 2006;19(6):655-61.
+• Rabito EI, Mialich MS, Martínez EZ, García RWD, Jordao AA Jr, Marchini JS. Validation of predictive equations for weight and height using a metric tape. Nutr Hosp. 2008;23(6):614-8.
+• Lima et al. (idosos institucionalizados de Natal, estatura). PLoS ONE. 2018 (PMC6198959).
+• Lima et al. Estimativa de peso em idosos institucionalizados: qual equação utilizar? Rev Bras Epidemiol. 2016;19(1):135-48.
+• Silva et al. Comparação de métodos de estimativa de peso e estatura em idosos. Geriatr Gerontol Aging. 2018;12(2):74-80.
+• Melo APF, Salles RK, Vieira FGK, Ferreira MG. Métodos de estimativa de peso corporal e altura em adultos hospitalizados: uma análise comparativa. Rev Bras Cineantropom Desempenho Hum. 2014;16(4):475-84.
+• Demetra (UERJ), 2019, e BRASPEN J. 2022;37(4):340-5 (estudos com pacientes hospitalizados).
+• Guerra RS et al. J Hum Nutr Diet. 2021;34:841-8; Cattermole et al., 2017; Katherina e Sudiarti, 2020 (coeficientes ainda não transcritos).
+• Luscombe M, Owens B. Weight estimation in resuscitation: is the current formula still valid? Arch Dis Child. 2007;92(2):157-61. Tinning K, Acworth J. Make your Best Guess: an updated method for paediatric weight estimation in emergencies. Emerg Med Australas. 2007.
+Protocolos e correções do peso
+• HU-UFGD/EBSERH. POP.EMTN.002: Avaliação antropométrica e nutricional em paciente adulto/idoso, versão 02, 2024.
+• Blackburn GL, Bistrian BR, et al. Nutritional and metabolic assessment of the hospitalized patient. JPEN. 1977;1(1):11-22. Blackburn GL, Thornton PA. Nutritional assessment of the hospitalized patient. Med Clin North Am. 1979;63:1103-15.
+• Duarte AC, Castellani FR. Semiologia nutricional. Rio de Janeiro: Axcel Books; 2002. James R. Nutritional support in alcoholic liver disease: a review. J Hum Nutr Diet. 1989;2:315-23. Lamarti e Hickson, J Hum Nutr Diet, 2020 (peso ascítico medido).
+• Martins C, Riella MC. Nutrição e o rim. Rio de Janeiro: Guanabara Koogan; 2001.
+• Rosa G. Avaliação nutricional do paciente hospitalizado. Rio de Janeiro: Guanabara Koogan; 2008. Cuppari L. Guia de medicina ambulatorial e hospitalar: nutrição clínica no adulto. 3ª ed. Barueri: Manole; 2014.
+• Lohman TG, Roche AF, Martorell R. Anthropometric standardization reference manual. Champaign: Human Kinetics; 1988.
+IMC, crescimento e gestação
+• WHO. Obesity: preventing and managing the global epidemic. WHO Technical Report Series 894; 2000. WHO. Physical status: the use and interpretation of anthropometry. TRS 854; 1995.
+• Lipschitz DA. Screening for nutritional status in the elderly. Prim Care. 1994;21:55-67. OPAS. Encuesta SABE; 2001.
+• WHO Multicentre Growth Reference Study Group. WHO Child Growth Standards; 2006. de Onis M et al. Development of a WHO growth reference for school-aged children and adolescents. Bull World Health Organ. 2007;85:660-7. Brasil, Ministério da Saúde. SISVAN: orientações para coleta e análise de dados antropométricos; 2011.
+• Atalah E, Castillo C, Castro R, Aldea A. Propuesta de un nuevo estándar de evaluación nutricional en embarazadas. Rev Med Chil. 1997;125:1429-36. Institute of Medicine. Weight gain during pregnancy: reexamining the guidelines. Washington: National Academies Press; 2009.
+Massa muscular, composição corporal e punho
+• Lee RC, Wang Z, Heo M, Ross R, Janssen I, Heymsfield SB. Total-body skeletal muscle mass: development and cross-validation of anthropometric prediction models. Am J Clin Nutr. 2000;72(3):796-803.
+• Grant JP, Custer PB, Thurlow J. Current techniques of nutritional assessment. Surg Clin North Am. 1981;61:437-63 [conferir]. Frisancho AR. New standards of weight and body composition by frame size and height. Am J Clin Nutr. 1984;40:808-19.
+• Frisancho AR. New norms of upper limb fat and muscle areas. Am J Clin Nutr. 1981;34:2540-5. Gurney JM, Jelliffe DB. Am J Clin Nutr. 1973;26:912-5. Heymsfield SB et al. Am J Clin Nutr. 1982;36:680-90.
+• Rocha MTM. Peso ósseo do brasileiro de ambos os sexos de 17 a 25 anos. Arq Anat Antropol. 1975 [conferir].
+• Lameu EB et al. Adductor pollicis muscle: a new anthropometric parameter. Rev Hosp Clin Fac Med Sao Paulo. 2004;59(2):57-62. Sampaio LR. Avaliação nutricional e envelhecimento. Rev Nutr. 2004;17(4):507-14. Toledo DO et al. Campanha “Diga não à desnutrição”. BRASPEN J. 2018;33(1):86-100.
+• Cruz-Jentoft AJ et al. Sarcopenia: revised European consensus on definition and diagnosis. Age Ageing. 2019;48:16-31. Cederholm T et al. GLIM criteria for the diagnosis of malnutrition. Clin Nutr. 2019;38:1-9.
+• Durnin JVGA, Womersley J. Br J Nutr. 1974;32:77-97. Jackson AS, Pollock ML. Br J Nutr. 1978;40:497-504. Jackson AS, Pollock ML, Ward A. Med Sci Sports Exerc. 1980;12:175-82. Petroski EL. Tese, UFSM; 1995. Siri WE, 1961. Brozek J et al. Ann N Y Acad Sci. 1963;110:113-40. Slaughter MH et al. Hum Biol. 1988;60:709-23.
+Energia, líquidos e índices de risco
+• Harris JA, Benedict FG. Carnegie Institution; 1919. Roza AM, Shizgal HM. Am J Clin Nutr. 1984;40:168-82. Mifflin MD et al. Am J Clin Nutr. 1990;51:241-7. Owen OE et al. Am J Clin Nutr. 1986;44:1-19 e 1987;46:875-85. Cunningham JJ. Am J Clin Nutr. 1980;33:2372-4.
+• FAO/WHO/UNU. Energy and protein requirements. TRS 724; 1985. Schofield WN. Hum Nutr Clin Nutr. 1985;39(Suppl 1):5-41. Henry CJK. Public Health Nutr. 2005;8(7A):1133-52.
+• Institute of Medicine. Dietary Reference Intakes for energy, carbohydrate, fiber, fat, fatty acids, cholesterol, protein, and amino acids. Washington: National Academies Press; 2005.
+• Ireton-Jones CS, Jones JD. Improved equations for predicting energy expenditure in patients: the Ireton-Jones equations. Nutr Clin Pract. 2002;17:29-31. Frankenfield D, Smith JS, Cooney RN. JPEN. 2004;28:259-64. Long CL et al. JPEN. 1979;3:452-6.
+• Holliday MA, Segar WE. Pediatrics. 1957;19:823-32. Mosteller RD. N Engl J Med. 1987;317:1098. Du Bois D, Du Bois EF. Arch Intern Med. 1916;17:863-71. Haycock GB et al. J Pediatr. 1978;93:62-6. Gehan EA, George SL. Cancer Chemother Rep. 1970;54:225-35.
+• Bouillanne O et al. Am J Clin Nutr. 2005;82:777-83. Buzby GP et al. Am J Surg. 1980;139:160-7. Onodera T et al. Nippon Geka Gakkai Zasshi. 1984;85:1001-5. Waterlow JC. BMJ. 1972;3:566-9. Gómez F et al. J Trop Pediatr. 1956;2:77-83.
