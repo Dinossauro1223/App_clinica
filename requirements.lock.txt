@@ -1,0 +1,22 @@
+# NutriLab — LOCK completo (dependências diretas + transitivas) gerado por `pip freeze`.
+# Gerado em 09/11/2026 (America/Recife) em Linux x86_64, Python 3.12.3, a partir de requirements.txt
+# num venv limpo. Serve de referência exata do ambiente de testes; NÃO foi validado no Windows nesta sessão.
+# Para reinstalar exatamente:  python -m pip install -r requirements.lock.txt
+# Para regenerar:  python -m pip freeze --exclude pip > requirements.lock.txt   (depois reaplicar este cabeçalho)
+contourpy==1.4.0
+customtkinter==5.2.2
+cycler==0.12.1
+darkdetect==0.8.0
+defusedxml==0.7.1
+et_xmlfile==2.0.0
+fonttools==4.68.0
+fpdf2==2.8.9
+kiwisolver==1.5.1
+matplotlib==3.10.9
+numpy==2.5.4
+openpyxl==3.1.5
+packaging==26.3
+pillow==12.3.0
+pyparsing==3.3.3
+python-dateutil==4.0.0
+tzdata==2026.5
