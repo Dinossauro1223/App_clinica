@@ -1,0 +1,32 @@
+[1] git version 2.56.0.windows.3
+[2] Clonando https://github.com/Dinossauro1223/App_clinica.git (se o Git pedir login do GitHub, entre normalmente)...
+[3] Pacote App_clinica_docs_instalar_2026-11-12.bundle: 1 branch(es): docs/instalar-documentacao-ampliada
+
+=== Branch 1/1: docs/instalar-documentacao-ampliada ===
+[a] 1 commits; base no repositório: origin/main
+[b] Instalando por SOBREPOSIÇÃO (arquivos de mesmo nome são substituídos; .gitignore e INSTRUCOES_DE_INSTALACAO.md não são tocados):
+  - adiciona   .claude/agents/README.md
+  - adiciona   .claude/agents/clinical-evidence-researcher.md
+  - adiciona   .claude/agents/database-backend-engineer.md
+  - adiciona   .claude/agents/desktop-clinical-ui-engineer.md
+  - adiciona   .claude/agents/documentation-roadmap-writer.md
+  - adiciona   .claude/agents/legacy-workbook-analyst.md
+  - adiciona   .claude/agents/mobile-meal-engineer.md
+  - adiciona   .claude/agents/qa-security-reviewer.md
+  - adiciona   .claude/agents/supplement-stock-engineer.md
+  - adiciona   AGENTS.md
+  - adiciona   CLAUDE.md
+  - substitui README.md
+  - adiciona   ROADMAP.md
+  - adiciona   docs/desenvolvimento/DIARIO_DUVIDAS_BIBLIOGRAFICAS.md
+  - adiciona   docs/referencias/INVENTARIO_PLANILHAS_E_MODELOS.md
+  - adiciona   docs/referencias/RELATORIO_FORMULAS_E_ESTIMATIVAS.txt
+[c] Auditoria de dados sensíveis no branch resultante...
+      0 BLOQUEIO(s) na árvore atual, 0 no histórico (relatório só com caminhos: auditoria_resultado_docs_instalar-documentacao-ampliada.txt)
+[d] Rodando os testes que o branch trouxe...
+      (nenhum teste novo neste branch)
+[e] Publicando 'docs/instalar-documentacao-ampliada' no GitHub (somente ele; sem force)...
+
+PRONTO. Branches publicados: docs/instalar-documentacao-ampliada
+Abra o Pull Request: https://github.com/Dinossauro1223/App_clinica/compare/docs/instalar-documentacao-ampliada?expand=1
+(cópia de trabalho: C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote_u245l_r0\App_clinica)

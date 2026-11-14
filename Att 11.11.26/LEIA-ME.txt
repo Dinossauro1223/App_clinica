@@ -1,0 +1,33 @@
+NutriLab - pacote das Fases 0 e 2 (gerado em 11/11/2026)
+
+O QUE TEM NO PACOTE: 2 branches independentes (cada um parte da main do seu repositorio)
+  feat/fase-0-fundacao-seguranca-banco   (5 commits)  auditoria de dados sensiveis, ambiente reproduzivel
+                                          (requirements fixados + CI), servico unico de banco com backup e
+                                          migracoes, 3 ADRs, guia do Windows, status no README/ROADMAP.
+  feat/fase-2-conferencia-equacoes-planilha  (2 commits)  conferidor automatico da planilha Peso-Alt contra o
+                                          relatorio (achou 1 divergencia: 2,14 x 2,15), 3 entradas no diario
+                                          bibliografico e status da Fase 2 no ROADMAP.
+  Todos os commits trazem o DIA e o que se trabalha no branch na mensagem.
+
+COMO APLICAR (2 minutos)
+  1. Salve estes 3 arquivos na MESMA pasta (por exemplo, Downloads):
+       Aplicar_Pacote_App_clinica.bat
+       aplicar_pacote.py
+       App_clinica_fases_0_e_2_2026-11-11.bundle
+  2. De dois cliques em Aplicar_Pacote_App_clinica.bat.
+     Ele clona o App_clinica (o Git pode pedir seu login do GitHub), cria cada branch, aplica os commits, audita,
+     roda os testes e SO ENTAO publica o branch. Nunca mexe na main e nunca usa force.
+  3. Ao final, a tela mostra os links para abrir os Pull Requests.
+     Os dois branches sao independentes: pode mesclar em qualquer ordem (testado: sem conflitos).
+
+SE ALGO PARAR (e o esperado: ele nao publica o que esta errado)
+  - Mensagem "PAROU": leia o motivo na tela. O registro completo fica em aplicar_pacote_log.txt.
+  - Testes falharam no seu computador: envie o arquivo resultado_testes_*.txt (fica ao lado do script).
+  - Auditoria achou dado sensivel na arvore: envie auditoria_resultado_*.txt (so tem caminhos, nunca conteudo) e
+    NAO publique nada ate resolver com o responsavel do repositorio.
+  - Para so testar sem publicar:  Aplicar_Pacote_App_clinica.bat --sem-push
+
+IMPORTANTE
+  - Este pacote NAO contem dados de pacientes nem planilhas do hospital (conferido no historico inteiro).
+  - O codigo do aplicativo nao estava acessivel quando o pacote foi gerado: a integracao do servico de banco em
+    main.py / mapa_db.py / setup_db.py continua PENDENTE (veja docs/desenvolvimento/NOTAS_DE_ENTREGA_FASE0.md).

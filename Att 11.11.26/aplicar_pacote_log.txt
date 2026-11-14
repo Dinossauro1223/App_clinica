@@ -1,0 +1,40 @@
+[1] git version 2.56.0.windows.3
+[2] Clonando https://github.com/Dinossauro1223/App_clinica.git (se o Git pedir login do GitHub, entre normalmente)...
+[3] Pacote App_clinica_fases_0_e_2_2026-11-11.bundle: 2 branch(es): feat/fase-0-fundacao-seguranca-banco, feat/fase-2-conferencia-equacoes-planilha
+
+=== Branch 1/2: feat/fase-0-fundacao-seguranca-banco ===
+[a] 5 commits; base no repositório: origin/main
+[b] Aplicando os commits:
+  - aplicado   [10/11/2026] feat/fase-0-fundacao-seguranca-banco: auditoria de dados sensíveis e segredos no repositório (sem imprimir conteúdo)
+  - aplicado   [10/11/2026] feat/fase-0-fundacao-seguranca-banco: ambiente reproduzível: requirements fixados, verificador de ambiente e CI
+  - aplicado   [10/11/2026] feat/fase-0-fundacao-seguranca-banco: serviço único de banco, backup/restauração verificados, migrações reversíveis e diagnóstico
+  - aplicado   [10/11/2026] feat/fase-0-fundacao-seguranca-banco: ADR-0001 (banco local), ADR-0002 (ambiente) e ADR-0003 (multiusuário preliminar + modelo de domínio)
+      conflito em arquivos existentes (README.md, ROADMAP.md): apliquei só os arquivos novos; as edições ficaram em edicoes_nao_aplicadas_6117cb1.patch
+  - parcial    [10/11/2026] feat/fase-0-fundacao-seguranca-banco: guia de desenvolvimento no Windows, notas de entrega e status da Fase 0 no README/ROADMAP
+[c] Auditoria de dados sensíveis no branch resultante...
+      0 BLOQUEIO(s) na árvore atual, 0 no histórico (relatório só com caminhos: auditoria_resultado_feat_fase-0-fundacao-seguranca-banco.txt)
+[d] Rodando os testes que o branch trouxe...
+      Ran 84 tests in 19.016s | OK
+[e] Publicando 'feat/fase-0-fundacao-seguranca-banco' no GitHub (somente ele; sem force)...
+
+=== Branch 2/2: feat/fase-2-conferencia-equacoes-planilha ===
+[a] 2 commits; base no repositório: origin/main
+[b] Aplicando os commits:
+  - aplicado   [11/11/2026] feat/fase-2-conferencia-equacoes-planilha: conferidor automático da aba Peso-Alt (planilha do setor x catálogo de referência)
+      conflito em arquivos existentes (ROADMAP.md, docs/desenvolvimento/DIARIO_DUVIDAS_BIBLIOGRAFICAS.md): apliquei só os arquivos novos; as edições ficaram em edicoes_nao_aplicadas_0945535.patch
+  - parcial    [11/11/2026] feat/fase-2-conferencia-equacoes-planilha: conferência documentada, diário bibliográfico (3 entradas) e andamento da Fase 2 no ROADMAP
+[c] Auditoria de dados sensíveis no branch resultante...
+      0 BLOQUEIO(s) na árvore atual, 0 no histórico (relatório só com caminhos: auditoria_resultado_feat_fase-2-conferencia-equacoes-planilha.txt)
+[d] Rodando os testes que o branch trouxe...
+      Ran 12 tests in 1.262s | OK
+[e] Publicando 'feat/fase-2-conferencia-equacoes-planilha' no GitHub (somente ele; sem force)...
+
+PRONTO. Branches publicados: feat/fase-0-fundacao-seguranca-banco, feat/fase-2-conferencia-equacoes-planilha
+ATENÇÃO: edições de arquivos existentes (README/ROADMAP/diário) NÃO entraram (conflito). Elas só se aplicam às
+versões NOVAS desses arquivos (as do pacote de documentação). Se o repositório ainda tem as versões antigas,
+instale primeiro o pacote de documentação (INSTRUCOES_DE_INSTALACAO.md) e depois rode, na cópia de trabalho:
+    git apply --3way "C:\Users\thiago nutrição\Documents\App_clinica-main\Att 11.11.26\edicoes_nao_aplicadas_6117cb1.patch"
+    git apply --3way "C:\Users\thiago nutrição\Documents\App_clinica-main\Att 11.11.26\edicoes_nao_aplicadas_0945535.patch"
+Abra o Pull Request: https://github.com/Dinossauro1223/App_clinica/compare/feat/fase-0-fundacao-seguranca-banco?expand=1
+Abra o Pull Request: https://github.com/Dinossauro1223/App_clinica/compare/feat/fase-2-conferencia-equacoes-planilha?expand=1
+(cópia de trabalho: C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote_zm0sl7os\App_clinica)

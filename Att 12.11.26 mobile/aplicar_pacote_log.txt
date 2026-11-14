@@ -1,0 +1,20 @@
+[1] git version 2.56.0.windows.3
+[2] Clonando https://github.com/Dinossauro1223/App_clinica.git (se o Git pedir login do GitHub, entre normalmente)...
+[3] Pacote App_clinica_mobile_2026-11-12.bundle: 1 branch(es): feat/mobile-lan-perfis-2026-11-12
+
+=== Branch 1/1: feat/mobile-lan-perfis-2026-11-12 ===
+[a] 4 commits; base no repositório: origin/main
+[b] Aplicando os commits:
+  - aplicado   [12/11/2026] feat/mobile-lan-perfis-2026-11-12: servidor da rede local do NutriLab Mobile (perfis, estoques em hierarquia, correções)
+  - aplicado   [12/11/2026] feat/mobile-lan-perfis-2026-11-12: interface mobile única com visual e abas diferentes por perfil de login
+  - aplicado   [12/11/2026] feat/mobile-lan-perfis-2026-11-12: testes do servidor mobile (permissões, dia próprio, base do dia anterior, correção, hierarquia)
+  - aplicado   [12/11/2026] feat/mobile-lan-perfis-2026-11-12: documentação do mobile para a integração posterior com o programa desktop
+[c] Auditoria de dados sensíveis no branch resultante...
+      0 BLOQUEIO(s) na árvore atual, 0 no histórico (relatório só com caminhos: auditoria_resultado_feat_mobile-lan-perfis-2026-11-12.txt)
+[d] Rodando os testes que o branch trouxe...
+      Ran 6 tests in 2.047s | OK
+[e] Publicando 'feat/mobile-lan-perfis-2026-11-12' no GitHub (somente ele; sem force)...
+
+PRONTO. Branches publicados: feat/mobile-lan-perfis-2026-11-12
+Abra o Pull Request: https://github.com/Dinossauro1223/App_clinica/compare/feat/mobile-lan-perfis-2026-11-12?expand=1
+(cópia de trabalho: C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote_9o02kqtx\App_clinica)

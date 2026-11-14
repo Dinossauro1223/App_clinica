@@ -1,0 +1,108 @@
+diff --git a/README.md b/README.md
+index fb2a4ec..a5e14a2 100644
+--- a/README.md
++++ b/README.md
+@@ -69,6 +69,8 @@ O `clinica.db` presente no ZIP-fonte analisado não continha a tabela `Mapa_Supl
+ 
+ Há uma inconsistência de caminho que deve ser resolvida antes de empacotar ou compartilhar o programa: `configurar_banco_dados()` usa `get_writable_path('clinica.db')`, enquanto a inicialização do mapa e diversas operações de pacientes/consultas usam `get_base_path()`. No executável PyInstaller, `get_base_path()` pode apontar para `_internal` e `get_writable_path()` para a pasta do `.exe`. A Fase 0 deve unificar a conexão e o caminho gravável, com migração e backup.
+ 
++**Status (10/11/2026):** o serviço único (`db_service.py`), as migrações versionadas (`db_migracoes.py`) e o diagnóstico somente-leitura (`tools/diagnostico_banco.py`) foram criados e testados com bancos sintéticos ([ADR-0001](docs/decisoes/ADR-0001-banco-local-caminho-unico-backup-migracoes.md)). A substituição das chamadas em `main.py`, `mapa_db.py` e `setup_db.py` **continua pendente** (código inacessível na sessão que criou o serviço).
++
+ ## 3. Catálogo de suplementos: dados existentes e lacunas
+ 
+ ### 3.1 Seis itens semeados no código
+@@ -296,13 +298,14 @@ A interface desktop existente pode continuar como cliente de NutriLab, mas o uso
+ | Empacotamento | PyInstaller (`app_clinica.spec`) |
+ | Testes | `unittest` |
+ 
+-O pacote analisado não contém `requirements.txt` com versões fixadas. A Fase 0 deve gerar e validar esse arquivo. Comandos de referência para o Windows, depois de conferida a compatibilidade das dependências:
++A Fase 0 adicionou `requirements.txt` (versões fixadas), `requirements.lock.txt` (congelamento completo) e `requirements-build.txt` (PyInstaller). Eles foram verificados apenas quanto à instalação conjunta (`pip check`) em Python 3.12/Linux: a compatibilidade com o código do aplicativo e a execução no Windows **ainda precisam ser validadas** ([ADR-0002](docs/decisoes/ADR-0002-ambiente-reproduzivel-e-dependencias.md)). Comandos de referência para o Windows (guia completo em [`docs/desenvolvimento/GUIA_DESENVOLVIMENTO_WINDOWS.md`](docs/desenvolvimento/GUIA_DESENVOLVIMENTO_WINDOWS.md)):
+ 
+ ```bat
+ py -3 -m venv .venv
+ .venv\Scripts\activate
+ python -m pip install --upgrade pip
+-python -m pip install customtkinter fpdf2 pillow openpyxl matplotlib
++python -m pip install -r requirements.txt
++python tools\verificar_ambiente.py
+ python main.py
+ ```
+ 
+@@ -317,6 +320,12 @@ python -m unittest discover -s tests -v
+ 
+ Os agentes devem registrar o resultado real. Testes de interface/PDF com simuladores não comprovam impressão ou interação com bibliotecas reais.
+ 
++Antes de qualquer push, audite o repositório (nunca imprime conteúdo de arquivos; falha se houver banco, backup, anexo de paciente, segredo ou planilha original do hospital):
++
++```bat
++python tools\auditar_repositorio.py
++```
++
+ ## 10. Organização principal do código
+ 
+ ```text
+@@ -328,6 +337,12 @@ Os agentes devem registrar o resultado real. Testes de interface/PDF com simulad
+ ├── mapa_ui.py                        # Telas de mapa, gráficos e catálogo de suplementos
+ ├── mapa_export.py                    # Exportação PDF/Excel do mapa
+ ├── mapa_graficos.py                  # Agregações e gráficos mensais
++├── db_service.py                     # Serviço único de banco: caminho, conexão, backup e restauração (Fase 0)
++├── db_migracoes.py                   # Migrações versionadas e reversíveis do SQLite local (Fase 0)
++├── tools/                            # Auditoria de dados sensíveis, verificação de ambiente e diagnóstico de banco
++├── requirements.txt                  # Dependências fixadas (+ requirements.lock.txt e requirements-build.txt)
++├── docs/decisoes/                    # ADRs (decisões de arquitetura)
++├── .github/workflows/ci.yml          # CI: Windows e Linux
+ ├── exames_internos/                  # Catálogo de exames em JSON
+ ├── condutas_internas/                # Biblioteca interna de condutas em JSON
+ ├── prescricoes_internas/             # Biblioteca interna de prescrições em JSON
+@@ -367,6 +382,9 @@ git ls-files | findstr /i "clinica.db arquivos_pacientes backup .env CONTROLE DE
+ - [`docs/referencias/INVENTARIO_PLANILHAS_E_MODELOS.md`](docs/referencias/INVENTARIO_PLANILHAS_E_MODELOS.md): leitura detalhada dos arquivos reais de referência.
+ - [`docs/desenvolvimento/DIARIO_DUVIDAS_BIBLIOGRAFICAS.md`](docs/desenvolvimento/DIARIO_DUVIDAS_BIBLIOGRAFICAS.md): registro obrigatório de dúvidas e decisões sobre fontes.
+ - [`.claude/agents/`](.claude/agents/): agentes especialistas para pesquisa, planilhas, banco, interface, suplementos/estoque, mobile e QA.
++- [`docs/decisoes/`](docs/decisoes/): ADRs (banco local, ambiente reproduzível, arquitetura multiusuário preliminar).
++- [`docs/desenvolvimento/GUIA_DESENVOLVIMENTO_WINDOWS.md`](docs/desenvolvimento/GUIA_DESENVOLVIMENTO_WINDOWS.md): instalação, testes, auditoria, banco e build no Windows.
++- [`docs/desenvolvimento/NOTAS_DE_ENTREGA_FASE0.md`](docs/desenvolvimento/NOTAS_DE_ENTREGA_FASE0.md): o que a Fase 0 entregou e o que falta.
+ 
+ ## 13. Regra de continuidade
+ 
+diff --git a/ROADMAP.md b/ROADMAP.md
+index 3d55120..cbc0ae5 100644
+--- a/ROADMAP.md
++++ b/ROADMAP.md
+@@ -16,7 +16,7 @@
+ 
+ | Fase | Objetivo | Agente líder | Dependência | Estado no pacote analisado |
+ |---|---|---|---|---|
+-| 0 | Fundação, segurança, ambiente e banco único | Backend + QA | Nenhuma | Necessária; incompleta |
++| 0 | Fundação, segurança, ambiente e banco único | Backend + QA | Nenhuma | Em andamento: ferramentas, serviço de banco, migrações, CI e ADRs prontos e testados; integração ao código, auditoria do repositório real e validação no Windows pendentes |
+ | 1 | Mapa Nutricional confiável | Interface clínica + Backend | Fase 0 | Parcialmente implementada |
+ | 2 | Antropometria, cálculos e curvas de crescimento | Pesquisa clínica + Cálculos | Contratos da Fase 1 | Parcialmente implementada; curvas incompletas |
+ | 3 | Identidade, permissões, auditoria e backend multiusuário | Backend + Segurança | Fase 0 | Não implementada |
+@@ -88,6 +88,28 @@
+ - Nenhum dado clínico real, segredo ou planilha operacional está no diff.
+ - Um novo desenvolvedor consegue instalar e iniciar o programa seguindo o README.
+ 
++### Andamento (atualizado em 10/11/2026 — branch `feat/fase-0-fundacao-seguranca-banco`)
++
++Evidência detalhada em [`docs/desenvolvimento/NOTAS_DE_ENTREGA_FASE0.md`](docs/desenvolvimento/NOTAS_DE_ENTREGA_FASE0.md).
++Nesta sessão o repositório privado e o código do aplicativo não estavam acessíveis; o que depende deles está marcado como **bloqueado**.
++
++| Atividade | Estado | Evidência / o que falta |
++|---|---|---|
++| 1. Auditoria do repositório | **Parcial** | Ferramenta pronta e testada (`tools/auditar_repositorio.py`, 20 testes; não imprime conteúdo). **Bloqueado:** rodar no repositório real (`git status`, arquivos rastreados, histórico). |
++| 2. Ambiente reproduzível | **Parcial** | `requirements.txt`, `requirements.lock.txt` e `requirements-build.txt` instalados em venv limpo (`pip check` OK, Python 3.12/Linux); `tools/verificar_ambiente.py` (14 testes); guia do Windows; CI configurado. **Falta:** validar no Windows e contra o código; CI ainda não executado. |
++| 3. Banco em caminho único | **Parcial** | `db_service.py`, `db_migracoes.py` e `tools/diagnostico_banco.py` com 50 testes sintéticos (do zero, de versão anterior, falha no meio, backup/restauração, rollback). **Bloqueado:** substituir as chamadas SQLite de `main.py`, `mapa_db.py` e `setup_db.py` e validar o executável. |
++| 4. Arquitetura e contratos | **Parcial** | ADR-0001, ADR-0002 e ADR-0003 (proposta, com modelo de domínio preliminar). **Falta:** decisão final multiusuário (depende do hospital) e conferência do modelo com o DDL real. |
++
++Critérios de aceite:
++
++- [ ] Uma única função/fábrica determina o caminho do banco em desenvolvimento e no executável — função pronta e testada (`db_service.caminho_banco`); **falta adotá-la no aplicativo**.
++- [x] Migração de banco sintético funciona do zero e de uma versão anterior; rollback/backups são testados.
++- [ ] `python -m unittest discover -s tests -v` passa no ambiente documentado — os 84 testes desta fase passam (Linux, Python 3.12); a suíte do aplicativo e o Windows não foram executados.
++- [x] Nenhum dado clínico real, segredo ou planilha operacional está no diff deste branch (auditado: 0 BLOQUEIO, 0 REVISAR).
++- [ ] Um novo desenvolvedor consegue instalar e iniciar o programa seguindo o README — não verificável sem o código.
++
++**A Fase 0 não deve ser marcada como concluída** até que os itens bloqueados sejam resolvidos.
++
+ ---
+ 
+ # Fase 1 — Mapa Nutricional por setor, leito e data

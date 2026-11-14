@@ -1,0 +1,10 @@
+NutriLab � auditoria de dados sens�veis (sem exibir conte�do de arquivos)
+
+[REVISAR] gitignore-sem-padrao   CONTROLE DE FICHAS - Mes.xlsx (gitignore) [o .gitignore n�o ignora este caminho de teste]
+[REVISAR] gitignore-sem-padrao   CONTROLE DE REFEI��ES - Mes.xlsx (gitignore) [o .gitignore n�o ignora este caminho de teste]
+[REVISAR] gitignore-sem-padrao   Controle da Nutri��o - Mes.xlsx (gitignore) [o .gitignore n�o ignora este caminho de teste]
+[REVISAR] gitignore-sem-padrao   Mapa_externo_novo_layout.xlsx (gitignore) [o .gitignore n�o ignora este caminho de teste]
+[REVISAR] gitignore-sem-padrao   chave.pem (gitignore) [o .gitignore n�o ignora este caminho de teste]
+[REVISAR] gitignore-sem-padrao   clinica.backup_20260101 (gitignore) [o .gitignore n�o ignora este caminho de teste]
+
+Resumo: 0 BLOQUEIO, 6 REVISAR.
