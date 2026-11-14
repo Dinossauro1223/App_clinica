@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>NutriLab Mobile</title>
+<style>
+:root{--tinta:#1d2a2a;--papel:#f3f6f2;--cartao:#fff;--linha:#cfd8d3;--suave:#5d6b66;--cor:#0f4c5c;--alerta:#b3261e;--alerta-bg:#fde8e6}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.4 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:var(--tinta);background:var(--papel)}
+header{background:var(--cor);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px}
+header h1{margin:0;font-size:1.7rem;font-weight:800;letter-spacing:-.02em}
+header .sub{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.9rem;opacity:.9}
+header .sub button{background:none;border:1px solid #fff9;color:#fff;border-radius:6px;padding:4px 10px}
+nav{display:flex;gap:2px;background:var(--cor);padding:0 10px;overflow-x:auto}
+nav button{background:none;border:0;color:#fff;opacity:.65;padding:10px 12px;font-weight:700;border-bottom:3px solid transparent;white-space:nowrap}
+nav button.on{opacity:1;border-color:#fff}
+main{max-width:600px;margin:0 auto;padding:12px 12px 100px}
+body.adm main{max-width:1100px}
+.grade{display:grid;gap:10px}
+@media(min-width:900px){body.adm .grade{grid-template-columns:repeat(2,1fr)}}
+.cartao{background:var(--cartao);border:1px solid var(--linha);border-radius:8px;padding:12px;margin-bottom:10px}
+.grade .cartao{margin:0}
+h2{font-size:1.1rem;margin:14px 0 8px}
+.lin{display:grid;grid-template-columns:3.4rem 1fr;gap:6px 10px;align-items:center}
+.cod{font-size:1.3rem;font-weight:800;font-variant-numeric:tabular-nums}
+.tg{margin-right:14px;white-space:nowrap}
+.tg input{width:22px;height:22px;vertical-align:-5px;margin-right:4px;accent-color:var(--cor)}
+input[type=text],input[type=number],input[type=password],input[type=date],select{width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--linha);border-radius:6px;background:#fff;font:inherit}
+input[type=number]{font-variant-numeric:tabular-nums}
+label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
+.filtros{display:flex;gap:10px;flex-wrap:wrap}.filtros label{flex:1;min-width:140px}
+.btn{background:var(--cor);color:#fff;border:0;border-radius:6px;padding:12px 16px;font:inherit;font-weight:700;min-height:44px}
+.btn.sec{background:#fff;color:var(--cor);border:1.5px solid var(--cor)}.btn.no{background:var(--alerta)}.btn.peq{padding:6px 12px;min-height:36px}
+.chip{display:inline-block;font-size:.75rem;border-radius:10px;padding:1px 8px;background:#e6ece8;color:var(--suave);margin-right:4px}
+.chip.adm{background:var(--cor);color:#fff}.chip.pen{background:var(--alerta-bg);color:var(--alerta);font-weight:700}
+.barra{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:var(--papel);border-top:1px solid var(--linha)}
+.barra .btn{display:block;width:100%;max-width:600px;margin:0 auto}body.adm .barra .btn{max-width:1100px}
+.aviso{padding:10px 12px;border-radius:8px;margin-bottom:10px;background:#e6ece8}.aviso.erro{background:var(--alerta-bg);color:var(--alerta);font-weight:600}
+.alerta{border-left:5px solid var(--alerta)}
+.nums{font-variant-numeric:tabular-nums;font-size:1.5rem;font-weight:800}
+.mini{font-size:.85rem;color:var(--suave)}
+.passo{display:flex;gap:6px}.passo .btn{padding:0 14px}
+.seg label{display:block;padding:10px;border:1px solid var(--linha);border-radius:6px;margin-bottom:6px}
+.seg input{margin-right:8px;accent-color:var(--cor)}.seg .off{opacity:.45}
+#entrada{max-width:380px;margin:12vh auto;padding:0 16px}
+#entrada h1{font-size:2rem;margin:0 0 4px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const $=s=>document.querySelector(s),esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const S={tok:null,u:null,hoje:'',aba:'',setor:'',est:'almox',data:'',setores:[],itens:[]};
+try{S.tok=sessionStorage.getItem('tok')}catch(e){}
+const NOME={admin:'Administrador',setor:'Setor',estoque_almox:'Almoxarifado',estoque_cozinha:'Cozinha',estoque_copa:'Copa'};
+const COR={admin:'#0f4c5c',setor:'#2f7d4f',estoque_almox:'#4b3f8f',estoque_cozinha:'#b5391f',estoque_copa:'#a85f00'};
+const REF={desjejum:'Desjejum',colacao:'Colação',almoco:'Almoço',lanche:'Lanche',jantar:'Jantar',ceia:'Ceia'};
+const ORI={externo:'Entrada de fornecedor/compra',almox:'Almoxarifado',cozinha:'Cozinha'};
+const ABAS={admin:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoques'],['cadastros','Cadastros']],
+ setor:[['mapa','Mapa'],['refeicoes','Refeições']],estoque_almox:[['estoque','Estoque']],estoque_cozinha:[['estoque','Estoque']],estoque_copa:[['estoque','Estoque']]};
+const br=i=>i?i.slice(8,10)+'/'+i.slice(5,7):'';
+async function api(p,b){
+  const r=await fetch(p,{method:b?'POST':'GET',headers:{'Content-Type':'application/json',...(S.tok?{Authorization:'Bearer '+S.tok}:{})},body:b?JSON.stringify(b):undefined});
+  const j=await r.json().catch(()=>({erro:'Resposta inválida do servidor.'}));
+  if(r.status===401&&S.tok){sair();throw new Error(j.erro)}
+  if(!r.ok)throw new Error(j.erro||'Erro');
+  return j;
+}
+function aviso(t,erro){const a=$('#aviso');if(a){a.innerHTML=t?`<div class="aviso ${erro?'erro':''}">${esc(t)}</div>`:'';if(t)scrollTo(0,0)}}
+const tenta=f=>async(...a)=>{try{await f(...a)}catch(e){aviso(e.message,1)}};
+function sair(){S.tok=null;S.u=null;try{sessionStorage.removeItem('tok')}catch(e){}telaLogin()}
+function telaLogin(msg){
+  document.documentElement.style.setProperty('--cor','#0f4c5c');document.body.className='';
+  $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
+  <label class=f>Login<input type=text id=lg autocapitalize=none autocomplete=username></label>
+  <label class=f>Senha<input type=password id=sn autocomplete=current-password></label>
+  <button class=btn style="width:100%" onclick="entrar()">Entrar</button></div>`;
+  $('#sn').onkeydown=e=>{if(e.key==='Enter')entrar()};
+}
+async function entrar(){
+  try{const j=await api('/api/login',{login:$('#lg').value,senha:$('#sn').value});S.tok=j.token;try{sessionStorage.setItem('tok',j.token)}catch(e){}await abrir(j.usuario,j.hoje)}
+  catch(e){telaLogin(e.message)}
+}
+async function abrir(u,hoje){
+  S.u=u;S.hoje=hoje;S.data=hoje;
+  document.documentElement.style.setProperty('--cor',COR[u.perfil]);document.body.className=u.perfil==='admin'?'adm':'';
+  const s=await api('/api/setores');S.setores=s.setores;S.setor=(s.setores[0]||{}).id||'';
+  S.itens=(await api('/api/itens')).itens;
+  if(u.estoque)S.est=u.estoque;
+  const titulo=u.perfil==='setor'?(S.setores[0]?S.setores[0].nome:'Setor'):NOME[u.perfil];
+  $('#app').innerHTML=`<header><h1>${esc(titulo)}</h1><div class=sub><span>${esc(u.nome)} · hoje, ${br(hoje)}</span><button onclick="sair()">Sair</button></div></header>
+  <nav>${ABAS[u.perfil].map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>`;
+  ir(ABAS[u.perfil][0][0]);
+}
+const ir=tenta(async aba=>{
+  S.aba=aba;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.a===aba));aviso('');
+  $('#vista').innerHTML='<p class=mini>Carregando…</p>';
+  await({painel:vPainel,mapa:vMapa,refeicoes:vRef,estoque:vEstoque,cadastros:vCad})[aba]();
+});
+function filtros(tipo){
+  if(S.u.perfil!=='admin')return '';
+  let h=`<div class="cartao filtros"><label class=f>Dia<input type=date value="${S.data}" onchange="S.data=this.value||S.hoje;ir(S.aba)"></label>`;
+  if(tipo==='setor')h+=`<label class=f>Setor<select onchange="S.setor=this.value;ir(S.aba)">${S.setores.map(s=>`<option value=${s.id} ${s.id==S.setor?'selected':''}>${esc(s.nome)}</option>`).join('')}</select></label>`;
+  if(tipo==='estoque')h+=`<label class=f>Estoque<select onchange="S.est=this.value;ir(S.aba)">${['almox','cozinha','copa'].map(e=>`<option value=${e} ${e==S.est?'selected':''}>${NOME['estoque_'+e]}</option>`).join('')}</select></label>`;
+  return h+'</div>';
+}
+const chips=(l,k,P)=>(l.herdado?`<span class=chip>base de ${br(l.data_base)}</span>`:'')+(l.por_perfil==='admin'?'<span class="chip adm">Admin</span>':'')+(P.includes(String(k))?'<span class="chip pen">Aguardando admin</span>':'');
+function resumo(r,o){
+  const p=[o+' salvo(s)'];
+  if(r.pendente)p.push(r.pendente+' já atualizado(s) pelo administrador: aguardando a autorização dele');
+  aviso(p.join(' · '),0);
+}
+const barra=(f,t)=>`<div class=barra><button class=btn onclick="${f}()">${t}</button></div>`;
+async function vMapa(){
+  if(!S.setor){$('#vista').innerHTML=filtros('setor')+'<div class=cartao>Nenhum setor cadastrado. Peça ao administrador.</div>';return}
+  const j=await api(`/api/mapa?setor=${S.setor}&data=${S.data}`);
+  $('#vista').innerHTML=filtros('setor')+`<datalist id=dietas>${['Geral','Branda','Pastosa','Líquida','Hipossódica','Hipoglicídica','Zero','Enteral','Jejum'].map(d=>`<option>${d}</option>`).join('')}</datalist>
+  <p class=mini>Começa com o que foi informado no último dia salvo; altere só o que mudou.</p>`+
+  (j.linhas.length?j.linhas.map(l=>`<div class="cartao lin" data-id=${l.id_leito}><div class=cod>${esc(l.codigo)}</div>
+   <div><label class=tg><input type=checkbox class=oc ${l.ocupado?'checked':''}>Ocupado</label><label class=tg><input type=checkbox class=ac ${l.acompanhante?'checked':''}>Acompanhante</label></div>
+   <div></div><input type=text class=di list=dietas placeholder="Tipo de dieta" value="${esc(l.dieta)}"><div></div><div>${chips(l,l.id_leito,j.pendentes)}</div></div>`).join('')+barra('salvaMapa','Salvar mapa de '+br(j.data)):'<div class=cartao>Este setor ainda não tem leitos.</div>');
+}
+const salvaMapa=tenta(async()=>{
+  const linhas=[...document.querySelectorAll('[data-id]')].map(e=>({id_leito:+e.dataset.id,ocupado:e.querySelector('.oc').checked,acompanhante:e.querySelector('.ac').checked,dieta:e.querySelector('.di').value}));
+  const r=await api('/api/mapa',{setor:S.setor,data:S.data,linhas});await vMapa();resumo(r,r.ok+' leito(s)');
+});
+async function vRef(){
+  if(!S.setor){$('#vista').innerHTML='<div class=cartao>Nenhum setor cadastrado.</div>';return}
+  const j=await api(`/api/refeicoes?setor=${S.setor}&data=${S.data}`);
+  $('#vista').innerHTML=filtros('setor')+'<p class=mini>Quantidade de refeições servidas no dia (base: último dia salvo).</p>'+
+  j.linhas.map(l=>`<div class=cartao data-r=${l.refeicao}><b>${REF[l.refeicao]}</b> ${chips(l,S.setor+'|'+l.refeicao,j.pendentes)}
+   <div class=passo style="margin-top:6px"><button class="btn sec" onclick="passo(this,-1)">−</button><input type=number inputmode=numeric min=0 step=1 value="${l.qtd}"><button class="btn sec" onclick="passo(this,1)">+</button></div></div>`).join('')+barra('salvaRef','Salvar refeições de '+br(j.data));
+}
+function passo(b,d){const i=b.parentNode.querySelector('input');i.value=Math.max(0,(+i.value||0)+d)}
+const salvaRef=tenta(async()=>{
+  const linhas=[...document.querySelectorAll('[data-r]')].map(e=>({refeicao:e.dataset.r,qtd:e.querySelector('input').value||0}));
+  const r=await api('/api/refeicoes',{setor:S.setor,data:S.data,linhas});await vRef();resumo(r,r.ok+' refeição(ões)');
+});
+let EST=null;
+async function vEstoque(){
+  const j=EST=await api(`/api/estoque?estoque=${S.est}&data=${S.data}`);
+  if(!j.linhas.length){$('#vista').innerHTML=filtros('estoque')+'<div class=cartao>Nenhum item cadastrado. Peça ao administrador.</div>';return}
+  const dia=S.u.perfil!=='admin'||S.data===S.hoje;
+  $('#vista').innerHTML=filtros('estoque')+'<h2>Contagem do dia</h2><p class=mini>Começa com a quantidade do último dia salvo; altere só o que mudou.</p>'+
+  j.linhas.map(l=>`<div class=cartao data-i=${l.id_item}><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(l.nome)}</b><span class=mini>${esc(l.unidade)}</span></div>
+   <input type=number inputmode=decimal min=0 step=any value="${l.qtd}" style="margin:6px 0">${chips(l,j.estoque+'|'+l.id_item,j.pendentes)}</div>`).join('')+
+  (dia?`<h2>Reposição: de quem você pegou</h2><div class=cartao><label class=f>Item<select id=ri onchange="origens()">${j.linhas.map(l=>`<option value=${l.id_item}>${esc(l.nome)} (${esc(l.unidade)})</option>`).join('')}</select></label>
+   <label class=f>Quantidade recebida<input type=number inputmode=decimal min=0 step=any id=rq></label><div class=seg id=ro></div>
+   <button class="btn sec" style="width:100%;margin-top:6px" onclick="repor()">Registrar reposição</button></div>`:'')+barra('salvaEst','Salvar contagem de '+br(j.data));
+  if(dia)origens();
+}
+function origens(){
+  const iid=$('#ri').value;let primeiro=true;
+  $('#ro').innerHTML=EST.origens.map(o=>{
+    const s=o==='externo'?null:(EST.saldos_origem[o]||{})[iid];
+    const bloq=EST.estoque==='copa'&&o==='almox'&&((EST.saldos_origem.cozinha||{})[iid]||0)>0;
+    const ck=!bloq&&primeiro;if(ck)primeiro=false;
+    return `<label class="${bloq?'off':''}"><input type=radio name=or value=${o} ${bloq?'disabled':''} ${ck?'checked':''}>${ORI[o]}${s!=null?` <span class=mini>— disponível lá: ${s}</span>`:''}${bloq?' <span class=mini>(a cozinha ainda tem; pegue lá primeiro)</span>':''}</label>`}).join('');
+}
+const salvaEst=tenta(async()=>{
+  const linhas=[...document.querySelectorAll('[data-i]')].map(e=>({id_item:+e.dataset.i,qtd:e.querySelector('input').value||0}));
+  const r=await api('/api/estoque',{estoque:S.est,data:S.data,linhas});await vEstoque();resumo(r,r.ok+' item(ns)');
+});
+const repor=tenta(async()=>{
+  const o=document.querySelector('input[name=or]:checked');if(!o)throw new Error('Escolha de quem você pegou.');
+  const r=await api('/api/estoque/reposicao',{estoque:S.est,id_item:+$('#ri').value,qtd:$('#rq').value,origem:o.value});
+  await vEstoque();aviso('Reposição registrada. Novo saldo: '+r.saldo+(r.divergente?' · atenção: o saldo da origem estava menor que o retirado; o administrador será avisado.':''),0);
+});
+function fmt(v){return 'ocupado' in v?(v.ocupado?'Ocupado'+(v.acompanhante?' + acompanhante':'')+(v.dieta?' · '+v.dieta:''):'Livre'):v.qtd}
+async function vPainel(){
+  const [p,c]=await Promise.all([api('/api/admin/painel?data='+S.data),api('/api/admin/correcoes')]);
+  $('#vista').innerHTML=filtros('')+(c.correcoes.length?`<h2>Correções aguardando sua autorização (${c.correcoes.length})</h2><div class=grade>`+c.correcoes.map(k=>`<div class="cartao alerta"><b>${esc(k.rotulo)}</b> <span class=mini>${br(k.data)} · ${esc(k.usuario)}</span>
+   <p>Você tinha: <b>${esc(fmt(k.valor_atual))}</b><br>Usuário pede: <b>${esc(fmt(k.valor_proposto))}</b></p>
+   <button class="btn peq" onclick="decide(${k.id},'aprovar')">Aprovar</button> <button class="btn peq no" onclick="decide(${k.id},'recusar')">Recusar</button></div>`).join('')+'</div>':'<div class=cartao>Nenhuma correção pendente.</div>')+
+  (p.divergencias?`<div class="aviso erro">${p.divergencias} reposição(ões) de hoje com saldo insuficiente na origem: confira a contagem do estoque de origem.</div>`:'')+
+  '<h2>Setores</h2><div class=grade>'+p.setores.map(s=>`<div class=cartao><b>${esc(s.nome)}</b><div class=nums>${s.ocupados}<span class=mini> / ${s.leitos} leitos ocupados</span></div>
+   <div class=mini>Mapa: ${s.mapa_atualizado?'atualizado':'sem atualização neste dia'} · Refeições servidas: ${s.refeicoes}</div></div>`).join('')+'</div>'+
+  '<h2>Estoques</h2><div class=grade>'+p.estoques.map(e=>`<div class=cartao><b>${NOME['estoque_'+e.estoque]}</b><div class=nums>${e.atualizados}<span class=mini> / ${e.itens} itens atualizados</span></div>
+   <div class=mini>${e.ultima?'Última atualização: '+esc(e.ultima.slice(11,16)):'Sem atualização neste dia'}</div></div>`).join('')+'</div>';
+}
+const decide=tenta(async(id,acao)=>{await api('/api/admin/correcoes/'+id,{acao});await vPainel();aviso(acao==='aprovar'?'Correção aprovada e aplicada.':'Correção recusada.',0)});
+async function vCad(){
+  const u=(await api('/api/admin/usuarios')).usuarios;
+  $('#vista').innerHTML=`<div class=grade><div class=cartao><h2 style="margin-top:0">Novo usuário</h2>
+  <label class=f>Login<input type=text id=nl autocapitalize=none></label><label class=f>Nome<input type=text id=nn></label>
+  <label class=f>Perfil<select id=np onchange="$('#ns').parentNode.style.display=this.value==='setor'?'block':'none'">${Object.keys(NOME).map(k=>`<option value=${k}>${NOME[k]}${k==='setor'?' (mapa e refeições)':''}</option>`).join('')}</select></label>
+  <label class=f style="display:none">Setor<select id=ns>${S.setores.map(s=>`<option value=${s.id}>${esc(s.nome)}</option>`).join('')}</select></label>
+  <label class=f>Senha inicial (mín. 6)<input type=text id=nx></label><button class=btn onclick="novoUsuario()">Criar usuário</button></div>
+  <div class=cartao><h2 style="margin-top:0">Usuários</h2>${u.map(x=>`<div style="padding:6px 0;border-bottom:1px solid var(--linha)"><b>${esc(x.nome)}</b> <span class=mini>${esc(x.login)} · ${NOME[x.perfil]}${x.ativo?'':' · desativado'}</span><br>
+   <button class="btn sec peq" onclick="ativa(${x.id},${x.ativo?0:1})">${x.ativo?'Desativar':'Reativar'}</button> <button class="btn sec peq" onclick="senha(${x.id})">Nova senha</button></div>`).join('')}</div>
+  <div class=cartao><h2 style="margin-top:0">Setor e leitos</h2><label class=f>Setor<select id=ss><option value="">— novo setor —</option>${S.setores.map(s=>`<option value=${s.id}>${esc(s.nome)} (${s.leitos} leitos)</option>`).join('')}</select></label>
+  <label class=f>Nome do novo setor<input type=text id=sn2></label><label class=f>Prefixo dos leitos (ex.: A)<input type=text id=sp></label>
+  <div class=filtros><label class=f>De<input type=number id=si value=1></label><label class=f>Até<input type=number id=sf></label></div><button class=btn onclick="novoSetor()">Salvar setor/leitos</button></div>
+  <div class=cartao><h2 style="margin-top:0">Itens de estoque</h2><label class=f>Nome<input type=text id=in></label><label class=f>Unidade (kg, L, un…)<input type=text id=iu></label>
+  <button class=btn onclick="novoItem()">Adicionar item</button><p class=mini>${S.itens.length} itens: ${esc(S.itens.map(i=>i.nome).join(', '))}</p></div></div>`;
+}
+const novoUsuario=tenta(async()=>{await api('/api/admin/usuarios',{login:$('#nl').value,nome:$('#nn').value,perfil:$('#np').value,id_setor:+$('#ns').value||null,senha:$('#nx').value});await vCad();aviso('Usuário criado.',0)});
+const ativa=tenta(async(id,a)=>{await api('/api/admin/usuarios/'+id,{ativo:a});await vCad()});
+const senha=tenta(async id=>{const s=prompt('Nova senha (mín. 6 caracteres):');if(s){await api('/api/admin/usuarios/'+id,{senha:s});aviso('Senha alterada.',0)}});
+async function recarregaBase(){S.setores=(await api('/api/setores')).setores;S.setor=S.setor||(S.setores[0]||{}).id||'';S.itens=(await api('/api/itens')).itens}
+const novoSetor=tenta(async()=>{await api('/api/admin/setores',{id_setor:$('#ss').value,nome:$('#sn2').value,prefixo:$('#sp').value,inicio:+$('#si').value||1,fim:+$('#sf').value||0});await recarregaBase();await vCad();aviso('Setor/leitos salvos.',0)});
+const novoItem=tenta(async()=>{await api('/api/admin/itens',{nome:$('#in').value,unidade:$('#iu').value});await recarregaBase();await vCad();aviso('Item adicionado.',0)});
+(async()=>{if(S.tok){try{const j=await api('/api/eu');return await abrir(j.usuario,j.hoje)}catch(e){}}telaLogin()})();
+</script>
+</body>
+</html>
