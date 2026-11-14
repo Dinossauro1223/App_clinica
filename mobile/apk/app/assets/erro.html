@@ -13,15 +13,22 @@ button{width:100%;margin-top:10px;padding:14px;font-size:1.1rem;font-weight:bold
 </style>
 </head>
 <body>
-<h1>Não foi possível conectar</h1>
-<p>Confira:</p>
-<ul>
+<h1 id="t">Não foi possível conectar</h1>
+<p id="d">Confira:</p>
+<ul id="lista">
 <li>o celular está no <b>mesmo Wi-Fi</b> do computador;</li>
 <li>o servidor está ligado no computador (<b>mobile\iniciar_servidor.bat</b>);</li>
-<li>o endereço está certo;</li>
+<li>o endereço está certo, com a porta <b>8765</b>;</li>
 <li>o Firewall do Windows permite a porta <b>8765</b> na rede privada.</li>
 </ul>
 <button class="p" onclick="Android.tentarDeNovo()">Tentar de novo</button>
 <button class="s" onclick="Android.trocar()">Trocar servidor</button>
+<script>
+if(location.search.indexOf('motivo=outro')>=0){
+document.getElementById('t').textContent='Esse não é o servidor do NutriLab';
+document.getElementById('d').innerHTML='O endereço respondeu, mas a página não é a do NutriLab. O servidor do NutriLab usa a porta <b>8765</b>; a porta 8000 serve só para baixar o aplicativo. Toque em <b>Trocar servidor</b> e digite, por exemplo, <b>192.168.0.10:8765</b>.';
+document.getElementById('lista').style.display='none';
+}
+</script>
 </body>
 </html>

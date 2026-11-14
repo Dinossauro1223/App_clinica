@@ -54,7 +54,7 @@ Nenhuma tabela existente foi alterada; `mapa_db.py` não foi tocado. Setores e l
 `Gerar_APK.bat` gera `saida\NutriLab-Mobile.apk`: uma casca Android (WebView, minSdk 26) que pede o endereço do servidor na primeira vez e abre a página servida pelo computador.
 Sem Gradle nem Android Studio: baixa o JDK 17 e as ferramentas do Android para `%LOCALAPPDATA%\NutriLabApk` (uma vez, ~600 MB) e monta o APK com `aapt2`, `javac`, `d8`, `zipalign` e `apksigner`.
 A chave de assinatura fica nessa mesma pasta (atualizações instalam por cima). Ao final oferece servir o APK pelo Wi-Fi (`servir_apk.py`, porta 8000) para baixar no celular. Detalhes: `mobile/apk/LEIA-ME.txt`.
-A tela do app é a do servidor; mudar o visual **não** exige gerar o APK de novo. Caminho do projeto com acento (como `C:\Users\fulano nutrição`): o `aapt2` do Android não abre pastas com acento, então o gerador compila numa pasta de trabalho sem acento (a pasta das ferramentas usa o caminho curto do perfil) e devolve o APK para `saida\`.
+A tela do app é a do servidor; mudar o visual **não** exige gerar o APK de novo. Caminho do projeto com acento (como `C:\Users\fulano nutrição`): o `aapt2` do Android não abre pastas com acento, então o gerador compila numa pasta de trabalho sem acento (a pasta das ferramentas usa o caminho curto do perfil) e devolve o APK para `saida\`. O app confere o endereço digitado (`GET /api/eu` sem login deve devolver 401 com `erro`), assume a porta 8765 quando ela é omitida, explica o motivo quando o endereço não é o servidor do NutriLab (por exemplo a porta 8000, que só serve o download do APK) ou não responde, e o `Gerar_APK.bat` grava o IP deste computador em `assets/servidor.txt` para o endereço já vir preenchido.
 
 ## 7. Limites
 
