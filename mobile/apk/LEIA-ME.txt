@@ -26,6 +26,8 @@ COMO USAR
   3. Entre com o login criado pelo administrador. Para trocar o servidor depois: link "Trocar servidor" na tela de login.
 
 SE ALGO PARAR
+  - Pasta com acento no nome, como C:\Users\fulano nutricao: tudo bem. O aapt2 do Android nao abre caminhos com acento,
+    entao o gerador compila sozinho numa pasta de trabalho sem acento e devolve o APK para a pasta saida.
   - Falha de download: a rede pode estar bloqueando, como proxy ou firewall do hospital. Tente em outra rede.
   - Erro ao compilar: o registro fica em gerar_apk_log.txt; envie esse arquivo.
   - O app mostra "Nao foi possivel conectar": confira o Wi-Fi, o servidor ligado e o Firewall (porta 8765).
