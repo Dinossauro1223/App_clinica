@@ -1,11 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+
+# Fase 0 (ADR-0005): o executável NÃO embute mais o `clinica.db` real (ele contém pacientes). Embute um banco-MODELO
+# sanitizado (catálogo de exames e regras, sem pacientes), gerado ANTES do build com:  python tools\gerar_banco_modelo.py
+MODELO_BANCO = os.path.join(SPECPATH, 'modelo_banco', 'clinica.db')
+if not os.path.exists(MODELO_BANCO):
+    raise SystemExit("Banco-modelo ausente. Rode primeiro:  python tools\\gerar_banco_modelo.py  "
+                     "(o executavel nao embute mais o seu clinica.db real).")
+
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('D:/app_clinica/venv/Lib/site-packages/customtkinter', 'customtkinter'), ('welcome_nutrilab.png', '.'), ('clinica.db', '.'), ('regras_exames_complementares.json', '.'), ('exames_internos', 'exames_internos'), ('condutas_internas', 'condutas_internas'), ('sintomas_internos', 'sintomas_internos'), ('prescricoes_internas', 'prescricoes_internas')],
+    datas=[('D:/app_clinica/venv/Lib/site-packages/customtkinter', 'customtkinter'), ('welcome_nutrilab.png', '.'), (MODELO_BANCO, '.'), ('regras_exames_complementares.json', '.'), ('exames_internos', 'exames_internos'), ('condutas_internas', 'condutas_internas'), ('sintomas_internos', 'sintomas_internos'), ('prescricoes_internas', 'prescricoes_internas')],
     hiddenimports=['mapa_export', 'mapa_graficos', 'openpyxl', 'matplotlib.backends.backend_agg'],
     hookspath=[],
     hooksconfig={},
