@@ -4,6 +4,7 @@
 Todos os bancos são SINTÉTICOS e temporários; nenhum dado real é usado.
 """
 import importlib
+import importlib.util
 import os
 import re
 import shutil
@@ -55,6 +56,12 @@ def consulta(caminho, sql):
         conn.close()
 
 
+DEPENDENCIAS_DO_APP = ("fpdf", "PIL", "openpyxl", "matplotlib")
+FALTANDO = [m for m in DEPENDENCIAS_DO_APP if importlib.util.find_spec(m) is None]
+
+
+@unittest.skipIf(FALTANDO, "faltam bibliotecas do projeto neste Python: " + ", ".join(FALTANDO)
+                 + " (python -m pip install -r requirements.txt)")
 class BaseApp(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
