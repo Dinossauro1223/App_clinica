@@ -27,6 +27,9 @@ COMO USAR
   ATENCAO: a porta 8000 so serve para BAIXAR o APK (a janela do servir_apk). O NutriLab usa a porta 8765.
 
 SE ALGO PARAR
+  - Qual versao esta rodando? A 1a linha do Gerar_APK.bat mostra "[Gerar_APK versao 14/11/2026 v3]". Se aparecer o erro
+    "failed to open directory" com o caminho da SUA pasta (com acentos), voce esta rodando uma copia ANTIGA do Gerar_APK.bat:
+    apague as pastas NutriLab_APK antigas e use so a do NutriLab_APK_v3.zip.
   - Pasta com acento no nome, como C:\Users\fulano nutricao: tudo bem. O aapt2 do Android nao abre caminhos com acento,
     entao o gerador compila sozinho numa pasta de trabalho sem acento e devolve o APK para a pasta saida.
   - Falha de download: a rede pode estar bloqueando, como proxy ou firewall do hospital. Tente em outra rede.

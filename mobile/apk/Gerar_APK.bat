@@ -37,7 +37,8 @@ set "CMDURL=https://dl.google.com/android/repository/commandlinetools-win-110767
 set "CMDURL2=https://dl.google.com/android/repository/commandlinetools-win-9477386_latest.zip"
 
 echo.
-echo ===== NutriLab: gerando o APK =====
+echo ===== NutriLab: gerando o APK  [Gerar_APK versao 14/11/2026 v3] =====
+echo Pasta deste arquivo: %~dp0
 echo.
 if not exist "%FONTE%\AndroidManifest.xml" goto :sem_app
 if not exist "%FERR%" mkdir "%FERR%"
