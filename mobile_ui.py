@@ -1,0 +1,287 @@
+# -*- coding: utf-8 -*-
+"""Tela 'Mobile (copa)' do NutriLab desktop (criada em 12/11/2026).
+
+Receber o que a copa registrou no celular (o nutricionista confere antes de entrar no mapa) e enviar o mapa do dia para a copa.
+Regras e tabelas: docs/mobile/INTEGRACAO_DESKTOP.md. A tela também abre sozinha:  python mobile_ui.py
+"""
+import os
+import webbrowser
+from datetime import date, timedelta
+from tkinter import filedialog, messagebox, ttk
+
+import customtkinter as ctk
+
+import integracao_mobile as im
+import mapa_db as mdb
+
+VERDE_ESC, VERDE, VERDE_HOVER = "#1b5e20", "#4caf50", "#388e3c"
+CINZA, CINZA_HOVER, AZUL, AZUL_HOVER, LARANJA, LARANJA_HOVER = "#78909c", "#546e7a", "#1565c0", "#0d47a1", "#ef6c00", "#e65100"
+TIPOS = {"novo": "Novo paciente", "alterado": "Alterado", "troca": "Troca de paciente", "liberar": "Leito liberado"}
+ROTULOS = {"nome_paciente": "nome", "idade_anos": "idade", "idade_meses": "meses", "acompanhante": "acompanhante",
+           "obs_sim": "gosta", "obs_nao": "não aceita", "consistencia": "consistência", "via": "via"}
+TODOS = "Todos os setores"
+
+
+def _btn(master, texto, comando, largura=160, cor=VERDE, hover=VERDE_HOVER):
+    return ctk.CTkButton(master, text=texto, command=comando, width=largura, height=34, fg_color=cor, hover_color=hover,
+                         font=ctk.CTkFont(size=13, weight="bold"))
+
+
+def _resumo(d, extra=None):
+    if not d or not d.get("nome_paciente"):
+        return "(sem paciente)"
+    idade = ("%sa" % d["idade_anos"]) if d.get("idade_anos") is not None else ""
+    if d.get("idade_meses"):
+        idade += " %sm" % d["idade_meses"]
+    partes = [d["nome_paciente"] + (", " + idade.strip() if idade else "")]
+    dieta = "Enteral" if d.get("via") == "Enteral" else d.get("consistencia")
+    if dieta:
+        partes.append(dieta)
+    if extra and extra.get("dieta") and not dieta:
+        partes.append("dieta: " + extra["dieta"])
+    if d.get("acompanhante"):
+        partes.append("acompanhante")
+    if d.get("obs_sim"):
+        partes.append("gosta: " + d["obs_sim"])
+    if d.get("obs_nao"):
+        partes.append("não aceita: " + d["obs_nao"])
+    if extra and extra.get("diagnostico"):
+        partes.append("diag.: " + extra["diagnostico"])
+    return " · ".join(partes)
+
+
+class MobileUI:
+    """Tela 'Mobile (copa)'. `app` precisa de limpar_area_principal() e area_principal (como o AppClinica)."""
+
+    def __init__(self, app, db_path, base_dir):
+        self.app, self.db, self.base_dir = app, db_path, base_dir
+        self.data = date.today()
+        self.propostas = {}
+        self.setores = []
+        self.mobile_db = im.caminho_mobile_db(db_path, base_dir)
+
+    # --------------------------------------------------------------- montagem
+    def mostrar(self):
+        self.app.limpar_area_principal()
+        area = self.app.area_principal
+        self.mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
+        self.setores = mdb.listar_setores(self.db)
+
+        topo = ctk.CTkFrame(area, fg_color="transparent")
+        topo.pack(fill="x", padx=20, pady=(15, 2))
+        ctk.CTkLabel(topo, text="Mobile (copa)", font=ctk.CTkFont(size=24, weight="bold"), text_color=VERDE_ESC).pack(side="left")
+        _btn(topo, "Abrir painel web", self._abrir_painel, 140, CINZA, CINZA_HOVER).pack(side="right")
+        _btn(topo, "Trocar banco", self._trocar_banco, 120, CINZA, CINZA_HOVER).pack(side="right", padx=6)
+        self.lbl_banco = ctk.CTkLabel(area, text="", font=ctk.CTkFont(size=12), text_color="#546e7a", anchor="w", justify="left")
+        self.lbl_banco.pack(fill="x", padx=22)
+
+        barra = ctk.CTkFrame(area, fg_color="transparent")
+        barra.pack(fill="x", padx=20, pady=(8, 2))
+        ctk.CTkLabel(barra, text="Dia:", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        _btn(barra, "◀", lambda: self._mudar_dia(-1), 36).pack(side="left", padx=(6, 2))
+        self.ent_data = ctk.CTkEntry(barra, width=110, justify="center")
+        self.ent_data.pack(side="left", padx=2)
+        self.ent_data.bind("<Return>", lambda _e: self._aplicar_data())
+        _btn(barra, "▶", lambda: self._mudar_dia(1), 36).pack(side="left", padx=2)
+        _btn(barra, "Hoje", self._hoje, 70, CINZA, CINZA_HOVER).pack(side="left", padx=6)
+        ctk.CTkLabel(barra, text="Setor (para enviar):", font=ctk.CTkFont(size=13)).pack(side="left", padx=(20, 4))
+        self.cb_setor = ctk.CTkComboBox(barra, values=[TODOS] + [s["nome"] for s in self.setores], width=190, state="readonly")
+        self.cb_setor.set(TODOS)
+        self.cb_setor.pack(side="left")
+
+        acoes = ctk.CTkFrame(area, fg_color="transparent")
+        acoes.pack(fill="x", padx=20, pady=(8, 2))
+        _btn(acoes, "Verificar o que chegou do mobile", self._verificar, 250).pack(side="left")
+        _btn(acoes, "Enviar mapa para a copa", self._enviar, 210, AZUL, AZUL_HOVER).pack(side="left", padx=8)
+        self.lbl_status = ctk.CTkLabel(area, text='Use "Verificar" para ver o que a copa registrou no celular.', anchor="w",
+                                       font=ctk.CTkFont(size=13), text_color=VERDE_ESC)
+        self.lbl_status.pack(fill="x", padx=22, pady=(4, 2))
+
+        quadro = ctk.CTkFrame(area)
+        quadro.pack(fill="both", expand=True, padx=20, pady=4)
+        cols = (("setor", "Setor", 110), ("leito", "Leito", 60), ("tipo", "Situação", 150), ("campos", "O que muda", 170),
+                ("desktop", "No desktop", 250), ("mobile", "No mobile", 320))
+        self.tree = ttk.Treeview(quadro, columns=[c[0] for c in cols], show="headings", height=9, selectmode="extended")
+        for chave, titulo, largura in cols:
+            self.tree.heading(chave, text=titulo)
+            self.tree.column(chave, width=largura, anchor="w")
+        sb = ttk.Scrollbar(quadro, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+
+        dec = ctk.CTkFrame(area, fg_color="transparent")
+        dec.pack(fill="x", padx=20, pady=2)
+        _btn(dec, "Aplicar marcados", self._aplicar, 170).pack(side="left")
+        _btn(dec, "Ignorar marcados", self._ignorar, 170, LARANJA, LARANJA_HOVER).pack(side="left", padx=8)
+        ctk.CTkLabel(dec, text="Marque com Ctrl/Shift. Trocar de paciente zera os dados clínicos do leito; ignorar uma "
+                               "correção da copa a recusa no mobile.", font=ctk.CTkFont(size=12), text_color="#546e7a",
+                     wraplength=520, justify="left").pack(side="left", padx=10)
+        self.txt = ctk.CTkTextbox(area, height=130, font=ctk.CTkFont(size=12))
+        self.txt.pack(fill="x", padx=20, pady=(4, 12))
+        self._mostrar_data()
+        self._atualizar_banco()
+
+    def _atualizar_banco(self):
+        achou = "encontrado" if os.path.exists(self.mobile_db) else "NÃO encontrado: ligue o servidor mobile uma vez"
+        self.lbl_banco.configure(text="Banco do mobile: %s (%s)" % (self.mobile_db, achou))
+
+    # ----------------------------------------------------------------- datas
+    def _mostrar_data(self):
+        self.ent_data.delete(0, "end")
+        self.ent_data.insert(0, mdb.iso_para_br(self.data.isoformat()))
+
+    def _aplicar_data(self):
+        try:
+            self.data = date.fromisoformat(mdb.data_br_para_iso(self.ent_data.get()))
+        except ValueError:
+            messagebox.showwarning("Mobile", "Data inválida. Use DD/MM/AAAA.")
+            self._mostrar_data()
+
+    def _mudar_dia(self, delta):
+        self.data += timedelta(days=delta)
+        self._mostrar_data()
+
+    def _hoje(self):
+        self.data = date.today()
+        self._mostrar_data()
+
+    # --------------------------------------------------------------- receber
+    def _verificar(self):
+        iso = self.data.isoformat()
+        try:
+            ex = im.ler_mobile(self.mobile_db, iso)
+            props = im.propostas_mapa(self.db, ex)
+            im.importar_refeicoes(self.db, ex)
+            im.importar_estoque(self.db, ex)
+        except im.ErroMobile as e:
+            messagebox.showwarning("Mobile", str(e))
+            return
+        self._preencher(props, iso)
+        self._resumo_texto(iso, len([k for k in ex.get("correcoes_pendentes", []) if k["tipo"] != "mapa"]))
+        self.lbl_status.configure(text=("%d item(ns) do mapa para conferir." % len(props)) if props else "Nada novo no mapa.")
+
+    def _preencher(self, props, iso):
+        for iid in self.tree.get_children():
+            self.tree.delete(iid)
+        self.propostas, marcar = {}, []
+        for p in props:
+            iid = "%s|%s" % (p["data"], p["chave"])
+            self.propostas[iid] = p
+            setor = p["setor"] + ("" if p["data"] == iso else " (%s)" % mdb.iso_para_br(p["data"]))
+            situacao = TIPOS[p["tipo"]] + (" · correção da copa" if p.get("id_correcao") else "")
+            self.tree.insert("", "end", iid=iid, values=(setor, p["leito"], situacao, ", ".join(ROTULOS.get(k, k) for k in p["campos"]),
+                                                         _resumo(p["desktop"]), _resumo(p["mobile"], p["extra"])))
+            if p["padrao"]:
+                marcar.append(iid)
+        if marcar:
+            self.tree.selection_set(marcar)
+
+    def _resumo_texto(self, iso, outras_correcoes):
+        r = im.resumo(self.db, iso)
+        linhas = ["Refeições contadas em %s:" % mdb.iso_para_br(iso)]
+        linhas += ["  %s: %s %g" % (x["setor"], x["refeicao"], x["qtd"]) for x in r["refeicoes"]] or ["  (nenhuma)"]
+        linhas.append("Estoques:")
+        linhas += ["  %s: %d item(ns) contados, última atualização %s" % (x["estoque"], x["itens"], (x["ultima"] or "")[11:16])
+                   for x in r["estoques"]] or ["  (nenhum)"]
+        linhas.append("Reposições do dia: %d (%d com saldo insuficiente na origem)" % (r["movimentos"], r["divergentes"]))
+        if outras_correcoes:
+            linhas.append("Correções de refeição/estoque aguardando no painel web do mobile: %d" % outras_correcoes)
+        self.txt.configure(state="normal")
+        self.txt.delete("1.0", "end")
+        self.txt.insert("1.0", "\n".join(linhas))
+        self.txt.configure(state="disabled")
+
+    def _selecionadas(self):
+        return [self.propostas[i] for i in self.tree.selection() if i in self.propostas]
+
+    def _aplicar(self):
+        sel = self._selecionadas()
+        if not sel:
+            messagebox.showinfo("Mobile", "Selecione os itens que deseja aplicar.")
+            return
+        riscos = [p for p in sel if p["tipo"] in ("troca", "liberar")]
+        if riscos and not messagebox.askyesno(
+                "Confirmar", "%d item(ns) trocam o paciente do leito (zera os dados clínicos dele) ou liberam o leito "
+                             "(apaga o registro do dia). Continuar?" % len(riscos)):
+            return
+        lms = getattr(getattr(self.app, "mapa", None), "lms", None)
+        try:
+            res = im.aplicar_mapa(self.db, sel, self.mobile_db, mdb.obter_config(self.db, "criterio_idoso", "lipschitz"), lms)
+        except im.ErroMobile as e:
+            messagebox.showwarning("Mobile", str(e))
+            return
+        if res["erros"]:
+            messagebox.showwarning("Mobile", "Alguns itens não foram aplicados:\n" + "\n".join(res["erros"]))
+        self._verificar()
+        self.lbl_status.configure(text="%d item(ns) aplicado(s) ao mapa." % res["aplicados"])
+
+    def _ignorar(self):
+        sel = self._selecionadas()
+        if not sel:
+            messagebox.showinfo("Mobile", "Selecione os itens que deseja ignorar.")
+            return
+        try:
+            im.ignorar_mapa(self.db, sel, self.mobile_db)
+        except im.ErroMobile as e:
+            messagebox.showwarning("Mobile", str(e))
+            return
+        self._verificar()
+        self.lbl_status.configure(text="%d item(ns) ignorado(s)." % len(sel))
+
+    # ---------------------------------------------------------------- enviar
+    def _enviar(self):
+        iso, nome = self.data.isoformat(), self.cb_setor.get()
+        id_setor = next((s["id_setor"] for s in self.setores if s["nome"] == nome), None)
+        try:
+            pendentes = im.propostas_mapa(self.db, im.ler_mobile(self.mobile_db, iso))
+        except im.ErroMobile as e:
+            messagebox.showwarning("Mobile", str(e))
+            return
+        aviso = ("\n\nATENÇÃO: há %d alteração(ões) da copa que você ainda não conferiu; enviar agora pode sobrescrevê-las."
+                 % len(pendentes)) if pendentes else ""
+        if not messagebox.askyesno("Enviar para a copa", "Enviar o mapa de %s (%s) para a copa?\nAs copeiras receberão um aviso "
+                                   "com os leitos alterados.%s" % (mdb.iso_para_br(iso), nome, aviso)):
+            return
+        try:
+            res = im.enviar_mapa(self.db, self.mobile_db, iso, id_setor)
+        except im.ErroMobile as e:
+            messagebox.showwarning("Mobile", str(e))
+            return
+        total = sum(r["leitos"] for r in res)
+        detalhe = ", ".join("%s %d" % (r["setor"], r["leitos"]) for r in res if r["leitos"])
+        self.lbl_status.configure(text=("Enviado para a copa: %d leito(s) alterado(s) (%s)." % (total, detalhe)) if total
+                                  else "O mobile já estava igual ao mapa do desktop: nada a avisar.")
+
+    # ------------------------------------------------------------------ outros
+    def _abrir_painel(self):
+        webbrowser.open("http://localhost:8765")
+
+    def _trocar_banco(self):
+        caminho = filedialog.askopenfilename(title="Banco do servidor mobile (mobile.db)",
+                                             filetypes=[("Banco do mobile", "*.db"), ("Todos os arquivos", "*.*")])
+        if caminho:
+            mdb.salvar_config(self.db, "mobile_db", caminho)
+            self.mostrar()
+
+
+if __name__ == "__main__":  # abre a tela sozinha, sem o programa principal
+    base = os.path.dirname(os.path.abspath(__file__))
+    banco = os.path.join(base, "clinica.db")
+    mdb.inicializar(banco)
+
+    class _Janela(ctk.CTk):
+        def __init__(self):
+            super().__init__()
+            self.title("NutriLab - Mobile (copa)")
+            self.geometry("1100x760")
+            self.area_principal = ctk.CTkFrame(self, fg_color="transparent")
+            self.area_principal.pack(fill="both", expand=True)
+
+        def limpar_area_principal(self):
+            for w in self.area_principal.winfo_children():
+                w.destroy()
+
+    janela = _Janela()
+    MobileUI(janela, banco, base).mostrar()
+    janela.mainloop()
