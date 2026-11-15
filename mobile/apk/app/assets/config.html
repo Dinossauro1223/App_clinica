@@ -10,19 +10,24 @@ h1{margin:0 0 4px;font-size:2rem;color:#0f4c5c}
 p{margin:8px 0}.mini{font-size:.9rem;color:#5d6b66}
 input{width:100%;box-sizing:border-box;margin:8px 0 14px;padding:12px;font-size:1.1rem;border:1px solid #cfd8d3;border-radius:8px}
 button{width:100%;padding:14px;font-size:1.1rem;font-weight:bold;color:#fff;background:#0f4c5c;border:0;border-radius:8px}
+button:disabled{opacity:.6}
+.erro{color:#b3261e;font-weight:bold;background:#fde8e6;border-radius:8px;padding:10px 12px}.erro:empty{display:none}
 </style>
 </head>
 <body>
 <h1>NutriLab</h1>
 <p class="mini">Serviço de Nutrição: acesso da equipe</p>
-<p>Digite o endereço do servidor, o computador do administrador. Ele aparece na janela do servidor, na linha <b>Celulares</b>, por exemplo <b>192.168.0.10:8765</b>.</p>
+<p>Digite o endereço do <b>servidor NutriLab</b>, o computador do administrador. Ele aparece na janela do servidor, na linha <b>Celulares</b>, sempre com a porta <b>8765</b>, por exemplo <b>192.168.0.10:8765</b>.</p>
 <input id="e" type="text" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="192.168.0.10:8765">
-<button onclick="ok()">Conectar</button>
-<p class="mini">O celular precisa estar no mesmo Wi-Fi do computador.</p>
+<button id="b" onclick="ok()">Conectar</button>
+<p id="msg" class="erro"></p>
+<p class="mini">O celular precisa estar no mesmo Wi-Fi do computador. A porta 8000 é só para baixar o aplicativo.</p>
 <script>
-var a=window.Android;
-if(a&&a.servidor()){document.getElementById('e').value=a.servidor().replace('http://','')}
-function ok(){var v=document.getElementById('e').value.trim();if(!v){alert('Digite o endereço do servidor.');return}a.salvar(v)}
+var a=window.Android,e=document.getElementById('e'),b=document.getElementById('b'),m=document.getElementById('msg');
+var salvo=a?a.servidor().replace('http://',''):'';
+e.value=salvo||(a?a.sugestao():'');
+function ok(){var v=e.value.trim();m.textContent='';if(!v){m.textContent='Digite o endereço do servidor.';return}b.disabled=true;b.textContent='Conectando...';a.salvar(v)}
+function resultado(t){m.textContent=t;b.disabled=false;b.textContent='Conectar'}
 </script>
 </body>
 </html>

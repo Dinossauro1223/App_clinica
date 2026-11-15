@@ -20,10 +20,11 @@ COMO INSTALAR NO CELULAR
   Precisa de Android 8 ou mais novo.
 
 COMO USAR
-  1. No computador, ligue o servidor: mobile\iniciar_servidor.bat. Anote o endereco da linha "Celulares".
-  2. No celular, abra o NutriLab e digite esse endereco, por exemplo 192.168.0.10:8765.
-     Celular e computador precisam estar no MESMO Wi-Fi.
+  1. No computador, ligue o servidor: mobile\iniciar_servidor.bat. Ele mostra o endereco da linha "Celulares", sempre com a porta 8765.
+  2. No celular, abra o NutriLab. O endereco ja vem preenchido com o IP deste computador; se o IP mudou, corrija. Toque em Conectar.
+     O app confere se o endereco e mesmo o servidor do NutriLab e avisa o que esta errado. Celular e computador no MESMO Wi-Fi.
   3. Entre com o login criado pelo administrador. Para trocar o servidor depois: link "Trocar servidor" na tela de login.
+  ATENCAO: a porta 8000 so serve para BAIXAR o APK (a janela do servir_apk). O NutriLab usa a porta 8765.
 
 SE ALGO PARAR
   - Pasta com acento no nome, como C:\Users\fulano nutricao: tudo bem. O aapt2 do Android nao abre caminhos com acento,

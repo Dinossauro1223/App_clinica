@@ -110,12 +110,24 @@ mkdir "%W%"
 set "PASSO=copiar o app para a pasta de trabalho sem acento"
 xcopy "%FONTE%" "%APP%\" /e /i /y /q >nul
 if errorlevel 1 goto :falha_build
+set "PASSO=descobrir o endereco deste computador na rede"
+set "IPLAN="
+where py >nul 2>nul
+if errorlevel 1 goto :ip_python
+for /f %%i in ('py -3 "%~dp0ip_lan.py" 2^>nul') do set "IPLAN=%%i"
+goto :ip_feito
+:ip_python
+for /f %%i in ('python "%~dp0ip_lan.py" 2^>nul') do set "IPLAN=%%i"
+:ip_feito
+if defined IPLAN >"%APP%\assets\servidor.txt" echo %IPLAN%:8765
 mkdir "%OBJ%\classes"
 mkdir "%OBJ%\dex"
 if not exist "%SAIDA%" mkdir "%SAIDA%"
 set "VCODE="
-for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHH"') do set "VCODE=%%i"
+for /f %%i in ('powershell -NoProfile -Command "[int]((Get-Date -UFormat %%s)/60)"') do set "VCODE=%%i"
 if not defined VCODE set "VCODE=1"
+echo %VCODE%| findstr /r /x "[0-9][0-9]*" >nul
+if errorlevel 1 set "VCODE=1"
 
 set "PASSO=aapt2 compile - recursos"
 "%BT%\aapt2.exe" compile --dir "%APP%\res" -o "%OBJ%\res.zip" >>"%LOG%" 2>&1
@@ -157,6 +169,9 @@ echo ===== PRONTO =====
 echo O APK esta em: %SAIDA%\NutriLab-Mobile.apk
 echo.
 echo Para instalar no celular: copie o arquivo para ele, ou baixe pelo Wi-Fi como abaixo.
+echo.
+if defined IPLAN echo No app, o endereco do servidor ja vem preenchido: %IPLAN%:8765
+echo ATENCAO: o servidor NutriLab usa a porta 8765. A porta 8000 serve so para baixar o APK.
 echo.
 start "" explorer "%SAIDA%"
 choice /c SN /n /m "Servir o APK pela rede agora, para baixar no celular? [S/N] "
