@@ -1,6 +1,7 @@
 """NutriLab Mobile - servidor da rede local (LAN). Somente biblioteca padrão do Python.
 
-Criado em 12/11/2026. Descrição completa e contrato de dados: docs/mobile/INTEGRACAO_MOBILE.md
+Criado em 12/11/2026 (revisado no mesmo dia: nutricionista, mapa com paciente e publicação, avisos, janelas de refeição).
+Descrição completa e contrato de dados: docs/mobile/INTEGRACAO_MOBILE.md
 Uso:  python mobile/servidor.py [--porta 8765] [--db CAMINHO] [--redefinir-admin]
 """
 import argparse
@@ -8,6 +9,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import re
 import secrets
 import socket
 import sqlite3
@@ -23,9 +25,15 @@ AQUI = Path(__file__).resolve().parent
 TZ = timezone(timedelta(hours=-3))  # America/Recife (sem horário de verão)
 REFEICOES = ["desjejum", "colacao", "almoco", "lanche", "jantar", "ceia"]
 ESTOQUES = ["almox", "cozinha", "copa"]
-PERFIS = ["admin", "setor", "estoque_almox", "estoque_cozinha", "estoque_copa"]
+PERFIS = ["admin", "nutricionista", "copa", "estoque_cozinha", "estoque_almox"]
+STAFF = ("admin", "nutricionista")  # escolhem o dia; o que gravam só muda com autorização deles quando a copa discorda
+EST_PERFIL = {"copa": "copa", "estoque_cozinha": "cozinha", "estoque_almox": "almox"}
 # Hierarquia de abastecimento: de quem cada estoque pode receber.
 ORIGENS = {"almox": ["externo"], "cozinha": ["almox"], "copa": ["cozinha", "almox"]}
+CAMPOS = ["nome", "idade_anos", "idade_meses", "dieta", "diagnostico", "pref_sim", "pref_nao", "acompanhante"]
+# Refeições conferidas hoje: almoço e jantar. As demais ficam desligadas até o administrador habilitar (com horário).
+CFG_INICIAL = [("desjejum", 0, None, None), ("colacao", 0, None, None), ("almoco", 1, "09:00", "16:00"),
+               ("lanche", 0, None, None), ("jantar", 1, "16:00", "22:00"), ("ceia", 0, None, None)]
 LOCK = threading.Lock()
 SESSOES, FALHAS = {}, {}
 
@@ -35,16 +43,24 @@ CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, login TEXT UNIQUE NO
 CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL);
 CREATE TABLE IF NOT EXISTS leitos(id INTEGER PRIMARY KEY, id_setor INTEGER NOT NULL, codigo TEXT NOT NULL, UNIQUE(id_setor, codigo));
 CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, ocupado INTEGER, acompanhante INTEGER, dieta TEXT,
+CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
+  idade_anos INTEGER, idade_meses INTEGER, diagnostico TEXT, pref_sim TEXT, pref_nao TEXT,
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, id_leito));
+CREATE TABLE IF NOT EXISTS mapa_rascunho(data TEXT, id_leito INTEGER, campos TEXT, por_usuario INTEGER, atualizado_em TEXT,
+  PRIMARY KEY(data, id_leito));
+CREATE TABLE IF NOT EXISTS refeicoes_cfg(refeicao TEXT PRIMARY KEY, ativa INTEGER, abre TEXT, fecha TEXT);
+CREATE TABLE IF NOT EXISTS janelas(id_setor INTEGER, refeicao TEXT, abre TEXT, fecha TEXT, PRIMARY KEY(id_setor, refeicao));
 CREATE TABLE IF NOT EXISTS refeicoes_dia(data TEXT, id_setor INTEGER, refeicao TEXT, qtd REAL,
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, id_setor, refeicao));
 CREATE TABLE IF NOT EXISTS estoque_dia(data TEXT, estoque TEXT, id_item INTEGER, qtd REAL,
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, estoque, id_item));
 CREATE TABLE IF NOT EXISTS movimentos(id INTEGER PRIMARY KEY, data TEXT, hora TEXT, origem TEXT, destino TEXT,
   id_item INTEGER, qtd REAL, por_usuario INTEGER, divergente INTEGER DEFAULT 0);
-CREATE TABLE IF NOT EXISTS correcoes(id INTEGER PRIMARY KEY, tipo TEXT, data TEXT, chave TEXT, rotulo TEXT,
+CREATE TABLE IF NOT EXISTS correcoes(id INTEGER PRIMARY KEY, tipo TEXT, data TEXT, chave TEXT, rotulo TEXT, id_setor INTEGER,
   valor_atual TEXT, valor_proposto TEXT, por_usuario INTEGER, criado_em TEXT, status TEXT DEFAULT 'pendente', decidido_em TEXT);
+CREATE TABLE IF NOT EXISTS avisos(id INTEGER PRIMARY KEY, criado_em TEXT, por_usuario INTEGER, tipo TEXT, id_setor INTEGER,
+  titulo TEXT, texto TEXT, leitos TEXT);
+CREATE TABLE IF NOT EXISTS avisos_lidos(id_aviso INTEGER, id_usuario INTEGER, lido_em TEXT, PRIMARY KEY(id_aviso, id_usuario));
 """
 
 
@@ -55,12 +71,16 @@ class Erro(Exception):
 
 
 # ------------------------------------------------------------------ utilidades
+def agora_dt():
+    return datetime.now(TZ)
+
+
 def hoje():
-    return datetime.now(TZ).date().isoformat()
+    return agora_dt().date().isoformat()
 
 
 def agora():
-    return datetime.now(TZ).isoformat(timespec="seconds")
+    return agora_dt().isoformat(timespec="seconds")
 
 
 def num(v, nome="valor"):
@@ -78,6 +98,12 @@ def dia_valido(txt):
         return date.fromisoformat(str(txt)).isoformat()
     except ValueError:
         raise Erro("Data inválida (use AAAA-MM-DD).")
+
+
+def hora(v):
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", str(v or "")):
+        raise Erro("Horário inválido (use HH:MM).")
+    return str(v)
 
 
 def hash_senha(senha, salt):
@@ -103,21 +129,37 @@ def criar_usuario(c, login, nome, perfil, id_setor, senha):
         raise Erro("Informe login e nome.")
     if perfil not in PERFIS:
         raise Erro("Perfil inválido.")
-    if perfil == "setor" and not c.execute("SELECT 1 FROM setores WHERE id=?", (id_setor,)).fetchone():
-        raise Erro("Escolha o setor do usuário.")
+    sid = id_setor if perfil in ("copa", "nutricionista") and id_setor not in (None, "") else None
+    if sid is not None and not c.execute("SELECT 1 FROM setores WHERE id=?", (sid,)).fetchone():
+        raise Erro("Setor inexistente.")
     try:
         c.execute("INSERT INTO usuarios(login,nome,perfil,id_setor,salt,senha,criado_em) VALUES(?,?,?,?,'','',?)",
-                  (login, str(nome).strip(), perfil, id_setor if perfil == "setor" else None, agora()))
+                  (login, str(nome).strip(), perfil, sid, agora()))
     except sqlite3.IntegrityError:
         raise Erro("Esse login já existe.")
     definir_senha(c, c.execute("SELECT id FROM usuarios WHERE login=?", (login,)).fetchone()["id"], senha)
 
 
+def migrar(c):
+    """Atualiza bancos da primeira versão (12/11/2026) e carrega a configuração inicial das refeições."""
+    def cols(t):
+        return {r[1] for r in c.execute("PRAGMA table_info(%s)" % t)}
+    for col, tipo in (("nome", "TEXT"), ("idade_anos", "INTEGER"), ("idade_meses", "INTEGER"),
+                      ("diagnostico", "TEXT"), ("pref_sim", "TEXT"), ("pref_nao", "TEXT")):
+        if col not in cols("mapa_dia"):
+            c.execute("ALTER TABLE mapa_dia ADD COLUMN %s %s" % (col, tipo))
+    if "id_setor" not in cols("correcoes"):
+        c.execute("ALTER TABLE correcoes ADD COLUMN id_setor INTEGER")
+    c.execute("UPDATE usuarios SET perfil='copa' WHERE perfil IN ('setor','estoque_copa')")
+    c.executemany("INSERT OR IGNORE INTO refeicoes_cfg VALUES(?,?,?,?)", CFG_INICIAL)
+
+
 def preparar_banco(db, redefinir=False):
-    """Cria o banco e o usuário 'admin'. Devolve a senha gerada (ou None se o admin já existia)."""
+    """Cria/atualiza o banco e o usuário 'admin'. Devolve a senha gerada (ou None se o admin já existia)."""
     Path(db).parent.mkdir(parents=True, exist_ok=True)
     c = conectar(db)
     c.executescript(ESQUEMA)
+    migrar(c)
     adm = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()
     senha = None
     if adm is None or redefinir:
@@ -132,8 +174,7 @@ def preparar_banco(db, redefinir=False):
 
 
 def pub(u):
-    est = u["perfil"][8:] if u["perfil"].startswith("estoque_") else None
-    return {"id": u["id"], "nome": u["nome"], "perfil": u["perfil"], "id_setor": u["id_setor"], "estoque": est}
+    return {"id": u["id"], "nome": u["nome"], "perfil": u["perfil"], "id_setor": u["id_setor"], "estoque": EST_PERFIL.get(u["perfil"])}
 
 
 # --------------------------------------------------------------- autenticação
@@ -161,36 +202,63 @@ def usuario(c, auth):
 
 
 def setor_alvo(c, u, pedido):
-    if u["perfil"] == "admin":
-        if not pedido:
-            raise Erro("Escolha o setor.")
-        sid = int(pedido)
-    elif u["perfil"] == "setor":
-        sid = u["id_setor"]
-    else:
+    """Admin e nutricionista sem setor escolhem o setor; copa e nutricionista de um setor ficam no próprio."""
+    p, sid = u["perfil"], u["id_setor"]
+    if p == "admin" or (p == "nutricionista" and sid is None):
+        sid = pedido
+    elif p not in ("nutricionista", "copa"):
         raise Erro("Sem permissão para este setor.", 403)
-    s = c.execute("SELECT * FROM setores WHERE id=?", (sid,)).fetchone()
+    if not sid:
+        raise Erro("Escolha o setor." if p in STAFF else "Seu usuário não tem setor definido. Fale com o administrador.")
+    s = c.execute("SELECT * FROM setores WHERE id=?", (int(sid),)).fetchone()
     if not s:
         raise Erro("Setor não encontrado.", 404)
     return dict(s)
 
 
 def estoque_alvo(u, pedido):
-    est = pedido if u["perfil"] == "admin" else (u["perfil"][8:] if u["perfil"].startswith("estoque_") else None)
+    est = pedido if u["perfil"] == "admin" else EST_PERFIL.get(u["perfil"])
     if est not in ESTOQUES:
         raise Erro("Sem permissão para este estoque.", 403)
     return est
 
 
 def dia_alvo(u, pedido):
-    """Usuários comuns só mexem no PRÓPRIO DIA (data do servidor); só o admin escolhe a data."""
-    return dia_valido(pedido) if (u["perfil"] == "admin" and pedido) else hoje()
+    """Copa e estoquistas só mexem no PRÓPRIO DIA (data do servidor); só admin e nutricionista escolhem a data."""
+    return dia_valido(pedido) if (u["perfil"] in STAFF and pedido) else hoje()
 
 
-# ------------------------------------------- gravação com alerta de correção
+# --------------------------------------------- mapa: normalização e gravação
+def norm(l):
+    """Padroniza uma linha do mapa. Leito sem nome = leito livre (limpa os demais campos)."""
+    def t(k, n=120):
+        return str(l.get(k) or "").strip()[:n]
+
+    def i(k, mx):
+        v = l.get(k)
+        if v in (None, ""):
+            return None
+        try:
+            x = int(float(v))
+        except (TypeError, ValueError):
+            raise Erro("Idade inválida.")
+        if not 0 <= x <= mx:
+            raise Erro("Idade fora do limite.")
+        return x
+    n = {"nome": t("nome"), "idade_anos": i("idade_anos", 130), "idade_meses": i("idade_meses", 11), "dieta": t("dieta", 60),
+         "diagnostico": t("diagnostico", 200), "pref_sim": t("pref_sim", 200), "pref_nao": t("pref_nao", 200),
+         "acompanhante": int(bool(l.get("acompanhante")))}
+    if not n["nome"]:
+        n.update(idade_anos=None, idade_meses=None, dieta="", diagnostico="", pref_sim="", pref_nao="", acompanhante=0)
+    n["ocupado"] = int(bool(n["nome"]))
+    return n
+
+
 def atual(c, tipo, data, chave):
     if tipo == "mapa":
-        r = c.execute("SELECT ocupado,acompanhante,dieta,por_perfil FROM mapa_dia WHERE data=? AND id_leito=?", (data, int(chave)))
+        r = c.execute("SELECT ocupado,acompanhante,COALESCE(dieta,'') dieta,COALESCE(nome,'') nome,idade_anos,idade_meses,"
+                      "COALESCE(diagnostico,'') diagnostico,COALESCE(pref_sim,'') pref_sim,COALESCE(pref_nao,'') pref_nao,por_perfil "
+                      "FROM mapa_dia WHERE data=? AND id_leito=?", (data, int(chave)))
     elif tipo == "refeicao":
         sid, ref = chave.split("|")
         r = c.execute("SELECT qtd,por_perfil FROM refeicoes_dia WHERE data=? AND id_setor=? AND refeicao=?", (data, int(sid), ref))
@@ -204,33 +272,37 @@ def atual(c, tipo, data, chave):
 def gravar(c, tipo, data, chave, v, uid, perfil):
     t = agora()
     if tipo == "mapa":
-        c.execute("INSERT INTO mapa_dia VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET ocupado=excluded.ocupado,"
-                  "acompanhante=excluded.acompanhante,dieta=excluded.dieta,por_usuario=excluded.por_usuario,"
+        c.execute("INSERT INTO mapa_dia(data,id_leito,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
+                  "por_usuario,por_perfil,atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
+                  "ocupado=excluded.ocupado,acompanhante=excluded.acompanhante,dieta=excluded.dieta,nome=excluded.nome,"
+                  "idade_anos=excluded.idade_anos,idade_meses=excluded.idade_meses,diagnostico=excluded.diagnostico,"
+                  "pref_sim=excluded.pref_sim,pref_nao=excluded.pref_nao,por_usuario=excluded.por_usuario,"
                   "por_perfil=excluded.por_perfil,atualizado_em=excluded.atualizado_em",
-                  (data, int(chave), v["ocupado"], v["acompanhante"], v["dieta"], uid, perfil, t))
+                  (data, int(chave), v["ocupado"], v.get("acompanhante", 0), v.get("dieta", ""), v.get("nome", ""), v.get("idade_anos"),
+                   v.get("idade_meses"), v.get("diagnostico", ""), v.get("pref_sim", ""), v.get("pref_nao", ""), uid, perfil, t))
     else:
         tab, cols = ("refeicoes_dia", "id_setor,refeicao") if tipo == "refeicao" else ("estoque_dia", "estoque,id_item")
         a, b = chave.split("|")
-        a = int(a) if tipo == "refeicao" else a
-        b = b if tipo == "refeicao" else int(b)
-        c.execute("INSERT INTO %s VALUES(?,?,?,?,?,?,?) ON CONFLICT(data,%s) DO UPDATE SET qtd=excluded.qtd,"
-                  "por_usuario=excluded.por_usuario,por_perfil=excluded.por_perfil,atualizado_em=excluded.atualizado_em" % (tab, cols),
-                  (data, a, b, v["qtd"], uid, perfil, t))
+        a, b = (int(a), b) if tipo == "refeicao" else (a, int(b))
+        c.execute("INSERT INTO %s(data,%s,qtd,por_usuario,por_perfil,atualizado_em) VALUES(?,?,?,?,?,?,?) ON CONFLICT(data,%s) DO UPDATE SET "
+                  "qtd=excluded.qtd,por_usuario=excluded.por_usuario,por_perfil=excluded.por_perfil,atualizado_em=excluded.atualizado_em"
+                  % (tab, cols, cols), (data, a, b, v["qtd"], uid, perfil, t))
 
 
-def salvar(c, u, tipo, data, chave, rotulo, novo):
-    """Devolve 'ok', 'igual' ou 'pendente'. Se o ADMIN já atualizou este dado no dia e um usuário comum
-    manda valor diferente, nada é sobrescrito: nasce uma correção pendente para o admin aprovar ou recusar."""
+def salvar(c, u, tipo, data, chave, rotulo, novo, sid=None):
+    """Devolve 'ok', 'igual' ou 'pendente'. Se admin/nutricionista já gravou este dado no dia e a copa (ou estoquista)
+    manda valor diferente, nada é sobrescrito: nasce uma correção pendente para eles aprovarem ou recusarem."""
     a = atual(c, tipo, data, chave)
     if a:
         por = a.pop("por_perfil")
+        subst = "UPDATE correcoes SET status='substituida' WHERE tipo=? AND data=? AND chave=? AND status='pendente'"
         if all(a.get(k) == v for k, v in novo.items()):
-            c.execute("UPDATE correcoes SET status='substituida' WHERE tipo=? AND data=? AND chave=? AND status='pendente'", (tipo, data, chave))
+            c.execute(subst, (tipo, data, chave))
             return "igual"
-        if por == "admin" and u["perfil"] != "admin":
-            c.execute("UPDATE correcoes SET status='substituida' WHERE tipo=? AND data=? AND chave=? AND status='pendente'", (tipo, data, chave))
-            c.execute("INSERT INTO correcoes(tipo,data,chave,rotulo,valor_atual,valor_proposto,por_usuario,criado_em) VALUES(?,?,?,?,?,?,?,?)",
-                      (tipo, data, chave, rotulo, json.dumps(a), json.dumps(novo), u["id"], agora()))
+        if por in STAFF and u["perfil"] not in STAFF:
+            c.execute(subst, (tipo, data, chave))
+            c.execute("INSERT INTO correcoes(tipo,data,chave,rotulo,id_setor,valor_atual,valor_proposto,por_usuario,criado_em) VALUES(?,?,?,?,?,?,?,?,?)",
+                      (tipo, data, chave, rotulo, sid, json.dumps(a), json.dumps(novo), u["id"], agora()))
             return "pendente"
     gravar(c, tipo, data, chave, novo, u["id"], u["perfil"])
     return "ok"
@@ -241,21 +313,45 @@ def pendentes(c, tipo, data):
 
 
 # ----------------------------------------- leituras (já com a base do dia anterior)
-def linhas_mapa(c, sid, d):
-    sql = ("SELECT l.id id_leito,l.codigo,COALESCE(h.ocupado,0) ocupado,COALESCE(h.acompanhante,0) acompanhante,"
-           "COALESCE(h.dieta,'') dieta,h.data data_base,h.por_perfil,h.atualizado_em FROM leitos l "
+def linhas_mapa(c, sid, d, rascunho=False):
+    sql = ("SELECT l.id id_leito,l.codigo,COALESCE(h.ocupado,0) ocupado,COALESCE(h.acompanhante,0) acompanhante,COALESCE(h.dieta,'') dieta,"
+           "COALESCE(h.nome,'') nome,h.idade_anos,h.idade_meses,COALESCE(h.diagnostico,'') diagnostico,COALESCE(h.pref_sim,'') pref_sim,"
+           "COALESCE(h.pref_nao,'') pref_nao,h.data data_base,h.por_perfil,h.atualizado_em FROM leitos l "
            "LEFT JOIN mapa_dia h ON h.id_leito=l.id AND h.data=(SELECT MAX(data) FROM mapa_dia WHERE id_leito=l.id AND data<=?) "
            "WHERE l.id_setor=? ORDER BY l.codigo")
-    return [{**dict(r), "herdado": r["data_base"] not in (None, d)} for r in c.execute(sql, (d, sid))]
+    out = [{**dict(r), "herdado": r["data_base"] not in (None, d), "rascunho": False} for r in c.execute(sql, (d, sid))]
+    if rascunho:  # visão da nutrição: o que está salvo + o que ainda não foi publicado para a copa
+        rs = {r["id_leito"]: json.loads(r["campos"]) for r in c.execute("SELECT id_leito,campos FROM mapa_rascunho WHERE data=?", (d,))}
+        for l in out:
+            if l["id_leito"] in rs:
+                l.update(rs[l["id_leito"]])
+                l["rascunho"] = True
+    return out
+
+
+def cfg_refeicoes(c):
+    return {r["refeicao"]: dict(r) for r in c.execute("SELECT * FROM refeicoes_cfg")}
+
+
+def janela(c, sid, ref, cfg):
+    """Horário de contagem da refeição no setor (None se a refeição não está habilitada)."""
+    g = cfg.get(ref)
+    if not g or not g["ativa"]:
+        return None
+    j = c.execute("SELECT abre,fecha FROM janelas WHERE id_setor=? AND refeicao=?", (sid, ref)).fetchone()
+    return (j["abre"], j["fecha"]) if j else (g["abre"], g["fecha"])
 
 
 def linhas_refeicoes(c, sid, d):
-    out = []
+    cfg, h, out = cfg_refeicoes(c), agora_dt().strftime("%H:%M"), []
     for ref in REFEICOES:
-        r = c.execute("SELECT qtd,data data_base,por_perfil,atualizado_em FROM refeicoes_dia WHERE id_setor=? AND refeicao=? AND data<=? "
-                      "ORDER BY data DESC LIMIT 1", (sid, ref, d)).fetchone()
+        jn = janela(c, sid, ref, cfg)
+        if not jn:
+            continue
+        r = c.execute("SELECT qtd,data data_base,por_perfil,atualizado_em FROM refeicoes_dia WHERE id_setor=? AND refeicao=? AND data=?",
+                      (sid, ref, d)).fetchone()  # a contagem recomeça do zero a cada dia
         x = dict(r) if r else {"qtd": 0, "data_base": None, "por_perfil": None, "atualizado_em": None}
-        out.append({**x, "refeicao": ref, "herdado": bool(r) and r["data_base"] != d})
+        out.append({**x, "refeicao": ref, "herdado": False, "abre": jn[0], "fecha": jn[1], "aberta": jn[0] <= h <= jn[1]})
     return out
 
 
@@ -272,28 +368,88 @@ def saldo(c, est, iid, d):
 
 
 # ------------------------------------------------------------ operações (POST)
-def post_mapa(c, u, s, d, leitos):
+def post_mapa(c, u, s, d, linhas):
+    """Copa: grava direto (com a regra de correção). Nutrição/admin: grava RASCUNHO, que só chega à copa ao publicar."""
     cods = {r["id"]: r["codigo"] for r in c.execute("SELECT id,codigo FROM leitos WHERE id_setor=?", (s["id"],))}
-    res = {"ok": 0, "igual": 0, "pendente": 0}
-    for l in leitos:
+    staff = u["perfil"] in STAFF
+    vivo = {l["id_leito"]: l for l in linhas_mapa(c, s["id"], d)} if staff else {}
+    res = {"ok": 0, "igual": 0, "pendente": 0, "rascunho": 0}
+    for l in linhas:
         lid = int(l["id_leito"])
         if lid not in cods:
             raise Erro("Leito de outro setor.", 403)
-        n = {"ocupado": int(bool(l.get("ocupado"))), "acompanhante": int(bool(l.get("acompanhante"))), "dieta": str(l.get("dieta", ""))[:60]}
-        if not n["ocupado"]:
-            n["acompanhante"], n["dieta"] = 0, ""
-        res[salvar(c, u, "mapa", d, str(lid), "Leito %s (%s)" % (cods[lid], s["nome"]), n)] += 1
+        n = norm(l)
+        if not staff:
+            res[salvar(c, u, "mapa", d, str(lid), "Leito %s (%s)" % (cods[lid], s["nome"]), n, s["id"])] += 1
+        elif all(vivo[lid][k] == v for k, v in n.items()):  # igual ao que a copa já vê: descarta rascunho antigo
+            c.execute("DELETE FROM mapa_rascunho WHERE data=? AND id_leito=?", (d, lid))
+            res["igual"] += 1
+        else:
+            c.execute("INSERT INTO mapa_rascunho(data,id_leito,campos,por_usuario,atualizado_em) VALUES(?,?,?,?,?) ON CONFLICT(data,id_leito) "
+                      "DO UPDATE SET campos=excluded.campos,por_usuario=excluded.por_usuario,atualizado_em=excluded.atualizado_em",
+                      (d, lid, json.dumps(n), u["id"], agora()))
+            res["rascunho"] += 1
     return res
+
+
+def publicar(c, u, s, d, texto):
+    """'Atualizar as informações para a copa': aplica o rascunho do setor e registra UM aviso listando os leitos alterados."""
+    cods = {r["id"]: r["codigo"] for r in c.execute("SELECT id,codigo FROM leitos WHERE id_setor=?", (s["id"],))}
+    vivo = {l["id_leito"]: l for l in linhas_mapa(c, s["id"], d)}
+    mud = []
+    for r in c.execute("SELECT id_leito,campos FROM mapa_rascunho WHERE data=? AND id_leito IN (SELECT id FROM leitos WHERE id_setor=?)",
+                       (d, s["id"])).fetchall():
+        lid, n, b = r["id_leito"], json.loads(r["campos"]), vivo[r["id_leito"]]
+        tipo = "liberado" if b["ocupado"] and not n["ocupado"] else ("novo" if n["ocupado"] and not b["ocupado"] else "alterado")
+        mud.append({"leito": cods[lid], "tipo": tipo, "campos": [k for k in CAMPOS if b[k] != n[k]]})
+        gravar(c, "mapa", d, str(lid), n, u["id"], u["perfil"])
+    if not mud:
+        raise Erro("Não há alterações do mapa para publicar neste setor e dia.")
+    c.execute("DELETE FROM mapa_rascunho WHERE data=? AND id_leito IN (SELECT id FROM leitos WHERE id_setor=?)", (d, s["id"]))
+    c.execute("INSERT INTO avisos(criado_em,por_usuario,tipo,id_setor,titulo,texto,leitos) VALUES(?,?,?,?,?,?,?)",
+              (agora(), u["id"], "mapa", s["id"], "Mapa de %s/%s atualizado pela nutrição" % (d[8:10], d[5:7]), str(texto or "").strip()[:300],
+               json.dumps(mud)))
+    return {"ok": True, "leitos": len(mud)}
 
 
 def post_refeicoes(c, u, s, d, itens):
-    res = {"ok": 0, "igual": 0, "pendente": 0}
+    """Copa só conta refeição habilitada e dentro do horário (relógio do servidor). Nutrição/admin: a qualquer hora."""
+    cfg, res, h = cfg_refeicoes(c), {"ok": 0, "igual": 0, "pendente": 0}, agora_dt().strftime("%H:%M")
     for i in itens:
-        if i["refeicao"] not in REFEICOES:
-            raise Erro("Refeição inválida.")
-        res[salvar(c, u, "refeicao", d, "%d|%s" % (s["id"], i["refeicao"]), "%s - %s" % (s["nome"], i["refeicao"]),
-                   {"qtd": num(i["qtd"], i["refeicao"])})] += 1
+        ref = i["refeicao"]
+        jn = janela(c, s["id"], ref, cfg)
+        if jn is None:
+            raise Erro("A refeição '%s' não está habilitada para contagem." % ref, 403)
+        if u["perfil"] not in STAFF and not jn[0] <= h <= jn[1]:
+            raise Erro("A contagem de '%s' só fica aberta das %s às %s." % (ref, jn[0], jn[1]), 403)
+        res[salvar(c, u, "refeicao", d, "%d|%s" % (s["id"], ref), "%s - %s" % (s["nome"], ref), {"qtd": num(i["qtd"], ref)}, s["id"])] += 1
     return res
+
+
+def definir_janela(c, s, b):
+    """Horário de contagem de uma refeição NESTE setor (nutricionista responsável ou admin)."""
+    ref = b.get("refeicao")
+    if ref not in REFEICOES:
+        raise Erro("Refeição inválida.")
+    ab, fe = hora(b.get("abre")), hora(b.get("fecha"))
+    if ab >= fe:
+        raise Erro("O horário de abertura precisa ser anterior ao de fechamento.")
+    c.execute("INSERT INTO janelas(id_setor,refeicao,abre,fecha) VALUES(?,?,?,?) ON CONFLICT(id_setor,refeicao) DO UPDATE SET "
+              "abre=excluded.abre,fecha=excluded.fecha", (s["id"], ref, ab, fe))
+    return {"ok": True}
+
+
+def definir_refeicao(c, b):
+    """Habilita/desabilita uma refeição para contagem em todo o hospital e define o horário padrão (admin)."""
+    ref = b.get("refeicao")
+    if ref not in REFEICOES:
+        raise Erro("Refeição inválida.")
+    ativa = int(bool(b.get("ativa")))
+    ab, fe = (hora(b["abre"]) if b.get("abre") else None), (hora(b["fecha"]) if b.get("fecha") else None)
+    if ativa and (ab is None or fe is None or ab >= fe):
+        raise Erro("Para habilitar, informe abertura e fechamento (abertura antes do fechamento).")
+    c.execute("UPDATE refeicoes_cfg SET ativa=?,abre=?,fecha=? WHERE refeicao=?", (ativa, ab, fe, ref))
+    return {"ok": True}
 
 
 def post_estoque(c, u, est, d, itens):
@@ -308,9 +464,9 @@ def post_estoque(c, u, est, d, itens):
 
 
 def mover(c, u, est, iid, qtd, d):
-    """Ajuste de saldo por reposição: se o admin já tinha atualizado o dia, a marca de 'admin' é mantida."""
+    """Ajuste de saldo por reposição: se admin/nutrição já tinha gravado o dia, a marca é mantida."""
     a = atual(c, "estoque", d, "%s|%d" % (est, iid))
-    gravar(c, "estoque", d, "%s|%d" % (est, iid), {"qtd": qtd}, u["id"], "admin" if a and a["por_perfil"] == "admin" else u["perfil"])
+    gravar(c, "estoque", d, "%s|%d" % (est, iid), {"qtd": qtd}, u["id"], a["por_perfil"] if a and a["por_perfil"] in STAFF else u["perfil"])
 
 
 def post_reposicao(c, u, est, b):
@@ -335,35 +491,75 @@ def post_reposicao(c, u, est, b):
     return {"ok": True, "saldo": novo, "divergente": bool(div)}
 
 
-# ----------------------------------------------------------------------- admin
-def painel(c, d):
-    out = {"data": d, "setores": [], "estoques": [], "pendentes": c.execute("SELECT COUNT(*) FROM correcoes WHERE status='pendente'").fetchone()[0],
-           "divergencias": c.execute("SELECT COUNT(*) FROM movimentos WHERE data=? AND divergente=1", (d,)).fetchone()[0]}
-    for s in c.execute("SELECT id,nome FROM setores ORDER BY nome").fetchall():
+# --------------------------------------------------------------------- avisos
+def novo_aviso(c, u, b):
+    t = str(b.get("texto", "")).strip()
+    if not t:
+        raise Erro("Escreva o aviso.")
+    sid = u["id_setor"] if u["perfil"] == "nutricionista" and u["id_setor"] else (int(b["id_setor"]) if b.get("id_setor") else None)
+    c.execute("INSERT INTO avisos(criado_em,por_usuario,tipo,id_setor,titulo,texto,leitos) VALUES(?,?,?,?,?,?,?)",
+              (agora(), u["id"], "texto", sid, "Aviso da nutrição", t[:500], "[]"))
+    return {"ok": True}
+
+
+def avisos_do_usuario(c, u):
+    """Avisos ainda não lidos pela copa (do setor dela ou gerais, criados depois do cadastro dela)."""
+    if u["perfil"] != "copa":
+        return []
+    rs = c.execute("SELECT a.*,x.nome por_nome FROM avisos a JOIN usuarios x ON x.id=a.por_usuario WHERE (a.id_setor IS NULL OR a.id_setor=?) "
+                   "AND a.criado_em>=? AND a.id NOT IN (SELECT id_aviso FROM avisos_lidos WHERE id_usuario=?) ORDER BY a.id",
+                   (u["id_setor"], u["criado_em"], u["id"]))
+    return [{**dict(r), "leitos": json.loads(r["leitos"] or "[]")} for r in rs]
+
+
+def marcar_lidos(c, u, ids):
+    for i in ids:
+        c.execute("INSERT OR IGNORE INTO avisos_lidos VALUES(?,?,?)", (int(i), u["id"], agora()))
+    return {"ok": True}
+
+
+# ------------------------------------------------------------ painel e admin
+def painel(c, u, d):
+    nutri = u["perfil"] == "nutricionista"
+    sid = u["id_setor"] if nutri else None
+    out = {"data": d, "setores": [], "estoques": [], "pendentes": len(lista_correcoes(c, "pendente", u)),
+           "divergencias": 0 if nutri else c.execute("SELECT COUNT(*) FROM movimentos WHERE data=? AND divergente=1", (d,)).fetchone()[0]}
+    for s in c.execute("SELECT id,nome FROM setores WHERE (? IS NULL OR id=?) ORDER BY nome", (sid, sid)).fetchall():
         ls = linhas_mapa(c, s["id"], d)
-        out["setores"].append({"id": s["id"], "nome": s["nome"], "leitos": len(ls), "ocupados": sum(l["ocupado"] for l in ls),
-                               "mapa_atualizado": any(l["data_base"] == d for l in ls),
-                               "refeicoes": sum(r["qtd"] for r in linhas_refeicoes(c, s["id"], d) if r["data_base"] == d)})
-    n_itens = c.execute("SELECT COUNT(*) FROM itens").fetchone()[0]
-    for e in ESTOQUES:
-        r = c.execute("SELECT COUNT(*), MAX(atualizado_em) FROM estoque_dia WHERE data=? AND estoque=?", (d, e)).fetchone()
-        out["estoques"].append({"estoque": e, "atualizados": r[0], "itens": n_itens, "ultima": r[1]})
+        out["setores"].append({
+            "id": s["id"], "nome": s["nome"], "leitos": len(ls), "ocupados": sum(l["ocupado"] for l in ls),
+            "mapa_atualizado": any(l["data_base"] == d for l in ls),
+            "rascunhos": c.execute("SELECT COUNT(*) FROM mapa_rascunho r JOIN leitos l ON l.id=r.id_leito WHERE r.data=? AND l.id_setor=?",
+                                   (d, s["id"])).fetchone()[0],
+            "refeicoes": sum(r["qtd"] for r in linhas_refeicoes(c, s["id"], d) if r["data_base"] == d)})
+    if not nutri:
+        n_itens = c.execute("SELECT COUNT(*) FROM itens").fetchone()[0]
+        for e in ESTOQUES:
+            r = c.execute("SELECT COUNT(*), MAX(atualizado_em) FROM estoque_dia WHERE data=? AND estoque=?", (d, e)).fetchone()
+            out["estoques"].append({"estoque": e, "atualizados": r[0], "itens": n_itens, "ultima": r[1]})
     return out
 
 
-def lista_correcoes(c, status):
-    rs = c.execute("SELECT k.*,u.nome usuario FROM correcoes k JOIN usuarios u ON u.id=k.por_usuario WHERE k.status=? ORDER BY k.id", (status,))
-    return [{**dict(r), "valor_atual": json.loads(r["valor_atual"]), "valor_proposto": json.loads(r["valor_proposto"])} for r in rs]
+def lista_correcoes(c, status, u=None):
+    sql, a = "SELECT k.*,x.nome usuario FROM correcoes k JOIN usuarios x ON x.id=k.por_usuario WHERE k.status=?", [status]
+    if u and u["perfil"] == "nutricionista":  # nutrição decide mapa e refeições do seu setor; estoque é do administrador
+        sql += " AND k.tipo!='estoque'"
+        if u["id_setor"]:
+            sql, a = sql + " AND k.id_setor=?", a + [u["id_setor"]]
+    return [{**dict(r), "valor_atual": json.loads(r["valor_atual"]), "valor_proposto": json.loads(r["valor_proposto"])}
+            for r in c.execute(sql + " ORDER BY k.id", a)]
 
 
 def decidir(c, u, cid, acao):
     k = c.execute("SELECT * FROM correcoes WHERE id=? AND status='pendente'", (cid,)).fetchone()
     if not k:
         raise Erro("Correção não encontrada ou já decidida.", 404)
+    if u["perfil"] == "nutricionista" and (k["tipo"] == "estoque" or (u["id_setor"] and k["id_setor"] != u["id_setor"])):
+        raise Erro("Esta correção não é do seu setor.", 403)
     if acao not in ("aprovar", "recusar"):
         raise Erro("Ação inválida.")
-    if acao == "aprovar":  # valor aprovado passa a valer como valor do administrador
-        gravar(c, k["tipo"], k["data"], k["chave"], json.loads(k["valor_proposto"]), u["id"], "admin")
+    if acao == "aprovar":  # valor aprovado passa a valer como valor da equipe (admin/nutrição)
+        gravar(c, k["tipo"], k["data"], k["chave"], json.loads(k["valor_proposto"]), u["id"], u["perfil"])
     c.execute("UPDATE correcoes SET status=?, decidido_em=? WHERE id=?", ("aprovada" if acao == "aprovar" else "recusada", agora(), cid))
     return {"ok": True}
 
@@ -393,10 +589,13 @@ def criar_setor(c, b):
 def exportar(c, d):
     def t(sql, *a):
         return [dict(r) for r in c.execute(sql, a)]
-    return {"esquema": 1, "data": d, "gerado_em": agora(), "setores": t("SELECT * FROM setores"), "leitos": t("SELECT * FROM leitos"),
+    return {"esquema": 2, "data": d, "gerado_em": agora(), "setores": t("SELECT * FROM setores"), "leitos": t("SELECT * FROM leitos"),
             "itens": t("SELECT * FROM itens"), "mapa": t("SELECT * FROM mapa_dia WHERE data=?", d),
+            "mapa_rascunho": t("SELECT * FROM mapa_rascunho WHERE data=?", d),
+            "refeicoes_cfg": t("SELECT * FROM refeicoes_cfg"), "janelas": t("SELECT * FROM janelas"),
             "refeicoes": t("SELECT * FROM refeicoes_dia WHERE data=?", d), "estoque": t("SELECT * FROM estoque_dia WHERE data=?", d),
-            "movimentos": t("SELECT * FROM movimentos WHERE data=?", d), "correcoes_pendentes": lista_correcoes(c, "pendente")}
+            "movimentos": t("SELECT * FROM movimentos WHERE data=?", d), "avisos": t("SELECT * FROM avisos WHERE criado_em>=?", d),
+            "correcoes_pendentes": lista_correcoes(c, "pendente")}
 
 
 # ---------------------------------------------------------------------- rotas
@@ -404,20 +603,29 @@ def _rotear(c, ip, m, p, q, b, auth):
     if (m, p) == ("POST", "/api/login"):
         return login(c, ip, b)
     u = usuario(c, auth)
-    adm = u["perfil"] == "admin"
+    perfil = u["perfil"]
+    adm, staff = perfil == "admin", perfil in STAFF
     if (m, p) == ("GET", "/api/eu"):
         return {"usuario": pub(u), "hoje": hoje()}
     if (m, p) == ("GET", "/api/itens"):
         return {"itens": [dict(r) for r in c.execute("SELECT id,nome,unidade FROM itens ORDER BY nome")]}
     if (m, p) == ("GET", "/api/setores"):
+        todos = adm or (perfil == "nutricionista" and not u["id_setor"])
         sql = "SELECT s.id,s.nome,(SELECT COUNT(*) FROM leitos WHERE id_setor=s.id) leitos FROM setores s %s ORDER BY s.nome"
-        return {"setores": [dict(r) for r in c.execute(sql % ("" if adm else "WHERE s.id=%d" % (u["id_setor"] or 0)))]}
+        return {"setores": [dict(r) for r in c.execute(sql % ("" if todos else "WHERE s.id=%d" % (u["id_setor"] or 0)))]}
+    if (m, p) == ("GET", "/api/avisos"):
+        return {"avisos": avisos_do_usuario(c, u)}
+    if (m, p) == ("POST", "/api/avisos/lidos"):
+        return marcar_lidos(c, u, b.get("ids", []))
     if p in ("/api/mapa", "/api/refeicoes"):
+        if perfil not in ("admin", "nutricionista", "copa"):
+            raise Erro("Sem permissão.", 403)
         s, d = setor_alvo(c, u, q.get("setor") or b.get("setor")), dia_alvo(u, q.get("data") or b.get("data"))
-        tipo, lin, post = ("mapa", linhas_mapa, post_mapa) if p == "/api/mapa" else ("refeicao", linhas_refeicoes, post_refeicoes)
+        mapa = p == "/api/mapa"
         if m == "GET":
-            return {"data": d, "setor": s, "linhas": lin(c, s["id"], d), "pendentes": pendentes(c, tipo, d)}
-        return post(c, u, s, d, b.get("linhas", []))
+            lin = linhas_mapa(c, s["id"], d, staff) if mapa else linhas_refeicoes(c, s["id"], d)
+            return {"data": d, "setor": s, "linhas": lin, "pendentes": pendentes(c, "mapa" if mapa else "refeicao", d)}
+        return (post_mapa if mapa else post_refeicoes)(c, u, s, d, b.get("linhas", []))
     if p == "/api/estoque":
         est, d = estoque_alvo(u, q.get("estoque") or b.get("estoque")), dia_alvo(u, q.get("data") or b.get("data"))
         if m == "GET":
@@ -427,20 +635,33 @@ def _rotear(c, ip, m, p, q, b, auth):
         return post_estoque(c, u, est, d, b.get("linhas", []))
     if (m, p) == ("POST", "/api/estoque/reposicao"):
         return post_reposicao(c, u, estoque_alvo(u, b.get("estoque")), b)
+    if p.startswith("/api/nutri/"):  # nutricionista e administrador
+        if not staff:
+            raise Erro("Somente a nutrição e o administrador.", 403)
+        if (m, p) == ("GET", "/api/nutri/painel"):
+            return painel(c, u, dia_alvo(u, q.get("data")))
+        if (m, p) == ("GET", "/api/nutri/correcoes"):
+            return {"correcoes": lista_correcoes(c, q.get("status", "pendente"), u)}
+        if m == "POST" and p.startswith("/api/nutri/correcoes/"):
+            return decidir(c, u, int(p.rsplit("/", 1)[1]), b.get("acao"))
+        if (m, p) == ("POST", "/api/nutri/publicar"):
+            return publicar(c, u, setor_alvo(c, u, b.get("setor")), dia_alvo(u, b.get("data")), b.get("texto"))
+        if (m, p) == ("POST", "/api/nutri/avisos"):
+            return novo_aviso(c, u, b)
+        if (m, p) == ("POST", "/api/nutri/janelas"):
+            return definir_janela(c, setor_alvo(c, u, b.get("setor")), b)
     if p.startswith("/api/admin/"):
         if not adm:
             raise Erro("Somente o administrador.", 403)
-        d = dia_alvo(u, q.get("data") or b.get("data"))
-        if (m, p) == ("GET", "/api/admin/painel"):
-            return painel(c, d)
         if (m, p) == ("GET", "/api/admin/exportar"):
-            return exportar(c, d)
-        if (m, p) == ("GET", "/api/admin/correcoes"):
-            return {"correcoes": lista_correcoes(c, q.get("status", "pendente"))}
-        if m == "POST" and p.startswith("/api/admin/correcoes/"):
-            return decidir(c, u, int(p.rsplit("/", 1)[1]), b.get("acao"))
+            return exportar(c, dia_alvo(u, q.get("data")))
+        if (m, p) == ("GET", "/api/admin/refeicoes"):
+            return {"refeicoes": [cfg_refeicoes(c)[r] for r in REFEICOES]}
+        if (m, p) == ("POST", "/api/admin/refeicoes"):
+            return definir_refeicao(c, b)
         if (m, p) == ("GET", "/api/admin/usuarios"):
-            return {"usuarios": [{k: r[k] for k in ("id", "login", "nome", "perfil", "id_setor", "ativo")} for r in c.execute("SELECT * FROM usuarios ORDER BY login")]}
+            return {"usuarios": [{k: r[k] for k in ("id", "login", "nome", "perfil", "id_setor", "ativo")}
+                                 for r in c.execute("SELECT * FROM usuarios ORDER BY login")]}
         if (m, p) == ("POST", "/api/admin/usuarios"):
             criar_usuario(c, b.get("login"), b.get("nome"), b.get("perfil"), b.get("id_setor"), b.get("senha", ""))
             return {"ok": True}
@@ -450,6 +671,10 @@ def _rotear(c, ip, m, p, q, b, auth):
                 if uid == u["id"] and not b["ativo"]:
                     raise Erro("Você não pode desativar o próprio usuário.")
                 c.execute("UPDATE usuarios SET ativo=? WHERE id=?", (int(bool(b["ativo"])), uid))
+            if "id_setor" in b:
+                if b["id_setor"] and not c.execute("SELECT 1 FROM setores WHERE id=?", (b["id_setor"],)).fetchone():
+                    raise Erro("Setor inexistente.")
+                c.execute("UPDATE usuarios SET id_setor=? WHERE id=? AND perfil IN ('copa','nutricionista')", (b["id_setor"] or None, uid))
             if b.get("senha"):
                 definir_senha(c, uid, b["senha"])
             return {"ok": True}

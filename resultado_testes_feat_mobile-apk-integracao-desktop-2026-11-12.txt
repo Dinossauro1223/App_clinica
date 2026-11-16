@@ -1,0 +1,145 @@
+EEEE........<frozen importlib._bootstrap>:491: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x0000000001E6E110>
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<frozen importlib._bootstrap>:491: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000000024133D0>
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+EEC:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000000045308B0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.
+======================================================================
+ERROR: test_correcao_recusada_no_desktop (tests.test_integracao_mobile.TestComServidor.test_correcao_recusada_no_desktop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote__eo69et4\App_clinica\tests\test_integracao_mobile.py", line 197, in test_correcao_recusada_no_desktop
+    im.enviar_mapa(self.db, self.mdb, DIA)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote__eo69et4\App_clinica\tests\..\integracao_mobile.py", line 393, in enviar_mapa
+    sv, c = _abrir_mobile(mobile_db)
+            ~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote__eo69et4\App_clinica\tests\..\integracao_mobile.py", line 80, in _abrir_mobile
+    sv.migrar(c)
+    ^^^^^^^^^
+AttributeError: module 'mobile.servidor' has no attribute 'migrar'
+
+======================================================================
+ERROR: test_correcao_recusada_no_desktop (tests.test_integracao_mobile.TestComServidor.test_correcao_recusada_no_desktop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 701, in _rmtree_unsafe
+    os.unlink(fullname)
+    ~~~~~~~~~^^^^^^^^^^
+PermissionError: [WinError 32] O arquivo j� est� sendo usado por outro processo: 'C:\\Users\\THIAGO~1\\AppData\\Local\\Temp\\tmp_50kz77h\\mobile.db'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 975, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 955, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 852, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 705, in _rmtree_unsafe
+    onexc(os.unlink, fullname, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 930, in onexc
+    _os.unlink(path)
+    ~~~~~~~~~~^^^^^^
+PermissionError: [WinError 32] O arquivo j� est� sendo usado por outro processo: 'C:\\Users\\THIAGO~1\\AppData\\Local\\Temp\\tmp_50kz77h\\mobile.db'
+
+======================================================================
+ERROR: test_ida_e_volta (tests.test_integracao_mobile.TestComServidor.test_ida_e_volta)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote__eo69et4\App_clinica\tests\test_integracao_mobile.py", line 167, in test_ida_e_volta
+    res = im.enviar_mapa(self.db, self.mdb, DIA, texto="teste")
+  File "C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote__eo69et4\App_clinica\tests\..\integracao_mobile.py", line 393, in enviar_mapa
+    sv, c = _abrir_mobile(mobile_db)
+            ~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote__eo69et4\App_clinica\tests\..\integracao_mobile.py", line 80, in _abrir_mobile
+    sv.migrar(c)
+    ^^^^^^^^^
+AttributeError: module 'mobile.servidor' has no attribute 'migrar'
+
+======================================================================
+ERROR: test_ida_e_volta (tests.test_integracao_mobile.TestComServidor.test_ida_e_volta)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 701, in _rmtree_unsafe
+    os.unlink(fullname)
+    ~~~~~~~~~^^^^^^^^^^
+PermissionError: [WinError 32] O arquivo j� est� sendo usado por outro processo: 'C:\\Users\\THIAGO~1\\AppData\\Local\\Temp\\tmptfxfd_m7\\mobile.db'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 975, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 955, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 852, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 705, in _rmtree_unsafe
+    onexc(os.unlink, fullname, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 930, in onexc
+    _os.unlink(path)
+    ~~~~~~~~~~^^^^^^
+PermissionError: [WinError 32] O arquivo j� est� sendo usado por outro processo: 'C:\\Users\\THIAGO~1\\AppData\\Local\\Temp\\tmptfxfd_m7\\mobile.db'
+
+======================================================================
+ERROR: test_tela_confere_e_aplica (tests.test_integracao_mobile.TestTela.test_tela_confere_e_aplica)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote__eo69et4\App_clinica\tests\test_integracao_mobile.py", line 248, in test_tela_confere_e_aplica
+    ui._verificar()
+    ~~~~~~~~~~~~~^^
+  File "C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote__eo69et4\App_clinica\tests\..\mobile_ui.py", line 153, in _verificar
+    ex = im.ler_mobile(self.mobile_db, iso)
+  File "C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote__eo69et4\App_clinica\tests\..\integracao_mobile.py", line 94, in ler_mobile
+    sv, c = _abrir_mobile(mobile_db)
+            ~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\THIAGO~1\AppData\Local\Temp\App_clinica_pacote__eo69et4\App_clinica\tests\..\integracao_mobile.py", line 80, in _abrir_mobile
+    sv.migrar(c)
+    ^^^^^^^^^
+AttributeError: module 'mobile.servidor' has no attribute 'migrar'
+
+======================================================================
+ERROR: test_tela_confere_e_aplica (tests.test_integracao_mobile.TestTela.test_tela_confere_e_aplica)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 701, in _rmtree_unsafe
+    os.unlink(fullname)
+    ~~~~~~~~~^^^^^^^^^^
+PermissionError: [WinError 32] O arquivo j� est� sendo usado por outro processo: 'C:\\Users\\THIAGO~1\\AppData\\Local\\Temp\\tmpl_phlcj6\\mobile.db'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 975, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 955, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 852, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\shutil.py", line 705, in _rmtree_unsafe
+    onexc(os.unlink, fullname, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thiago nutri��o\AppData\Local\Python\pythoncore-3.14-64\Lib\tempfile.py", line 930, in onexc
+    _os.unlink(path)
+    ~~~~~~~~~~^^^^^^
+PermissionError: [WinError 32] O arquivo j� est� sendo usado por outro processo: 'C:\\Users\\THIAGO~1\\AppData\\Local\\Temp\\tmpl_phlcj6\\mobile.db'
+
+----------------------------------------------------------------------
+Ran 12 tests in 4.022s
+
+FAILED (errors=6)

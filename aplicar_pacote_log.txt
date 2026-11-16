@@ -1,0 +1,20 @@
+[1] git version 2.56.0.windows.3
+[2] Clonando https://github.com/Dinossauro1223/App_clinica.git (se o Git pedir login do GitHub, entre normalmente)...
+[3] Pacote App_clinica_mobile_3_2026-11-12.bundle: 1 branch(es): feat/mobile-apk-integracao-desktop-2026-11-12
+
+=== Branch 1/1: feat/mobile-apk-integracao-desktop-2026-11-12 ===
+[a] 5 commits; base no repositório: origin/main
+[b] Aplicando os commits:
+  - aplicado   [12/11/2026] feat/mobile-apk-integracao-desktop-2026-11-12: gerador do APK do celular (Gerar_APK.bat) e aplicativo Android que abre o servidor da rede local
+  - aplicado   [12/11/2026] feat/mobile-apk-integracao-desktop-2026-11-12: integração do desktop com o mobile (receber com conferência, enviar mapa e publicar para a copa)
+  - aplicado   [12/11/2026] feat/mobile-apk-integracao-desktop-2026-11-12: tela "Mobile (copa)" do desktop para conferir o que a copa registrou e enviar o mapa
+  - aplicado   [12/11/2026] feat/mobile-apk-integracao-desktop-2026-11-12: botão "Mobile (copa)" no menu lateral do programa
+  - aplicado   [12/11/2026] feat/mobile-apk-integracao-desktop-2026-11-12: documentação da integração desktop-mobile e do APK
+[c] Auditoria de dados sensíveis no branch resultante...
+      0 BLOQUEIO(s) na árvore atual, 0 no histórico (relatório só com caminhos: auditoria_resultado_feat_mobile-apk-integracao-desktop-2026-11-12.txt)
+[d] Rodando os testes que o branch trouxe...
+      Ran 12 tests in 4.022s | FAILED (errors=6)
+
+PAROU — NADA FOI PUBLICADO.
+os testes do branch FALHARAM neste computador (provavelmente um detalhe do Windows).
+Envie o arquivo resultado_testes_feat_mobile-apk-integracao-desktop-2026-11-12.txt (ao lado deste script) para corrigirmos.

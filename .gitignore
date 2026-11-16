@@ -21,3 +21,6 @@ venv/
 __pycache__/
 *.pyc
 Thumbs.db
+
+# Preferencias de tela deste computador
+preferencias_ui.json

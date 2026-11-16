@@ -183,3 +183,12 @@ _Nenhuma nova dúvida bibliográfica foi registrada neste pacote de documentaç�
 
 - **Arquivos:** nenhum alterado; coeficientes cobertos por `tests/test_conferir_equacoes_planilha.py` (catálogo de referência).
 - **Pendências:** conferir `nutri_calculos.py`; testes de referência do código quando acessível.
+
+### REF-2026-11-15-001 — Estatura 60–80 anos: método "planilha" na tela Avaliação e evolução (referencia REF-2026-11-11-002)
+
+- **Data/agente:** 15/11/2026 (America/Recife) — Claude (integrador).
+- **Dúvida:** qual equação de estatura por AJ usar para 60+ na nova tela, já que a planilha do setor (aba `Peso-Alt`, F30:F34) difere do padrão `chumlea1985` do código.
+- **Fontes consultadas:** planilha do setor e a entrada REF-2026-11-11-002. Nenhuma publicação original foi aberta nesta sessão.
+- **Decisão:** incluir o método `planilha` (coeficientes idênticos aos da aba) em `nutri_calculos.METODOS_ALTURA_IDOSO`, sem mudar o padrão das demais telas; a tela Avaliação e evolução o usa por pedido do usuário (prática do setor). AJ do amputado: inverso de Chumlea (1985), como em `Peso-Alt`!B45:C45. A própria planilha mistura equações em 60+; a rotulagem na tela mostra qual foi usada.
+- **Limitações:** atribuição de ano/autor da equação da planilha não confirmada (ver REF-2026-11-11-002); validação clínica institucional pendente.
+- **Arquivos/testes:** `nutri_calculos.py`, `avaliacao_nutri.py`, `tests/test_avaliacao.py` (9 testes sintéticos, incluindo os valores da planilha). **Estado:** parcialmente resolvida.

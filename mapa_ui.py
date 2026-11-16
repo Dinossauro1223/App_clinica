@@ -17,7 +17,7 @@ import customtkinter as ctk
 import nutri_calculos as nc
 import mapa_db as mdb
 
-VERDE_ESC, VERDE, VERDE_HOVER, FUNDO = "#1b5e20", "#4caf50", "#388e3c", "#F0F7F4"
+VERDE_ESC, VERDE, VERDE_HOVER, FUNDO = "#0F3D2E", "#1E7A4F", "#17633F", "#F3F8F5"
 CINZA_BTN, CINZA_HOVER = "#78909c", "#546e7a"
 VERMELHO, VERMELHO_HOVER, LARANJA = "#c62828", "#8e0000", "#ef6c00"
 ESTILO_TREE = "Mapa.Treeview"

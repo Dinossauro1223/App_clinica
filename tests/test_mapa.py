@@ -9,7 +9,9 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+import shutil
 import zipfile
+from contextlib import contextmanager
 from datetime import date, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -19,6 +21,18 @@ import nutri_calculos as nc  # noqa: E402
 import mapa_db as mdb  # noqa: E402
 import mapa_export as mex  # noqa: E402
 import mapa_graficos as mgr  # noqa: E402
+
+
+@contextmanager
+def conexao(caminho):
+    """Como 'with sqlite3.connect()' (commit/rollback), mas também fecha: no Windows o arquivo fica travado
+    enquanto a conexão estiver aberta, o que quebrava a remoção do banco ao fim dos testes."""
+    c = sqlite3.connect(caminho)
+    try:
+        with c:
+            yield c
+    finally:
+        c.close()
 
 
 def novo_banco():
@@ -187,7 +201,7 @@ class TestBanco(unittest.TestCase):
         self.assertEqual(r2["id_registro"], id_reg)
         self.assertEqual(r2["imc_class"], "Sobrepeso")
         self.assertEqual(r2["id_paciente"], r["id_paciente"])
-        with sqlite3.connect(self.db) as c:
+        with conexao(self.db) as c:
             self.assertEqual(c.execute("select count(*) from Mapa_Registros").fetchone()[0], 1)
             self.assertEqual(c.execute("select count(*) from Mapa_Registro_Suplementos").fetchone()[0], 1)
             self.assertEqual(c.execute("select count(*) from Pacientes").fetchone()[0], 1)
@@ -317,12 +331,12 @@ class TestExportacao(unittest.TestCase):
                                                dict(id_suplemento=None, nome="Simbioflora", modulo="x", qtd_dia=None, unidade="g")])
         mdb.salvar_registro(cls.db, cls.longo)
         cls.dia = mdb.mapa_do_dia(cls.db, "2026-10-14", cls.setor["id_setor"])
-        cls.saida = "/home/claude/qa"
-        os.makedirs(cls.saida, exist_ok=True)
+        cls.saida = tempfile.mkdtemp(prefix="nutrilab_qa_")
 
     @classmethod
     def tearDownClass(cls):
         os.remove(cls.db)
+        shutil.rmtree(cls.saida, ignore_errors=True)
 
     def test_textos_da_celula_do_paciente(self):
         reg = mdb.obter_registro(self.db, "2026-10-14", self.leitos[1]["id_leito"]) or self.dia[0]["registro"]
@@ -427,7 +441,11 @@ class TestGraficos(unittest.TestCase):
             self.assertEqual(len(vazio["dias"]), 28)
             for _, _, b in mgr.gerar_todos(vazio):
                 self.assertEqual(b[:4], b"\x89PNG")
-            mgr.salvar_graficos(agg, "/home/claude/qa/graficos")
+            pasta_graficos = tempfile.mkdtemp(prefix="nutrilab_graf_")
+            try:
+                mgr.salvar_graficos(agg, os.path.join(pasta_graficos, "graficos"))
+            finally:
+                shutil.rmtree(pasta_graficos, ignore_errors=True)
         finally:
             os.remove(db)
 

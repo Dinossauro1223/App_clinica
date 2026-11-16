@@ -5,14 +5,26 @@ Serve só para testar o layout (posições, quebras, cores) onde a biblioteca fp
 está instalada. Usa a Liberation Sans (métricas idênticas às do Arial/Helvetica) e
 desenha cada página numa imagem PIL. NÃO substitui um teste real com o fpdf.
 """
+import os
+
 from PIL import Image, ImageDraw, ImageFont
 
-_FONTES = {
-    "": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-    "B": "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    "I": "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf",
-    "BI": "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf",
-}
+_NOMES = {"": ("LiberationSans-Regular.ttf", "arial.ttf", "DejaVuSans.ttf"),
+          "B": ("LiberationSans-Bold.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"),
+          "I": ("LiberationSans-Italic.ttf", "ariali.ttf", "DejaVuSans-Oblique.ttf"),
+          "BI": ("LiberationSans-BoldItalic.ttf", "arialbi.ttf", "DejaVuSans-BoldOblique.ttf")}
+_PASTAS = ("/usr/share/fonts/truetype/liberation", "/usr/share/fonts/truetype/dejavu",
+           os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts"))
+
+
+def _achar_fonte(estilo):
+    """Liberation Sans (Linux) ou Arial (Windows), de métricas idênticas; senão a fonte padrão do Pillow."""
+    for pasta in _PASTAS:
+        for nome in _NOMES[estilo]:
+            caminho = os.path.join(pasta, nome)
+            if os.path.exists(caminho):
+                return caminho
+    return None
 S = 5.0  # pixels por mm
 
 
@@ -58,7 +70,9 @@ class FakePDF:
         self.paginas.append(self._img)
 
     def _fonte(self):
-        return ImageFont.truetype(_FONTES[self._estilo], max(1, round(self._pt * 0.3528 * S)))
+        tamanho = max(1, round(self._pt * 0.3528 * S))
+        caminho = _achar_fonte(self._estilo)
+        return ImageFont.truetype(caminho, tamanho) if caminho else ImageFont.load_default(tamanho)
 
     def get_string_width(self, txt):
         txt.encode("latin-1")  # o FPDF real também exige latin-1

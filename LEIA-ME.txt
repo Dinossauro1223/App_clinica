@@ -1,0 +1,46 @@
+NutriLab - pacote 3 da VERSAO MOBILE (gerado em 12/11/2026): APK + integracao com o programa desktop
+
+O QUE E
+  1 branch, feat/mobile-apk-integracao-desktop-2026-11-12, com 5 commits (todos com o DIA 12/11/2026 na mensagem).
+  So ADICIONA arquivos novos, exceto 2 trechos pequenos do main.py (o botao "Mobile (copa)" do menu):
+    1. mobile/apk/...         Gerar_APK.bat e o aplicativo Android
+    2. integracao_mobile.py   logica da integracao + tests/test_integracao_mobile.py (12 testes)
+    3. mobile_ui.py           tela "Mobile (copa)" do programa
+    4. main.py                botao "Mobile (copa)" no menu lateral
+    5. docs/mobile/INTEGRACAO_DESKTOP.md
+  PRECISA do pacote anterior (Att 12.11.26 Mobile 2) ja mesclado, porque a integracao usa mobile/servidor.py.
+  Sem ele, os testes de ponta a ponta sao pulados e a tela avisa o que falta.
+
+COMO APLICAR (2 minutos)
+  1. Salve na MESMA pasta (de preferencia uma pasta NOVA):
+       Aplicar_Pacote_App_clinica.bat
+       aplicar_pacote.py
+       App_clinica_mobile_3_2026-11-12.bundle
+       auditar_repositorio.py   (opcional: se estiver na pasta, audita antes de publicar)
+  2. De dois cliques em Aplicar_Pacote_App_clinica.bat. Ele clona o repositorio, aplica os commits, audita, roda os testes
+     e SO ENTAO publica o branch. Nunca mexe na main e nunca usa force.
+  3. Abra o Pull Request pelo link mostrado na tela e mescle.
+  Se aparecer aviso de "edicoes nao aplicadas" no main.py: o seu main.py esta diferente do que eu vi, entao o botao nao entra
+  sozinho. Nada se perde: abra a tela com  python mobile_ui.py  (na pasta do projeto) ou me envie o arquivo .patch que ficou
+  ao lado do script.
+
+COMO USAR A INTEGRACAO (programa desktop)
+  1. Ligue o servidor mobile (mobile\iniciar_servidor.bat) ao menos uma vez, para existir o banco do mobile.
+  2. No programa, menu lateral: "Mobile (copa)".
+  3. "Verificar o que chegou do mobile": lista o que a copa registrou. Os itens seguros ja vem marcados; confira e use
+     "Aplicar marcados" ou "Ignorar marcados". Trocas de paciente e leitos liberados nunca vem marcados.
+  4. "Enviar mapa para a copa": grava o mapa do dia no mobile e avisa as copeiras (popup com os leitos alterados).
+  Tudo descrito em docs/mobile/INTEGRACAO_DESKTOP.md.
+
+COMO GERAR O APK (para testar no celular)
+  Pasta mobile\apk  ->  Gerar_APK.bat  (leia o LEIA-ME.txt dela). Primeira vez: cerca de 600 MB e 10 a 20 minutos.
+  O APK nao foi compilado nem instalado em aparelho no ambiente em que foi escrito: o primeiro teste real e o seu.
+  Se der erro, envie o arquivo gerar_apk_log.txt que fica ao lado do .bat.
+
+SE ALGO PARAR
+  - "PAROU - NADA FOI PUBLICADO": leia o motivo na tela; registro completo em aplicar_pacote_log.txt.
+  - Testes falharam no seu computador: envie o arquivo resultado_testes_*.txt (fica ao lado do script).
+  - Para so testar sem publicar:  Aplicar_Pacote_App_clinica.bat --sem-push
+
+IMPORTANTE
+  - Nenhum banco, planilha ou dado real de paciente neste pacote.

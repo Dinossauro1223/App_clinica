@@ -1,0 +1,38 @@
+NutriLab - gerador do APK (aplicativo Android)  -  12/11/2026
+
+O QUE E
+  O APK e uma "casca" Android que abre o NutriLab Mobile, a pagina servida pelo computador do administrador.
+  A tela e o servidor continuam no computador; por isso o APK quase nunca precisa ser refeito.
+
+COMO GERAR (no computador, Windows 10 ou 11, com internet)
+  1. De dois cliques em Gerar_APK.bat.
+  2. Na PRIMEIRA vez ele baixa o Java 17 e as ferramentas do Android, cerca de 600 MB, de 10 a 20 minutos.
+     Tudo fica em %LOCALAPPDATA%\NutriLabApk, fora do projeto. Das proximas vezes leva cerca de 1 minuto.
+  3. O arquivo pronto fica em: saida\NutriLab-Mobile.apk
+
+COMO INSTALAR NO CELULAR
+  Opcao A, pelo Wi-Fi: ao final, o Gerar_APK.bat pergunta se quer servir o APK pela rede. Responda S, abra no navegador
+     do celular o endereco mostrado (http://IP:8000/NutriLab-Mobile.apk), baixe e toque no arquivo. Se o Windows
+     perguntar sobre o Firewall, permita o Python na rede privada.
+  Opcao B: copie o arquivo para o celular (cabo USB, WhatsApp, e-mail, Drive) e toque nele.
+  O Android vai pedir para permitir "instalar apps desconhecidos" para o aplicativo que voce usou (navegador, Arquivos...).
+  Permita. Para atualizar, gere de novo e instale por cima: a chave de assinatura e a mesma, nada se perde.
+  Precisa de Android 8 ou mais novo.
+
+COMO USAR
+  1. No computador, ligue o servidor: mobile\iniciar_servidor.bat. Ele mostra o endereco da linha "Celulares", sempre com a porta 8765.
+  2. No celular, abra o NutriLab. O endereco ja vem preenchido com o IP deste computador; se o IP mudou, corrija. Toque em Conectar.
+     O app confere se o endereco e mesmo o servidor do NutriLab e avisa o que esta errado. Celular e computador no MESMO Wi-Fi.
+  3. Entre com o login criado pelo administrador. Para trocar o servidor depois: link "Trocar servidor" na tela de login.
+  ATENCAO: a porta 8000 so serve para BAIXAR o APK (a janela do servir_apk). O NutriLab usa a porta 8765.
+
+SE ALGO PARAR
+  - Pasta com acento no nome, como C:\Users\fulano nutricao: tudo bem. O aapt2 do Android nao abre caminhos com acento,
+    entao o gerador compila sozinho numa pasta de trabalho sem acento e devolve o APK para a pasta saida.
+  - Falha de download: a rede pode estar bloqueando, como proxy ou firewall do hospital. Tente em outra rede.
+  - Erro ao compilar: o registro fica em gerar_apk_log.txt; envie esse arquivo.
+  - O app mostra "Nao foi possivel conectar": confira o Wi-Fi, o servidor ligado e o Firewall (porta 8765).
+
+OBSERVACOES
+  - O APK so abre o servidor que voce informar e nao guarda dados clinicos no celular.
+  - A conexao e HTTP sem criptografia, so para rede interna.
