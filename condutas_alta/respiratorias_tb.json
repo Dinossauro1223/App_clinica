@@ -1,0 +1,149 @@
+{
+  "grupo": "respiratorias_tb",
+  "titulo": "Doenças respiratórias e tuberculose",
+  "ordem": 20,
+  "versao": "2026-11-16.1",
+  "revisado_em": "2026-11-16",
+  "referencias": {
+    "BRASIL2019": "BRASIL. Ministério da Saúde. Manual de recomendações para o controle da tuberculose no Brasil. 2. ed. atual. Brasília, DF: Ministério da Saúde, 2019. Disponível em: https://portaldeboaspraticas.iff.fiocruz.br/wp-content/uploads/2021/04/manual_recomendacoes_controle_tuberculose_brasil_2_ed.pdf. Acesso em: 14 nov. 2026.",
+    "MS2024": "BRASIL. Ministério da Saúde. Secretaria de Vigilância em Saúde e Ambiente. Departamento de HIV/Aids, Tuberculose, Hepatites Virais e Infecções Sexualmente Transmissíveis. Coordenação-Geral de Vigilância da Tuberculose, Micoses Endêmicas e Micobactérias não Tuberculosas. Nota Informativa nº 16/2024-CGTM/.DATHI/SVSA/MS: orientações sobre o uso do medicamento cloridrato de piridoxina 50 mg comprimido. Brasília, DF, 19 dez. 2024b. Disponível em: https://www.rj.gov.br/saude/sites/default/files/arquivo_pagina_basica/Nota_Informativa_16-2024-Piridoxina-50mg-ampliacao-de-utilizacao.pdf. Acesso em: 16 nov. 2026.",
+    "OMS2025": "ORGANIZAÇÃO MUNDIAL DA SAÚDE (OMS). WHO consolidated guidelines on tuberculosis: module 6: tuberculosis and comorbidities. 2. ed. Genebra: OMS, 2025b. Seção Undernutrition. Disponível em: https://www.who.int/publications/i/item/9789240111967 (cópia lida: https://medbox.org/index.php/dl/6901c38f2bba0a2b691d29d2). Acesso em: 15 nov. 2026.",
+    "SCHOLS2014": "SCHOLS, A. M. et al. Nutritional assessment and therapy in COPD: a European Respiratory Society statement. European Respiratory Journal, v. 44, n. 6, p. 1504-1520, 2014. DOI: 10.1183/09031936.00070914. Disponível em: https://cris.maastrichtuniversity.nl/en/publications/nutritional-assessment-and-therapy-in-copd-a-european-respiratory/. Acesso em: 16 nov. 2026."
+  },
+  "condutas": [
+    {
+      "codigo": "TB-01",
+      "titulo": "Tuberculose: avaliação nutricional e acompanhamento do peso",
+      "titulo_paciente": "Acompanhar peso e alimentação",
+      "gatilhos": {"qualquer": ["cond:tb"]},
+      "profissional": [
+        "A OMS recomenda avaliação nutricional de todas as pessoas com TB ao diagnóstico e durante todo o tratamento, com aconselhamento adequado ao estado nutricional (recomendação forte; sem evidência direta) (OMS, 2025b).",
+        "Para calcular o IMC é preciso medir peso e altura. O aconselhamento pode incluir orientação para aumentar a energia e a proteína da alimentação diária e para uma alimentação saudável e equilibrada (OMS, 2025b).",
+        "A OMS manda acompanhar o peso no início e durante todo o tratamento, mas não fixa frequência nem corte de variação do peso (OMS, 2025b). O Manual do Ministério da Saúde fala em acompanhar o peso para ajustar as doses dos medicamentos (seção 5.1; leitura única, conferir no texto) (BRASIL, 2019)."
+      ],
+      "conferir": [
+        "Peso e altura medidos (não estimados), com data, e IMC calculado.",
+        "Frequência de pesagem definida para este paciente e escrita na folha.",
+        "O texto da OMS foi lido em cópia de terceiro (MEDBOX); conferir no PDF oficial antes de citar em trabalho."
+      ],
+      "paciente": [
+        "- Durante o tratamento da tuberculose, a equipe acompanha seu peso e sua alimentação.",
+        "- Peso: ______ kg | Altura: ______ m | Data: ______",
+        "- Procure comer todos os dias, com alimentos variados. Orientação da nutricionista: ______________",
+        "- Pese-se a cada ______________ e leve o registro às consultas."
+      ],
+      "fontes": ["OMS2025", "BRASIL2019"]
+    },
+    {
+      "codigo": "TB-02",
+      "titulo": "Tuberculose com desnutrição: intervenção nutricional",
+      "titulo_paciente": "Recuperar o peso",
+      "gatilhos": {"qualquer": ["cond:tb"]},
+      "profissional": [
+        "A OMS recomenda intervenções nutricionais para pessoas com TB e desnutrição grave, moderada ou leve, como parte de um pacote completo de cuidado da TB (recomendação forte; certeza baixa a moderada) (OMS, 2025b).",
+        "Definição em adultos (acima de 19 anos): desnutrição grave, IMC abaixo de 16 kg/m²; moderada, de 16,0 a 16,99; leve, de 17,0 a 18,49 (OMS, 2025b). Em crianças a diretriz usa critérios próprios (escore Z do IMC para a idade, perímetro do braço): não aplicar os cortes de adulto. Em gestantes, a diretriz remete às recomendações de pré-natal da OMS.",
+        "Esta conduta só vale se houver desnutrição. Se o IMC for normal, marque 'não se aplica' e use a conduta de avaliação e acompanhamento do peso."
+      ],
+      "conferir": [
+        "IMC calculado com peso e altura medidos. Cortes de adulto só para maiores de 19 anos; para idosos, confirmar o critério adotado no serviço.",
+        "Plano de intervenção definido e escrito na folha (alimentos, número de refeições, suplemento oral, dieta por sonda).",
+        "Se houver dieta por sonda, ver também as condutas de alimentação enteral."
+      ],
+      "paciente": [
+        "- A equipe vai ajudar você a recuperar o peso durante o tratamento.",
+        "- Plano de alimentação: ______________ (o que comer e quantas refeições por dia).",
+        "- Suplemento ou outro reforço, se indicado: ______________",
+        "- Se continuar perdendo peso ou ficar sem apetite, volte ao serviço de saúde antes da data marcada."
+      ],
+      "fontes": ["OMS2025"]
+    },
+    {
+      "codigo": "TB-03",
+      "titulo": "Tuberculose: vitamina B6, remédios e suplementos",
+      "titulo_paciente": "Vitamina B6, remédios e suplementos",
+      "gatilhos": {"qualquer": ["cond:tb"]},
+      "profissional": [
+        "O Ministério da Saúde distribui piridoxina 50 mg para gestantes no esquema básico, coinfecção TB-HIV, pessoas com desnutrição ou diabetes em tratamento da TB (prevenção de neuropatia periférica), neuropatia causada pelo tratamento e parte dos esquemas de tratamento preventivo (BRASIL, 2024b). O Manual de 2019 também cita 50 mg/dia para a pessoa com diabetes em uso de isoniazida (seção 4.4.4; leitura única, conferir no texto) (BRASIL, 2019).",
+        "Dose: 50 mg/dia na prevenção e em gestantes; na neuropatia, começa em 50 mg/dia e pode chegar a 200 mg/dia conforme o quadro clínico. A duração não consta na nota (BRASIL, 2024b). A prescrição é do médico: a folha leva o valor em branco.",
+        "A OMS não recomenda vitamina D de rotina na TB: só no contexto de pesquisa rigorosa (recomendação condicional; certeza baixa) (OMS, 2025b).",
+        "Horário em relação às refeições: o Manual do MS descreve dose única diária e, na intolerância digestiva, reformular o horário, por exemplo duas horas após o café da manhã (quadro 32; leitura única, conferir no texto) (BRASIL, 2019). Não foi encontrada fonte oficial sobre alimentos que interfiram na isoniazida (lacuna registrada)."
+      ],
+      "conferir": [
+        "Paciente com diabetes ou desnutrição em tratamento da TB: confirmar com o médico se a piridoxina foi prescrita.",
+        "Dose e tempo de uso escritos na folha conforme a prescrição médica.",
+        "Horário dos remédios conforme o serviço; conferir o quadro 32 do Manual do MS antes de orientar qualquer mudança.",
+        "Lista das vitaminas e dos suplementos que o paciente já usa.",
+        "Sintomas de neuropatia citados na folha conforme o protocolo do serviço (a lista não vem das fontes lidas)."
+      ],
+      "paciente": [
+        "- Vitamina B6 (piridoxina): ______ mg por dia, se o médico indicou. Ela ajuda a prevenir problemas nos nervos causados por um dos remédios da tuberculose.",
+        "- Horário dos remédios da tuberculose: ______________. Se der enjoo ou dor de barriga, conte à equipe antes de mudar o horário.",
+        "- Não pare, troque nem acrescente remédio, vitamina ou suplemento sem falar com a equipe.",
+        "- Formigamento, queimação ou dormência nas mãos ou nos pés: avise a equipe."
+      ],
+      "fontes": ["MS2024", "BRASIL2019", "OMS2025"]
+    },
+    {
+      "codigo": "TB-04",
+      "titulo": "Tuberculose: álcool, segurança alimentar e adesão",
+      "titulo_paciente": "Álcool e apoio para comer",
+      "gatilhos": {"qualquer": ["cond:tb"]},
+      "profissional": [
+        "O Manual do MS pede avaliar o uso de álcool em todas as consultas, para acompanhar efeitos adversos, em especial a hepatotoxicidade (p. 260; leitura única, conferir no texto) (BRASIL, 2019).",
+        "Em locais com insegurança alimentar, a OMS recomenda cestas de alimentos com suplementos de múltiplos micronutrientes para todos os domicílios de pessoas com TB (recomendação forte; certeza moderada) (OMS, 2025b).",
+        "O Manual do MS cita restaurantes comunitários, cestas básicas e outras estratégias de segurança alimentar como incentivo à adesão da população em situação de rua (seção 7.3.2; leitura única) (BRASIL, 2019)."
+      ],
+      "conferir": [
+        "Uso de álcool perguntado e registrado; se houver uso, avisar o médico.",
+        "Segurança alimentar em casa avaliada; encaminhamento ao serviço social feito, se necessário.",
+        "Apoio disponível no município (benefício, cesta básica) confirmado com o serviço social."
+      ],
+      "paciente": [
+        "- Se você bebe álcool, conte para a equipe. O álcool pode atrapalhar o tratamento e aumentar o risco de problemas no fígado.",
+        "- Se faltar comida em casa, avise a equipe. Apoio indicado: ______________"
+      ],
+      "fontes": ["BRASIL2019", "OMS2025"]
+    },
+    {
+      "codigo": "TB-05",
+      "titulo": "Tuberculose: avaliação nutricional dos contatos domiciliares",
+      "titulo_paciente": "Quem mora com você",
+      "gatilhos": {"qualquer": ["cond:tb"]},
+      "profissional": [
+        "A OMS recomenda oferecer avaliação nutricional e aconselhamento aos contatos domiciliares de pessoas com TB, como parte da busca de contatos. Se houver desnutrição, manejar conforme a orientação da OMS (recomendação forte; certeza baixa) (OMS, 2025b)."
+      ],
+      "conferir": [
+        "Fluxo local da busca de contatos (quem convoca e onde são avaliados) confirmado com a vigilância epidemiológica.",
+        "Se algum contato for criança ou gestante, seguir a orientação específica do serviço."
+      ],
+      "paciente": [
+        "- Quem mora com você deve ir à unidade de saúde para ser avaliado. A avaliação inclui uma conversa sobre alimentação.",
+        "- Unidade de saúde: ______________"
+      ],
+      "fontes": ["OMS2025"]
+    },
+    {
+      "codigo": "RES-01",
+      "titulo": "Doença respiratória (DPOC): alimentação e estado nutricional",
+      "titulo_paciente": "Alimentação e doença respiratória",
+      "gatilhos": {"qualquer": ["cond:resp"]},
+      "profissional": [
+        "Declaração da Sociedade Respiratória Europeia (ERS) sobre DPOC: o estado nutricional, em especial a composição corporal alterada, é determinante independente do desfecho; uma alimentação equilibrada beneficia todos os pacientes; a intervenção nutricional é provavelmente eficaz em desnutridos e provavelmente mais quando combinada com exercício (SCHOLS et al., 2014; foi lido apenas o resumo).",
+        "Nas fontes lidas não há metas de energia e de proteína, cortes de IMC nem orientação de fracionamento das refeições para doença respiratória; por isso a folha traz espaço em branco para o plano individual. A fonte levantada é de DPOC: para outras doenças respiratórias a fonte não foi levantada (lacuna registrada)."
+      ],
+      "conferir": [
+        "Diagnóstico respiratório confirmado (a fonte é de DPOC; conferir se se aplica a este paciente).",
+        "Peso, altura e IMC medidos; perda de peso recente perguntada.",
+        "Plano individual (energia, proteína, fracionamento, suplemento) definido pela nutricionista e escrito na folha.",
+        "Programa de exercício ou reabilitação: confirmar com a equipe antes de orientar."
+      ],
+      "paciente": [
+        "- Faça as refeições todos os dias, com alimentos variados e equilibrados.",
+        "- Se estiver perdendo peso, sem apetite ou com falta de ar na hora de comer, conte à equipe.",
+        "- Plano da nutricionista para você: ______________",
+        "- Se a equipe indicar exercícios, faça: junto com a alimentação, provavelmente ajudam mais."
+      ],
+      "fontes": ["SCHOLS2014"]
+    }
+  ]
+}

@@ -22,6 +22,7 @@ class W:
         self.master = args[0] if args else kw.get("master")
         self.opts = dict(kw)
         self.children, self.bindings, self.destroyed = [], {}, False
+        self.packed = False
         if isinstance(self.master, W):
             self.master.children.append(self)
         self._text, self._val = "", ""
@@ -35,10 +36,10 @@ class W:
         return self.opts.get(k)
 
     def pack(self, *a, **kw):
-        pass
+        self.packed = True
 
     def pack_forget(self):
-        pass
+        self.packed = False
 
     def grid(self, *a, **kw):
         pass
@@ -153,17 +154,19 @@ class Textbox(W):
 class Tree(W):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.items, self._sel, self._n = {}, [], 0
+        self.items, self.tags, self._sel, self._n = {}, {}, [], 0
 
     def insert(self, parent, index, iid=None, values=(), tags=()):
         iid = iid if iid is not None else f"I{self._n}"
         self._n += 1
         self.items[iid] = tuple(values)
+        self.tags[iid] = tuple(tags)
         return iid
 
     def delete(self, *ids):
         for i in ids:
             self.items.pop(i, None)
+            self.tags.pop(i, None)
 
     def get_children(self, *a):
         return list(self.items)

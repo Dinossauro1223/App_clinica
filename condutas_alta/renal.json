@@ -1,0 +1,121 @@
+{
+  "grupo": "renal",
+  "titulo": "Doença renal",
+  "ordem": 30,
+  "versao": "2026-11-16.1",
+  "revisado_em": "2026-11-16",
+  "referencias": {
+    "KDIGO2024": "KIDNEY DISEASE: IMPROVING GLOBAL OUTCOMES (KDIGO) CKD WORK GROUP. KDIGO 2024 Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease. Kidney International, v. 105, n. 4S, p. S117-S314, 2024. Disponível em: https://kdigo.org/wp-content/uploads/2024/03/KDIGO-2024-CKD-Guideline.pdf. Acesso em: 15 nov. 2026.",
+    "OMS2025SAL": "ORGANIZAÇÃO MUNDIAL DA SAÚDE (OMS). Launch of the WHO guideline on the use of lower-sodium salt substitutes: overview. Genebra: OMS, 2025a. Apresentação de slides. Disponível em: https://cdn.who.int/media/docs/default-source/nutrition-and-food-safety/events/2025/launch-of-lsss-guideline-presentation-1-overview.pdf?sfvrsn=73c55f08_3. Acesso em: 16 nov. 2026.",
+    "MSPOTASSIO": "BRASIL. Ministério da Saúde. Secretaria de Atenção Primária à Saúde. Linhas de cuidado: doença renal crônica (DRC) em adultos: listagem de alimentos ricos e pobres em potássio. [S. l.]: Ministério da Saúde, [s.d.]. Disponível em: https://linhasdecuidado.saude.gov.br/portal/doenca-renal-cronica-(DRC)-em-adultos/listagem-alimentos/. Acesso em: 16 nov. 2026.",
+    "FABRE2024": "FABRE, L. et al. Manual para pacientes com doença renal crônica: estágios 4 e 5. [S. l.]: [s. n.], [2024?]. Disponível em: https://sbn.org.br/wp-content/uploads/2024/11/ManualProntoDRC4e5_compressed.pdf. Acesso em: 16 nov. 2026."
+  },
+  "condutas": [
+    {
+      "codigo": "REN-01",
+      "titulo": "Doença renal: proteína",
+      "titulo_paciente": "Proteína na sua alimentação",
+      "gatilhos": {"qualquer": ["drc"]},
+      "profissional": [
+        "KDIGO 2024, adultos com DRC G3 a G5 sem diálise: sugere manter a proteína em 0,8 g/kg de peso corporal por dia (recomendação 2C; certeza baixa) e evitar mais de 1,3 g/kg/dia em quem tem risco de progressão da doença. Dieta com muito pouca proteína (0,3 a 0,4 g/kg/dia) só sob supervisão rigorosa e com suplementação de aminoácidos essenciais ou cetoanálogos (KDIGO, 2024).",
+        "Não prescrever dieta pobre em proteína a quem está metabolicamente instável. Em idosos com fragilidade e sarcopenia, considerar metas maiores de proteína e de calorias (KDIGO, 2024).",
+        "A diretriz trata de DRC sem diálise. Para pacientes em diálise e para a meta de proteína de pessoas com diabetes, as fontes lidas são secundárias e divergentes, e o texto original da KDOQI 2020 não foi lido (lacuna registrada). Nesses casos, seguir o protocolo do serviço de nefrologia."
+      ],
+      "conferir": [
+        "Estágio da DRC e se o paciente faz diálise (o texto vale para DRC sem diálise).",
+        "Estabilidade metabólica avaliada. Se instável, não restringir proteína.",
+        "Idoso frágil, sarcopênico ou desnutrido: meta de proteína e de calorias definida pela nutricionista, sem restrição.",
+        "Meta de proteína em g por dia calculada para este paciente, com o peso usado anotado na folha."
+      ],
+      "paciente": [
+        "- Proteína por dia: ______ g (meta definida pela nutricionista para você).",
+        "- Siga a quantidade indicada: nem a mais nem a menos. Não corte carne, ovos, leite ou feijão por conta própria."
+      ],
+      "fontes": ["KDIGO2024"]
+    },
+    {
+      "codigo": "REN-02",
+      "titulo": "Doença renal: sal (sódio) e substitutos do sal",
+      "titulo_paciente": "Sal e substitutos do sal",
+      "gatilhos": {"qualquer": ["drc"]},
+      "profissional": [
+        "KDIGO 2024: sugere sódio abaixo de 2 g por dia (menos de 90 mmol de sódio, ou menos de 5 g de cloreto de sódio, o sal de cozinha) em pessoas com DRC (recomendação 2C). A restrição geralmente não é adequada na nefropatia perdedora de sal; a diretriz cita também desnutrição e clima muito quente como situações em que ela pode não caber (KDIGO, 2024).",
+        "Substitutos do sal: a OMS sugere substitutos com menos sódio e com potássio para adultos em geral (recomendação condicional; certeza baixa), mas exclui pessoas com doença renal e condições que prejudicam a excreção de potássio (OMS, 2025a; lido em slides de lançamento da diretriz). A KDIGO descreve os substitutos feitos com cloreto de potássio como fonte de potássio muito absorvível (KDIGO, 2024). A lista do Ministério da Saúde para DRC põe o 'sal dietético ou light' entre os alimentos de alto teor de potássio (BRASIL, [s.d.]), e o manual para pacientes com DRC 4 e 5 diz que o sal light é rico em potássio e pode elevar o potássio no sangue (FABRE et al., [2024?])."
+      ],
+      "conferir": [
+        "Meta de sódio ou de sal definida para este paciente. Se houver perda de sal pelo rim, desnutrição ou muito calor, avaliar com a nefrologia se a restrição se aplica.",
+        "Uso de sal light, sal dietético ou outro substituto em casa perguntado."
+      ],
+      "paciente": [
+        "- Use pouco sal no preparo e tempere com temperos naturais. Meta de sal por dia: ______________",
+        "- Não use sal light, sal dietético ou outro substituto do sal sem falar com a equipe: eles têm potássio e podem aumentar o potássio no sangue."
+      ],
+      "fontes": ["KDIGO2024", "OMS2025SAL", "MSPOTASSIO", "FABRE2024"]
+    },
+    {
+      "codigo": "REN-03",
+      "titulo": "Doença renal: potássio",
+      "titulo_paciente": "Potássio",
+      "gatilhos": {"qualquer": ["drc"]},
+      "profissional": [
+        "KDIGO 2024: em DRC G3 a G5 com hipercalemia emergente, usar abordagem individualizada e orientar a limitar alimentos ricos em potássio biodisponível, como os ultraprocessados (práticas 3.11.5.1 e 3.11.5.2). A diretriz não endossa restringir frutas e verduras de forma geral: é estratégia de curto prazo na hipercalemia aguda ou de prevenção em quem já teve hipercalemia, e cortar alimentos naturalmente ricos em potássio pode fazer mal ao coração (KDIGO, 2024).",
+        "Causas mais prováveis de potássio alto no sangue, segundo a diretriz: medicamentos, acidose, hiperglicemia e constipação (KDIGO, 2024; leitura única).",
+        "Para reduzir o potássio dos vegetais, ferver em água e desprezar a água do cozimento diminui cerca de 50% na maioria deles (FABRE et al., [2024?]; leitura única). O Ministério da Saúde publica a lista de alimentos de alto e de baixo teor de potássio (BRASIL, [s.d.])."
+      ],
+      "conferir": [
+        "Potássio no sangue (exame recente) e medicamentos que o elevam avaliados com o médico antes de restringir alimentos.",
+        "A restrição de alimentos só entra na folha se for indicada para este paciente. Lista de alimentos entregue ao paciente: ______________"
+      ],
+      "paciente": [
+        "- Limitar alimentos ricos em potássio: ( ) sim   ( ) não. Quais: ______________",
+        "- Não corte frutas, verduras e legumes por conta própria. Reduza só se a equipe mandar.",
+        "- Se for para reduzir o potássio: cozinhe os legumes e as verduras em água fervente e jogue fora a água do cozimento.",
+        "- Prefira comida feita em casa e evite alimentos ultraprocessados."
+      ],
+      "fontes": ["KDIGO2024", "FABRE2024", "MSPOTASSIO"]
+    },
+    {
+      "codigo": "REN-04",
+      "titulo": "Doença renal: remédios, chás e suplementos",
+      "titulo_paciente": "Remédios, chás e suplementos",
+      "gatilhos": {"qualquer": ["drc"]},
+      "profissional": [
+        "KDIGO 2024: rever e limitar o uso de medicamentos sem prescrição e de remédios dietéticos ou fitoterápicos (prática 4.1.3; sumário executivo) (KDIGO, 2024).",
+        "O manual para pacientes com DRC 4 e 5 alerta que anti-inflamatórios, como diclofenaco, ibuprofeno e naproxeno, podem prejudicar a função renal e que suplementos nutricionais pedem cuidado, porque podem elevar o fósforo (FABRE et al., [2024?]; leitura única)."
+      ],
+      "conferir": [
+        "Lista de remédios, chás, produtos naturais e suplementos que o paciente usa em casa conferida com o médico.",
+        "Se usa suplemento oral ou módulo de proteína, conferir no rótulo proteína, sódio, potássio e fósforo e combinar a meta com a nefrologia."
+      ],
+      "paciente": [
+        "- Não use remédio sem receita, chá, produto natural ou suplemento sem falar com a equipe.",
+        "- Evite anti-inflamatórios como diclofenaco, ibuprofeno e naproxeno, a não ser que o médico mande.",
+        "- Suplemento ou módulo indicado: ______________ (quantidade e horário)."
+      ],
+      "fontes": ["KDIGO2024", "FABRE2024"]
+    },
+    {
+      "codigo": "REN-05",
+      "titulo": "Doença renal: líquidos, peso e acompanhamento",
+      "titulo_paciente": "Líquidos, peso e retorno",
+      "gatilhos": {"qualquer": ["drc"]},
+      "profissional": [
+        "KDIGO 2024: aconselhar alimentação saudável e variada, com mais alimentos de origem vegetal, e contar com nutricionista renal ou profissional de nutrição credenciado para orientar as adaptações de sódio, fósforo, potássio e proteína, de acordo com as necessidades individuais (KDIGO, 2024).",
+        "Rastrear desnutrição em DRC G4 a G5, em maiores de 65 anos e em quem tem sintomas como perda de peso involuntária, e garantir terapia nutricional para quem tem sinais de desnutrição (KDIGO, 2024; leitura única, sumário executivo).",
+        "Líquidos: as fontes lidas não trazem volume. O manual para pacientes manda combinar com o médico a quantidade ideal por dia (FABRE et al., [2024?]). Fósforo: não foi levantado nesta versão (lacuna registrada)."
+      ],
+      "conferir": [
+        "Limite de líquidos definido pela nefrologia, em mL por dia, se houver.",
+        "Retorno com a nutrição e com a nefrologia agendado (datas na folha).",
+        "Peso e apetite acompanhados (triagem de desnutrição)."
+      ],
+      "paciente": [
+        "- Líquidos por dia: ______________ (só se a equipe indicar limite; pergunte ao médico a quantidade ideal).",
+        "- Alimentação: ______________ (plano da nutricionista).",
+        "- Se perder peso sem querer ou ficar sem apetite, avise a equipe.",
+        "- Retorno com a nutrição: ______ | Retorno com o médico dos rins: ______"
+      ],
+      "fontes": ["KDIGO2024", "FABRE2024"]
+    }
+  ]
+}

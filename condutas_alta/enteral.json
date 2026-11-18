@@ -1,0 +1,211 @@
+{
+  "grupo": "enteral",
+  "titulo": "Alimentação enteral",
+  "ordem": 10,
+  "versao": "2026-11-16.1",
+  "revisado_em": "2026-11-16",
+  "referencias": {
+    "BISCHOFF2020": "BISCHOFF, S. C. et al. ESPEN guideline on home enteral nutrition. Clinical Nutrition, v. 39, n. 1, p. 5-22, 2020. Versão em português. Disponível em: https://www.espen.org/files/ESPEN-Guidelines/HEN-Guideline-Portuguese.pdf. Acesso em: 13 nov. 2026.",
+    "BRASIL2021": "BRASIL. Ministério da Saúde. Agência Nacional de Vigilância Sanitária. Resolução RDC nº 503, de 27 de maio de 2021. Dispõe sobre os requisitos mínimos exigidos para a Terapia de Nutrição Enteral. Diário Oficial da União: seção 1, Brasília, DF, n. 136, p. 417, 21 jul. 2021. Republicada por ter saído com incorreção no original. Disponível em: https://ses.sp.bvs.br/wp-content/uploads/2021/07/U_RS-MS-ANVISA-RDC-503-REP_270521.pdf. Acesso em: 13 nov. 2026.",
+    "BRASIL2024": "BRASIL. Ministério da Saúde. Agência Nacional de Vigilância Sanitária. Gerência-Geral de Alimentos. Fórmulas para nutrição enteral: perguntas e respostas. 3. ed. Brasília, DF: Anvisa, 7 out. 2024a. Disponível em: https://www.gov.br/anvisa/pt-br/centraisdeconteudo/publicacoes/alimentos/perguntas-e-respostas-arquivos/formulas-para-nutricao-enteral.pdf/@@display-file/file. Acesso em: 14 nov. 2026.",
+    "DASILVA2020": "DA SILVA, J. S. V. et al. ASPEN consensus recommendations for refeeding syndrome. Nutrition in Clinical Practice, v. 35, n. 2, p. 178-195, 2020. DOI: 10.1002/ncp.10474. Disponível em: https://achpccg.com/wp-content/uploads/2024/10/Nut-in-Clin-Prac-2020-da-Silva-ASPEN-Consensus-Recommendations-for-Refeeding-Syndrome.pdf. Acesso em: 13 nov. 2026.",
+    "GONCALVES2019": "GONÇALVES, T. J. M. et al. Diretriz BRASPEN de terapia nutricional no envelhecimento. BRASPEN Journal, v. 34, supl. 3, p. 2-58, 2019. Disponível em: https://www.avantenestle.com.br/sites/default/files/2020-03/Diretriz-Braspen-min.pdf. Acesso em: 14 nov. 2026.",
+    "HCFMB019": "HOSPITAL DAS CLÍNICAS DA FACULDADE DE MEDICINA DE BOTUCATU (HCFMB). Núcleo de Nutrição e Dietética. POP GE 019: administração de nutrição enteral fracionada. Botucatu: Unesp, [s.d.]a. Disponível em: https://hcfmb.unesp.br/wp-content/uploads/2024/06/POP-GE-019-Administracao-de-Nutricao-Enteral-Fracionada.pdf. Acesso em: 13 nov. 2026.",
+    "HCFMB020": "HOSPITAL DAS CLÍNICAS DA FACULDADE DE MEDICINA DE BOTUCATU (HCFMB). Núcleo de Nutrição e Dietética. POP GE 020: administração de nutrição enteral por sistema fechado. Botucatu: Unesp, [s.d.]b. Disponível em: https://hcfmb.unesp.br/wp-content/uploads/2024/06/POP-GE-020-Administracao-de-Nutricao-Enteral-por-Sistema-Fechado.pdf. Acesso em: 13 nov. 2026.",
+    "VOLKERT2022": "VOLKERT, D. et al. ESPEN practical guideline: clinical nutrition and hydration in geriatrics. Clinical Nutrition, v. 41, n. 4, p. 958-989, 2022. DOI: 10.1016/j.clnu.2022.01.024. Disponível em: https://ueaeprints.uea.ac.uk/83181/7/1_s2.0_S0261561422000346_main.pdf. Acesso em: 13 nov. 2026."
+  },
+  "condutas": [
+    {
+      "codigo": "ENT-01",
+      "titulo": "Prescrição da dieta enteral em casa",
+      "titulo_paciente": "Sua dieta pela sonda",
+      "gatilhos": {"qualquer": ["via:Enteral"]},
+      "profissional": [
+        "A prescrição é do nutricionista e traz o tipo e a quantidade dos nutrientes, considerando o estado mórbido, o estado nutricional, as necessidades e as condições do trato digestivo (BRASIL, 2021, arts. 25 e 26).",
+        "Na alta, a diretriz ESPEN de nutrição enteral domiciliar pede que a terapia comece em casa quando paciente e cuidador têm o conhecimento e as habilidades necessários e mostram competência antes da alta, e que toda a informação também seja entregue por escrito (BISCHOFF et al., 2020).",
+        "Modo de infusão: em bolus, intermitente ou contínuo com bomba, conforme a necessidade clínica, a segurança e a precisão exigida (BISCHOFF et al., 2020).",
+        "Via oral junto com a sonda: estimular até onde for seguro; a textura segura é definida pelo especialista em disfagia (boa prática) (VOLKERT et al., 2022)."
+      ],
+      "conferir": [
+        "Nome e apresentação da fórmula conferidos no rótulo.",
+        "Volume por dia, horários e modo (em partes ou contínua) conferidos com a prescrição atual.",
+        "Quem vai dar a dieta em casa mostrou como se faz (preparo, água na sonda, posição) antes da alta.",
+        "A família consegue ter a fórmula em casa (compra, doação ou fornecimento pelo serviço).",
+        "Se a dieta foi iniciada ou aumentada há menos de 5 dias em paciente muito desnutrido, fósforo, potássio, magnésio e tiamina foram avaliados (risco de síndrome de realimentação; DA SILVA et al., 2020)."
+      ],
+      "paciente": [
+        "- Dieta indicada: ______________________ (nome e marca)",
+        "- Quantidade por dia: ______ | Horários: ______________",
+        "- Como dar: ( ) em partes, várias vezes ao dia  |  ( ) contínua, com bomba",
+        "- Não mude a dieta, a quantidade nem os horários sem falar com a nutricionista.",
+        "- Comer ou beber pela boca: só se a equipe liberar. Textura: ______________"
+      ],
+      "fontes": ["BRASIL2021", "BISCHOFF2020", "VOLKERT2022", "DASILVA2020"]
+    },
+    {
+      "codigo": "ENT-02",
+      "titulo": "Dieta caseira e misturas na sonda",
+      "titulo_paciente": "Misturas e dieta caseira",
+      "gatilhos": {"qualquer": ["via:Enteral"]},
+      "profissional": [
+        "Na nutrição enteral domiciliar, a ESPEN desaconselha misturas caseiras liquidificadas, por serem menos seguras que as fórmulas comerciais (recomendação de boa prática) (BISCHOFF et al., 2020).",
+        "A Anvisa informa que dietas artesanais líquidas ou em purê podem ser dadas por sonda, mas não são classificadas como fórmulas para nutrição enteral; cabe ao profissional de saúde avaliar se o produto é adequado (BRASIL, 2024a).",
+        "A RDC 503 aceita a nutrição enteral não industrializada com prescrição dietética (art. 3º, VIII) e manda administrá-la logo depois de preparada (art. 45) (BRASIL, 2021).",
+        "Suco ou outros itens junto da fórmula: não foi encontrada regra específica na RDC 503 nem nas perguntas e respostas da Anvisa. Interpretação a partir dos arts. 25, 45 e 172: se entrarem, devem constar na prescrição e a mistura deve ser avaliada (BRASIL, 2021)."
+      ],
+      "conferir": [
+        "A família tem acesso à fórmula industrializada; se não tiver, definir com a equipe a alternativa antes da alta.",
+        "Se for liberada alguma preparação caseira, ela precisa de prescrição por escrito (receita, volumes, horários) e de orientação de higiene."
+      ],
+      "paciente": [
+        "- Use só a dieta indicada pela nutricionista.",
+        "- Não bata alimentos da família nem acrescente suco ou outro produto na dieta sem orientação.",
+        "- Se a dieta acabar ou você não conseguir comprar, procure o serviço de saúde antes de trocar por conta própria."
+      ],
+      "fontes": ["BISCHOFF2020", "BRASIL2024", "BRASIL2021"]
+    },
+    {
+      "codigo": "ENT-03",
+      "titulo": "Posição, mãos e água na sonda",
+      "titulo_paciente": "Na hora de dar a dieta",
+      "gatilhos": {"qualquer": ["via:Enteral"]},
+      "profissional": [
+        "Cabeceira: as fontes não coincidem. Protocolo de Botucatu: posição de Fowler, de 30° a 45° (HCFMB, [s.d.]a; HCFMB, [s.d.]b). BRASPEN, para prevenir broncoaspiração em idosos com disfagia: durante a alimentação oral ou enteral, cabeceira de 45° a 90°, mantida por 30 a 40 minutos depois (evidência moderada) (GONÇALVES et al., 2019). O texto do paciente segue a BRASPEN; confirme com o protocolo do serviço.",
+        "Água na sonda: ESPEN, pelo menos 30 mL de água potável antes e depois da dieta em bolus, ou a cada 4 horas na dieta contínua, para evitar entupimento (BISCHOFF et al., 2020). Botucatu, 40 mL de água filtrada antes e depois da dieta fracionada, se não houver restrição de líquidos (HCFMB, [s.d.]a), e 40 mL a cada 4 horas no sistema fechado com bomba (HCFMB, [s.d.]b).",
+        "Mãos: água e sabão antisséptico por no mínimo 30 segundos, ou álcool em gel por no mínimo 15 segundos (HCFMB, [s.d.]a; HCFMB, [s.d.]b). São rotinas hospitalares, adaptadas aqui para o domicílio.",
+        "A aspiração pode chegar a 20% dos pacientes em nutrição enteral; elevar a cabeceira é uma das estratégias de prevenção (BISCHOFF et al., 2020)."
+      ],
+      "conferir": [
+        "Volume de água definido para este paciente, em mL (30 mL na ESPEN, 40 mL em Botucatu; ajustar se houver restrição de líquidos).",
+        "Posição e tempo de cabeceira alinhados ao protocolo do HMAB.",
+        "Quem cuida em casa demonstrou o passo a passo."
+      ],
+      "paciente": [
+        "- Lave as mãos com água e sabão por pelo menos 30 segundos antes de mexer na dieta ou na sonda.",
+        "- Durante a dieta, fique sentado ou com a cabeceira da cama bem levantada. Continue assim por 30 a 40 minutos depois.",
+        "- Passe água potável na sonda antes e depois da dieta: ______ mL.",
+        "- Se a dieta for contínua, passe água a cada 4 horas: ______ mL."
+      ],
+      "fontes": ["BISCHOFF2020", "GONCALVES2019", "HCFMB019", "HCFMB020"]
+    },
+    {
+      "codigo": "ENT-04",
+      "titulo": "Validade e conservação da dieta",
+      "titulo_paciente": "Validade da dieta",
+      "gatilhos": {"qualquer": ["via:Enteral"]},
+      "profissional": [
+        "Nutrição enteral industrializada: seguir a validade e as condições de conservação do fabricante (BRASIL, 2021, art. 46). Não industrializada: administrar logo depois de preparada (art. 45).",
+        "Protocolo de Botucatu (hospitalar): o frasco de dieta fracionada vale 4 horas a partir do horário do rótulo (12 horas na geladeira e, depois de retirado, 4 horas); a bolsa de sistema fechado e o equipo valem 24 horas depois de instalados (HCFMB, [s.d.]a; HCFMB, [s.d.]b). São prazos hospitalares: adapte ao domicílio só com orientação do serviço."
+      ],
+      "conferir": [
+        "Prazos escritos na folha: usar os do rótulo do fabricante e do protocolo do HMAB; não copiar os de Botucatu sem confirmar."
+      ],
+      "paciente": [
+        "- Siga a validade e o modo de guardar escritos na embalagem da dieta.",
+        "- Dieta já aberta ou preparada: guarde ______________ e use em até ____ horas.",
+        "- Não use dieta fora da validade."
+      ],
+      "fontes": ["BRASIL2021", "HCFMB019", "HCFMB020"]
+    },
+    {
+      "codigo": "ENT-05",
+      "titulo": "Medicamentos pela sonda",
+      "titulo_paciente": "Remédios pela sonda",
+      "gatilhos": {"qualquer": ["via:Enteral"]},
+      "profissional": [
+        "A ESPEN recomenda confirmar se cada medicamento é adequado para uso por sonda, com participação do farmacêutico, e dar cada medicamento separadamente, com água na sonda antes, entre eles e depois (30 mL na diretriz) (BISCHOFF et al., 2020)."
+      ],
+      "conferir": [
+        "Lista de medicamentos revisada com o médico ou o farmacêutico quanto ao uso por sonda.",
+        "Volume de água entre os medicamentos definido, em mL (30 mL na ESPEN)."
+      ],
+      "paciente": [
+        "- Não misture remédios na dieta nem uns com os outros.",
+        "- Dê um remédio de cada vez, com água na sonda antes, entre eles e depois: ______ mL.",
+        "- Só amasse ou abra um remédio se o médico ou o farmacêutico disser que pode."
+      ],
+      "fontes": ["BISCHOFF2020"]
+    },
+    {
+      "codigo": "ENT-06",
+      "titulo": "Cuidados com a sonda e a gastrostomia",
+      "titulo_paciente": "Cuidados com a sonda",
+      "gatilhos": {"qualquer": ["via:Enteral"]},
+      "profissional": [
+        "Gastrostomia (PEG): olhar o local de saída todos os dias e mantê-lo limpo e seco (grau B) (BISCHOFF et al., 2020).",
+        "Depois da cicatrização, a diretriz traz orientação para girar a sonda e mobilizá-la para dentro com frequência definida (BISCHOFF et al., 2020). Confirme a técnica e a frequência no texto da ESPEN e no manual do dispositivo antes de orientar.",
+        "Trocar a sonda se estiver quebrada, entupida, fora do lugar ou degradada. Depois da alta, garantir um serviço de orientação para dúvidas e para avaliar o procedimento (BISCHOFF et al., 2020)."
+      ],
+      "conferir": [
+        "Tipo de sonda (nasal, gastrostomia ou jejunal) e instruções do fabricante.",
+        "Quem cuida em casa sabe o que fazer e a quem chamar se a sonda sair, entupir ou quebrar."
+      ],
+      "paciente": [
+        "- Todos os dias, olhe o local de saída da sonda na barriga (gastrostomia): mantenha limpo e seco.",
+        "- Gire e mexa a sonda como a equipe ensinou: ______________",
+        "- Se a sonda sair do lugar, quebrar ou entupir, procure o serviço de saúde."
+      ],
+      "fontes": ["BISCHOFF2020"]
+    },
+    {
+      "codigo": "ENT-07",
+      "titulo": "Sinais de alerta e o que fazer",
+      "titulo_paciente": "Quando procurar ajuda",
+      "gatilhos": {"qualquer": ["via:Enteral"]},
+      "profissional": [
+        "Intolerância (protocolo de Botucatu): se o paciente vomitar ou regurgitar, suspende-se a dieta. Em qualquer intolerância, registra-se, avisa-se o médico ou o nutricionista e aguarda-se a orientação. Com 3 ou mais episódios de diarreia, chama-se o nutricionista e avisa-se o médico (HCFMB, [s.d.]a).",
+        "Constipação, diarreia, vômito e dor abdominal podem vir da doença, dos remédios, da fórmula ou do modo de administrar; a ESPEN pede acompanhar a eficácia e as complicações (BISCHOFF et al., 2020).",
+        "Os sinais de aspiração (tosse, falta de ar, febre) não vêm detalhados nas fontes consultadas; inclua-os conforme o protocolo do serviço."
+      ],
+      "conferir": [
+        "Serviço e telefone para dúvidas escritos na folha.",
+        "Sinais de aspiração incluídos, se o protocolo do HMAB os trouxer."
+      ],
+      "paciente": [
+        "- Se vomitar ou a dieta voltar pela boca: pare a dieta e procure o serviço de saúde.",
+        "- Se tiver diarreia 3 ou mais vezes: avise a nutricionista e o médico.",
+        "- Dúvida ou problema? Serviço: ______________ | Telefone: ______________"
+      ],
+      "fontes": ["HCFMB019", "BISCHOFF2020"]
+    },
+    {
+      "codigo": "ENT-08",
+      "titulo": "Acompanhamento e contato",
+      "titulo_paciente": "Acompanhamento",
+      "gatilhos": {"qualquer": ["via:Enteral"]},
+      "profissional": [
+        "A ESPEN recomenda acompanhar a eficácia e as complicações da nutrição enteral domiciliar, com monitoramento baseado principalmente no peso corporal (também composição corporal e hidratação), e acesso a um profissional para avaliar o procedimento (BISCHOFF et al., 2020).",
+        "A frequência de pesagem e de retorno deve seguir o protocolo do serviço."
+      ],
+      "conferir": [
+        "Retorno agendado (data e local) e contato do serviço preenchidos.",
+        "Frequência de pesagem definida para este paciente."
+      ],
+      "paciente": [
+        "- Pese-se ______________ e anote o peso para levar à consulta.",
+        "- Retorno com a nutrição: ______________ (data e local).",
+        "- Leve esta folha e o registro do peso nas consultas."
+      ],
+      "fontes": ["BISCHOFF2020"]
+    },
+    {
+      "codigo": "ENT-09",
+      "titulo": "Diabetes e dieta enteral",
+      "titulo_paciente": "Diabetes e dieta pela sonda",
+      "gatilhos": {"todas": ["via:Enteral", "dm"]},
+      "profissional": [
+        "A BRASPEN diz que as fórmulas específicas para controle glicêmico parecem promover melhor controle da glicose pós-prandial, da HbA1c e da resistência insulínica do que as fórmulas padrão (evidência baixa) (GONÇALVES et al., 2019).",
+        "A escolha entre fórmula padrão e específica, e o plano de controle da glicose em casa, dependem da prescrição do nutricionista e do médico."
+      ],
+      "conferir": [
+        "A fórmula prescrita é específica para diabetes? Registrar o nome na folha.",
+        "Plano de controle da glicose em casa definido com a equipe médica (quando medir e metas)."
+      ],
+      "paciente": [
+        "- Diabetes: use a fórmula indicada pela equipe: ______________.",
+        "- Controle da glicose em casa: ______________ (quando medir e o que fazer)."
+      ],
+      "fontes": ["GONCALVES2019"]
+    }
+  ]
+}

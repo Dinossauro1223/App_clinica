@@ -70,9 +70,75 @@ class Migracao:
         return hashlib.sha256(bruto.encode("utf-8")).hexdigest()
 
 
+# --- v2: condutas de alta (módulo condutas_alta.py) -------------------------------------------------------------------
+# Documento de orientações de alta por paciente + uma linha por conduta decidida pela nutricionista (confirmada ou
+# "não se aplica"), com texto, lista de conferência e referências COPIADOS no momento da decisão (o catálogo pode mudar
+# depois). Depois de `entregue`, o documento e os itens ficam imutáveis (gatilhos abaixo); corrigir = nova versão
+# (`substitui_id_doc`). Sem FOREIGN KEY para Pacientes: essa tabela pertence ao esquema legado.
+_CONDUTAS_ALTA_UP = (
+    """CREATE TABLE IF NOT EXISTS Condutas_Alta_Docs (
+        id_doc INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_paciente INTEGER NOT NULL,
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho', 'entregue')),
+        entregue_em TEXT,
+        nutricionista TEXT,
+        crn TEXT,
+        recado TEXT,
+        substitui_id_doc INTEGER
+    )""",
+    """CREATE TABLE IF NOT EXISTS Condutas_Alta_Itens (
+        id_item INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_doc INTEGER NOT NULL REFERENCES Condutas_Alta_Docs (id_doc),
+        codigo TEXT NOT NULL,
+        versao_catalogo TEXT,
+        decisao TEXT NOT NULL CHECK (decisao IN ('confirmada', 'nao_se_aplica')),
+        origem TEXT NOT NULL DEFAULT 'regra' CHECK (origem IN ('regra', 'manual')),
+        titulo TEXT NOT NULL,
+        titulo_paciente TEXT,
+        texto_paciente TEXT,
+        texto_profissional TEXT,
+        conferir TEXT,
+        referencias TEXT,
+        editado INTEGER NOT NULL DEFAULT 0,
+        justificativa TEXT,
+        decidido_em TEXT NOT NULL,
+        UNIQUE (id_doc, codigo)
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_condutas_alta_docs_pac ON Condutas_Alta_Docs (id_paciente, status)",
+    "CREATE INDEX IF NOT EXISTS ix_condutas_alta_itens_doc ON Condutas_Alta_Itens (id_doc)",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_itens_ins_imutavel BEFORE INSERT ON Condutas_Alta_Itens
+       WHEN (SELECT status FROM Condutas_Alta_Docs WHERE id_doc = NEW.id_doc) = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: crie uma nova versão em vez de alterar.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_itens_upd_imutavel BEFORE UPDATE ON Condutas_Alta_Itens
+       WHEN (SELECT status FROM Condutas_Alta_Docs WHERE id_doc = OLD.id_doc) = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: crie uma nova versão em vez de alterar.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_itens_del_imutavel BEFORE DELETE ON Condutas_Alta_Itens
+       WHEN (SELECT status FROM Condutas_Alta_Docs WHERE id_doc = OLD.id_doc) = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: não é possível apagar itens.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_docs_upd_imutavel BEFORE UPDATE ON Condutas_Alta_Docs
+       WHEN OLD.status = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: crie uma nova versão em vez de alterar.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_docs_del_imutavel BEFORE DELETE ON Condutas_Alta_Docs
+       WHEN OLD.status = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: não é possível apagar.'); END""",
+)
+# Reversão (sempre com backup `pre-reversao-para-v1` feito antes): remove as tabelas; documentos entregues só existirão no backup.
+_CONDUTAS_ALTA_DOWN = (
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_docs_del_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_docs_upd_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_itens_del_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_itens_upd_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_itens_ins_imutavel",
+    "DROP TABLE IF EXISTS Condutas_Alta_Itens",
+    "DROP TABLE IF EXISTS Condutas_Alta_Docs",
+)
+
 # Lista oficial. NOVAS migrações entram SEMPRE ao final, com versão contígua; nunca editar uma já publicada.
 MIGRACOES = (
     Migracao(versao=1, nome="baseline_esquema_legado", up=(), down=None, baseline=True),
+    Migracao(versao=2, nome="condutas_alta", up=_CONDUTAS_ALTA_UP, down=_CONDUTAS_ALTA_DOWN),
 )
 
 

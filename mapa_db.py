@@ -22,6 +22,12 @@ CARACTERISTICAS = [
     ("constipante", "Const.", "Constipante"),
     ("drc", "DRC", "Doença renal"),
 ]
+# Doenças relatadas que alimentam as condutas de alta (condutas_alta.py). Ficam FORA de CARACTERISTICAS de propósito:
+# aquela lista define as colunas do impresso/Excel/gráficos do mapa. (código, nome completo)
+CONDICOES = [
+    ("resp", "Doença respiratória"),
+    ("tb", "Tuberculose"),
+]
 MODULOS_PADRAO = [
     "Fórmula completa",
     "Fórmula para diabetes",
@@ -67,7 +73,7 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
     peso_kg REAL, peso_origem TEXT, peso_metodo TEXT,
     imc REAL, imc_class TEXT, data_reavaliacao TEXT, via TEXT,
     dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
-    constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, consistencia TEXT,
+    constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, condicoes TEXT, consistencia TEXT,
     obs_sim TEXT, obs_nao TEXT, fi_estado TEXT, fi_freq REAL, fi_dias_ausente INTEGER,
     criado_em TEXT, atualizado_em TEXT, UNIQUE(data, id_leito));
 CREATE TABLE IF NOT EXISTS Mapa_Registro_Suplementos (
@@ -82,7 +88,7 @@ _CAMPOS_REG = [
     "id_paciente", "nome_paciente", "acompanhante", "sexo", "cor", "idade_anos", "idade_meses",
     "aj_cm", "pp_cm", "pb_cm", "altura_cm", "altura_origem", "altura_metodo",
     "peso_kg", "peso_origem", "peso_metodo", "imc", "imc_class", "data_reavaliacao", "via",
-    "dm", "has", "laxativa", "constipante", "drc", "consistencia", "obs_sim", "obs_nao",
+    "dm", "has", "laxativa", "constipante", "drc", "condicoes", "consistencia", "obs_sim", "obs_nao",
     "fi_estado", "fi_freq", "fi_dias_ausente",
 ]
 
@@ -126,6 +132,10 @@ def inicializar(db_path):
     """Cria as tabelas do Mapa (se faltarem) e semeia setor, módulos e suplementos iniciais."""
     with closing(conectar(db_path)) as c:
         c.executescript(_SCHEMA)
+        # Bancos criados antes das condutas de alta não têm a coluna `condicoes` (CREATE IF NOT EXISTS não a adiciona).
+        colunas = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
+        if "condicoes" not in colunas:
+            c.execute("ALTER TABLE Mapa_Registros ADD COLUMN condicoes TEXT")
         # Pacientes pertence ao programa principal; garante existência em bancos novos.
         c.execute("""CREATE TABLE IF NOT EXISTS Pacientes (
             id_paciente INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL,
@@ -340,8 +350,36 @@ def remover_suplemento(db_path, id_suplemento):
 # ------------------------------------------------------------------- registros
 
 
+def codigos_condicoes(valor):
+    """Lista de códigos de condições a partir de 'resp,tb', lista/tupla ou None (sem validar nem reordenar)."""
+    if not valor:
+        return []
+    partes = valor.split(",") if isinstance(valor, str) else list(valor)
+    vistos = []
+    for p in partes:
+        p = str(p).strip().lower()
+        if p and p not in vistos:
+            vistos.append(p)
+    return vistos
+
+
+def normalizar_condicoes(valor):
+    """'resp,tb' na ordem canonica de CONDICOES (códigos desconhecidos vão ao final, para a validação apontar)."""
+    ordem = [c for c, _ in CONDICOES]
+    cods = codigos_condicoes(valor)
+    cods.sort(key=lambda c: (ordem.index(c) if c in ordem else len(ordem), c))
+    return ",".join(cods) or None
+
+
+def nomes_condicoes(valor):
+    """Nomes completos das condições marcadas (ex.: ['Doença respiratória', 'Tuberculose'])."""
+    nomes = dict(CONDICOES)
+    return [nomes[c] for c in codigos_condicoes(valor) if c in nomes]
+
+
 def completar_registro(reg, criterio_idoso="lipschitz", lms=None):
     """Calcula IMC e classificação do registro (altera e devolve o dict)."""
+    reg["condicoes"] = normalizar_condicoes(reg.get("condicoes"))
     imc = nc.calcular_imc(reg.get("peso_kg"), reg.get("altura_cm"))
     reg["imc"] = round(imc, 1) if imc is not None else None
     if imc is None or reg.get("idade_anos") is None:
@@ -373,6 +411,9 @@ def validar_registro(reg):
         erros.append("Via de administração inválida.")
     if reg.get("consistencia") not in (None, "") + tuple(CONSISTENCIAS):
         erros.append("Consistência inválida.")
+    desconhecidas = [c for c in codigos_condicoes(reg.get("condicoes")) if c not in dict(CONDICOES)]
+    if desconhecidas:
+        erros.append("Doença relatada inválida: " + ", ".join(desconhecidas) + ".")
     if reg.get("fi_estado") == "A" and reg.get("fi_dias_ausente") is not None and reg["fi_dias_ausente"] < 0:
         erros.append("Dias de ausência da função intestinal inválidos.")
     return erros

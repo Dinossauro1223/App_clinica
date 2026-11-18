@@ -8,6 +8,7 @@ importados na hora de usar (openpyxl, fpdf e matplotlib não atrasam a abertura 
 """
 import io
 import os
+import sqlite3
 from datetime import date, datetime, timedelta
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -16,6 +17,7 @@ import customtkinter as ctk
 
 import nutri_calculos as nc
 import mapa_db as mdb
+import condutas_alta as ca
 
 VERDE_ESC, VERDE, VERDE_HOVER, FUNDO = "#1b5e20", "#4caf50", "#388e3c", "#F0F7F4"
 CINZA_BTN, CINZA_HOVER = "#78909c", "#546e7a"
@@ -123,6 +125,7 @@ class MapaUI:
         acoes.pack(fill="x", padx=20, pady=4)
         _btn(acoes, "Registrar / Editar", self._editar, 150).pack(side="left", padx=(0, 6))
         _btn(acoes, "Histórico", self._historico, 100, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(0, 6))
+        _btn(acoes, "Condutas de alta", self._condutas_alta, 140, LARANJA, "#e65100").pack(side="left", padx=(0, 6))
         _btn(acoes, "Copiar último mapa", self._copiar_ultimo, 150, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(0, 6))
         _btn(acoes, "Remover do mapa", self._remover, 130, VERMELHO, VERMELHO_HOVER).pack(side="left", padx=(0, 6))
         _btn(acoes, "Excel", self._exportar_excel, 80, "#1565c0", "#0d47a1").pack(side="right")
@@ -130,19 +133,24 @@ class MapaUI:
 
         self.lbl_aviso = ctk.CTkLabel(area, text="", text_color=LARANJA, font=ctk.CTkFont(size=12, weight="bold"))
         self.lbl_aviso.pack(fill="x", padx=22, pady=(2, 0), anchor="w")
+        self.lbl_condutas = ctk.CTkLabel(area, text="", text_color=LARANJA, font=ctk.CTkFont(size=12, weight="bold"),
+                                         anchor="w", justify="left")
+        self.lbl_condutas.pack(fill="x", padx=22, pady=(0, 0), anchor="w")
 
         quadro = ctk.CTkFrame(area, fg_color="white")
         quadro.pack(fill="both", expand=True, padx=20, pady=6)
         colunas = [("leito", "Leito", 60, "center"), ("acomp", "Acomp.", 60, "center"), ("paciente", "Paciente", 220, "w"),
                    ("idade", "Idade", 50, "center"), ("imc", "IMC (classificação)", 170, "w"),
                    ("via", "Via", 70, "center"), ("consist", "Consistência", 85, "center"),
-                   ("supl", "Suplementos", 190, "w"), ("fi", "Função intestinal", 110, "center")]
+                   ("supl", "Suplementos", 190, "w"), ("fi", "Função intestinal", 110, "center"),
+                   ("condutas", "Condutas de alta", 120, "center")]
         self.tree = ttk.Treeview(quadro, columns=[c[0] for c in colunas], show="headings", style=ESTILO_TREE,
                                  selectmode="browse")
         for chave, titulo, larg, anc in colunas:
             self.tree.heading(chave, text=titulo)
             self.tree.column(chave, width=larg, anchor=anc, stretch=chave in ("paciente", "supl"))
         self.tree.tag_configure("vago", foreground="#9e9e9e")
+        self.tree.tag_configure("condpend", foreground="#e65100")
         rolagem = ttk.Scrollbar(quadro, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=rolagem.set)
         self.tree.pack(side="left", fill="both", expand=True, padx=(6, 0), pady=6)
@@ -184,12 +192,13 @@ class MapaUI:
             self.lbl_aviso.configure(text=f"Você está no mapa de {self.data.strftime('%d/%m/%Y')} ({rel}). "
                                           "As alterações ficam gravadas nessa data.")
         self.linhas = mdb.mapa_do_dia(self.db, self.data.isoformat(), self.id_setor)
+        resumo = self._resumo_condutas()
         self.tree.delete(*self.tree.get_children())
-        ocupados = past = acomp = sup = 0
+        ocupados = past = acomp = sup = com_pendencia = 0
         for it in self.linhas:
             l, r = it["leito"], it["registro"]
             if r is None:
-                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "")
+                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "", "")
                 tag = ("vago",)
             else:
                 ocupados += 1
@@ -197,12 +206,15 @@ class MapaUI:
                 acomp += bool(r.get("acompanhante"))
                 sup += bool(r.get("suplementos"))
                 imc = f"{_fmt(r.get('imc'))} ({r['imc_class']})" if r.get("imc") and r.get("imc_class") else _fmt(r.get("imc"))
+                cond = resumo.get(r.get("id_paciente"), {})
                 vals = (l["codigo"], "Sim" if r.get("acompanhante") else "Não", r["nome_paciente"],
                         "" if r.get("idade_anos") is None else r["idade_anos"], imc, r.get("via") or "",
                         r.get("consistencia") or "", ", ".join(s["nome"] for s in r["suplementos"]),
-                        self._fi_txt(r))
-                tag = ()
+                        self._fi_txt(r), cond.get("texto", ""))
+                tag = ("condpend",) if cond.get("estado") == "pendente" else ()
+                com_pendencia += cond.get("estado") == "pendente"
             self.tree.insert("", "end", iid=str(l["id_leito"]), values=vals, tags=tag)
+        self._mostrar_aviso_condutas(com_pendencia)
         total = len(self.linhas)
         if not total:
             self.lbl_resumo.configure(text="Nenhum leito cadastrado neste setor. Use o botão \"Leitos\" para cadastrar.")
@@ -210,6 +222,60 @@ class MapaUI:
             self.lbl_resumo.configure(
                 text=f"{ocupados} de {total} leitos com registro  ·  {past} em dieta pastosa  ·  "
                      f"{acomp} com acompanhante  ·  {sup} com suplemento")
+
+    # ------------------------------------------------------------------ condutas de alta
+    def _catalogo_condutas(self):
+        if getattr(self, "_cat_condutas", None) is None:
+            self._cat_condutas = ca.carregar_catalogo()     # ErroCatalogo se algum arquivo estiver inválido
+        return self._cat_condutas
+
+    def _resumo_condutas(self):
+        """{id_paciente: resumo} das condutas de alta dos registros do dia. Se o módulo falhar (catálogo inválido,
+        banco sem a migração), o Mapa continua funcionando e a falha aparece em vermelho acima da lista."""
+        self._erro_condutas = ""
+        try:
+            return ca.resumo_por_registro(self.db, [it["registro"] for it in self.linhas if it["registro"]],
+                                          self._catalogo_condutas())
+        except ca.ErroCondutasAlta as erro:
+            self._erro_condutas = " ".join(str(erro).split("\n")[:2])
+        except sqlite3.Error as erro:
+            self._erro_condutas = f"erro no banco de dados ({erro})"
+        return {}
+
+    def _mostrar_aviso_condutas(self, com_pendencia):
+        if self._erro_condutas:
+            self.lbl_condutas.configure(text="Condutas de alta indisponíveis: " + self._erro_condutas,
+                                        text_color=VERMELHO)
+        elif com_pendencia:
+            self.lbl_condutas.configure(
+                text=f"{com_pendencia} {'paciente' if com_pendencia == 1 else 'pacientes'} com condutas de alta "
+                     "pendentes: confirme antes da alta (botão \"Condutas de alta\").", text_color=LARANJA)
+        else:
+            self.lbl_condutas.configure(text="")
+
+    def _pendencias_condutas(self, r):
+        """Quantas condutas de alta sugeridas ainda esperam decisão para este registro (0 se o módulo falhar)."""
+        try:
+            res = ca.resumo_por_registro(self.db, [r], self._catalogo_condutas())
+        except (ca.ErroCondutasAlta, sqlite3.Error):
+            return 0
+        return res.get(r.get("id_paciente"), {}).get("pendentes", 0)
+
+    def _condutas_alta(self):
+        it = self._selecionado()
+        if not it:
+            return
+        if not it["registro"]:
+            messagebox.showinfo("Condutas de alta", "Este leito não tem paciente registrado neste dia.")
+            return
+        self._abrir_condutas(it)
+
+    def _abrir_condutas(self, it):
+        from condutas_alta_ui import abrir_condutas_alta        # na hora de usar: evita importação circular
+        r = it["registro"]
+        pasta = getattr(self.app, "pasta_condutas_alta", None)
+        abrir_condutas_alta(self.app, self.db, r["id_paciente"], r["nome_paciente"],
+                            pasta(r["id_paciente"]) if pasta else None, ao_fechar=self._recarregar)
 
     @staticmethod
     def _fi_txt(r):
@@ -248,6 +314,19 @@ class MapaUI:
             messagebox.showinfo("Mapa", "Este leito já está vago neste dia.")
             return
         r = it["registro"]
+        pend = self._pendencias_condutas(r)
+        if pend:
+            resp = messagebox.askyesnocancel(
+                "Condutas de alta pendentes",
+                f"{r['nome_paciente']} tem {pend} "
+                f"{'conduta de alta' if pend == 1 else 'condutas de alta'} aguardando confirmação da nutricionista.\n\n"
+                "Sim: abrir as condutas de alta agora (o paciente continua no mapa)\n"
+                "Não: remover do mapa mesmo assim\nCancelar: voltar")
+            if resp is None:
+                return
+            if resp:
+                self._abrir_condutas(it)
+                return
         if messagebox.askyesno("Remover do mapa",
                                f"Remover {r['nome_paciente']} do leito {it['leito']['codigo']} em "
                                f"{self.data.strftime('%d/%m/%Y')}?\n\nUse para alta ou transferência. "
@@ -879,6 +958,14 @@ class FormRegistro(ctk.CTkToplevel):
             self.var_carac[campo] = tk.IntVar(value=0)
             self._reg(ctk.CTkCheckBox(l, text=nome, variable=self.var_carac[campo], width=20)).pack(side="left", padx=6)
         l = self._linha(q)
+        ctk.CTkLabel(l, text="Outras doenças relatadas:").pack(side="left", padx=(0, 6))
+        self.var_cond = {}
+        for codigo, nome in mdb.CONDICOES:
+            self.var_cond[codigo] = tk.IntVar(value=0)
+            self._reg(ctk.CTkCheckBox(l, text=nome, variable=self.var_cond[codigo], width=20)).pack(side="left", padx=6)
+        ctk.CTkLabel(l, text="(com as marcações acima, escolhem as condutas de alta)", text_color="#546e7a",
+                     font=ctk.CTkFont(size=11)).pack(side="left", padx=8)
+        l = self._linha(q)
         self.seg_cons = self._seg(l, "Consistência", mdb.CONSISTENCIAS)
 
         q = self._secao("Suplementos administrados")
@@ -953,6 +1040,9 @@ class FormRegistro(ctk.CTkToplevel):
             self.seg_via.set(r["via"])
         for campo, var in self.var_carac.items():
             var.set(1 if r.get(campo) else 0)
+        ativas = mdb.codigos_condicoes(r.get("condicoes"))
+        for codigo, var in self.var_cond.items():
+            var.set(1 if codigo in ativas else 0)
         if r.get("consistencia"):
             self.seg_cons.set(r["consistencia"])
         self.t_sim.insert("1.0", r.get("obs_sim") or "")
@@ -999,6 +1089,7 @@ class FormRegistro(ctk.CTkToplevel):
             "peso_metodo": self._peso_metodo if origem_p == "E" else None,
             "data_reavaliacao": reav, "via": self.seg_via.get() or None,
             **{campo: var.get() for campo, var in self.var_carac.items()},
+            "condicoes": ",".join(c for c, var in self.var_cond.items() if var.get()) or None,
             "consistencia": self.seg_cons.get() or None,
             "obs_sim": self.t_sim.get("1.0", "end-1c").strip(), "obs_nao": self.t_nao.get("1.0", "end-1c").strip(),
             "fi_estado": fi, "fi_freq": n(self.e_fi_freq) if fi == "P" else None,
