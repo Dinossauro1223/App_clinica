@@ -127,13 +127,16 @@ class TestCatalogoRealConteudo(unittest.TestCase):
 
     def test_numeros_renais_apontam_para_a_kdigo_2024(self):
         ren01 = self.cat.obter("REN-01").profissional
-        for numero in ("0,8 g/kg", "1,3 g/kg/dia", "0,3 a 0,4 g/kg/dia"):
+        for numero in ("0,8 g/kg", "1,3 g/kg/dia", "0,3 a 0,4 g/kg/dia", "1,0 a 1,2 g/kg/dia"):
             self.assertIn(numero, ren01)
         self.assertIn("KDIGO 2024 Clinical Practice Guideline", self.fontes_de("REN-01"))
+        # proteína no diabetes com DRC e em diálise vem da diretriz de diabetes na DRC (KDIGO 2022)
+        self.assertIn("KDIGO 2022 Clinical Practice Guideline", self.fontes_de("REN-01"))
         ren02 = self.cat.obter("REN-02").profissional
         for numero in ("abaixo de 2 g por dia", "90 mmol", "5 g de cloreto de sódio"):
             self.assertIn(numero, ren02)
         self.assertIn("KDIGO 2024 Clinical Practice Guideline", self.fontes_de("REN-02"))
+        self.assertIn("KDIGO 2022 Clinical Practice Guideline", self.fontes_de("REN-02"))
 
     def test_respiratoria_geral_nao_inventa_meta_numerica(self):
         res = self.cat.obter("RES-01")

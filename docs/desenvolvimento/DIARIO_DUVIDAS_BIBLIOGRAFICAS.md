@@ -362,3 +362,44 @@ Também lidos e NÃO usados no catálogo: BRASIL. Anvisa. Resolução RDC nº 21
 - **Testes executados (17/11/2026, Linux, Python 3.13):** `python -m unittest tests.test_condutas_alta_catalogo`: 20 testes, todos OK. Eles conferem estrutura, gatilhos, fonte em cada conduta, ausência de dose no texto do paciente e registro da fonte neste diário. Não conferem o conteúdo clínico.
 - **Limitações que permanecem:** páginas e trechos de leitura única estão marcados no texto; KDIGO lida em janelas parciais; OMS lida em slides; o manual de pacientes não nomeia a editora; a marcação "Doença renal" do Mapa não distingue estágio nem diálise, então a conferência pede essa informação.
 - **Pendências:** ler a KDOQI 2020 no original e registrar nova entrada que referencie esta; ler o PCDT de DRC e as diretrizes do Ministério da Saúde; buscar fonte para fósforo, líquidos, diabetes com DRC e diálise.
+
+---
+
+### REF-2026-11-18-001: Doença renal crônica, proteína no diabetes com DRC e na diálise (KDIGO 2022)
+
+- **Data/hora (America/Recife):** 2026-11-18 08:10
+- **Agente responsável:** `clinical-evidence-researcher` (papel executado pelo agente integrador)
+- **Fase/issue/branch:** condutas de alta na consulta / `feat/condutas-de-alta`
+- **Estado:** PARCIALMENTE RESOLVIDA. Esta entrada complementa a `REF-2026-11-17-004`, que fica como está: ela deixou "diabetes com DRC" e "diálise" sem fonte, e aqui entra fonte primária só para proteína e sódio nesses dois casos.
+- **Dúvida original:** existe, em fonte primária, meta de proteína para pessoas com diabetes e DRC sem diálise e para quem faz diálise? A diretriz de diabetes na DRC traz algo sobre sódio, potássio e substitutos do sal que mude os textos de `REN-02` e `REN-03`?
+- **Onde apareceu:** fechamento da revisão 3 (doenças renais) pedida pelo usuário em 2026-11-13; pendência da `REF-2026-11-17-004`. Arquivo `condutas_alta/renal.json`.
+
+#### Fontes consultadas
+
+1. KIDNEY DISEASE: IMPROVING GLOBAL OUTCOMES (KDIGO) DIABETES WORK GROUP. KDIGO 2022 Clinical Practice Guideline for Diabetes Management in Chronic Kidney Disease. Kidney International, v. 102, n. 5S, p. S1-S127, 2022. Disponível em: https://kdigo.org/wp-content/uploads/2023/12/KDIGO-2022-Diabetes-Guideline.pdf. Acesso em: 18 nov. 2026.
+   - Lida pelo WebFetch em quatro janelas de 100.000 caracteres (o texto tem 601.577): 0 a 100.000 (resumo das recomendações, páginas S19 a S28), 100.000 a 200.000 (capítulo 1, sem nutrição), 200.000 a 300.000 (capítulo 3, seção 3.1 Nutrição, páginas S63 a S71) e 300.000 a 400.000 (seção 3.2 e capítulos 4 e 5, sem proteína). A ferramenta devolve resumo feito por modelo pequeno, não o PDF, e as páginas impressas podem variar em uma.
+   - População: pessoas com diabetes e DRC (o documento trata de diabetes na DRC).
+   - Confirmado em duas leituras (resumo, p. S24, e capítulo, p. S63 a S65): recomendação 3.1.1 (2C), proteína de 0,8 g/kg (peso)/dia em pessoas com diabetes e DRC sem diálise; prática 3.1.2, quem faz hemodiálise e, principalmente, diálise peritoneal deve consumir de 1,0 a 1,2 g/kg (peso)/dia; recomendação 3.1.2 (2C), sódio abaixo de 2 g/dia (90 mmol; 5 g de cloreto de sódio).
+   - Leitura única: p. S63, na DRC avançada o potássio pode precisar de restrição, com frutas e verduras de menor teor; p. S67, substitutos de sal ricos em potássio podem não ser adequados na DRC avançada; p. S64 e S65, desnutrição e dieta muito baixa em proteína (0,4 a 0,6 g/kg/dia), que "could lead to malnutrition".
+   - Não encontrado nas janelas lidas: meta de energia (kcal/kg), fósforo, líquidos e meta própria para idosos frágeis ou sarcopênicos.
+   - Uso: `REN-01` (proteína e diálise), `REN-02` (sódio e substitutos do sal) e `REN-03` (potássio na DRC avançada).
+
+#### Comparação e análise
+
+- **Concorda:** com a KDIGO 2024 (proteína de 0,8 g/kg/dia e sódio abaixo de 2 g/dia, ambos 2C). Os 1,0 a 1,2 g/kg/dia em diálise coincidem com o que o comentário de Lambert et al. (2022) atribui à KDOQI 2020 (fonte secundária; original não lido).
+- **Diverge:** das faixas para diabetes que fontes secundárias atribuem à KDOQI (0,6 a 0,8 g/kg de peso ideal no comentário; 0,8 a 0,9 no rascunho de 2019) e na base de peso (a KDIGO usa kg de peso corporal; as secundárias, peso ideal).
+- **Divergência no próprio repositório, não alterada:** `exames_internos/EXM-TFG-ESTIMADA-EGFR.json` (conteúdo anterior a esta branch, sem fonte no arquivo) traz proteína de 0,6 g/kg/dia em G4, de 0,6 a 0,8 g/kg/dia em G3b e de 1,2 a 1,4 g/kg/dia em diálise, além de limites de potássio (2.000 mg/dia) e de fósforo (800 mg/dia). A KDIGO 2024 sugere 0,8 g/kg/dia de G3 a G5 sem diálise, a KDIGO 2022 cita 1,0 a 1,2 g/kg/dia em diálise, e nas leituras desta entrega não apareceram limites numéricos de potássio nem de fósforo. O arquivo não foi alterado: é conteúdo clínico de outra funcionalidade e a mudança depende da nutricionista responsável.
+
+#### Decisão adotada
+
+- A KDIGO 2022 entra como fonte de `REN-01` (proteína no diabetes com DRC sem diálise e em diálise), `REN-02` (sódio no diabetes com DRC e substitutos do sal) e `REN-03` (potássio na DRC avançada). Versão do catálogo renal: `2026-11-18.1`.
+- A folha do paciente continua sem número: as metas seguem em branco para a nutricionista preencher.
+- Correção de atribuição em `REN-03`: "desprezar a água do cozimento" vem da lista do Ministério da Saúde (BRASIL, [s.d.]); o manual para pacientes (FABRE et al., [2024?]) diz apenas que ferver reduz cerca de 50% do potássio (leitura única). O texto agora atribui cada parte à sua fonte.
+- Continuam sem valor no sistema: energia (kcal/kg), fósforo, líquidos e, em diálise, qualquer item além da proteína. A KDOQI 2020 segue como alternativa não adotada (original não lido).
+
+#### Impacto técnico e verificação
+
+- **Arquivos:** `condutas_alta/renal.json` (versão `2026-11-18.1`); `tests/test_condutas_alta_catalogo.py` (proteína em diálise e fonte KDIGO 2022 em `REN-01` e `REN-02`); `docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md` (lista de lacunas e de entradas do diário).
+- **Testes executados (18/11/2026, Linux, Python 3.13):** `python -m unittest tests.test_condutas_alta_catalogo`: 20 testes, todos OK (o teste dos números renais passou a conferir 1,0 a 1,2 g/kg/dia e a fonte KDIGO 2022 em `REN-01` e `REN-02`; o teste do diário confere o link da KDIGO 2022). Suíte completa (`python -m unittest discover -s tests`, com um pacote `fpdf` vazio só para permitir a importação): 312 testes, OK, 2 pulados (PDF com fpdf2 real e PNG de conferência visual). Eles conferem estrutura, fonte em cada número e registro no diário; não conferem o conteúdo clínico.
+- **Limitações que permanecem:** leitura por janelas, via resumo de ferramenta; potássio, substitutos do sal e desnutrição da KDIGO 2022 em leitura única; a prática de diálise vem de uma diretriz de pessoas com diabetes e DRC; a marcação "Doença renal" do Mapa não distingue estágio, diálise nem diabetes na DRC, então a conferência pede essas informações.
+- **Pendências:** ler a KDOQI 2020 no original; ler o PCDT de DRC e as diretrizes do Ministério da Saúde de 2014; buscar fonte para fósforo, líquidos e energia; a nutricionista responsável decidir o que fazer com os valores de `exames_internos/EXM-TFG-ESTIMADA-EGFR.json`.

@@ -80,7 +80,7 @@ O que **não** foi executado, e por quê:
 
 1. **Homologação clínica** do texto de cada conduta pela nutricionista responsável. Até lá, o programa só sugere e a nutricionista decide.
 2. **Autoria individual:** nome e CRN são digitados na janela das condutas. Não há usuário autenticado (Fase 3), assinatura nem carimbo, e não se afirma validade jurídica.
-3. **Lacunas de conteúdo registradas no diário:** doença respiratória além da DPOC; interação de alimentos com isoniazida; lista de sintomas de neuropatia; líquidos, fósforo, diálise e proteína em diabetes com doença renal; frequência de pesagem; duração da piridoxina; texto original da KDOQI 2020 (não lido); itens do Manual de Recomendações para o Controle da Tuberculose de 2019 lidos uma vez só e marcados no texto.
+3. **Lacunas de conteúdo registradas no diário:** doença respiratória além da DPOC; interação de alimentos com isoniazida; lista de sintomas de neuropatia; líquidos, fósforo, energia e, em diálise, tudo além da proteína (a proteína no diabetes com doença renal e em diálise veio da KDIGO 2022, `REF-2026-11-18-001`); frequência de pesagem; duração da piridoxina; texto original da KDOQI 2020 (não lido); itens do Manual de Recomendações para o Controle da Tuberculose de 2019 lidos uma vez só e marcados no texto.
 4. **Alcance clínico do Mapa:** só há "doença respiratória" e "tuberculose" como doenças novas, e DRC sem estágio. A nutricionista descarta o que não se aplica ("não se aplica", com motivo).
 5. **Imutabilidade por gatilho** protege contra qualquer escrita pelo aplicativo, mas quem abre o arquivo `.db` com acesso direto pode remover os gatilhos. A proteção forte depende da API e do banco central (Fase 3).
 6. Rodar a suíte e o fluxo completo no Windows do projeto, com fpdf2 real, e imprimir uma folha de teste em papel.
@@ -89,5 +89,5 @@ O que **não** foi executado, e por quê:
 ## Referências
 
 - Regras do projeto: `CLAUDE.md`, `AGENTS.md` (seções 5 e 6) e `ROADMAP.md` (Fase 4).
-- Fontes clínicas do catálogo: [diário bibliográfico](../desenvolvimento/DIARIO_DUVIDAS_BIBLIOGRAFICAS.md), entradas `REF-2026-11-17-001` (alimentação enteral), `-002` (tuberculose), `-003` (doença respiratória) e `-004` (doença renal), cada uma com autor, ano, título, link e data de acesso.
+- Fontes clínicas do catálogo: [diário bibliográfico](../desenvolvimento/DIARIO_DUVIDAS_BIBLIOGRAFICAS.md), entradas `REF-2026-11-17-001` (alimentação enteral), `-002` (tuberculose), `-003` (doença respiratória), `-004` (doença renal) e `REF-2026-11-18-001` (doença renal: proteína no diabetes e na diálise, KDIGO 2022), cada uma com autor, ano, título, link e data de acesso.
 - Nenhuma fonte externa de engenharia de software foi consultada para esta decisão. O comportamento dos gatilhos e das migrações foi verificado pelos testes listados acima, e não por documentação externa.
