@@ -386,7 +386,7 @@ Entrega parcial da Fase 4, pedida em 14/11/2026: **condutas de alta na consulta*
 | Assinatura e carimbo ligados a usuário autenticado | **Não implementado** | Depende da Fase 3. Nome e CRN são digitados; não se alega validade jurídica. |
 | Anamnese estruturada, PEP, escalas (Bristol e aceitação), histórico longitudinal | **Não iniciados** | Seguem nas atividades 1 a 3 e 5 desta fase. |
 
-**A Fase 4 não está concluída.** Testes desta sessão (Linux, Python 3.13): suíte inteira com 326 testes OK e 2 pulados (PDF com fpdf2 real e PNG de conferência visual). Pendências: homologação clínica do conteúdo pela nutricionista responsável; lacunas de fonte registradas no diário; validação no Windows (janelas reais, PDF real e impressora); catálogo ainda restrito a enteral, respiratórias/tuberculose e renal.
+**A Fase 4 não está concluída.** Testes desta sessão (Linux, Python 3.13): suíte inteira com 327 testes OK e 2 pulados (PDF com fpdf2 real e PNG de conferência visual). Pendências: homologação clínica do conteúdo pela nutricionista responsável; lacunas de fonte registradas no diário; validação no Windows (janelas reais, PDF real e impressora); catálogo ainda restrito a enteral, respiratórias/tuberculose e renal.
 
 ---
 

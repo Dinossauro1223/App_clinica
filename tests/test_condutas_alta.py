@@ -495,6 +495,23 @@ class TestSessao(Base):
         self.assertFalse(s2.sem_registro)
         self.assertFalse(s2.modelo_exportacao()["sem_registro"])
 
+    def test_paciente_excluido_deixa_a_folha_orfa_mas_o_numero_nao_e_reaproveitado(self):
+        """main.py exclui só a linha de Pacientes (comportamento antigo). Se o número fosse reaproveitado, o próximo
+        paciente cadastrado herdaria a folha de alta entregue de outra pessoa."""
+        self.entregar()
+        id_antigo = self.reg["id_paciente"]
+        with closing(sqlite3.connect(self.db)) as c:
+            c.execute("DELETE FROM Pacientes WHERE id_paciente = ?", (id_antigo,))
+            c.commit()
+            sql_tabela = c.execute("SELECT sql FROM sqlite_master WHERE name='Pacientes'").fetchone()[0]
+        self.assertIn("AUTOINCREMENT", sql_tabela.upper())           # é isso que impede o reaproveitamento do número
+        novo = registrar(self.db, nome="Outro Paciente", leito="L02", via="Enteral")
+        self.assertNotEqual(novo["id_paciente"], id_antigo)
+        self.assertGreater(novo["id_paciente"], id_antigo)
+        self.assertIsNone(ca.documento_atual(self.db, novo["id_paciente"]))      # o novo paciente não vê a folha antiga
+        self.assertFalse(self.sessao(novo).entregue)
+        self.assertEqual(ca.documento_atual(self.db, id_antigo)["status"], "entregue")   # a antiga segue intacta (órfã)
+
     def test_corrigir_texto_em_documento_entregue_e_recusado(self):
         self.entregar()
         with self.assertRaises(ca.ErroCondutasAlta):

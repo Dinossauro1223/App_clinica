@@ -67,7 +67,9 @@
 
 Efeitos a conhecer: a migração 3 só cria travas, não muda dados (testado em banco que já estava na versão 2 com folha entregue). A tela de condutas não chama mais nada que dependa do comportamento antigo de `desfazer`, porque os botões de desfazer só aparecem em rascunho.
 
-**Não foi verificado nesta revisão:** a exclusão de paciente em `main.py` (as folhas de alta ficam órfãs, sem chave estrangeira, e nenhum roteiro sondou isso); vazamento de conteúdo entre a folha do paciente e o relatório da nutricionista além do que os testes de PDF já conferem; segurança do nome do arquivo PDF; alcance pelo servidor e pelo celular, que só foi conferido por busca de texto (nenhuma referência a `condutas_alta` fora do desktop); janelas reais, PDF real, impressora e executável.
+**Exclusão de paciente (verificada depois da revisão, em 19/11/2026).** `main.py` apaga só a linha de `Pacientes`: folhas de alta, registros do Mapa e as demais tabelas continuam no banco, sem ligação (comportamento antigo do programa, que não foi alterado). Como `id_paciente` é `AUTOINCREMENT` nas duas rotinas que criam a tabela (`setup_db.py` e `mapa_db.py`), o número de um paciente excluído nunca é dado a outro, então ninguém herda a folha de outra pessoa (teste novo). Sem `AUTOINCREMENT` o SQLite reaproveitaria o número, o que foi conferido à parte. O banco real do hospital não está no repositório e não foi conferido: se ele tiver sido criado por uma versão muito antiga do programa, vale rodar `SELECT sql FROM sqlite_master WHERE name = 'Pacientes'` e ver se o texto traz `AUTOINCREMENT`.
+
+**Não foi verificado nesta revisão:** vazamento de conteúdo entre a folha do paciente e o relatório da nutricionista além do que os testes de PDF já conferem; segurança do nome do arquivo PDF; alcance pelo servidor e pelo celular, que só foi conferido por busca de texto (nenhuma referência a `condutas_alta` fora do desktop); janelas reais, PDF real, impressora e executável.
 
 ## Como verificar
 
@@ -83,13 +85,13 @@ Evidências desta sessão (Linux, Python 3.13; o alvo do projeto é 3.12):
 
 | Módulo de teste | Testes | Resultado |
 |---|---|---|
-| `test_condutas_alta` (núcleo, banco, imutabilidade, travas da migração 3, sessão, Mapa) | 54 | OK |
+| `test_condutas_alta` (núcleo, banco, imutabilidade, travas da migração 3, sessão, Mapa) | 55 | OK |
 | `test_condutas_alta_catalogo` (conteúdo, gatilhos, fontes, `.spec`) | 20 | OK |
 | `test_condutas_alta_export` (PDF com simulador, impressão com chamadas simuladas) | 24 | OK, 2 pulados |
 | `test_condutas_alta_ui` (janelas com widgets simulados) | 53 | OK |
-| Suíte inteira (`discover -s tests`) | 326 | OK, 2 pulados |
+| Suíte inteira (`discover -s tests`) | 327 | OK, 2 pulados |
 
-Depois da revisão de QA (19/11/2026) a suíte passou de 312 para 326 testes. Cada teste novo foi conferido de trás para a frente: desfazendo a correção numa cópia do repositório, o teste correspondente falhou nas 8 tentativas (travas da migração 3, desempate no mesmo dia, coluna do Mapa, aviso ao desfazer, paciente sem cadastro, frase "sem registro", aviso na tela do Mapa e texto de status).
+Depois da revisão de QA (19/11/2026) a suíte passou de 312 para 327 testes. Cada teste novo foi conferido de trás para a frente: desfazendo a correção numa cópia do repositório, o teste correspondente falhou nas 8 tentativas (travas da migração 3, desempate no mesmo dia, coluna do Mapa, aviso ao desfazer, paciente sem cadastro, frase "sem registro", aviso na tela do Mapa e texto de status).
 
 O que **não** foi executado, e por quê:
 
