@@ -53,7 +53,7 @@
 
 ## Revisão de QA e correções (19/11/2026)
 
-**Como foi feita.** Três tentativas de usar um agente independente de QA foram cortadas pelo limite de uso da conta, sem relatório. Os roteiros de sondagem que esses agentes deixaram escritos foram executados pelo agente integrador (Linux, Python 3.13), que também leu o código. Portanto é uma revisão por sondagens executadas pelo integrador, **não** uma revisão completa e independente. O relatório está nos arquivos de trabalho da sessão e não entra no Git.
+**Como foi feita.** As tentativas de usar um agente independente de QA foram cortadas pelo limite de uso da conta, sem relatório. Os roteiros de sondagem que esses agentes deixaram escritos foram executados pelo agente integrador (Linux, Python 3.13), que também leu o código. Portanto é uma revisão por sondagens executadas pelo integrador, **não** uma revisão completa e independente. O relatório está nos arquivos de trabalho da sessão e não entra no Git.
 
 | Achado | O que acontecia | Estado |
 |---|---|---|
