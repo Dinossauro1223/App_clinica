@@ -569,13 +569,16 @@ def copiar_mapa(db_path, origem_iso, destino_iso, id_setor=None):
 
 
 def historico_paciente(db_path, id_paciente=None, nome=None):
-    """Registros do paciente (mais recentes primeiro). Sem id, procura pelo nome exato."""
+    """Registros do paciente (mais recentes primeiro). Sem id, procura pelo nome exato.
+
+    No mesmo dia (troca de leito) vem primeiro o registro criado por último (`id_registro` maior)."""
     with closing(conectar(db_path)) as c:
         if id_paciente:
-            rows = _rows(c.execute(_SEL_REG + "WHERE R.id_paciente=? ORDER BY R.data DESC", (id_paciente,)))
+            rows = _rows(c.execute(_SEL_REG + "WHERE R.id_paciente=? ORDER BY R.data DESC, R.id_registro DESC",
+                                   (id_paciente,)))
         else:
-            rows = _rows(c.execute(_SEL_REG + "WHERE LOWER(R.nome_paciente)=LOWER(?) ORDER BY R.data DESC",
-                                   ((nome or "").strip(),)))
+            rows = _rows(c.execute(_SEL_REG + "WHERE LOWER(R.nome_paciente)=LOWER(?) "
+                                   "ORDER BY R.data DESC, R.id_registro DESC", ((nome or "").strip(),)))
         return _anexar_suplementos(c, rows)
 
 

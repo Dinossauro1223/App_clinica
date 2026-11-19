@@ -200,6 +200,29 @@ class TestRelatorioDoNutricionista(unittest.TestCase):
             self.assertIn(trecho, corpo)
         self.assertNotIn("\u2013", corpo)
 
+    def texto_do_relatorio(self, modelo):
+        pdf = FakePDF()
+        pasta = tempfile.mkdtemp()
+        try:
+            ex.exportar_pdf_profissional(os.path.join(pasta, "p.pdf"), modelo, pdf_factory=lambda **kw: pdf)
+        finally:
+            shutil.rmtree(pasta, ignore_errors=True)
+        return " ".join(t[3] for t in pdf.textos)
+
+    def test_sem_registro_no_mapa_o_relatorio_nao_diz_que_nao_ha_doenca(self):
+        """Sem registro o programa não sabe as doenças: o relatório não pode escrever "nenhuma" (revisão de QA)."""
+        corpo = self.texto_do_relatorio(dict(modelo_misto(), condicoes=[], sem_registro=True))
+        self.assertIn("paciente sem registro no Mapa", corpo)
+        self.assertNotIn("Mapa: nenhuma", corpo)
+
+    def test_registro_sem_doenca_marcada_continua_dizendo_nenhuma(self):
+        corpo = self.texto_do_relatorio(dict(modelo_misto(), condicoes=[], sem_registro=False))
+        self.assertIn("Mapa: nenhuma", corpo)
+        self.assertNotIn("sem registro no Mapa", corpo)
+        corpo_antigo = self.texto_do_relatorio({k: v for k, v in dict(modelo_misto(), condicoes=[]).items()
+                                                if k != "sem_registro"})      # modelo montado sem a chave nova
+        self.assertIn("Mapa: nenhuma", corpo_antigo)
+
     def test_relatorio_funciona_mesmo_com_tudo_pendente(self):
         m = modelo_misto()
         m = dict(m, itens=[dict(i, estado="pendente") for i in m["itens"]])

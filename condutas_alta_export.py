@@ -214,7 +214,7 @@ def _montar_profissional(pdf, modelo):
                 "confirmada pela nutricionista.", "nota", LARANJA)
     m.paragrafo(f"Paciente: {modelo['paciente'] or '-'}  |  Data: {modelo['data']}  |  Situação: "
                 + ("entregue" if modelo.get("status") == "entregue" else "rascunho"), "sub", PRETO, 0.8)
-    m.paragrafo("Doenças e condições relatadas no Mapa: " + (", ".join(modelo["condicoes"]) or "nenhuma"), "sub", PRETO)
+    m.paragrafo(ca.frase_doencas_do_mapa(modelo["condicoes"], modelo.get("sem_registro", False)), "sub", PRETO)
     cont = {k: sum(1 for i in itens if i["estado"] == k) for k in ("confirmada", "nao_se_aplica", "pendente")}
     m.paragrafo(f"Confirmadas: {cont['confirmada']}  |  Não se aplicam: {cont['nao_se_aplica']}  |  "
                 f"Pendentes: {cont['pendente']}", "sub", PRETO)

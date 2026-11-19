@@ -36,6 +36,10 @@ _RE_CODIGO = re.compile(r"^[A-Z]{2,5}-\d{2,3}$")
 _RE_DATA = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _RE_LACUNA = re.compile(r"_{3,}")
 _ROTULOS_CARAC = {"dm": "Diabetes mellitus", "has": "Hipertensão arterial", "drc": "Doença renal"}
+MSG_ENTREGUE = ("Este documento já foi entregue e não pode ser alterado. "
+                "Use \"Criar nova versão\" para fazer correções.")
+MSG_SEM_PACIENTE = ("Este registro do Mapa não está ligado a um paciente cadastrado, então a folha de alta não pode ser "
+                    "criada. Abra o registro no Mapa e salve de novo para o programa ligá-lo ao cadastro.")
 
 
 class ErroCondutasAlta(Exception):
@@ -234,6 +238,17 @@ def rotulos_do_registro(reg):
     return r + mdb.nomes_condicoes(reg.get("condicoes"))
 
 
+def frase_doencas_do_mapa(rotulos, sem_registro=False):
+    """"Doenças e condições relatadas no Mapa: ..." (sem ponto final), usada na tela e no PDF da nutricionista.
+
+    Paciente SEM nenhum registro no Mapa é diferente de registro sem doença marcada: no primeiro o programa não sabe as
+    doenças, então nunca escreve "nenhuma" (dado ausente não vira "sem doença")."""
+    base = "Doenças e condições relatadas no Mapa: "
+    if sem_registro:
+        return base + "paciente sem registro no Mapa, o programa não sabe as doenças dele"
+    return base + (", ".join(rotulos) if rotulos else "nenhuma")
+
+
 def condutas_aplicaveis(catalogo, tokens):
     """Condutas sugeridas para o conjunto de tokens: (algum de `qualquer`, se houver) E (todos de `todas`)."""
     tokens = set(tokens)
@@ -343,6 +358,8 @@ def _padrao_cabecalho(db_path):
 def abrir_rascunho(db_path, id_paciente, agora=None):
     """Devolve o rascunho aberto do paciente. Sem documento: cria um. Se o último estava ENTREGUE: cria uma NOVA VERSÃO
     (copia decisões e cabeçalho; o documento entregue não é alterado)."""
+    if not id_paciente:
+        raise ErroCondutasAlta(MSG_SEM_PACIENTE)
     ultimo = documento_atual(db_path, id_paciente)
     if ultimo and ultimo["status"] == "rascunho":
         return ultimo
@@ -502,7 +519,8 @@ def resumo_por_registro(db_path, registros, catalogo=None):
                                % ",".join("?" * len(ids_doc)), ids_doc):
                 decididas.setdefault(r["id_doc"], set()).add(r["codigo"])
     saida = {}
-    for r in regs:
+    # Paciente em dois leitos no mesmo dia (troca de leito): vale o registro criado por último, o mesmo desempate da janela.
+    for r in sorted(regs, key=lambda x: x.get("id_registro") or 0):
         aplic = [x.codigo for x in condutas_aplicaveis(catalogo, tokens_do_registro(r))]
         doc = docs.get(r["id_paciente"])
         feitas = decididas.get(doc["id_doc"], set()) if doc else set()
@@ -551,6 +569,11 @@ class SessaoCondutasAlta:
     def rotulos(self):
         return rotulos_do_registro(self.registro)
 
+    @property
+    def sem_registro(self):
+        """True se o paciente não tem nenhum registro no Mapa: aí o programa NÃO sabe as doenças (não é "nenhuma doença")."""
+        return self.registro is None
+
     def aplicaveis(self):
         return condutas_aplicaveis(self.catalogo, self.tokens)
 
@@ -589,8 +612,7 @@ class SessaoCondutasAlta:
     # --- escrita (só em rascunho)
     def _rascunho(self):
         if self.entregue:
-            raise ErroCondutasAlta("Este documento já foi entregue e não pode ser alterado. "
-                                   "Use \"Criar nova versão\" para fazer correções.")
+            raise ErroCondutasAlta(MSG_ENTREGUE)
         if not self.doc:
             self.doc = abrir_rascunho(self.db, self.id_paciente, self._agora)
         return self.doc
@@ -626,7 +648,9 @@ class SessaoCondutasAlta:
         self.carregar()
 
     def desfazer(self, codigo):
-        if self.doc and not self.entregue:
+        if self.entregue:                                   # antes era um "nada acontece" silencioso
+            raise ErroCondutasAlta(MSG_ENTREGUE)
+        if self.doc:
             desfazer_decisao(self.db, self.doc["id_doc"], codigo, self._agora)
             self.carregar()
 
@@ -670,6 +694,7 @@ class SessaoCondutasAlta:
         quando = ((self.doc or {}).get("entregue_em") or _agora(self._agora))[:10]
         return {
             "paciente": self.nome_paciente, "data": mdb.iso_para_br(quando), "condicoes": self.rotulos,
+            "sem_registro": self.sem_registro,
             "nutricionista": cab["nutricionista"], "crn": cab["crn"], "recado": cab["recado"],
             "status": (self.doc or {}).get("status", "rascunho"),
             "catalogo": [f"{g['titulo']} ({g['versao']})" for g in self.catalogo.grupos.values()],

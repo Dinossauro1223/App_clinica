@@ -158,7 +158,7 @@ class TestConfigurarBancoDados(BaseApp):
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo"), [(15,)])
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Regras_Complementares"), [(1,)])
         self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations"),
-                         [(1, "banco-novo"), (2, "migracao")])
+                         [(1, "banco-novo")] + [(m.versao, "migracao") for m in self.main.db_migracoes.MIGRACOES[1:]])
         self.assertFalse((self.tmp / "backups").exists())
 
     def test_executar_de_novo_nao_duplica_nada(self):
@@ -181,10 +181,12 @@ class TestConfigurarBancoDados(BaseApp):
         antes = {t: consulta(caminho, f"SELECT * FROM {t}") for t in ("Pacientes", "Consultas", "Exames_Catalogo")}
         self.main.AppClinica.configurar_banco_dados(self.app)
         self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations"),
-                         [(1, "adotada-legado"), (2, "migracao")])
+                         [(1, "adotada-legado")]
+                         + [(m.versao, "migracao") for m in self.main.db_migracoes.MIGRACOES[1:]])
         depois = {t: consulta(caminho, f"SELECT * FROM {t}") for t in antes}
         self.assertEqual(depois, antes)
-        backups = list((self.tmp / "backups").glob("clinica.backup_*_pre-migracao-v2.db"))
+        ultima = self.main.db_migracoes.MIGRACOES[-1].versao        # o nome do backup usa a versão de destino
+        backups = list((self.tmp / "backups").glob(f"clinica.backup_*_pre-migracao-v{ultima}.db"))
         self.assertEqual(len(backups), 1)
         self.assertEqual(consulta(backups[0], "SELECT nome FROM Pacientes"), [("Paciente Sintético 001",)])
 

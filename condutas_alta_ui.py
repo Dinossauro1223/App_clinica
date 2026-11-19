@@ -48,6 +48,9 @@ def texto_status(sessao):
     if sessao.itens:
         return ("Todas as condutas de alta já foram decididas. Falta marcar como entregue quando a folha for dada.",
                 VERDE_ESC)
+    if sessao.sem_registro:      # sem registro o programa não sabe as doenças: "nenhuma sugerida" enganaria
+        return ("Este paciente não tem registro no Mapa, então nenhuma conduta foi sugerida. Confira as doenças no "
+                "prontuário e adicione as condutas do catálogo que se aplicarem.", LARANJA)
     return "Nenhuma conduta sugerida pelas doenças do Mapa. Você pode adicionar condutas do catálogo.", "#546e7a"
 
 
@@ -127,9 +130,8 @@ class PainelCondutasAlta(ctk.CTkFrame):
             self.lbl_doencas.configure(text="")
             self.lbl_status.configure(text=f"Condutas de alta indisponíveis: {erro}", text_color=VERMELHO)
             return
-        rotulos = self.sessao.rotulos
         self.lbl_doencas.configure(
-            text="Doenças e condições relatadas no Mapa: " + (", ".join(rotulos) if rotulos else "nenhuma") + ".")
+            text=ca.frase_doencas_do_mapa(self.sessao.rotulos, self.sessao.sem_registro) + ".")
         texto, cor = texto_status(self.sessao)
         self.lbl_status.configure(text=texto, text_color=cor)
 
@@ -367,9 +369,8 @@ class JanelaCondutasAlta(ctk.CTkToplevel):
         for c in cartoes:
             self._montar_cartao(c)
         s = self.sessao
-        rotulos = s.rotulos
         self.lbl_doencas.configure(
-            text="Doenças e condições relatadas no Mapa: " + (", ".join(rotulos) if rotulos else "nenhuma")
+            text=ca.frase_doencas_do_mapa(s.rotulos, s.sem_registro)
                  + ". Cada conduta abaixo é uma sugestão: só vale depois de confirmada por você.")
         texto, cor = texto_status(s)
         self.lbl_status.configure(text=texto, text_color=cor)

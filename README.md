@@ -99,7 +99,7 @@ python condutas_alta.py
 python -m unittest tests.test_condutas_alta_catalogo -v
 ```
 
-**Banco.** A migração 2 roda ao abrir o programa, com backup antes (`pre-migracao-v2`). Reverter para a versão 1 apaga as tabelas de condutas: folhas já entregues ficam só no backup (`pre-reversao-para-v1`). Decisão, alternativas e limites: [ADR-0006](docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md).
+**Banco.** As migrações 2 (tabelas) e 3 (travas contra trocar ou mover itens de uma folha já entregue) rodam ao abrir o programa, com backup antes (`pre-migracao-v3`: o número é o da versão de destino). Reverter só a 3 tira as travas e mantém os dados. Reverter para a versão 1 apaga as tabelas de condutas: folhas já entregues ficam só no backup (`pre-reversao-para-v1`). Decisão, alternativas e limites: [ADR-0006](docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md).
 
 ## 3. Catálogo de suplementos: dados existentes e lacunas
 

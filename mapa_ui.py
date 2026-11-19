@@ -273,6 +273,9 @@ class MapaUI:
     def _abrir_condutas(self, it):
         from condutas_alta_ui import abrir_condutas_alta        # na hora de usar: evita importação circular
         r = it["registro"]
+        if not r.get("id_paciente"):             # registro antigo/solto: sem paciente não há onde guardar a folha
+            messagebox.showinfo("Condutas de alta", ca.MSG_SEM_PACIENTE)
+            return
         pasta = getattr(self.app, "pasta_condutas_alta", None)
         abrir_condutas_alta(self.app, self.db, r["id_paciente"], r["nome_paciente"],
                             pasta(r["id_paciente"]) if pasta else None, ao_fechar=self._recarregar)

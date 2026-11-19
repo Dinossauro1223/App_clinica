@@ -70,6 +70,13 @@ def registrar(db, nome="Paciente Sintético", leito="L01", data="2026-11-15", **
     return mdb.obter_registro(db, data, id_leito)
 
 
+def instantaneo(db):
+    """Cópia das duas tabelas de condutas: serve para provar que um ataque por SQL direto não mudou nada."""
+    with closing(sqlite3.connect(db)) as c:
+        return [c.execute(f"SELECT * FROM {t} ORDER BY 1").fetchall()
+                for t in ("Condutas_Alta_Docs", "Condutas_Alta_Itens")]
+
+
 class Base(unittest.TestCase):
     def setUp(self):
         self.db = novo_banco()
@@ -190,6 +197,28 @@ class TestRegras(Base):
         s = self.sessao(r1)
         self.assertEqual(s.tokens, {"via:Oral"})
         self.assertEqual(s.pendentes(), [])
+
+    def test_troca_de_leito_no_mesmo_dia_vale_o_registro_salvo_por_ultimo(self):
+        """Antes do desempate por id_registro, dois registros do mesmo dia vinham em ordem indefinida (revisão de QA)."""
+        r1 = registrar(self.db, data="2026-11-14", leito="L02", via="Enteral", drc=1)
+        r2 = registrar(self.db, data="2026-11-14", leito="L01", id_paciente=r1["id_paciente"], via="Oral", drc=0)
+        self.assertGreater(r2["id_registro"], r1["id_registro"])
+        hist = mdb.historico_paciente(self.db, id_paciente=r1["id_paciente"])
+        self.assertEqual([h["id_registro"] for h in hist], [r2["id_registro"], r1["id_registro"]])
+        por_nome = mdb.historico_paciente(self.db, nome="Paciente Sintético")           # a busca por nome desempata igual
+        self.assertEqual(por_nome[0]["id_registro"], r2["id_registro"])
+        s = self.sessao(r1)                          # a sessão aberta pelo registro ANTIGO usa o mais recente do paciente
+        self.assertEqual(s.tokens, {"via:Oral"})
+        self.assertEqual(s.pendentes(), [])
+
+    def test_frase_das_doencas_nao_confunde_sem_registro_com_nenhuma(self):
+        frase = ca.frase_doencas_do_mapa
+        self.assertEqual(frase(["Via enteral", "Doença renal"]),
+                         "Doenças e condições relatadas no Mapa: Via enteral, Doença renal")
+        self.assertEqual(frase([]), "Doenças e condições relatadas no Mapa: nenhuma")    # há registro, sem doença marcada
+        sem = frase([], sem_registro=True)
+        self.assertIn("sem registro no Mapa", sem)
+        self.assertNotIn("nenhuma", sem)                                                  # dado ausente não vira "nenhuma"
 
 
 class TestMapaCondicoes(Base):
@@ -397,6 +426,75 @@ class TestSessao(Base):
         with self.assertRaises(ca.ErroCondutasAlta):
             ca.desfazer_decisao(self.db, id_doc, "TST-01")
 
+    def test_desfazer_em_documento_entregue_avisa_em_vez_de_nao_fazer_nada(self):
+        self.entregar()
+        antes = instantaneo(self.db)
+        with self.assertRaises(ca.ErroCondutasAlta) as cm:
+            self.s.desfazer("TST-01")
+        self.assertIn("Criar nova versão", str(cm.exception))
+        self.assertEqual(instantaneo(self.db), antes)
+        self.assertTrue(self.s.entregue)
+
+    def test_sql_direto_nao_substitui_nem_move_nada_para_dentro_do_entregue(self):
+        """Revisão de QA (19/11/2026): `REPLACE` não dispara o gatilho de DELETE e mover item não olhava o destino."""
+        self.entregar()
+        entregue = self.s.doc["id_doc"]
+        self.s.nova_versao()
+        self.s.adicionar_manual("TST-04")
+        self.s.confirmar("TST-04")                                   # item que só existe no rascunho
+        rascunho = self.s.doc["id_doc"]
+        item_entregue = {i["codigo"]: i["id_item"] for i in ca.listar_itens(self.db, entregue)}["TST-01"]
+        item_rascunho = {i["codigo"]: i["id_item"] for i in ca.listar_itens(self.db, rascunho)}["TST-04"]
+        id_pac = self.reg["id_paciente"]
+        ataques = (
+            ("REPLACE do documento entregue por um rascunho",
+             "REPLACE INTO Condutas_Alta_Docs (id_doc, id_paciente, criado_em, atualizado_em, status) "
+             "VALUES (?, ?, 'x', 'y', 'rascunho')", (entregue, id_pac)),
+            ("trocar o id do rascunho pelo id do entregue",
+             "UPDATE OR REPLACE Condutas_Alta_Docs SET id_doc = ? WHERE id_doc = ?", (entregue, rascunho)),
+            ("mover item do rascunho para dentro do entregue",
+             "UPDATE Condutas_Alta_Itens SET id_doc = ? WHERE id_item = ?", (entregue, item_rascunho)),
+            ("REPLACE de um item entregue pela chave id_item",
+             "REPLACE INTO Condutas_Alta_Itens (id_item, id_doc, codigo, decisao, origem, titulo, decidido_em) "
+             "VALUES (?, ?, 'TST-99', 'confirmada', 'manual', 'x', 'y')", (item_entregue, rascunho)),
+            ("trocar o id de um item do rascunho pelo de um item entregue",
+             "UPDATE OR REPLACE Condutas_Alta_Itens SET id_item = ? WHERE id_item = ?", (item_entregue, item_rascunho)),
+        )
+        antes = instantaneo(self.db)
+        for nome, sql, params in ataques:
+            with closing(sqlite3.connect(self.db)) as c, self.assertRaises(sqlite3.IntegrityError, msg=nome):
+                c.execute(sql, params)
+                c.commit()
+            self.assertEqual(instantaneo(self.db), antes, nome)       # nada mudou, nem pela metade
+        self.s.confirmar("TST-04", texto_paciente="- Item manual corrigido.")     # o uso normal segue funcionando
+        self.assertEqual(ca.documento_atual(self.db, id_pac)["status"], "rascunho")
+
+    def test_abrir_rascunho_sem_paciente_explica_em_vez_de_vazar_erro_do_banco(self):
+        for vazio in (None, 0):
+            with self.assertRaises(ca.ErroCondutasAlta) as cm:
+                ca.abrir_rascunho(self.db, vazio, AGORA)
+            self.assertIn("não está ligado a um paciente cadastrado", str(cm.exception))
+            self.assertNotIn("NOT NULL", str(cm.exception))
+        s = ca.SessaoCondutasAlta(self.db, None, "Registro solto", catalogo=self.cat, agora=AGORA)
+        with self.assertRaises(ca.ErroCondutasAlta) as cm:
+            s.confirmar("TST-04")
+        self.assertIn("não está ligado a um paciente cadastrado", str(cm.exception))
+        self.assertEqual(instantaneo(self.db), [[], []])
+
+    def test_paciente_sem_registro_no_mapa_nao_tem_doencas_conhecidas(self):
+        s = ca.SessaoCondutasAlta(self.db, 999, "Ninguém", catalogo=self.cat, agora=AGORA)
+        self.assertTrue(s.sem_registro)
+        self.assertEqual((s.rotulos, s.aplicaveis(), s.pendentes()), ([], [], []))
+        m = s.modelo_exportacao()
+        self.assertTrue(m["sem_registro"])
+        self.assertEqual(m["condicoes"], [])
+        self.assertFalse(self.s.sem_registro)                        # tem registro no Mapa
+        self.assertFalse(self.s.modelo_exportacao()["sem_registro"])
+        sem_doenca = registrar(self.db, nome="Sem Doença", leito="L02", via="Oral")
+        s2 = self.sessao(sem_doenca)                                 # registro SEM doença marcada: isso é "nenhuma"
+        self.assertFalse(s2.sem_registro)
+        self.assertFalse(s2.modelo_exportacao()["sem_registro"])
+
     def test_corrigir_texto_em_documento_entregue_e_recusado(self):
         self.entregar()
         with self.assertRaises(ca.ErroCondutasAlta):
@@ -472,6 +570,16 @@ class TestResumoDoMapa(Base):
         self.assertEqual((r[fei["id_paciente"]]["estado"], r[fei["id_paciente"]]["texto"]), ("decidido", "Decididas"))
         self.assertEqual((r[ent["id_paciente"]]["estado"], r[ent["id_paciente"]]["texto"]), ("entregue", "Entregue"))
 
+    def test_paciente_em_dois_leitos_no_mesmo_dia_usa_o_registro_salvo_por_ultimo(self):
+        """A coluna do Mapa e a janela precisam concordar (achado A4 da revisão de QA)."""
+        antes = registrar(self.db, nome="Troca de Leito", leito="L02", via="Oral")                # nada sugerido
+        depois = registrar(self.db, nome="Troca de Leito", leito="L01", id_paciente=antes["id_paciente"],
+                           via="Enteral")                                                         # sugere TST-01
+        for linhas in ([antes, depois], [depois, antes]):                  # a ordem da lista não pode mudar o resultado
+            r = ca.resumo_por_registro(self.db, linhas, self.cat)[antes["id_paciente"]]
+            self.assertEqual((r["estado"], r["pendentes"]), ("pendente", 1), linhas)
+        self.assertEqual(self.sessao(antes).pendentes(), ["TST-01"])      # a janela mostra o mesmo
+
     def test_cabecalho_sem_decisao_e_sem_sugestao_continua_sem_estado(self):
         reg = registrar(self.db, nome="Só Cabeçalho", leito="L05", via="Oral")
         self.sessao(reg).salvar_cabecalho("Nutri Teste", "", "")       # cria o rascunho, mas nada foi decidido
@@ -506,22 +614,32 @@ class TestResumoDoMapa(Base):
 
 
 class TestMigracao(unittest.TestCase):
-    def test_aplicar_e_reverter_a_migracao_2(self):
+    def test_aplicar_e_reverter_as_migracoes_2_e_3(self):
         fd, caminho = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         try:
             mdb.inicializar(caminho)
             r = db_migracoes.aplicar_migracoes(caminho, backup=False)
-            self.assertEqual((r.versao_final, r.aplicadas), (2, [1, 2]))
-            def tabelas():
+            self.assertEqual((r.versao_final, r.aplicadas), (3, [1, 2, 3]))
+
+            def consulta_mestre(tipo):
                 with closing(sqlite3.connect(caminho)) as c:
-                    return {x[0] for x in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                    return {x[0] for x in c.execute("SELECT name FROM sqlite_master WHERE type=?", (tipo,))}
+            tabelas = lambda: consulta_mestre("table")                                  # noqa: E731
+            gatilhos = lambda: {n for n in consulta_mestre("trigger") if n.startswith("tr_condutas_alta_")}  # noqa: E731
             self.assertLessEqual({"Condutas_Alta_Docs", "Condutas_Alta_Itens"}, tabelas())
+            self.assertEqual(len(gatilhos()), 10)                  # 5 da migração 2 + 5 travas da migração 3
+            rev3 = db_migracoes.reverter_migracoes(caminho, 2, backup=False)
+            self.assertEqual((rev3.versao_final, rev3.revertidas), (2, [3]))
+            self.assertLessEqual({"Condutas_Alta_Docs", "Condutas_Alta_Itens"}, tabelas())   # tabelas e dados ficam
+            self.assertEqual(len(gatilhos()), 5)                   # só as travas da migração 3 saem
             rev = db_migracoes.reverter_migracoes(caminho, 1, backup=False)
             self.assertEqual((rev.versao_final, rev.revertidas), (1, [2]))
             self.assertFalse({"Condutas_Alta_Docs", "Condutas_Alta_Itens"} & tabelas())
+            self.assertEqual(gatilhos(), set())
             self.assertIn("Mapa_Registros", tabelas())            # o resto do banco não é tocado
-            self.assertEqual(db_migracoes.aplicar_migracoes(caminho, backup=False).versao_final, 2)  # reaplica
+            self.assertEqual(db_migracoes.aplicar_migracoes(caminho, backup=False).versao_final, 3)  # reaplica
+            self.assertEqual(len(gatilhos()), 10)
         finally:
             os.remove(caminho)
 
@@ -532,11 +650,57 @@ class TestMigracao(unittest.TestCase):
             mdb.inicializar(caminho)
             db_migracoes.aplicar_migracoes(caminho, migracoes=db_migracoes.MIGRACOES[:1])   # banco na v1
             r = db_migracoes.aplicar_migracoes(caminho)
-            self.assertEqual(r.aplicadas, [2])
+            self.assertEqual(r.aplicadas, [2, 3])
             self.assertIsNotNone(r.backup)
             self.assertTrue(os.path.exists(r.backup))
         finally:
             shutil.rmtree(pasta, ignore_errors=True)
+
+
+class TestTravasDaMigracao3(unittest.TestCase):
+    """Banco que já estava na v2 (com documento entregue) recebe as travas da v3 sem perder nada."""
+
+    def setUp(self):
+        self.pasta = tempfile.mkdtemp(prefix="nutrilab_v3_")
+        self.pasta_cat = pasta_catalogo_teste(grupo_teste())
+        self.cat = ca.carregar_catalogo(self.pasta_cat)
+        self.db = os.path.join(self.pasta, "clinica.db")
+        mdb.inicializar(self.db)
+        db_migracoes.aplicar_migracoes(self.db, migracoes=db_migracoes.MIGRACOES[:2], backup=False)   # como na v2
+        self.reg = registrar(self.db, via="Enteral")
+        self.addCleanup(shutil.rmtree, self.pasta, True)
+        self.addCleanup(shutil.rmtree, self.pasta_cat, True)
+
+    def entregar(self):
+        s = ca.SessaoCondutasAlta(self.db, self.reg["id_paciente"], catalogo=self.cat, agora=AGORA)
+        s.confirmar("TST-01")
+        s.salvar_cabecalho("Nutri Teste", "CRN-6 0000", "")
+        s.marcar_entregue()
+        return s.doc["id_doc"]
+
+    def substituir(self, id_doc):
+        with closing(sqlite3.connect(self.db)) as c:
+            c.execute("REPLACE INTO Condutas_Alta_Docs (id_doc, id_paciente, criado_em, atualizado_em, status) "
+                      "VALUES (?, ?, 'x', 'y', 'rascunho')", (id_doc, self.reg["id_paciente"]))
+            c.commit()
+
+    def test_o_ataque_passava_na_v2(self):
+        """Prova que o vetor é real (o teste seguinte não é vazio): só com a v2, o REPLACE trocava o entregue."""
+        id_doc = self.entregar()
+        self.substituir(id_doc)
+        self.assertEqual(ca.documento_atual(self.db, self.reg["id_paciente"])["status"], "rascunho")
+
+    def test_v3_fecha_a_brecha_e_nao_mexe_nos_dados(self):
+        id_doc = self.entregar()
+        antes = instantaneo(self.db)
+        r = db_migracoes.aplicar_migracoes(self.db)                       # v2 -> v3, com backup
+        self.assertEqual((r.versao_inicial, r.versao_final, r.aplicadas), (2, 3, [3]))
+        self.assertTrue(os.path.exists(r.backup))
+        self.assertEqual(instantaneo(self.db), antes)                     # a migração não alterou nenhum dado
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.substituir(id_doc)
+        self.assertEqual(instantaneo(self.db), antes)
+        self.assertEqual(ca.documento_atual(self.db, self.reg["id_paciente"])["status"], "entregue")
 
 
 if __name__ == "__main__":

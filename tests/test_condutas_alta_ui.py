@@ -10,9 +10,11 @@ real, a impressora nem o PDF real (o layout do PDF é testado em test_condutas_a
 import os
 import re
 import shutil
+import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from datetime import date, datetime
 from unittest import mock
 
@@ -182,9 +184,27 @@ class TestPainel(Base):
         self.assertIn("já foram decididas", p.lbl_status.opts["text"])
 
     def test_paciente_sem_registro_no_mapa(self):
+        """Sem registro o programa NÃO sabe as doenças: não pode escrever "nenhuma" nem "nenhuma conduta sugerida"."""
         p = cui.PainelCondutasAlta(Frame(), self.db, 999, "Ninguém", janela_pai=self.app)
-        self.assertIn("nenhuma", p.lbl_doencas.opts["text"])
+        self.assertIn("sem registro no Mapa", p.lbl_doencas.opts["text"])
+        self.assertNotIn("nenhuma", p.lbl_doencas.opts["text"])
+        self.assertIn("não tem registro no Mapa", p.lbl_status.opts["text"])
+        self.assertNotIn("Nenhuma conduta sugerida pelas doenças", p.lbl_status.opts["text"])
+        self.assertEqual(p.lbl_status.opts["text_color"], cui.LARANJA)
         self.assertEqual(p.pendencias(), 0)
+
+    def test_registro_sem_doenca_marcada_continua_dizendo_nenhuma(self):
+        outro = registrar(self.db, nome="Sem Doença", leito="L02", via="Oral")
+        p = cui.PainelCondutasAlta(Frame(), self.db, outro["id_paciente"], "Sem Doença", janela_pai=self.app)
+        self.assertEqual(p.lbl_doencas.opts["text"], "Doenças e condições relatadas no Mapa: nenhuma.")
+        self.assertIn("Nenhuma conduta sugerida pelas doenças do Mapa", p.lbl_status.opts["text"])
+
+    def test_janela_de_paciente_sem_registro_mostra_o_aviso(self):
+        j = cui.abrir_condutas_alta(self.app, self.db, 999, "Ninguém")
+        self.assertIsInstance(j, cui.JanelaCondutasAlta)
+        self.assertIn("sem registro no Mapa", j.lbl_doencas.opts["text"])
+        self.assertIn("só vale depois de confirmada por você", j.lbl_doencas.opts["text"])
+        self.assertIn("não tem registro no Mapa", j.lbl_status.opts["text"])
 
     def test_modulo_indisponivel_nao_quebra_a_consulta(self):
         fd, sem_migracao = tempfile.mkstemp(suffix=".db")
@@ -584,6 +604,20 @@ class TestMapa(Base):
         self.assertEqual(args, (self.app, self.db, self.reg["id_paciente"], "Paciente Sintético",
                                 f"/pasta/paciente_{self.reg['id_paciente']}"))
         self.assertEqual(kw["ao_fechar"], self.ui._recarregar)
+
+    def test_registro_solto_sem_paciente_cadastrado_explica_em_vez_de_abrir(self):
+        """Registro com id_paciente nulo (dado antigo ou editado à mão): não abre uma janela que falharia ao gravar."""
+        with closing(sqlite3.connect(self.db)) as c:
+            c.execute("UPDATE Mapa_Registros SET id_paciente=NULL WHERE id_registro=?", (self.reg["id_registro"],))
+            c.commit()
+        self.ui.mostrar_mapa()                                   # a listagem também não pode quebrar com o registro solto
+        self.ui.tree.selection_set(self.iid)
+        with mock.patch.object(cui, "abrir_condutas_alta") as abrir:
+            self.ui._condutas_alta()
+        abrir.assert_not_called()
+        avisos = self.caixa_mapa("showinfo")
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("não está ligado a um paciente cadastrado", avisos[0][2])
 
     def test_remover_do_mapa_com_condutas_pendentes_pergunta_antes(self):
         self.ui.mostrar_mapa()
