@@ -109,7 +109,8 @@ class TestCodigoFonte(unittest.TestCase):
     def test_anexos_de_pacientes_nao_usam_a_pasta_de_recursos(self):
         texto = (RAIZ / "main.py").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r'os\.path\.join\(\s*base_dir,\s*"arquivos_pacientes"', texto))
-        self.assertEqual(texto.count('get_writable_path("arquivos_pacientes")'), 2)
+        # dois anexos de paciente + a cópia em PDF da folha de alta (pasta_condutas_alta): todos gravam fora do bundle
+        self.assertEqual(texto.count('get_writable_path("arquivos_pacientes")'), 3)
 
 
 class TestCaminhoDoBanco(BaseApp):
@@ -148,14 +149,16 @@ class TestCaminhoDoBanco(BaseApp):
 class TestConfigurarBancoDados(BaseApp):
     ESQUEMA = {"Consultas", "Exames_Solicitados", "Arquivos_Paciente", "Exames_Catalogo",
                "Regras_Complementares", "Resultados_Exames"}
+    CONDUTAS_ALTA = {"Condutas_Alta_Docs", "Condutas_Alta_Itens"}      # migração 2
 
     def test_banco_novo_cria_o_esquema_e_registra_a_baseline_sem_backup(self):
         caminho = self.usar_banco()
         self.main.AppClinica.configurar_banco_dados(self.app)
-        self.assertEqual(tabelas(caminho), self.ESQUEMA | {"schema_migrations"})
+        self.assertEqual(tabelas(caminho), self.ESQUEMA | self.CONDUTAS_ALTA | {"schema_migrations"})
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo"), [(15,)])
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Regras_Complementares"), [(1,)])
-        self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations"), [(1, "banco-novo")])
+        self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations"),
+                         [(1, "banco-novo")] + [(m.versao, "migracao") for m in self.main.db_migracoes.MIGRACOES[1:]])
         self.assertFalse((self.tmp / "backups").exists())
 
     def test_executar_de_novo_nao_duplica_nada(self):
@@ -164,7 +167,8 @@ class TestConfigurarBancoDados(BaseApp):
             self.main.AppClinica.configurar_banco_dados(self.app)
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo"), [(15,)])
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Regras_Complementares"), [(1,)])
-        self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM schema_migrations"), [(1,)])
+        self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM schema_migrations"),
+                         [(len(self.main.db_migracoes.MIGRACOES),)])
 
     def test_banco_legado_existente_adota_a_baseline_com_backup_e_sem_perder_dados(self):
         caminho = self.usar_banco()
@@ -176,10 +180,13 @@ class TestConfigurarBancoDados(BaseApp):
             c.execute("DROP TABLE schema_migrations")             # simula um banco criado ANTES da Fase 0
         antes = {t: consulta(caminho, f"SELECT * FROM {t}") for t in ("Pacientes", "Consultas", "Exames_Catalogo")}
         self.main.AppClinica.configurar_banco_dados(self.app)
-        self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations"), [(1, "adotada-legado")])
+        self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations"),
+                         [(1, "adotada-legado")]
+                         + [(m.versao, "migracao") for m in self.main.db_migracoes.MIGRACOES[1:]])
         depois = {t: consulta(caminho, f"SELECT * FROM {t}") for t in antes}
         self.assertEqual(depois, antes)
-        backups = list((self.tmp / "backups").glob("clinica.backup_*_pre-migracao-v1.db"))
+        ultima = self.main.db_migracoes.MIGRACOES[-1].versao        # o nome do backup usa a versão de destino
+        backups = list((self.tmp / "backups").glob(f"clinica.backup_*_pre-migracao-v{ultima}.db"))
         self.assertEqual(len(backups), 1)
         self.assertEqual(consulta(backups[0], "SELECT nome FROM Pacientes"), [("Paciente Sintético 001",)])
 

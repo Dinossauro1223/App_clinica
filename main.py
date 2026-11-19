@@ -16,6 +16,7 @@ import mapa_db
 import db_service
 import db_migracoes
 from mapa_ui import MapaUI
+from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
 
 
 def get_base_path():
@@ -275,7 +276,7 @@ class AppClinica(ctk.CTk):
 
     def tela_mobile(self):
         from mobile_ui import MobileUI
-        MobileUI(self, os.path.join(get_base_path(), 'clinica.db'), get_base_path()).mostrar()
+        MobileUI(self, caminho_do_banco(), get_base_path()).mostrar()
 
     def configurar_banco_dados(self):
         caminho = caminho_do_banco()
@@ -942,6 +943,12 @@ class AppClinica(ctk.CTk):
             ctk.CTkButton(frame_conduta, text="Importar Padrão", width=120, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=14, weight="bold"), command=lambda: self.abrir_modal_padroes("conduta")).pack(side="right")
         self.txt_conduta = ctk.CTkTextbox(scroll_frame, width=600, height=100, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", border_width=1, border_color="#a5d6a7")
         self.txt_conduta.pack(padx=20, pady=5)
+
+        # Condutas de alta: sugeridas pelas doenças relatadas no Mapa; só valem depois de confirmadas pela nutricionista.
+        self.painel_condutas_alta = PainelCondutasAlta(
+            scroll_frame, caminho_do_banco(), self.paciente_atual_id, self.paciente_atual_nome,
+            pasta_saida=self.pasta_condutas_alta(), janela_pai=self)
+        self.painel_condutas_alta.pack(fill="x", padx=20, pady=(10, 5))
 
         ctk.CTkLabel(scroll_frame, text="Solicitação de Exames", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(anchor="w", padx=20, pady=(15, 0))
         frame_exames = ctk.CTkFrame(scroll_frame, fg_color="transparent")
@@ -1781,6 +1788,11 @@ class AppClinica(ctk.CTk):
             print(f"[ERRO CRÍTICO ÍNDICES PDF]: {e}")
         return linhas
 
+    def pasta_condutas_alta(self, id_paciente=None):
+        """Pasta gravável da cópia em PDF da folha de alta: junto dos demais arquivos do paciente (fora do Git)."""
+        id_paciente = id_paciente or self.paciente_atual_id
+        return os.path.join(get_writable_path("arquivos_pacientes"), f"paciente_{id_paciente}")
+
     def salvar_consulta(self):
         if not self.paciente_atual_id: return
         anamnese = self.txt_anamnese.get("1.0", "end-1c")
@@ -1813,6 +1825,8 @@ class AppClinica(ctk.CTk):
         conexao.close()
         self.lbl_msg_consulta.configure(text="Evolução salva com sucesso!")
         self.btn_salvar_evolucao.configure(state="disabled")
+        # Sempre lembra as condutas de alta que ainda esperam confirmação (e oferece abrir a janela).
+        lembrar_condutas_pendentes(getattr(self, "painel_condutas_alta", None), self.lbl_msg_consulta)
 
     # --- MÓDULO DE EXAMES E REGRAS ---
     def tela_exames(self):

@@ -33,6 +33,7 @@ A análise considera o ZIP `App_clinica-main` enviado para esta conversa. O esta
 |---|---|---|
 | Aplicação desktop | `main.py`, `CustomTkinter` | Implementada no pacote analisado |
 | Pacientes e consultas | `Pacientes`, `Consultas`, telas em `main.py` | Implementado, com dados clínicos em texto livre e campos de consulta |
+| Condutas de alta | `condutas_alta.py`, `condutas_alta_ui.py`, `condutas_alta_export.py`, `condutas_alta/` | Implementada na branch `feat/condutas-de-alta` ([ADR-0006](docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md), seção 2.4); testada com simuladores, falta validar no Windows e homologar o conteúdo clínico |
 | TMB/VET | `main.py` | Há seleção de Harris-Benedict (1919), Mifflin-St Jeor (1990) e Cunningham (1980), com NAF para VET |
 | Mapa por leito | `mapa_ui.py`, `mapa_db.py` | Implementado parcialmente; precisa de validação integrada com o banco principal |
 | Histórico/cópia diária | `mapa_db.py`, `mapa_ui.py` | Há histórico por paciente, navegação de datas e cópia do mapa anterior |
@@ -54,6 +55,7 @@ O código do mapa contempla:
 - Altura e peso, origem aferida/estimada e método utilizado.
 - IMC e classificação, data de reavaliação.
 - Via oral/enteral, características DM/HAS/laxativa/constipante/DRC e consistência livre/branda/pastosa/líq-past/líquida.
+- Doenças relatadas que alimentam as condutas de alta (doença respiratória e tuberculose), na coluna `condicoes` de `Mapa_Registros`. Ficam fora das características do impresso, do Excel e dos gráficos.
 - Observações “Sim” e “Não”, estado/frequência da função intestinal.
 - Suplementos associados ao registro diário, com quantidade por dia e unidade.
 
@@ -70,6 +72,34 @@ O `clinica.db` presente no ZIP-fonte analisado não continha a tabela `Mapa_Supl
 Há uma inconsistência de caminho que deve ser resolvida antes de empacotar ou compartilhar o programa: `configurar_banco_dados()` usa `get_writable_path('clinica.db')`, enquanto a inicialização do mapa e diversas operações de pacientes/consultas usam `get_base_path()`. No executável PyInstaller, `get_base_path()` pode apontar para `_internal` e `get_writable_path()` para a pasta do `.exe`. A Fase 0 deve unificar a conexão e o caminho gravável, com migração e backup.
 
 **Status (10/11/2026):** o serviço único (`db_service.py`), as migrações versionadas (`db_migracoes.py`) e o diagnóstico somente-leitura (`tools/diagnostico_banco.py`) foram criados e testados com bancos sintéticos ([ADR-0001](docs/decisoes/ADR-0001-banco-local-caminho-unico-backup-migracoes.md)). A substituição das chamadas em `main.py`, `mapa_db.py` e `setup_db.py` **continua pendente** (código inacessível na sessão que criou o serviço).
+
+### 2.4 Condutas de alta na consulta (branch `feat/condutas-de-alta`)
+
+**O que faz.** Na tela de consulta, o painel **Condutas de alta** sugere orientações de acordo com o que foi relatado no Mapa Nutricional do paciente (via enteral, DM, DRC, doença respiratória, tuberculose). A nutricionista confirma cada conduta, pode corrigir o texto que vai para o paciente ou marca "não se aplica" com motivo. Depois gera dois documentos:
+
+- **Folha do paciente:** só as condutas confirmadas, em linguagem leiga e compacta, para poupar papel. O que depende da prescrição (dose, volume, meta de proteína, líquidos) fica em branco ("______") para preencher.
+- **Relatório do nutricionista:** todas as condutas, com situação, texto técnico, lista de conferência, texto do paciente, motivo e referências.
+
+Os dois saem em PDF (A4), e a folha do paciente também pode ser enviada à impressora. O programa lembra das condutas pendentes no painel da consulta, depois de salvar a evolução e no Mapa (coluna "Condutas de alta" e aviso ao remover o paciente). Folha entregue não muda mais: a correção cria uma nova versão.
+
+**Regras de segurança.** O catálogo apenas **sugere**: nada vai para o paciente sem a confirmação da nutricionista. Os textos vêm de fontes registradas no [diário bibliográfico](docs/desenvolvimento/DIARIO_DUVIDAS_BIBLIOGRAFICAS.md). O conteúdo clínico ainda precisa de homologação pela nutricionista responsável. Nome e CRN são digitados (não há usuário autenticado antes da Fase 3), e a folha não afirma validade jurídica.
+
+| Arquivo | Função |
+|---|---|
+| `condutas_alta/*.json` | Catálogo versionado: `enteral`, `respiratorias_tb`, `renal` (20 condutas) |
+| `condutas_alta.py` | Regras pelo Mapa, banco, decisões e documento |
+| `condutas_alta_ui.py` | Painel da consulta e janela das condutas |
+| `condutas_alta_export.py` | PDF do paciente e do nutricionista, impressão |
+| `db_migracoes.py` | Migração 2 (`condutas_alta`), com reversão e backup |
+
+**Como acrescentar ou corrigir uma conduta.** Edite o JSON do grupo e preencha `codigo`, `titulo`, `titulo_paciente`, `gatilhos`, `profissional`, `conferir`, `paciente` e `fontes` (toda conduta precisa de fonte com link e "Acesso em:"). Aumente `versao` e `revisado_em`, registre a pesquisa em `docs/desenvolvimento/DIARIO_DUVIDAS_BIBLIOGRAFICAS.md` e confira:
+
+```bat
+python condutas_alta.py
+python -m unittest tests.test_condutas_alta_catalogo -v
+```
+
+**Banco.** As migrações 2 (tabelas) e 3 (travas contra trocar ou mover itens de uma folha já entregue) rodam ao abrir o programa, com backup antes (`pre-migracao-v3`: o número é o da versão de destino). Reverter só a 3 tira as travas e mantém os dados. Reverter para a versão 1 apaga as tabelas de condutas: folhas já entregues ficam só no backup (`pre-reversao-para-v1`). Decisão, alternativas e limites: [ADR-0006](docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md).
 
 ## 3. Catálogo de suplementos: dados existentes e lacunas
 
@@ -337,6 +367,9 @@ python tools\auditar_repositorio.py
 ├── mapa_ui.py                        # Telas de mapa, gráficos e catálogo de suplementos
 ├── mapa_export.py                    # Exportação PDF/Excel do mapa
 ├── mapa_graficos.py                  # Agregações e gráficos mensais
+├── condutas_alta.py                  # Condutas de alta: catálogo, regras pelo Mapa, decisões e documento (Fase 4)
+├── condutas_alta_ui.py               # Painel da consulta e janela das condutas de alta
+├── condutas_alta_export.py           # PDF do paciente e do nutricionista, impressão
 ├── db_service.py                     # Serviço único de banco: caminho, conexão, backup e restauração (Fase 0)
 ├── db_migracoes.py                   # Migrações versionadas e reversíveis do SQLite local (Fase 0)
 ├── tools/                            # Auditoria de dados sensíveis, verificação de ambiente e diagnóstico de banco
@@ -344,6 +377,7 @@ python tools\auditar_repositorio.py
 ├── docs/decisoes/                    # ADRs (decisões de arquitetura)
 ├── .github/workflows/ci.yml          # CI: Windows e Linux
 ├── exames_internos/                  # Catálogo de exames em JSON
+├── condutas_alta/                    # Catálogo de condutas de alta em JSON (enteral, respiratórias/TB, renal)
 ├── condutas_internas/                # Biblioteca interna de condutas em JSON
 ├── prescricoes_internas/             # Biblioteca interna de prescrições em JSON
 ├── sintomas_internos/                # Biblioteca interna de sintomas em JSON

@@ -70,9 +70,111 @@ class Migracao:
         return hashlib.sha256(bruto.encode("utf-8")).hexdigest()
 
 
+# --- v2: condutas de alta (módulo condutas_alta.py) -------------------------------------------------------------------
+# Documento de orientações de alta por paciente + uma linha por conduta decidida pela nutricionista (confirmada ou
+# "não se aplica"), com texto, lista de conferência e referências COPIADOS no momento da decisão (o catálogo pode mudar
+# depois). Depois de `entregue`, o documento e os itens ficam imutáveis (gatilhos abaixo); corrigir = nova versão
+# (`substitui_id_doc`). Sem FOREIGN KEY para Pacientes: essa tabela pertence ao esquema legado.
+_CONDUTAS_ALTA_UP = (
+    """CREATE TABLE IF NOT EXISTS Condutas_Alta_Docs (
+        id_doc INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_paciente INTEGER NOT NULL,
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho', 'entregue')),
+        entregue_em TEXT,
+        nutricionista TEXT,
+        crn TEXT,
+        recado TEXT,
+        substitui_id_doc INTEGER
+    )""",
+    """CREATE TABLE IF NOT EXISTS Condutas_Alta_Itens (
+        id_item INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_doc INTEGER NOT NULL REFERENCES Condutas_Alta_Docs (id_doc),
+        codigo TEXT NOT NULL,
+        versao_catalogo TEXT,
+        decisao TEXT NOT NULL CHECK (decisao IN ('confirmada', 'nao_se_aplica')),
+        origem TEXT NOT NULL DEFAULT 'regra' CHECK (origem IN ('regra', 'manual')),
+        titulo TEXT NOT NULL,
+        titulo_paciente TEXT,
+        texto_paciente TEXT,
+        texto_profissional TEXT,
+        conferir TEXT,
+        referencias TEXT,
+        editado INTEGER NOT NULL DEFAULT 0,
+        justificativa TEXT,
+        decidido_em TEXT NOT NULL,
+        UNIQUE (id_doc, codigo)
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_condutas_alta_docs_pac ON Condutas_Alta_Docs (id_paciente, status)",
+    "CREATE INDEX IF NOT EXISTS ix_condutas_alta_itens_doc ON Condutas_Alta_Itens (id_doc)",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_itens_ins_imutavel BEFORE INSERT ON Condutas_Alta_Itens
+       WHEN (SELECT status FROM Condutas_Alta_Docs WHERE id_doc = NEW.id_doc) = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: crie uma nova versão em vez de alterar.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_itens_upd_imutavel BEFORE UPDATE ON Condutas_Alta_Itens
+       WHEN (SELECT status FROM Condutas_Alta_Docs WHERE id_doc = OLD.id_doc) = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: crie uma nova versão em vez de alterar.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_itens_del_imutavel BEFORE DELETE ON Condutas_Alta_Itens
+       WHEN (SELECT status FROM Condutas_Alta_Docs WHERE id_doc = OLD.id_doc) = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: não é possível apagar itens.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_docs_upd_imutavel BEFORE UPDATE ON Condutas_Alta_Docs
+       WHEN OLD.status = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: crie uma nova versão em vez de alterar.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_docs_del_imutavel BEFORE DELETE ON Condutas_Alta_Docs
+       WHEN OLD.status = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: não é possível apagar.'); END""",
+)
+# Reversão (sempre com backup `pre-reversao-para-v1` feito antes): remove as tabelas; documentos entregues só existirão no backup.
+_CONDUTAS_ALTA_DOWN = (
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_docs_del_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_docs_upd_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_itens_del_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_itens_upd_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_itens_ins_imutavel",
+    "DROP TABLE IF EXISTS Condutas_Alta_Itens",
+    "DROP TABLE IF EXISTS Condutas_Alta_Docs",
+)
+
+# --- v3: travas contra substituição, que faltavam na v2 (revisão de QA de 19/11/2026) -----------------------------------
+# No SQLite, `REPLACE INTO`, `INSERT OR REPLACE` e `UPDATE OR REPLACE` apagam a linha em conflito SEM disparar o gatilho de
+# DELETE (isso só acontece com `recursive_triggers` ligado, e o padrão é desligado). Assim, um documento entregue podia ser
+# trocado por um rascunho, ou um item entregue por outro, sem erro. Também era possível mover um item de rascunho para
+# dentro de um documento entregue. Cada trava barra a operação ANTES de ela acontecer, em qualquer conexão (não depende de
+# o programa ligar `recursive_triggers`). Continua valendo o limite da v2: quem tem acesso direto ao arquivo pode apagar os gatilhos.
+_STATUS_DO_ITEM = ("(SELECT d.status FROM Condutas_Alta_Itens i JOIN Condutas_Alta_Docs d ON d.id_doc = i.id_doc "
+                   "WHERE i.id_item = NEW.id_item)")
+_CONDUTAS_ALTA_TRAVAS_UP = (
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_docs_ins_imutavel BEFORE INSERT ON Condutas_Alta_Docs
+       WHEN (SELECT status FROM Condutas_Alta_Docs WHERE id_doc = NEW.id_doc) = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: não é possível substituir.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_docs_id_imutavel BEFORE UPDATE OF id_doc ON Condutas_Alta_Docs
+       WHEN NEW.id_doc <> OLD.id_doc
+        AND (SELECT status FROM Condutas_Alta_Docs WHERE id_doc = NEW.id_doc) = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: não é possível substituir.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_itens_mover_imutavel BEFORE UPDATE OF id_doc ON Condutas_Alta_Itens
+       WHEN (SELECT status FROM Condutas_Alta_Docs WHERE id_doc = NEW.id_doc) = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: crie uma nova versão em vez de alterar.'); END""",
+    f"""CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_itens_ins_pk_imutavel BEFORE INSERT ON Condutas_Alta_Itens
+       WHEN {_STATUS_DO_ITEM} = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: não é possível substituir itens.'); END""",
+    f"""CREATE TRIGGER IF NOT EXISTS tr_condutas_alta_itens_id_imutavel BEFORE UPDATE OF id_item ON Condutas_Alta_Itens
+       WHEN NEW.id_item <> OLD.id_item AND {_STATUS_DO_ITEM} = 'entregue'
+       BEGIN SELECT RAISE(ABORT, 'Documento de alta já entregue: não é possível substituir itens.'); END""",
+)
+_CONDUTAS_ALTA_TRAVAS_DOWN = (
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_itens_id_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_itens_ins_pk_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_itens_mover_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_docs_id_imutavel",
+    "DROP TRIGGER IF EXISTS tr_condutas_alta_docs_ins_imutavel",
+)
+
 # Lista oficial. NOVAS migrações entram SEMPRE ao final, com versão contígua; nunca editar uma já publicada.
 MIGRACOES = (
     Migracao(versao=1, nome="baseline_esquema_legado", up=(), down=None, baseline=True),
+    Migracao(versao=2, nome="condutas_alta", up=_CONDUTAS_ALTA_UP, down=_CONDUTAS_ALTA_DOWN),
+    Migracao(versao=3, nome="condutas_alta_travas_contra_substituicao", up=_CONDUTAS_ALTA_TRAVAS_UP,
+             down=_CONDUTAS_ALTA_TRAVAS_DOWN),
 )
 
 

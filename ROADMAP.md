@@ -20,7 +20,7 @@
 | 1 | Mapa Nutricional confiável | Interface clínica + Backend | Fase 0 | Parcialmente implementada |
 | 2 | Antropometria, cálculos e curvas de crescimento | Pesquisa clínica + Cálculos | Contratos da Fase 1 | Parcialmente implementada; curvas incompletas |
 | 3 | Identidade, permissões, auditoria e backend multiusuário | Backend + Segurança | Fase 0 | Não implementada |
-| 4 | Anamnese e PEP estruturado | Interface clínica + Backend | Fases 1 e 3 | Não implementada como módulo estruturado |
+| 4 | Anamnese e PEP estruturado | Interface clínica + Backend | Fases 1 e 3 | Em andamento: condutas de alta na consulta implementadas e testadas com simuladores (branch `feat/condutas-de-alta`, [ADR-0006](docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md)); anamnese estruturada, PEP, assinatura e histórico longitudinal não implementados |
 | 5 | Catálogo de suplementos e cálculo de aporte | Especialista em suplementos + Backend | Fases 1, 2 e 3 | Catálogo inicial parcial |
 | 6 | Estoque e controle da Nutrição | Estoque + Backend | Fases 0 e 3 | Não implementada |
 | 7 | Refeições de pacientes e servidores; acesso móvel | Mobile + Backend | Fase 3; integrações com 4–6 | Não implementada |
@@ -369,6 +369,24 @@ Detalhes em [`docs/referencias/CONFERENCIA_PLANILHA_PESO_ALT.md`](docs/referenci
 - Documento impresso identifica profissional e versão.
 - Alteração após assinatura cria adendo/retificação, preservando o original.
 - Escalas Bristol e aceitação guardam data, autor e valor.
+
+### Andamento (atualizado em 19/11/2026, branch `feat/condutas-de-alta`)
+
+Entrega parcial da Fase 4, pedida em 14/11/2026: **condutas de alta na consulta**, ligadas ao Mapa. Decisão, alternativas e limites em [ADR-0006](docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md). Fontes clínicas em `REF-2026-11-17-001` a `004` do [diário bibliográfico](docs/desenvolvimento/DIARIO_DUVIDAS_BIBLIOGRAFICAS.md).
+
+| Item | Estado | Evidência / o que falta |
+|---|---|---|
+| Condutas sugeridas pelo Mapa (via, DM, DRC, doença respiratória, tuberculose) | **Implementado e testado com simuladores** | Catálogo JSON com 20 condutas e fontes ABNT; coluna `condicoes` no Mapa; `tests/test_condutas_alta*.py`. |
+| Confirmação pela nutricionista (confirmar, corrigir o texto do paciente, "não se aplica" com motivo) | **Implementado e testado** | Nada entra na folha sem confirmação; a decisão guarda uma cópia do texto e da versão do catálogo. |
+| Folha do paciente (leiga e compacta) e relatório do nutricionista (integral) em PDF | **Implementado; PDF real não exercitado** | Layout testado com PDF simulado. Os 2 testes com fpdf2 real foram pulados (biblioteca ausente no ambiente de teste). |
+| Imprimir | **Implementado; não testado em impressora** | `os.startfile(..., "print")` no Windows, com plano B (abrir o PDF). Falta provar no Windows do projeto. |
+| Lembrar sempre | **Implementado e testado com widgets simulados** | Painel fixo na consulta, aviso depois de salvar a evolução, coluna no Mapa e aviso ao remover do Mapa. |
+| Documento entregue imutável e nova versão para corrigir | **Implementado e testado** | Migração 2 (`condutas_alta`) com gatilhos e migração 3 com as travas contra `REPLACE` e contra mover item para folha entregue; ambas com `down` e backup antes. Quem tem acesso direto ao arquivo `.db` ainda pode apagar os gatilhos (Fase 3). |
+| Revisão de QA da entrega | **Feita por sondagens executadas pelo integrador, com correções** | Achados e estado de cada um na [ADR-0006](docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md), seção "Revisão de QA e correções". Não foi uma revisão independente completa (as tentativas com o agente de QA foram cortadas pelo limite de uso da conta); o que não foi verificado está listado lá. |
+| Assinatura e carimbo ligados a usuário autenticado | **Não implementado** | Depende da Fase 3. Nome e CRN são digitados; não se alega validade jurídica. |
+| Anamnese estruturada, PEP, escalas (Bristol e aceitação), histórico longitudinal | **Não iniciados** | Seguem nas atividades 1 a 3 e 5 desta fase. |
+
+**A Fase 4 não está concluída.** Testes desta sessão (Linux, Python 3.13): suíte inteira com 327 testes OK e 2 pulados (PDF com fpdf2 real e PNG de conferência visual). Pendências: homologação clínica do conteúdo pela nutricionista responsável; lacunas de fonte registradas no diário; validação no Windows (janelas reais, PDF real e impressora); catálogo ainda restrito a enteral, respiratórias/tuberculose e renal.
 
 ---
 

@@ -14,7 +14,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('D:/app_clinica/venv/Lib/site-packages/customtkinter', 'customtkinter'), ('welcome_nutrilab.png', '.'), (MODELO_BANCO, '.'), ('regras_exames_complementares.json', '.'), ('exames_internos', 'exames_internos'), ('condutas_internas', 'condutas_internas'), ('sintomas_internos', 'sintomas_internos'), ('prescricoes_internas', 'prescricoes_internas')],
+    datas=[('D:/app_clinica/venv/Lib/site-packages/customtkinter', 'customtkinter'), ('welcome_nutrilab.png', '.'), (MODELO_BANCO, '.'), ('regras_exames_complementares.json', '.'), ('exames_internos', 'exames_internos'), ('condutas_internas', 'condutas_internas'), ('sintomas_internos', 'sintomas_internos'), ('prescricoes_internas', 'prescricoes_internas'), ('condutas_alta', 'condutas_alta')],
     hiddenimports=['mapa_export', 'mapa_graficos', 'openpyxl', 'matplotlib.backends.backend_agg'],
     hookspath=[],
     hooksconfig={},
