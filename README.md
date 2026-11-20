@@ -348,7 +348,7 @@ Testes atuais:
 python -m unittest discover -s tests -v
 ```
 
-Os agentes devem registrar o resultado real. Testes de interface/PDF com simuladores não comprovam impressão ou interação com bibliotecas reais.
+Os agentes devem registrar o resultado real. Testes de interface/PDF com simuladores não comprovam impressão ou interação com bibliotecas reais. Teste local em Linux também não prova que passa no Windows: depois do push, confira o resultado do CI do GitHub (aba Actions, Windows e Linux) da branch ou do pull request antes de integrar.
 
 Antes de qualquer push, audite o repositório (nunca imprime conteúdo de arquivos; falha se houver banco, backup, anexo de paciente, segredo ou planilha original do hospital):
 

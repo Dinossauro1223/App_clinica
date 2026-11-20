@@ -150,7 +150,7 @@ Regras:
 4. Pesquisar fontes e registrar dúvidas bibliográficas sem perguntar ao usuário.
 5. Implementar uma alteração pequena e verificável.
 6. Criar/atualizar testes sintéticos antes ou junto da implementação.
-7. Executar testes relevantes e registrar saída/limitações reais.
+7. Executar testes relevantes e registrar saída/limitações reais. Depois do push, conferir o resultado do CI do GitHub (Windows e Linux) da branch: teste local em Linux não prova que passa no Windows (ver ADR-0006, seção "CI do GitHub").
 8. Fazer revisão de privacidade do diff e exportações.
 9. Atualizar README, roadmap, diário e ADRs conforme necessário.
 10. Preparar resumo de entrega com arquivos alterados, comportamento implementado, comandos/resultados, decisões, limitações e próxima tarefa.
@@ -162,7 +162,7 @@ Cada tarefa concluída deve informar:
 
 - **O que foi entregue:** comportamento real e arquivos.
 - **Como verificar:** passos reproduzíveis.
-- **Testes:** comandos executados e resultado verdadeiro.
+- **Testes:** comandos executados e resultado verdadeiro, com o número da execução do CI do GitHub e o resultado no Windows e no Linux.
 - **Banco:** migração, backup e rollback, quando aplicável.
 - **Fontes:** referências incorporadas e entrada no diário bibliográfico.
 - **Segurança:** varredura de dados reais/segredos e permissões.
