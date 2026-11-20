@@ -25,6 +25,8 @@ LARG, ALT = 210.0, 297.0
 Y_TOPO, Y_MAX, Y_RODAPE = 14.0, 281.0, 288.5
 RECUO_ITEM = 3.8
 VERDE, CINZA, PRETO, LARANJA = (27, 94, 32), (95, 95, 95), (0, 0, 0), (170, 80, 0)
+# Fonte padrão do PDF. "Arial" é só um apelido antigo de "Helvetica": o fpdf2 (2.7.8 em diante) avisa que ele será removido.
+FONTE = "Helvetica"
 
 # estilo -> (estilo da fonte, tamanho em pt, altura da linha em mm)
 _ESTILOS = {
@@ -85,7 +87,7 @@ class _Montador:
 
     def _fonte(self, tipo):
         e = self.est[tipo]
-        self.pdf.set_font("Arial", e[0], e[1])
+        self.pdf.set_font(FONTE, e[0], e[1])
 
     def paragrafo(self, texto, tipo="p", cor=PRETO, antes=0.0, item=False, recuo=0.0, manter=0):
         self._fonte(tipo)
@@ -134,7 +136,7 @@ def _renderizar(pdf, paginas, est, titulo_curto, rodape_esq):
         pdf.add_page()
         pdf.set_line_width(0.2)
         if n > 1:
-            pdf.set_font("Arial", "", 8)
+            pdf.set_font(FONTE, "", 8)
             pdf.set_text_color(*CINZA)
             pdf.text(MARG, Y_TOPO + 3.2, _l1(titulo_curto))
             pdf.set_draw_color(*CINZA)
@@ -142,7 +144,7 @@ def _renderizar(pdf, paginas, est, titulo_curto, rodape_esq):
         for u, y in itens:
             e = est[u.tipo]
             if u.texto:
-                pdf.set_font("Arial", e[0], e[1])
+                pdf.set_font(FONTE, e[0], e[1])
                 pdf.set_text_color(*u.cor)
                 base = y + e[2] * 0.76
                 pdf.text(MARG + u.recuo, base, u.texto)
@@ -156,7 +158,7 @@ def _renderizar(pdf, paginas, est, titulo_curto, rodape_esq):
         pdf.set_draw_color(*CINZA)
         pdf.set_line_width(0.2)
         pdf.line(MARG, Y_RODAPE - 3.6, LARG - MARG, Y_RODAPE - 3.6)
-        pdf.set_font("Arial", "", 8)
+        pdf.set_font(FONTE, "", 8)
         pdf.set_text_color(*CINZA)
         pdf.text(MARG, Y_RODAPE, _l1(rodape_esq))
         pag = f"Página {n} de {total}"
