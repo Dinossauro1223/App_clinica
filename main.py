@@ -15,6 +15,7 @@ from PIL import Image
 import mapa_db
 import db_service
 import db_migracoes
+import atalhos_edicao
 from mapa_ui import MapaUI
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
 
@@ -196,6 +197,10 @@ def garantir_esquema_legado(conexao):
 class AppClinica(ctk.CTk):
     def __init__(self):
         super().__init__()
+
+        # Atalhos de edição no estilo do Google Planilhas (Ctrl+Z, Ctrl+Y, F4, colar de planilha, Ctrl+C nas tabelas).
+        # Vale para todos os campos e tabelas de todas as janelas; a lista aparece com F1 (docs/desenvolvimento/ATALHOS_DE_TECLADO.md).
+        atalhos_edicao.instalar(self)
 
         self.title("Sistema de Gestão Clínica")
         self.geometry("950x750")
