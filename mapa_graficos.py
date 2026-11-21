@@ -23,6 +23,27 @@ MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "a
 VERDE_ESC, VERDE, VERDE_CLARO = "#1b5e20", "#4caf50", "#a5d6a7"
 LARANJA, AZUL, CINZA = "#ef6c00", "#1565c0", "#78909c"
 
+# Campos do mapa que são doenças crônicas. Os outros campos de mdb.CARACTERISTICAS (laxativa, constipante) descrevem a dieta.
+CAMPOS_CRONICOS = ("dm", "has", "drc")
+
+# Grupos da tela de gráficos, na ordem em que aparecem. Cada gráfico novo precisa entrar em um grupo; o que ficar de
+# fora aparece no grupo "Outros gráficos" (nunca some).
+GRUPOS = (
+    {"id": "atendimentos", "titulo": "Atendimentos", "cor": VERDE,
+     "descricao": "Quantos pacientes foram atendidos por dia e como é o perfil deles",
+     "graficos": ("atendimentos_dia", "perfil_dia", "resumo")},
+    {"id": "dieta", "titulo": "Dieta", "cor": LARANJA,
+     "descricao": "Consistência da dieta e características como laxativa e constipante",
+     "graficos": ("consistencia", "caracteristicas")},
+    {"id": "suplementos", "titulo": "Suplementos", "cor": VERDE_ESC,
+     "descricao": "Quais suplementos e módulos foram mais usados",
+     "graficos": ("suplementos", "modulos")},
+    {"id": "cronicas", "titulo": "Doenças crônicas", "cor": AZUL,
+     "descricao": "Diabetes, hipertensão e doença renal entre os pacientes atendidos",
+     "graficos": ("cronicas",)},
+)
+GRUPO_OUTROS = {"id": "outros", "titulo": "Outros gráficos", "cor": CINZA, "descricao": "", "graficos": ()}
+
 
 def agregar_mes(registros, ano, mes):
     """Resume os registros de um mês (lista de dicts de mapa_db.registros_do_mes)."""
@@ -30,6 +51,7 @@ def agregar_mes(registros, ano, mes):
     dias = {d: {"total": 0, "pastosa": 0, "acomp": 0, "supl": 0} for d in range(1, n + 1)}
     consist, via, acomp, supl_sn = Counter(), Counter(), Counter(), Counter()
     sup_nome, sup_mod, carac = Counter(), Counter(), Counter()
+    cronicas, dieta_carac = Counter(), Counter()
     pacientes = set()
     for r in registros:
         d = int(r["data"][8:10])
@@ -58,6 +80,7 @@ def agregar_mes(registros, ano, mes):
         for campo, _, nome in mdb.CARACTERISTICAS:
             if r.get(campo):
                 carac[nome] += 1
+                (cronicas if campo in CAMPOS_CRONICOS else dieta_carac)[nome] += 1
     total = sum(v["total"] for v in dias.values())
     dias_com = sum(1 for v in dias.values() if v["total"])
 
@@ -77,7 +100,8 @@ def agregar_mes(registros, ano, mes):
     for k in ("pastosa", "acompanhante", "com_suplemento", "enteral"):
         kpis[k + "_pct"] = pct(kpis[k])
     return {"ano": ano, "mes": mes, "dias": dias, "consist": consist, "via": via, "acomp": acomp,
-            "supl_sn": supl_sn, "sup_nome": sup_nome, "sup_mod": sup_mod, "carac": carac, "kpis": kpis}
+            "supl_sn": supl_sn, "sup_nome": sup_nome, "sup_mod": sup_mod, "carac": carac,
+            "cronicas": cronicas, "dieta_carac": dieta_carac, "kpis": kpis}
 
 
 # ------------------------------------------------------------------------ gráficos
@@ -180,8 +204,20 @@ def grafico_modulos(agg):
     return _barras_h(agg, "Uso por módulo de suplemento", agg["sup_mod"], cor=VERDE)
 
 
+def _ordem_das_caracteristicas(cronicas):
+    """Nomes de mdb.CARACTERISTICAS que são (ou não são) doenças crônicas, na ordem do mapa."""
+    return [nome for campo, _, nome in mdb.CARACTERISTICAS if (campo in CAMPOS_CRONICOS) == cronicas]
+
+
 def grafico_caracteristicas(agg):
-    return _barras_h(agg, "Características da dieta", agg["carac"], cor=AZUL)
+    """Características da dieta que não são doenças (laxativa, constipante)."""
+    return _barras_h(agg, "Características da dieta", agg["dieta_carac"], ordem=_ordem_das_caracteristicas(False),
+                     cor=LARANJA)
+
+
+def grafico_cronicas(agg):
+    """Doenças crônicas marcadas no mapa (diabetes, hipertensão, doença renal)."""
+    return _barras_h(agg, "Doenças crônicas", agg["cronicas"], ordem=_ordem_das_caracteristicas(True), cor=AZUL)
 
 
 def grafico_resumo(agg):
@@ -202,17 +238,51 @@ def grafico_resumo(agg):
     return _png(fig)
 
 
+# chave -> (título curto, função que desenha). A ordem de exibição vem de GRUPOS.
+GRAFICOS = {
+    "atendimentos_dia": ("Pacientes atendidos por dia", grafico_atendimentos_dia),
+    "perfil_dia": ("Perfil por dia", grafico_perfil_dia),
+    "resumo": ("Via, acompanhante e suplemento", grafico_resumo),
+    "consistencia": ("Consistência da dieta", grafico_consistencia),
+    "caracteristicas": ("Características da dieta", grafico_caracteristicas),
+    "suplementos": ("Suplementos mais utilizados", grafico_suplementos),
+    "modulos": ("Uso por módulo", grafico_modulos),
+    "cronicas": ("Doenças crônicas", grafico_cronicas),
+}
+
+
+def ordem_de_exibicao():
+    """Chaves dos gráficos na ordem da tela: grupo por grupo, e por último o que não tem grupo."""
+    ordem = [c for g in GRUPOS for c in g["graficos"] if c in GRAFICOS]
+    return ordem + [c for c in GRAFICOS if c not in ordem]
+
+
 def gerar_todos(agg):
     """Lista [(chave, título, bytes PNG)] na ordem de exibição."""
-    return [
-        ("atendimentos_dia", "Pacientes atendidos por dia", grafico_atendimentos_dia(agg)),
-        ("perfil_dia", "Perfil por dia", grafico_perfil_dia(agg)),
-        ("consistencia", "Consistência da dieta", grafico_consistencia(agg)),
-        ("resumo", "Via, acompanhante e suplemento", grafico_resumo(agg)),
-        ("suplementos", "Suplementos mais utilizados", grafico_suplementos(agg)),
-        ("modulos", "Uso por módulo", grafico_modulos(agg)),
-        ("caracteristicas", "Características da dieta", grafico_caracteristicas(agg)),
-    ]
+    return [(c, GRAFICOS[c][0], GRAFICOS[c][1](agg)) for c in ordem_de_exibicao()]
+
+
+def organizar_por_grupo(graficos):
+    """Agrupa [(chave, título, png)] segundo GRUPOS. Devolve [{id, titulo, descricao, cor, graficos}].
+
+    Gráfico que não está em nenhum grupo vai para "Outros gráficos"; grupo sem nenhum gráfico não aparece.
+    """
+    por_chave = {g[0]: g for g in graficos}
+    usados, grupos = set(), []
+    for grupo in GRUPOS:
+        itens = [por_chave[c] for c in grupo["graficos"] if c in por_chave]
+        usados.update(i[0] for i in itens)
+        if itens:
+            grupos.append({**grupo, "graficos": itens})
+    resto = [g for g in graficos if g[0] not in usados]
+    if resto:
+        grupos.append({**GRUPO_OUTROS, "graficos": resto})
+    return grupos
+
+
+def gerar_por_grupo(agg):
+    """Os gráficos do mês já agrupados por assunto, prontos para a tela."""
+    return organizar_por_grupo(gerar_todos(agg))
 
 
 def salvar_graficos(agg, pasta):

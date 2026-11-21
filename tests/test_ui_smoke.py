@@ -58,6 +58,12 @@ class W:
     def winfo_children(self):
         return [c for c in self.children if not c.destroyed]
 
+    def winfo_exists(self):
+        return not self.destroyed
+
+    def focus_set(self):
+        pass
+
     def winfo_width(self):
         return 1300
 
@@ -178,6 +184,27 @@ class Tree(W):
         self._sel = [i]
 
 
+class Canvas(W):
+    """tk.Canvas falso: guarda as imagens desenhadas e a posição da rolagem horizontal."""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.itens, self.rolagem = [], 0.0
+
+    def create_image(self, x, y, **kw):
+        self.itens.append((x, y, kw.get("image")))
+        return len(self.itens)
+
+    def delete(self, *a):
+        self.itens = []
+
+    def xview_moveto(self, fracao):
+        self.rolagem = fracao
+
+    def after_cancel(self, i):
+        pass
+
+
 class IntVar:
     def __init__(self, value=0):
         self.v = value
@@ -224,7 +251,7 @@ def instalar_falsos():
     ctk.CTkImage = Image
     tk = types.ModuleType("tkinter")
     tk.TclError = type("TclError", (Exception,), {})
-    tk.IntVar = IntVar
+    tk.IntVar, tk.Canvas = IntVar, Canvas
     ttk = types.ModuleType("tkinter.ttk")
     ttk.Treeview, ttk.Scrollbar = Tree, W
     ttk.Style = type("Style", (), {"configure": lambda s, *a, **k: None, "map": lambda s, *a, **k: None,
@@ -251,6 +278,7 @@ class AppFalso(W):
         self.area_principal = Frame()
 
     def limpar_area_principal(self):
+        self.area_principal.destroy()   # como no main.py: os widgets da tela anterior deixam de existir
         self.area_principal = Frame()
 
 
@@ -482,23 +510,73 @@ class TestInterface(unittest.TestCase):
         novo = [v for v in self.ui.tree_sup.items.values() if v[0] == "Módulo de fibra X"][0]
         self.assertEqual((novo[1], novo[3], novo[8]), ("Módulo de fibras", "200,5", "19,90"))
         dc = mapa_ui.DialogConfig(self.ui)
+        self.assertEqual(dc.cb_graf.get(), mapa_ui.gl.ROTULOS_DISPOSICAO[mapa_ui.gl.DISPOSICAO_LADO_A_LADO])  # padrão
         dc.cb_imc.set(mapa_ui.nc.CRITERIOS_IMC_IDOSO["opas"])
         dc.cb_alt.set(mapa_ui.nc.METODOS_ALTURA_IDOSO["chumlea1998"])
+        dc.cb_graf.set(mapa_ui.gl.ROTULOS_DISPOSICAO[mapa_ui.gl.DISPOSICAO_VERTICAL])
         dc._salvar()
         self.assertEqual((self.ui.criterio_idoso, self.ui.metodo_altura_idoso), ("opas", "chumlea1998"))
+        self.assertEqual(self.ui.disposicao_graficos, mapa_ui.gl.DISPOSICAO_VERTICAL)
+        self.assertEqual(mapa_ui.DialogConfig(self.ui).cb_graf.get(),
+                         mapa_ui.gl.ROTULOS_DISPOSICAO[mapa_ui.gl.DISPOSICAO_VERTICAL])   # reabre já com o valor salvo
 
     def test_graficos(self):
         from test_mapa import popular_mes
         popular_mes(self.db, n_leitos=6)
         self.ui.mostrar_graficos()
-        self.assertEqual(len(self.ui._imagens), 7)
+        self.assertEqual(len(self.ui._imagens), 8)
         self.assertEqual(self.ui.cb_mes.get(), "Outubro")
         self.ui.cb_mes.set("Fevereiro")
         self.ui._gerar_graficos()  # mês sem dados: gráficos vazios, sem erro
-        self.assertEqual(len(self.ui._imagens), 7)
+        self.assertEqual(len(self.ui._imagens), 8)
         FD.pasta = tempfile.mkdtemp()
         self.ui._salvar_graficos()
-        self.assertEqual(len(os.listdir(FD.pasta)), 7)
+        self.assertEqual(len(os.listdir(FD.pasta)), 8)
+
+    def test_graficos_agrupados_lado_a_lado_e_de_cima_para_baixo(self):
+        from unittest import mock
+        from test_mapa import popular_mes
+        popular_mes(self.db, n_leitos=6)
+        self.ui.mostrar_graficos()
+        # padrão: uma faixa que se arrasta por grupo (atendimentos, dieta, suplementos, doenças crônicas)
+        self.assertEqual(self.ui.disposicao_graficos, mapa_ui.gl.DISPOSICAO_LADO_A_LADO)
+        self.assertEqual([g["id"] for g in self.ui._grupos], ["atendimentos", "dieta", "suplementos", "cronicas"])
+        self.assertEqual(len(self.ui._painel.faixas), 4)
+        self.assertEqual(len(self.ui.quadro_graf.winfo_children()), 4)
+        # trocar nas Configurações redesenha a tela aberta SEM gerar os gráficos de novo (a parte demorada)
+        dc = mapa_ui.DialogConfig(self.ui)
+        dc.cb_graf.set(mapa_ui.gl.ROTULOS_DISPOSICAO[mapa_ui.gl.DISPOSICAO_VERTICAL])
+        with mock.patch.object(self.ui._mgr, "gerar_por_grupo", wraps=self.ui._mgr.gerar_por_grupo) as gerar:
+            dc._salvar()
+            gerar.assert_not_called()
+        self.assertEqual(self.ui._painel.disposicao, mapa_ui.gl.DISPOSICAO_VERTICAL)
+        self.assertEqual(self.ui._painel.faixas, [])
+        self.assertEqual(len(self.ui.quadro_graf.winfo_children()), 4)    # continua agrupado: uma seção por grupo
+        self.assertEqual(len(self.ui._imagens), 8)
+        # a escolha vale também na próxima vez que a tela de gráficos é aberta
+        self.ui.mostrar_graficos()
+        self.assertEqual(self.ui._painel.disposicao, mapa_ui.gl.DISPOSICAO_VERTICAL)
+        # e dá para voltar
+        dc = mapa_ui.DialogConfig(self.ui)
+        dc.cb_graf.set(mapa_ui.gl.ROTULOS_DISPOSICAO[mapa_ui.gl.DISPOSICAO_LADO_A_LADO])
+        dc._salvar()
+        self.assertEqual(len(self.ui._painel.faixas), 4)
+
+    def test_salvar_configuracoes_sem_a_tela_de_graficos_aberta_nao_da_erro(self):
+        self.ui.mostrar_mapa()
+        dc = mapa_ui.DialogConfig(self.ui)
+        dc.cb_graf.set(mapa_ui.gl.ROTULOS_DISPOSICAO[mapa_ui.gl.DISPOSICAO_VERTICAL])
+        dc._salvar()
+        self.assertEqual(self.ui.disposicao_graficos, mapa_ui.gl.DISPOSICAO_VERTICAL)
+        self.assertIsNone(self.ui._painel)
+        # tela de gráficos aberta e depois fechada (o Tk destrói os widgets): salvar de novo não redesenha nada
+        from unittest import mock
+        self.ui.mostrar_graficos()
+        self.ui.mostrar_mapa()
+        dc = mapa_ui.DialogConfig(self.ui)
+        with mock.patch.object(self.ui, "_montar_painel") as montar:
+            dc._salvar()
+            montar.assert_not_called()
 
 
 if __name__ == "__main__":

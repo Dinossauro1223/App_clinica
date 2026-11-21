@@ -433,8 +433,17 @@ class TestGraficos(unittest.TestCase):
             self.assertLessEqual(k["pacientes_unicos"], k["atendimentos"])
             self.assertEqual(len(agg["dias"]), 31)
             self.assertEqual(mdb.meses_com_dados(db), [(2026, 10)])
+            # doenças crônicas (DM, HAS, DRC) e características da dieta (laxativa, constipante) são contadas à parte
+            for campo, _, nome in mdb.CARACTERISTICAS:
+                esperado = sum(1 for r in regs if r.get(campo))
+                self.assertEqual(agg["carac"][nome], esperado, nome)
+                destino = agg["cronicas"] if campo in mgr.CAMPOS_CRONICOS else agg["dieta_carac"]
+                outro = agg["dieta_carac"] if campo in mgr.CAMPOS_CRONICOS else agg["cronicas"]
+                self.assertEqual(destino[nome], esperado, nome)
+                self.assertEqual(outro[nome], 0, nome)
             pngs = mgr.gerar_todos(agg)
-            self.assertEqual(len(pngs), 7)
+            self.assertEqual(len(pngs), 8)
+            self.assertEqual([c for c, _, _ in pngs], mgr.ordem_de_exibicao())
             for chave, _, b in pngs:
                 self.assertEqual(b[:8], b"\x89PNG\r\n\x1a\n", chave)
             vazio = mgr.agregar_mes([], 2026, 2)
@@ -446,6 +455,45 @@ class TestGraficos(unittest.TestCase):
                 mgr.salvar_graficos(agg, os.path.join(pasta_graficos, "graficos"))
             finally:
                 shutil.rmtree(pasta_graficos, ignore_errors=True)
+        finally:
+            os.remove(db)
+
+    def test_grupos_cobrem_todos_os_graficos_sem_repetir(self):
+        ids = [g["id"] for g in mgr.GRUPOS]
+        self.assertEqual(len(ids), len(set(ids)))
+        em_grupos = [c for g in mgr.GRUPOS for c in g["graficos"]]
+        self.assertEqual(len(em_grupos), len(set(em_grupos)), "gráfico em dois grupos")
+        self.assertEqual(set(em_grupos), set(mgr.GRAFICOS), "gráfico sem grupo, ou grupo com gráfico que não existe")
+        self.assertEqual(mgr.ordem_de_exibicao(), em_grupos)
+        for g in mgr.GRUPOS:
+            self.assertTrue(g["titulo"] and g["cor"].startswith("#"), g["id"])
+
+    def test_organizar_por_grupo(self):
+        falsos = [(c, mgr.GRAFICOS[c][0], b"png") for c in mgr.ordem_de_exibicao()]
+        grupos = mgr.organizar_por_grupo(falsos)
+        self.assertEqual([g["id"] for g in grupos], ["atendimentos", "dieta", "suplementos", "cronicas"])
+        self.assertEqual([c for g in grupos for c, _, _ in g["graficos"]], mgr.ordem_de_exibicao())
+        self.assertEqual([c for c, _, _ in grupos[2]["graficos"]], ["suplementos", "modulos"])
+        # o que não tem grupo não some: vai para "Outros gráficos", no fim
+        grupos = mgr.organizar_por_grupo(falsos + [("novo", "Gráfico novo", b"png")])
+        self.assertEqual(grupos[-1]["id"], "outros")
+        self.assertEqual([c for c, _, _ in grupos[-1]["graficos"]], ["novo"])
+        # grupo sem nenhum gráfico não aparece
+        grupos = mgr.organizar_por_grupo([g for g in falsos if g[0] != "cronicas"])
+        self.assertNotIn("cronicas", [g["id"] for g in grupos])
+        self.assertEqual(mgr.organizar_por_grupo([]), [])
+
+    def test_gerar_por_grupo(self):
+        db = novo_banco()
+        try:
+            popular_mes(db, n_leitos=6)
+            agg = mgr.agregar_mes(mdb.registros_do_mes(db, 2026, 10), 2026, 10)
+            grupos = mgr.gerar_por_grupo(agg)
+            self.assertEqual([g["id"] for g in grupos], ["atendimentos", "dieta", "suplementos", "cronicas"])
+            self.assertEqual(sum(len(g["graficos"]) for g in grupos), 8)
+            for g in grupos:
+                for chave, titulo, png in g["graficos"]:
+                    self.assertTrue(titulo and png[:4] == b"\x89PNG", chave)
         finally:
             os.remove(db)
 
