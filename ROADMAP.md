@@ -36,6 +36,7 @@ Ajustes de usabilidade pedidos pelo usuário que não pertencem a uma fase. Cada
 | Entrega | Estado |
 |---|---|
 | Atalhos de edição no estilo do Google Planilhas (Ctrl+C/X/V, Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, F4, Ctrl+A, colar de planilha, Ctrl+C e Ctrl+A nas tabelas, F1) | Implementado em `atalhos_edicao.py` e ligado no `main.py`; 59 testes novos com widgets simulados e lógica pura. O comportamento no Tk real depende do CI (Windows e Linux) e de uso na máquina; lista em [`ATALHOS_DE_TECLADO.md`](docs/desenvolvimento/ATALHOS_DE_TECLADO.md) |
+| Gráficos agrupados por assunto, cada grupo numa faixa que se arrasta para o lado, com opção "de cima para baixo" nas Configurações do Mapa | Implementado em `graficos_layout.py`, `graficos_ui.py`, `mapa_graficos.py` e `mapa_ui.py`; DM, HAS e DRC ganharam grupo e gráfico próprios (8 gráficos). Testes com widgets simulados e, no CI, `tools/verificar_interface_tk.py` com Tk real; ver [`GRAFICOS_AGRUPADOS.md`](docs/desenvolvimento/GRAFICOS_AGRUPADOS.md). Aparência e sensação do arraste só se confirmam abrindo o programa |
 
 ---
 

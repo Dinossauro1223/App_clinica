@@ -6,7 +6,6 @@ A lógica (cálculos, banco, exportação, gráficos) fica nos módulos nutri_ca
 mapa_export e mapa_graficos; aqui só há interface. mapa_export e mapa_graficos são
 importados na hora de usar (openpyxl, fpdf e matplotlib não atrasam a abertura do programa).
 """
-import io
 import os
 import sqlite3
 from datetime import date, datetime, timedelta
@@ -18,6 +17,7 @@ import customtkinter as ctk
 import nutri_calculos as nc
 import mapa_db as mdb
 import condutas_alta as ca
+import graficos_layout as gl
 
 VERDE_ESC, VERDE, VERDE_HOVER, FUNDO = "#1b5e20", "#4caf50", "#388e3c", "#F0F7F4"
 CINZA_BTN, CINZA_HOVER = "#78909c", "#546e7a"
@@ -72,6 +72,8 @@ class MapaUI:
         for pasta in (os.path.dirname(os.path.abspath(db_path)), base_dir):
             self.lms = self.lms or nc.TabelaLMS.carregar_padrao(pasta)
         self._imagens = []
+        self._grupos = None   # gráficos do mês já agrupados (ver mapa_graficos.gerar_por_grupo)
+        self._painel = None
 
     # ------------------------------------------------------------------ configurações
     @property
@@ -81,6 +83,11 @@ class MapaUI:
     @property
     def metodo_altura_idoso(self):
         return mdb.obter_config(self.db, "metodo_altura_idoso", "chumlea1985")
+
+    @property
+    def disposicao_graficos(self):
+        """Como a tela de gráficos mostra cada grupo: lado a lado (arrastar) ou de cima para baixo."""
+        return gl.disposicao_valida(mdb.obter_config(self.db, gl.CHAVE_CONFIG, gl.DISPOSICAO_LADO_A_LADO))
 
     def _preparar_area(self):
         self.app.limpar_area_principal()
@@ -430,12 +437,13 @@ class MapaUI:
         self.cb_setor_g.set("Todos os setores")
         _btn(barra, "Gerar", self._gerar_graficos, 90).pack(side="left", padx=(10, 6))
         _btn(barra, "Salvar imagens", self._salvar_graficos, 130, CINZA_BTN, CINZA_HOVER).pack(side="left")
+        _btn(barra, "Configurações", self._abrir_config, 120, CINZA_BTN, CINZA_HOVER).pack(side="right")
 
         self.quadro_kpi = ctk.CTkFrame(area, fg_color="transparent")
         self.quadro_kpi.pack(fill="x", padx=20, pady=(8, 2))
         self.quadro_graf = ctk.CTkScrollableFrame(area, fg_color="white")
         self.quadro_graf.pack(fill="both", expand=True, padx=20, pady=(4, 12))
-        self._agg = None
+        self._agg = self._grupos = self._painel = None
         self._gerar_graficos()
 
     def _parametros_graficos(self):
@@ -465,16 +473,29 @@ class MapaUI:
             cx.pack(side="left", padx=4, ipadx=8, ipady=4)
             ctk.CTkLabel(cx, text=val, font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC).pack(padx=8)
             ctk.CTkLabel(cx, text=rot, font=ctk.CTkFont(size=11), text_color="#546e7a").pack(padx=8)
+        self._grupos = self._mgr.gerar_por_grupo(self._agg)
+        self._montar_painel()
+
+    def _montar_painel(self):
+        """Desenha os grupos já gerados (self._grupos) no jeito escolhido em Configurações."""
+        import graficos_ui
         for w in self.quadro_graf.winfo_children():
             w.destroy()
-        from PIL import Image
-        for _, _, png in self._mgr.gerar_todos(self._agg):
-            img = Image.open(io.BytesIO(png)).convert("RGB")
-            largura = min(img.width, 840)
-            alt = int(img.height * largura / img.width)
-            ci = ctk.CTkImage(light_image=img, dark_image=img, size=(largura, alt))
-            self._imagens.append(ci)
-            ctk.CTkLabel(self.quadro_graf, text="", image=ci).pack(pady=6)
+        self._painel = graficos_ui.PainelGraficos(self.quadro_graf, self._grupos or [], self.disposicao_graficos)
+        self._imagens = self._painel.imagens
+
+    def aplicar_config_graficos(self):
+        """Depois de salvar as Configurações: se a tela de gráficos está aberta, redesenha no novo jeito.
+
+        Não gera os gráficos de novo (é a parte demorada): só reorganiza os que já existem.
+        """
+        quadro = getattr(self, "quadro_graf", None)
+        try:
+            aberta = quadro is not None and bool(quadro.winfo_exists()) and self._grupos is not None
+        except tk.TclError:
+            aberta = False
+        if aberta:
+            self._montar_painel()
 
     def _salvar_graficos(self):
         if not self._agg:
@@ -579,7 +600,7 @@ class _Janela(ctk.CTkToplevel):
 
 class DialogConfig(_Janela):
     def __init__(self, ui):
-        super().__init__(ui, "Configurações do Mapa", "560x300")
+        super().__init__(ui, "Configurações do Mapa", "560x390")
         ctk.CTkLabel(self, text="Critério de IMC para idosos (60 anos ou mais):").pack(anchor="w", padx=20, pady=(20, 2))
         self.cb_imc = ctk.CTkComboBox(self, values=list(nc.CRITERIOS_IMC_IDOSO.values()), width=500, state="readonly")
         self.cb_imc.pack(padx=20)
@@ -591,6 +612,11 @@ class DialogConfig(_Janela):
         self.cb_alt.set(nc.METODOS_ALTURA_IDOSO.get(ui.metodo_altura_idoso, nc.METODOS_ALTURA_IDOSO["chumlea1985"]))
         ctk.CTkLabel(self, text="Vale para os próximos registros e cálculos. Registros antigos não mudam.",
                      text_color="#546e7a").pack(anchor="w", padx=20, pady=(12, 0))
+        ctk.CTkLabel(self, text="Gráficos do mês (os gráficos ficam agrupados por assunto):").pack(
+            anchor="w", padx=20, pady=(16, 2))
+        self.cb_graf = ctk.CTkComboBox(self, values=list(gl.ROTULOS_DISPOSICAO.values()), width=500, state="readonly")
+        self.cb_graf.pack(padx=20)
+        self.cb_graf.set(gl.ROTULOS_DISPOSICAO[ui.disposicao_graficos])
         _btn(self, "Salvar", self._salvar, 120).pack(pady=16)
 
     def _salvar(self):
@@ -600,7 +626,9 @@ class DialogConfig(_Janela):
         for chave, rot in nc.METODOS_ALTURA_IDOSO.items():
             if rot == self.cb_alt.get():
                 mdb.salvar_config(self.ui.db, "metodo_altura_idoso", chave)
+        mdb.salvar_config(self.ui.db, gl.CHAVE_CONFIG, gl.rotulo_para_disposicao(self.cb_graf.get()))
         self.destroy()
+        self.ui.aplicar_config_graficos()
 
 
 class DialogLeitos(_Janela):
