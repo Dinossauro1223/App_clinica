@@ -27,6 +27,16 @@
 | 8 | Indicadores, relatórios e auditoria operacional | Dados/relatórios + QA | Fases 1–7 | Gráficos do mapa parciais |
 | 9 | Homologação e implantação hospitalar | QA + Segurança + Integrador | Fases 0–8 | Não iniciada |
 
+## Melhorias de uso fora das fases
+
+Ajustes de usabilidade pedidos pelo usuário que não pertencem a uma fase. Cada linha diz o que foi verificado de verdade.
+
+### 20/11/2026: atalhos, gráficos e tela de boas-vindas (branch `feat/atalhos-graficos-boas-vindas-2026-11-20`)
+
+| Entrega | Estado |
+|---|---|
+| Atalhos de edição no estilo do Google Planilhas (Ctrl+C/X/V, Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, F4, Ctrl+A, colar de planilha, Ctrl+C e Ctrl+A nas tabelas, F1) | Implementado em `atalhos_edicao.py` e ligado no `main.py`; 59 testes novos com widgets simulados e lógica pura. O comportamento no Tk real depende do CI (Windows e Linux) e de uso na máquina; lista em [`ATALHOS_DE_TECLADO.md`](docs/desenvolvimento/ATALHOS_DE_TECLADO.md) |
+
 ---
 
 # Fase 0 — Fundação técnica, segurança e reprodutibilidade
