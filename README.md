@@ -38,7 +38,7 @@ A análise considera o ZIP `App_clinica-main` enviado para esta conversa. O esta
 | Mapa por leito | `mapa_ui.py`, `mapa_db.py` | Implementado parcialmente; precisa de validação integrada com o banco principal |
 | Histórico/cópia diária | `mapa_db.py`, `mapa_ui.py` | Há histórico por paciente, navegação de datas e cópia do mapa anterior |
 | PDF/Excel do mapa | `mapa_export.py` | Exportação implementada; precisa de conferência com o modelo institucional real |
-| Gráficos do mapa | `mapa_graficos.py` | Agregação mensal e gráficos implementados |
+| Gráficos do mapa | `mapa_graficos.py`, `graficos_ui.py`, `graficos_layout.py`, [`GRAFICOS_AGRUPADOS.md`](docs/desenvolvimento/GRAFICOS_AGRUPADOS.md) | 8 gráficos agrupados por assunto (atendimentos, dieta, suplementos, doenças crônicas). Cada grupo é uma faixa que se arrasta para o lado, com setas e pontos; em Configurações do Mapa dá para trocar para a visualização de cima para baixo, também agrupada. Testado com widgets simulados e, no CI, com Tk real (`tools/verificar_interface_tk.py`) |
 | Atalhos de edição | `atalhos_edicao.py`, [`ATALHOS_DE_TECLADO.md`](docs/desenvolvimento/ATALHOS_DE_TECLADO.md) | Ctrl+C/X/V, Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, F4, Ctrl+A, colar de planilha e Ctrl+C nas tabelas, em todas as telas (F1 mostra a lista); testado com widgets simulados |
 | Catálogo inicial de suplementos | `mapa_db.py`, `mapa_ui.py` | Cadastro e manutenção do catálogo implementados; composição técnica inicial está incompleta |
 | Estimativas antropométricas | `nutri_calculos.py` | Estatura e peso por equações de Chumlea e IMC por faixa etária parcialmente implementados |
@@ -367,7 +367,10 @@ python tools\auditar_repositorio.py
 ├── mapa_db.py                        # Persistência do mapa, setores, leitos e suplementos
 ├── mapa_ui.py                        # Telas de mapa, gráficos e catálogo de suplementos
 ├── mapa_export.py                    # Exportação PDF/Excel do mapa
-├── mapa_graficos.py                  # Agregações e gráficos mensais
+├── mapa_graficos.py                  # Agregações e gráficos mensais, e os grupos de gráficos por assunto
+├── graficos_ui.py                    # Tela dos gráficos agrupados: faixa que se arrasta, setas e modo de cima para baixo
+├── graficos_layout.py                # Contas de posição e encaixe da faixa (Python puro, testado sem janela)
+├── atalhos_edicao.py                 # Atalhos de edição no estilo do Google Planilhas, em todas as telas
 ├── condutas_alta.py                  # Condutas de alta: catálogo, regras pelo Mapa, decisões e documento (Fase 4)
 ├── condutas_alta_ui.py               # Painel da consulta e janela das condutas de alta
 ├── condutas_alta_export.py           # PDF do paciente e do nutricionista, impressão
