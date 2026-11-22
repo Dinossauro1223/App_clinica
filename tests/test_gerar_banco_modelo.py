@@ -83,14 +83,23 @@ class TestBancoModelo(unittest.TestCase):
 
     def test_launcher_procura_exe_antes_de_compilar_e_gera_banco_sem_origem(self):
         launcher = (RAIZ / "Gerar_e_Abrir_NutriLab.bat").read_text(encoding="utf-8")
-        busca_exe = launcher.index('if exist "%~dp0NutriLab.exe"')
+        busca_dist = launcher.index('if exist "%~dp0dist\\NutriLab\\NutriLab.exe"')
+        busca_raiz = launcher.index('if not defined EXE if exist "%~dp0NutriLab.exe"')
         compilacao = launcher.index('call %PY_CMD% -m PyInstaller')
         geracao_banco = launcher.index('tools\\gerar_banco_modelo.py --sobrescrever')
-        self.assertLess(busca_exe, compilacao)
+        self.assertLess(busca_dist, busca_raiz)
+        self.assertLess(busca_raiz, compilacao)
         self.assertLess(geracao_banco, compilacao)
+        self.assertIn('dist\\NutriLab\\_internal\\python312.dll', launcher)
+        self.assertIn(':ERRO_DLL_AUSENTE', launcher)
         self.assertIn('call %PY_CMD% -m pip install -r requirements-build.txt', launcher)
         self.assertNotIn('python -m venv', launcher.lower())
         self.assertIn('nao e necessario possuir clinica.db previamente', launcher.lower())
+
+    def test_build_windows_verifica_dll_e_icone_do_pacote(self):
+        workflow = (RAIZ / ".github" / "workflows" / "build-windows.yml").read_text(encoding="utf-8")
+        self.assertIn('dist/NutriLab/_internal/python312.dll', workflow)
+        self.assertIn('assets/identidade/nutrilab.ico', workflow)
 
 
 if __name__ == "__main__":
