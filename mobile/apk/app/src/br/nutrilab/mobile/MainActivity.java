@@ -95,6 +95,126 @@ public class MainActivity extends Activity {
             }
         });
         abrir();
+        verificarAtualizacao();
+    }
+
+    private static final String REPO_RELEASES = "https://api.github.com/repos/Dinossauro1223/App_clinica/releases/latest";
+    private static final String APK_ASSET = "NutriLab-Mobile.apk";
+    private static final String PREF_DOWNLOAD_ID = "update_apk_download_id";
+
+    /** Consulta a release estável sem bloquear a abertura do mapa/interface. */
+    private void verificarAtualizacao() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                HttpURLConnection c = null;
+                try {
+                    c = (HttpURLConnection) new URL(REPO_RELEASES).openConnection();
+                    c.setConnectTimeout(7000);
+                    c.setReadTimeout(7000);
+                    c.setRequestProperty("Accept", "application/vnd.github+json");
+                    c.setRequestProperty("User-Agent", "NutriLab-Android");
+                    if (c.getResponseCode() != 200) throw new Exception("GitHub HTTP " + c.getResponseCode());
+                    BufferedReader br = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
+                    StringBuilder body = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) body.append(line);
+                    br.close();
+                    JSONObject release = new JSONObject(body.toString());
+                    String latest = release.optString("tag_name", "").replaceFirst("^[vV]", "");
+                    String installed = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+                    if (latest.isEmpty()) throw new Exception("Release sem tag de versão.");
+                    if (compararVersoes(latest, installed) > 0) {
+                        org.json.JSONArray assets = release.optJSONArray("assets");
+                        String apkUrl = null;
+                        if (assets != null) {
+                            for (int i = 0; i < assets.length(); i++) {
+                                JSONObject asset = assets.getJSONObject(i);
+                                if (APK_ASSET.equals(asset.optString("name"))) {
+                                    apkUrl = asset.optString("browser_download_url");
+                                    break;
+                                }
+                            }
+                        }
+                        if (apkUrl == null || !apkUrl.startsWith("https://")) {
+                            throw new Exception("A release " + latest + " ainda não contém o APK.");
+                        }
+                        final String url = apkUrl;
+                        runOnUiThread(new Runnable() {
+                            @Override public void run() { oferecerAtualizacao(installed, latest, url); }
+                        });
+                    } else {
+                        limparDownloadsTemporarios();
+                    }
+                } catch (Exception e) {
+                    // Falha de rede/API nunca é interpretada como "já atualizado" e nunca apaga arquivos.
+                    android.util.Log.w("NutriLabUpdate", "Não foi possível verificar atualização", e);
+                } finally {
+                    if (c != null) c.disconnect();
+                }
+            }
+        }, "nutrilab-update-check").start();
+    }
+
+    private int compararVersoes(String a, String b) {
+        String[] aa = a.split("\\."), bb = (b == null ? "0" : b).split("\\.");
+        for (int i = 0; i < Math.max(aa.length, bb.length); i++) {
+            int x = i < aa.length ? numeroVersao(aa[i]) : 0;
+            int y = i < bb.length ? numeroVersao(bb[i]) : 0;
+            if (x != y) return x > y ? 1 : -1;
+        }
+        return 0;
+    }
+
+    private int numeroVersao(String s) {
+        try { return Integer.parseInt(s.replaceAll("[^0-9].*$", "")); }
+        catch (Exception e) { return 0; }
+    }
+
+    private void oferecerAtualizacao(String atual, String nova, final String url) {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Atualização do NutriLab")
+                .setMessage("Versão instalada: " + atual + "\\nNova versão: " + nova
+                        + "\\n\\nDeseja baixar o APK? A instalação será confirmada pelo Android. "
+                        + "Seus dados locais e a fila offline não serão apagados.")
+                .setNegativeButton("Depois", null)
+                .setPositiveButton("Baixar APK", (dialog, which) -> baixarApk(url, nova))
+                .show();
+    }
+
+    private void baixarApk(String url, String versao) {
+        try {
+            android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            android.app.DownloadManager.Request req = new android.app.DownloadManager.Request(Uri.parse(url));
+            req.setTitle("NutriLab Mobile " + versao);
+            req.setDescription("Baixando atualização oficial");
+            req.setMimeType("application/vnd.android.package-archive");
+            req.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            req.setDestinationInExternalFilesDir(this, android.os.Environment.DIRECTORY_DOWNLOADS,
+                    "NutriLab-Mobile-" + versao + ".apk");
+            long id = dm.enqueue(req);
+            prefs.edit().putLong(PREF_DOWNLOAD_ID, id).apply();
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Download iniciado")
+                    .setMessage("O Android avisará quando o APK estiver pronto. Toque na notificação para iniciar a instalação.")
+                    .setPositiveButton("OK", null).show();
+        } catch (Exception e) {
+            new android.app.AlertDialog.Builder(this).setTitle("Não foi possível baixar")
+                    .setMessage(e.getMessage()).setPositiveButton("OK", null).show();
+        }
+    }
+
+    /** Remove somente o registro/arquivo do DownloadManager criado por esta função. */
+    private void limparDownloadsTemporarios() {
+        long id = prefs.getLong(PREF_DOWNLOAD_ID, -1L);
+        if (id >= 0) {
+            try {
+                android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                dm.remove(id);
+            } catch (Exception e) {
+                android.util.Log.w("NutriLabUpdate", "Falha ao limpar APK temporário", e);
+            }
+            prefs.edit().remove(PREF_DOWNLOAD_ID).apply();
+        }
     }
 
     private void abrir() {
