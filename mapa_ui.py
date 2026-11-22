@@ -168,6 +168,11 @@ class MapaUI:
         self.tree.pack(side="left", fill="both", expand=True, padx=(6, 0), pady=6)
         rolagem.pack(side="right", fill="y", pady=6)
         self.tree.bind("<Double-1>", lambda e: self._editar())
+        # Ações frequentes também ficam disponíveis pelo teclado, sem depender dos botões.
+        self.tree.bind("<Return>", self._atalho_editar)
+        self.tree.bind("<F2>", self._atalho_editar)
+        self.tree.bind("<Control-h>", self._atalho_historico)
+        self.tree.bind("<Control-H>", self._atalho_historico)
 
         self.lbl_resumo = ctk.CTkLabel(area, text="", font=ctk.CTkFont(size=12), text_color="#37474f")
         self.lbl_resumo.pack(fill="x", padx=22, pady=(0, 10), anchor="w")
@@ -309,6 +314,16 @@ class MapaUI:
         it = self._selecionado()
         if it:
             FormRegistro(self, it)
+
+    def _atalho_editar(self, _evento=None):
+        """Abre o formulário do leito selecionado (Enter/F2)."""
+        self._editar()
+        return "break"
+
+    def _atalho_historico(self, _evento=None):
+        """Abre o histórico do paciente selecionado (Ctrl+H)."""
+        self._historico()
+        return "break"
 
     def _historico(self):
         it = self._selecionado()
