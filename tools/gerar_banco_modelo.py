@@ -13,6 +13,11 @@ import sqlite3
 import sys
 from pathlib import Path
 
+# Permite executar como `python tools/gerar_banco_modelo.py` no Windows e Linux.
+RAIZ = Path(__file__).resolve().parent.parent
+if str(RAIZ) not in sys.path:
+    sys.path.insert(0, str(RAIZ))
+
 TABELAS_QUE_DEVEM_FICAR_VAZIAS = (
     "Pacientes", "Consultas", "Exames_Solicitados", "Arquivos_Paciente",
     "Resultados_Exames", "Mapa_Registros", "Mapa_Registro_Suplementos",
@@ -28,12 +33,12 @@ def _gerar_em(caminho: Path) -> dict:
     # Imports tardios: o script pode ser importado pelos testes sem iniciar a interface.
     import db_migracoes
     import mapa_db
-    import main
+    import db_esquema_legado
 
     # Cria o esquema-base em banco novo e aplica exatamente as migrações do aplicativo.
     db_migracoes.aplicar_migracoes(
         caminho,
-        inicializador_legado=main.garantir_esquema_legado,
+        inicializador_legado=db_esquema_legado.garantir_esquema_legado,
         backup=False,
     )
     # O Mapa possui tabelas e catálogos próprios, inicializados na primeira abertura do programa.
