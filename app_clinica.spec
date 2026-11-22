@@ -12,6 +12,12 @@ if not os.path.isfile(MODELO_BANCO):
         "(nao e necessario possuir clinica.db)."
     )
 
+PASTA_CAMADAS = os.path.join(SPECPATH, 'assets', 'identidade', 'renderizados')
+if not os.path.isfile(os.path.join(PASTA_CAMADAS, 'folhas.json')):
+    raise SystemExit(
+        "Camadas da tela inicial ausentes. Execute: python tools\\\\gerar_identidade_visual.py."
+    )
+
 CUSTOMTKINTER_PATH = os.path.dirname(customtkinter.__file__)
 
 # Os componentes SVG são renderizados em camadas RGBA antes da compilação,
@@ -20,7 +26,7 @@ ARQUIVOS_DATA = [
     (CUSTOMTKINTER_PATH, 'customtkinter'),
     ('welcome_nutrilab.png', '.'),
     (os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab_identidade.png'), '.'),
-    (os.path.join(SPECPATH, 'assets', 'identidade', 'renderizados'), 'identidade_camadas'),
+    (PASTA_CAMADAS, 'identidade_camadas'),
     (os.path.join(SPECPATH, 'mobile', 'servidor.py'), 'mobile'),
     (os.path.join(SPECPATH, 'mobile', 'static'), 'mobile/static'),
     (MODELO_BANCO, '.'),
