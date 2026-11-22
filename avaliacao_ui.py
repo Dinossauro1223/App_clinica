@@ -127,7 +127,9 @@ class AvaliacaoUI:
         self.campos["idade"].delete(0, "end")
         if idade is not None:
             self.campos["idade"].insert(0, str(idade))
-        self.combo_sexo.set(row[3] or "Selecione sexo")
+        sexo = nc.norm_sexo(row[3])
+        if sexo:
+            self.combo_sexo.set("Homem" if sexo == "H" else "Mulher")
 
     def calcular(self):
         d = {k: e.get() for k, e in self.campos.items()}
