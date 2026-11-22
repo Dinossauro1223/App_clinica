@@ -232,8 +232,10 @@ class AppClinica(ctk.CTk):
         self.menu_lateral.grid(row=0, column=0, sticky="nsew")
         self.menu_lateral.grid_rowconfigure(4, weight=1)
 
+        self.btn_menu_toggle = ctk.CTkButton(self.menu_lateral, text="☰", width=40, height=36, fg_color="transparent", hover_color="#14513C", text_color="#ffffff", font=ctk.CTkFont(size=18, weight="bold"), command=self.alternar_menu)
+        self.btn_menu_toggle.grid(row=0, column=0, padx=8, pady=(12, 8))
         self.label_menu = ctk.CTkLabel(self.menu_lateral, text="Menu", font=ctk.CTkFont(size=24, weight="bold"), text_color="#ffffff")
-        self.label_menu.grid(row=0, column=0, padx=20, pady=(20, 10))
+        self.label_menu.grid(row=0, column=1, padx=8, pady=(12, 8), sticky="w")
 
         self.btn_pacientes = ctk.CTkButton(self.menu_lateral, text="Pacientes", command=self.tela_pacientes, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
         self.btn_pacientes.grid(row=1, column=0, padx=20, pady=10)
@@ -247,14 +249,17 @@ class AppClinica(ctk.CTk):
         # --- Mapa Nutricional ---
         self.menu_mapa = ctk.CTkFrame(self.menu_lateral, fg_color="transparent")
         self.menu_mapa.grid(row=4, column=0, sticky="new")
+        self.menu_mapa_botoes = []
         for texto, comando in (("Mapa Nutricional", self.tela_mapa),
                                ("Gráficos do Mês", self.tela_mapa_graficos),
                                ("Suplementos", self.tela_suplementos),
                                ("Mobile (copa)", self.tela_mobile),
                                ("Triagem NRS-2002", self.tela_nrs),
                                ("Configurações", self.tela_configuracoes)):
-            ctk.CTkButton(self.menu_mapa, text=texto, command=comando, fg_color="#4caf50", hover_color="#388e3c",
-                          text_color="#ffffff", width=160, font=ctk.CTkFont(size=14, weight="bold")).pack(padx=20, pady=10)
+            botao = ctk.CTkButton(self.menu_mapa, text=texto, command=comando, fg_color="#4caf50", hover_color="#388e3c",
+                          text_color="#ffffff", width=160, font=ctk.CTkFont(size=14, weight="bold"))
+            botao.pack(padx=20, pady=10)
+            self.menu_mapa_botoes.append((botao, texto))
 
         # Rodapé fixado na parte inferior do menu lateral
         self.label_copyright = ctk.CTkLabel(
@@ -272,6 +277,36 @@ class AppClinica(ctk.CTk):
         self.area_principal.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
         
         self.tela_inicial()
+
+    def alternar_menu(self):
+        """Alterna a largura da navegação lateral, preservando os rótulos das opções."""
+        self.menu_compacto = not getattr(self, "menu_compacto", False)
+        compacto = self.menu_compacto
+        largura = 58 if compacto else 200
+        self.menu_lateral.configure(width=largura)
+        self.menu_lateral.grid_propagate(False)
+        self.grid_columnconfigure(0, minsize=largura)
+        self.grid_columnconfigure(1, weight=1)
+        if compacto:
+            self.label_menu.grid_remove()
+            self.label_copyright.grid_remove()
+            for botao, rotulo in ((self.btn_pacientes, "👥"), (self.btn_consultas, "📝"), (self.btn_exames, "🧪")):
+                botao.configure(text=rotulo, width=40, font=ctk.CTkFont(size=17, weight="bold"))
+                botao.grid_configure(padx=8, pady=6)
+            icones = {"Mapa Nutricional": "🗺️", "Gráficos do Mês": "📊", "Suplementos": "🥣", "Mobile (copa)": "📱", "Triagem NRS-2002": "🩺", "Configurações": "⚙️"}
+            for botao, rotulo in self.menu_mapa_botoes:
+                botao.configure(text=icones.get(rotulo, "•"), width=40, font=ctk.CTkFont(size=17, weight="bold"))
+                botao.pack_configure(padx=8, pady=6)
+        else:
+            self.label_menu.grid()
+            self.label_copyright.grid()
+            for botao, rotulo in ((self.btn_pacientes, "Pacientes"), (self.btn_consultas, "Nova Consulta"), (self.btn_exames, "Catálogo de Exames")):
+                botao.configure(text=rotulo, width=160, font=ctk.CTkFont(size=14, weight="bold"))
+                botao.grid_configure(padx=20, pady=10)
+            for botao, rotulo in self.menu_mapa_botoes:
+                botao.configure(text=rotulo, width=160, font=ctk.CTkFont(size=14, weight="bold"))
+                botao.pack_configure(padx=20, pady=10)
+        return "break"
 
     def tela_configuracoes(self):
         from configuracoes_ui import ConfiguracoesUI
