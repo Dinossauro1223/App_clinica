@@ -1,8 +1,15 @@
 # -*- coding: utf-8 -*-
 """Agregação mensal e gráficos do Mapa Nutricional.
 
-Os gráficos são gerados com matplotlib (backend Agg, sem janela) e devolvidos como
-bytes PNG; a interface só mostra a imagem. Cada registro do mapa (um leito num dia)
+Fluxo: os registros do mês viram um resumo (`agregar_mes`); o resumo vira a ESPECIFICAÇÃO de cada gráfico
+(`especificar_todos`: um dict simples com tipo, título, números e cores, sem nenhuma biblioteca de desenho); e a
+especificação é desenhada por quem precisar:
+
+* a tela desenha direto no Canvas, com animação (graficos_nativos.py e graficos_ui.py), sem matplotlib;
+* "Salvar imagens" e a imagem de reserva usam matplotlib (backend Agg, sem janela) e devolvem bytes PNG
+  (`renderizar_png`). O matplotlib só é carregado nessa hora, o que deixa a tela de gráficos bem mais rápida.
+
+Como tela e imagem saem da MESMA especificação, os números nunca divergem. Cada registro do mapa (um leito num dia)
 conta como um atendimento.
 """
 import calendar
@@ -10,13 +17,7 @@ import io
 import os
 from collections import Counter
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.ticker import MaxNLocator  # noqa: E402
-
-import mapa_db as mdb  # noqa: E402
+import mapa_db as mdb
 
 MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
          "setembro", "outubro", "novembro", "dezembro"]
@@ -104,104 +105,69 @@ def agregar_mes(registros, ano, mes):
             "cronicas": cronicas, "dieta_carac": dieta_carac, "kpis": kpis}
 
 
-# ------------------------------------------------------------------------ gráficos
+# ------------------------------------------------------------------------ especificações (sem biblioteca de desenho)
+# Cada função devolve um dict. Campos comuns: tipo, titulo, periodo ("outubro de 2026"). Tipos:
+#   "vazio"     mensagem                      (nada para mostrar no período)
+#   "barras_v"  x, y, dicas, cor, rotulo_x, rotulo_y
+#   "linhas"    x, series[{nome, cor, tracejado, valores}], rotulo_x, rotulo_y
+#   "roscas"    blocos[{nome, itens[{rotulo, valor, cor}]}]
+#   "barras_h"  itens[{nome, valor}] (de cima para baixo), total, cor, rotulo_x
 
 
-def _png(fig):
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=100, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
-    return buf.getvalue()
+def _periodo(agg):
+    return f"{MESES[agg['mes'] - 1]} de {agg['ano']}"
 
 
-def _titulo(agg, texto):
-    return f"{texto} - {MESES[agg['mes'] - 1]} de {agg['ano']}"
+def _vazio(agg, titulo):
+    return {"tipo": "vazio", "titulo": titulo, "periodo": _periodo(agg),
+            "mensagem": "Sem registros para exibir neste período."}
 
 
-def _vazio(agg, texto):
-    fig, ax = plt.subplots(figsize=(9, 2.2))
-    ax.axis("off")
-    ax.text(0.5, 0.62, _titulo(agg, texto), ha="center", fontsize=12, fontweight="bold", color=VERDE_ESC)
-    ax.text(0.5, 0.25, "Sem registros para exibir neste período.", ha="center", fontsize=10, color=CINZA)
-    return _png(fig)
-
-
-def grafico_atendimentos_dia(agg):
+def spec_atendimentos_dia(agg):
     titulo = "Pacientes atendidos por dia"
     if not agg["kpis"]["atendimentos"]:
         return _vazio(agg, titulo)
     dias = sorted(agg["dias"])
     vals = [agg["dias"][d]["total"] for d in dias]
-    fig, ax = plt.subplots(figsize=(9, 3.4))
-    barras = ax.bar(dias, vals, color=VERDE, width=0.72)
-    for b, v in zip(barras, vals):
-        if v:
-            ax.text(b.get_x() + b.get_width() / 2, v + 0.05 * max(vals), str(v), ha="center", va="bottom", fontsize=8)
-    ax.set_title(_titulo(agg, titulo), fontsize=12, fontweight="bold", color=VERDE_ESC)
-    ax.set_xlabel("Dia do mês")
-    ax.set_ylabel("Pacientes")
-    ax.set_xticks(dias)
-    ax.tick_params(axis="x", labelsize=7)
-    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.set_ylim(0, max(vals) * 1.18)
-    ax.spines[["top", "right"]].set_visible(False)
-    return _png(fig)
+    return {"tipo": "barras_v", "titulo": titulo, "periodo": _periodo(agg), "x": dias, "y": vals,
+            "dicas": [f"Dia {d}: {v} {'paciente' if v == 1 else 'pacientes'}" for d, v in zip(dias, vals)],
+            "cor": VERDE, "rotulo_x": "Dia do mês", "rotulo_y": "Pacientes"}
 
 
-def grafico_perfil_dia(agg):
+def spec_perfil_dia(agg):
     titulo = "Perfil dos atendidos por dia"
     if not agg["kpis"]["atendimentos"]:
         return _vazio(agg, titulo)
     dias = sorted(agg["dias"])
-    fig, ax = plt.subplots(figsize=(9, 3.4))
-    series = [("total", "Total atendidos", CINZA, "--"), ("pastosa", "Dieta pastosa", LARANJA, "-"),
-              ("acomp", "Com acompanhante", AZUL, "-"), ("supl", "Com suplemento", VERDE_ESC, "-")]
-    for chave, rot, cor, estilo in series:
-        ax.plot(dias, [agg["dias"][d][chave] for d in dias], estilo, color=cor, marker="o", ms=3.5, lw=1.8, label=rot)
-    ax.set_title(_titulo(agg, titulo), fontsize=12, fontweight="bold", color=VERDE_ESC)
-    ax.set_xlabel("Dia do mês")
-    ax.set_ylabel("Pacientes")
-    ax.set_xticks(dias)
-    ax.tick_params(axis="x", labelsize=7)
-    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.set_ylim(bottom=0)
-    ax.legend(fontsize=8, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.22), frameon=False)
-    ax.spines[["top", "right"]].set_visible(False)
-    return _png(fig)
+    definicao = [("total", "Total atendidos", CINZA, True), ("pastosa", "Dieta pastosa", LARANJA, False),
+                 ("acomp", "Com acompanhante", AZUL, False), ("supl", "Com suplemento", VERDE_ESC, False)]
+    series = [{"nome": nome, "cor": cor, "tracejado": trac, "valores": [agg["dias"][d][chave] for d in dias]}
+              for chave, nome, cor, trac in definicao]
+    return {"tipo": "linhas", "titulo": titulo, "periodo": _periodo(agg), "x": dias, "series": series,
+            "rotulo_x": "Dia do mês", "rotulo_y": "Pacientes"}
 
 
-def _barras_h(agg, titulo, contagem, ordem=None, cor=VERDE, maximo=12, rotulo_x="Atendimentos (paciente-dia)"):
+def _spec_barras_h(agg, titulo, contagem, ordem=None, cor=VERDE, maximo=12, rotulo_x="Atendimentos (paciente-dia)"):
     if not contagem:
         return _vazio(agg, titulo)
     itens = [(k, contagem[k]) for k in ordem if k in contagem] if ordem else contagem.most_common(maximo)
     itens = itens[:maximo]
-    total = agg["kpis"]["atendimentos"] or 1
-    nomes = [i[0] for i in itens][::-1]
-    vals = [i[1] for i in itens][::-1]
-    fig, ax = plt.subplots(figsize=(9, max(2.2, 0.42 * len(itens) + 1.3)))
-    barras = ax.barh(nomes, vals, color=cor, height=0.62)
-    for b, v in zip(barras, vals):
-        ax.text(v + 0.01 * max(vals), b.get_y() + b.get_height() / 2, f"{v}  ({100.0 * v / total:.0f}%)",
-                va="center", fontsize=8)
-    ax.set_title(_titulo(agg, titulo), fontsize=12, fontweight="bold", color=VERDE_ESC)
-    ax.set_xlabel(rotulo_x)
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.set_xlim(0, max(vals) * 1.22)
-    ax.spines[["top", "right"]].set_visible(False)
-    return _png(fig)
+    return {"tipo": "barras_h", "titulo": titulo, "periodo": _periodo(agg),
+            "itens": [{"nome": nome, "valor": valor} for nome, valor in itens],
+            "total": agg["kpis"]["atendimentos"] or 1, "cor": cor, "rotulo_x": rotulo_x}
 
 
-def grafico_consistencia(agg):
-    ordem = mdb.CONSISTENCIAS + ["Não informada"]
-    return _barras_h(agg, "Consistência da dieta", agg["consist"], ordem=ordem, cor=LARANJA)
+def spec_consistencia(agg):
+    return _spec_barras_h(agg, "Consistência da dieta", agg["consist"], ordem=mdb.CONSISTENCIAS + ["Não informada"],
+                          cor=LARANJA)
 
 
-def grafico_suplementos(agg):
-    return _barras_h(agg, "Suplementos mais utilizados", agg["sup_nome"], cor=VERDE_ESC)
+def spec_suplementos(agg):
+    return _spec_barras_h(agg, "Suplementos mais utilizados", agg["sup_nome"], cor=VERDE_ESC)
 
 
-def grafico_modulos(agg):
-    return _barras_h(agg, "Uso por módulo de suplemento", agg["sup_mod"], cor=VERDE)
+def spec_modulos(agg):
+    return _spec_barras_h(agg, "Uso por módulo de suplemento", agg["sup_mod"], cor=VERDE)
 
 
 def _ordem_das_caracteristicas(cronicas):
@@ -209,45 +175,41 @@ def _ordem_das_caracteristicas(cronicas):
     return [nome for campo, _, nome in mdb.CARACTERISTICAS if (campo in CAMPOS_CRONICOS) == cronicas]
 
 
-def grafico_caracteristicas(agg):
+def spec_caracteristicas(agg):
     """Características da dieta que não são doenças (laxativa, constipante)."""
-    return _barras_h(agg, "Características da dieta", agg["dieta_carac"], ordem=_ordem_das_caracteristicas(False),
-                     cor=LARANJA)
+    return _spec_barras_h(agg, "Características da dieta", agg["dieta_carac"],
+                          ordem=_ordem_das_caracteristicas(False), cor=LARANJA)
 
 
-def grafico_cronicas(agg):
+def spec_cronicas(agg):
     """Doenças crônicas marcadas no mapa (diabetes, hipertensão, doença renal)."""
-    return _barras_h(agg, "Doenças crônicas", agg["cronicas"], ordem=_ordem_das_caracteristicas(True), cor=AZUL)
+    return _spec_barras_h(agg, "Doenças crônicas", agg["cronicas"], ordem=_ordem_das_caracteristicas(True), cor=AZUL)
 
 
-def grafico_resumo(agg):
+def spec_resumo(agg):
     titulo = "Via da dieta, acompanhante e suplemento"
     if not agg["kpis"]["atendimentos"]:
         return _vazio(agg, titulo)
-    fig, eixos = plt.subplots(1, 3, figsize=(9, 3.0))
     blocos = [("Via da dieta", agg["via"], {"Oral": VERDE, "Enteral": AZUL, "Não informada": CINZA}),
               ("Acompanhante", agg["acomp"], {"Sim": VERDE, "Não": CINZA}),
               ("Uso de suplemento", agg["supl_sn"], {"Sim": VERDE_ESC, "Não": CINZA})]
-    for ax, (nome, cont, cores) in zip(eixos, blocos):
-        chaves = [k for k in cont if cont[k]]
-        ax.pie([cont[k] for k in chaves], labels=[f"{k}\n{cont[k]}" for k in chaves],
-               colors=[cores.get(k, CINZA) for k in chaves], startangle=90, counterclock=False,
-               wedgeprops={"width": 0.45, "edgecolor": "white"}, textprops={"fontsize": 8})
-        ax.set_title(nome, fontsize=10, color=VERDE_ESC)
-    fig.suptitle(_titulo(agg, titulo), fontsize=12, fontweight="bold", color=VERDE_ESC)
-    return _png(fig)
+    return {"tipo": "roscas", "titulo": titulo, "periodo": _periodo(agg),
+            "blocos": [{"nome": nome, "itens": [{"rotulo": k, "valor": cont[k], "cor": cores.get(k, CINZA)}
+                                                for k in list(cores) + [k for k in cont if k not in cores]
+                                                if cont.get(k)]}
+                       for nome, cont, cores in blocos]}
 
 
-# chave -> (título curto, função que desenha). A ordem de exibição vem de GRUPOS.
+# chave -> (título curto, função que monta a especificação). A ordem de exibição vem de GRUPOS.
 GRAFICOS = {
-    "atendimentos_dia": ("Pacientes atendidos por dia", grafico_atendimentos_dia),
-    "perfil_dia": ("Perfil por dia", grafico_perfil_dia),
-    "resumo": ("Via, acompanhante e suplemento", grafico_resumo),
-    "consistencia": ("Consistência da dieta", grafico_consistencia),
-    "caracteristicas": ("Características da dieta", grafico_caracteristicas),
-    "suplementos": ("Suplementos mais utilizados", grafico_suplementos),
-    "modulos": ("Uso por módulo", grafico_modulos),
-    "cronicas": ("Doenças crônicas", grafico_cronicas),
+    "atendimentos_dia": ("Pacientes atendidos por dia", spec_atendimentos_dia),
+    "perfil_dia": ("Perfil por dia", spec_perfil_dia),
+    "resumo": ("Via, acompanhante e suplemento", spec_resumo),
+    "consistencia": ("Consistência da dieta", spec_consistencia),
+    "caracteristicas": ("Características da dieta", spec_caracteristicas),
+    "suplementos": ("Suplementos mais utilizados", spec_suplementos),
+    "modulos": ("Uso por módulo", spec_modulos),
+    "cronicas": ("Doenças crônicas", spec_cronicas),
 }
 
 
@@ -257,15 +219,16 @@ def ordem_de_exibicao():
     return ordem + [c for c in GRAFICOS if c not in ordem]
 
 
-def gerar_todos(agg):
-    """Lista [(chave, título, bytes PNG)] na ordem de exibição."""
+def especificar_todos(agg):
+    """Lista [(chave, título, especificação)] na ordem de exibição. Rápido: não carrega matplotlib."""
     return [(c, GRAFICOS[c][0], GRAFICOS[c][1](agg)) for c in ordem_de_exibicao()]
 
 
 def organizar_por_grupo(graficos):
-    """Agrupa [(chave, título, png)] segundo GRUPOS. Devolve [{id, titulo, descricao, cor, graficos}].
+    """Agrupa [(chave, título, conteúdo)] segundo GRUPOS. Devolve [{id, titulo, descricao, cor, graficos}].
 
-    Gráfico que não está em nenhum grupo vai para "Outros gráficos"; grupo sem nenhum gráfico não aparece.
+    O conteúdo pode ser a especificação ou o PNG. Gráfico que não está em nenhum grupo vai para "Outros gráficos";
+    grupo sem nenhum gráfico não aparece.
     """
     por_chave = {g[0]: g for g in graficos}
     usados, grupos = set(), []
@@ -280,9 +243,163 @@ def organizar_por_grupo(graficos):
     return grupos
 
 
+def especificar_por_grupo(agg):
+    """As especificações dos gráficos do mês já agrupadas por assunto."""
+    return organizar_por_grupo(especificar_todos(agg))
+
+
+# ------------------------------------------------------------------------ imagens (matplotlib, só quando precisa)
+def _plt():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    return plt
+
+
+def _png(fig):
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=100, bbox_inches="tight", facecolor="white")
+    _plt().close(fig)
+    return buf.getvalue()
+
+
+def _titulo(spec):
+    return f"{spec['titulo']} - {spec['periodo']}"
+
+
+def _png_vazio(spec):
+    fig, ax = _plt().subplots(figsize=(9, 2.2))
+    ax.axis("off")
+    ax.text(0.5, 0.62, _titulo(spec), ha="center", fontsize=12, fontweight="bold", color=VERDE_ESC)
+    ax.text(0.5, 0.25, spec["mensagem"], ha="center", fontsize=10, color=CINZA)
+    return _png(fig)
+
+
+def _png_barras_v(spec):
+    from matplotlib.ticker import MaxNLocator
+    dias, vals = spec["x"], spec["y"]
+    fig, ax = _plt().subplots(figsize=(9, 3.4))
+    barras = ax.bar(dias, vals, color=spec["cor"], width=0.72)
+    for b, v in zip(barras, vals):
+        if v:
+            ax.text(b.get_x() + b.get_width() / 2, v + 0.05 * max(vals), str(v), ha="center", va="bottom", fontsize=8)
+    ax.set_title(_titulo(spec), fontsize=12, fontweight="bold", color=VERDE_ESC)
+    ax.set_xlabel(spec["rotulo_x"])
+    ax.set_ylabel(spec["rotulo_y"])
+    ax.set_xticks(dias)
+    ax.tick_params(axis="x", labelsize=7)
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_ylim(0, max(vals) * 1.18)
+    ax.spines[["top", "right"]].set_visible(False)
+    return _png(fig)
+
+
+def _png_linhas(spec):
+    from matplotlib.ticker import MaxNLocator
+    dias = spec["x"]
+    fig, ax = _plt().subplots(figsize=(9, 3.4))
+    for serie in spec["series"]:
+        ax.plot(dias, serie["valores"], "--" if serie["tracejado"] else "-", color=serie["cor"], marker="o", ms=3.5,
+                lw=1.8, label=serie["nome"])
+    ax.set_title(_titulo(spec), fontsize=12, fontweight="bold", color=VERDE_ESC)
+    ax.set_xlabel(spec["rotulo_x"])
+    ax.set_ylabel(spec["rotulo_y"])
+    ax.set_xticks(dias)
+    ax.tick_params(axis="x", labelsize=7)
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_ylim(bottom=0)
+    ax.legend(fontsize=8, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.22), frameon=False)
+    ax.spines[["top", "right"]].set_visible(False)
+    return _png(fig)
+
+
+def _png_barras_h(spec):
+    from matplotlib.ticker import MaxNLocator
+    itens = spec["itens"]
+    total = spec["total"]
+    nomes = [i["nome"] for i in itens][::-1]
+    vals = [i["valor"] for i in itens][::-1]
+    fig, ax = _plt().subplots(figsize=(9, max(2.2, 0.42 * len(itens) + 1.3)))
+    barras = ax.barh(nomes, vals, color=spec["cor"], height=0.62)
+    for b, v in zip(barras, vals):
+        ax.text(v + 0.01 * max(vals), b.get_y() + b.get_height() / 2, f"{v}  ({100.0 * v / total:.0f}%)",
+                va="center", fontsize=8)
+    ax.set_title(_titulo(spec), fontsize=12, fontweight="bold", color=VERDE_ESC)
+    ax.set_xlabel(spec["rotulo_x"])
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlim(0, max(vals) * 1.22)
+    ax.spines[["top", "right"]].set_visible(False)
+    return _png(fig)
+
+
+def _png_roscas(spec):
+    fig, eixos = _plt().subplots(1, 3, figsize=(9, 3.0))
+    for ax, bloco in zip(eixos, spec["blocos"]):
+        itens = bloco["itens"]
+        ax.pie([i["valor"] for i in itens], labels=[f"{i['rotulo']}\n{i['valor']}" for i in itens],
+               colors=[i["cor"] for i in itens], startangle=90, counterclock=False,
+               wedgeprops={"width": 0.45, "edgecolor": "white"}, textprops={"fontsize": 8})
+        ax.set_title(bloco["nome"], fontsize=10, color=VERDE_ESC)
+    fig.suptitle(_titulo(spec), fontsize=12, fontweight="bold", color=VERDE_ESC)
+    return _png(fig)
+
+
+_DESENHISTAS_PNG = {"vazio": _png_vazio, "barras_v": _png_barras_v, "linhas": _png_linhas,
+                    "barras_h": _png_barras_h, "roscas": _png_roscas}
+
+
+def renderizar_png(spec):
+    """Desenha uma especificação com matplotlib e devolve os bytes do PNG."""
+    return _DESENHISTAS_PNG[spec["tipo"]](spec)
+
+
+# Funções de um gráfico só, mantidas por compatibilidade: agregação -> PNG.
+def grafico_atendimentos_dia(agg):
+    return renderizar_png(spec_atendimentos_dia(agg))
+
+
+def grafico_perfil_dia(agg):
+    return renderizar_png(spec_perfil_dia(agg))
+
+
+def grafico_consistencia(agg):
+    return renderizar_png(spec_consistencia(agg))
+
+
+def grafico_suplementos(agg):
+    return renderizar_png(spec_suplementos(agg))
+
+
+def grafico_modulos(agg):
+    return renderizar_png(spec_modulos(agg))
+
+
+def grafico_caracteristicas(agg):
+    return renderizar_png(spec_caracteristicas(agg))
+
+
+def grafico_cronicas(agg):
+    return renderizar_png(spec_cronicas(agg))
+
+
+def grafico_resumo(agg):
+    return renderizar_png(spec_resumo(agg))
+
+
+def gerar_todos(agg):
+    """Lista [(chave, título, bytes PNG)] na ordem de exibição."""
+    return [(c, t, renderizar_png(spec)) for c, t, spec in especificar_todos(agg)]
+
+
 def gerar_por_grupo(agg):
-    """Os gráficos do mês já agrupados por assunto, prontos para a tela."""
+    """Os gráficos do mês em PNG, já agrupados por assunto (imagem de reserva)."""
     return organizar_por_grupo(gerar_todos(agg))
+
+
+def renderizar_grupos(grupos):
+    """Troca a especificação de cada gráfico pelo PNG correspondente, sem refazer as contas dos dados."""
+    return [{**g, "graficos": [(chave, titulo, renderizar_png(spec)) for chave, titulo, spec in g["graficos"]]}
+            for g in grupos]
 
 
 def salvar_graficos(agg, pasta):
