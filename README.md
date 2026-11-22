@@ -397,6 +397,13 @@ As pastas JSON podem ser necessárias ao programa. Não as apagar em massa. Ante
 
 ## 11. Segurança, privacidade e dados reais
 
+### Proteção do banco e recuperação
+
+O aplicativo cria snapshots do banco ao iniciar, a cada 15 minutos e antes do encerramento normal. Eles ficam em `backups/`, ao lado do banco local, e são verificados pelo SQLite. Em caso de falha no backup final, a janela permanece aberta para permitir nova tentativa. A restauração exige procedimento técnico controlado; ainda não há uma tela de seleção/restauração para o usuário.
+
+Consulte o [Guia do usuário — proteção e recuperação dos dados](docs/usuario/GUIA_PROTECAO_E_RECUPERACAO.md) para entender os horários, as mensagens, as limitações e os cuidados necessários.
+
+
 O projeto pode tratar dados pessoais sensíveis de saúde. Portanto:
 
 - Nunca versionar `clinica.db`, backups, WAL/journal, anexos de pacientes, PDFs de conduta, planilhas operacionais com dados reais ou exportações identificáveis.
