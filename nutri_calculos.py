@@ -112,6 +112,9 @@ _ALTURA_1998 = {
     ("M", "B"): (82.21, 1.85, -0.21),
     ("M", "N"): (89.58, 1.61, -0.17),
 }
+# Planilha do setor (aba Peso-Alt), 60-80 anos, sexo + cor: estatura = a + b*AJ + k*idade.
+_ALTURA_PLANILHA_60_80 = {("M", "B"): (75.0, 1.91, -0.17), ("M", "N"): (58.72, 1.96, 0.0),
+                          ("H", "B"): (59.01, 2.08, 0.0), ("H", "N"): (95.79, 1.37, 0.0)}
 # Peso = b_AJ * AJ + b_CB * CB + intercepto (Chumlea; tabela do POP.EMTN.002).
 _PESO_CHUMLEA = {
     ("crianca", "H", "B"): (0.68, 2.64, -50.08),
@@ -131,6 +134,7 @@ _PESO_CHUMLEA = {
 METODOS_ALTURA_IDOSO = {
     "chumlea1985": "Chumlea et al. (1985), 60-90 anos (só sexo)",
     "chumlea1998": "Chumlea et al. (1998), NHANES III (sexo + cor)",
+    "planilha": "Planilha do setor (Chumlea et al.), 60-80 anos (sexo + cor)",
 }
 CRITERIOS_IMC_IDOSO = {
     "lipschitz": "Lipschitz (1994): <22 / 22-27 / >27",
@@ -162,7 +166,14 @@ def estimar_altura(aj_cm, sexo, cor, idade_anos, metodo_idoso="chumlea1985"):
     faixa = faixa_etaria(idade)
     avisos = []
     if faixa == "idoso":
-        if metodo_idoso == "chumlea1998":
+        if metodo_idoso == "planilha":
+            if c is None:
+                raise EstimativaIndisponivel("Informe a cor (Branco/Negro) para esta equação.")
+            a, b, k = _ALTURA_PLANILHA_60_80[(s, c)]
+            nome = "Planilha do setor (Chumlea et al.), 60-80 anos"
+            if idade > 80:
+                avisos.append("Idade acima da faixa da planilha (60 a 80 anos).")
+        elif metodo_idoso == "chumlea1998":
             if c is None:
                 raise EstimativaIndisponivel("Informe a cor (Branco/Negro) para esta equação.")
             a, b, k = _ALTURA_1998[(s, c)]
