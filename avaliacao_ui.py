@@ -76,14 +76,14 @@ class AvaliacaoUI:
         rows = self._pacientes()
         valores = ["— Sem paciente —"] + [f"{r[0]} — {r[1]}" for r in rows]
         self.pacientes = {valores[i+1]: r for i, r in enumerate(rows)}
-        self.combo_paciente = ctk.CTkComboBox(card, values=valores, width=360, command=self._selecionar)
+        self.combo_paciente = ctk.CTkComboBox(card, values=valores, width=360, command=self._selecionar, state="readonly")
         self.combo_paciente.pack(anchor="w", padx=12, pady=(0, 8))
         self.combo_paciente.set(valores[0])
         self._entry(card, "idade", "Idade (anos completos)")
-        self.combo_sexo = ctk.CTkComboBox(card, values=["Homem", "Mulher"], width=180)
+        self.combo_sexo = ctk.CTkComboBox(card, values=["Homem", "Mulher"], width=180, state="readonly")
         self.combo_sexo.set("Selecione sexo")
         self.combo_sexo.pack(anchor="w", padx=12, pady=(0, 8))
-        self.combo_cor = ctk.CTkComboBox(card, values=["Branca", "Preta"], width=180)
+        self.combo_cor = ctk.CTkComboBox(card, values=["Branca", "Preta"], width=180, state="readonly")
         self.combo_cor.set("Selecione cor")
         self.combo_cor.pack(anchor="w", padx=12, pady=(0, 12))
 
@@ -96,17 +96,17 @@ class AvaliacaoUI:
 
     def _ajustes(self, scroll):
         card = self._card(scroll, "Edema, ascite e amputações")
-        self.combo_edema = ctk.CTkComboBox(card, values=list(av.EDEMA), width=290)
+        self.combo_edema = ctk.CTkComboBox(card, values=list(av.EDEMA), width=290, state="readonly")
         self.combo_edema.set("Ausente")
         self.combo_edema.pack(anchor="w", padx=12, pady=(0, 8))
-        self.combo_ascite = ctk.CTkComboBox(card, values=list(av.ASCITE), width=290)
+        self.combo_ascite = ctk.CTkComboBox(card, values=list(av.ASCITE), width=290, state="readonly")
         self.combo_ascite.set("Ausente")
         self.combo_ascite.pack(anchor="w", padx=12, pady=(0, 8))
         for nivel in av.AMPUTACOES:
             linha = ctk.CTkFrame(card, fg_color="transparent")
             linha.pack(fill="x", padx=12, pady=3)
             ctk.CTkLabel(linha, text=nivel, width=220, anchor="w", text_color=tema.TEXTO).pack(side="left")
-            campo = ctk.CTkComboBox(linha, values=["0", "1", "2"], width=70)
+            campo = ctk.CTkComboBox(linha, values=["0", "1", "2"], width=70, state="readonly")
             campo.set("0")
             campo.pack(side="left")
             self.amputacoes[nivel] = campo
@@ -115,7 +115,7 @@ class AvaliacaoUI:
         card = self._card(scroll, "Metas e DRI")
         self._entry(card, "kcalkg", "Meta energética (kcal/kg/dia)")
         self._entry(card, "ptnkg", "Meta proteica (g/kg/dia)")
-        self.combo_atividade = ctk.CTkComboBox(card, values=["Sedentário", "Pouco ativo", "Ativo", "Muito ativo"], width=240)
+        self.combo_atividade = ctk.CTkComboBox(card, values=["Sedentário", "Pouco ativo", "Ativo", "Muito ativo"], width=240, state="readonly")
         self.combo_atividade.set("Sedentário")
         self.combo_atividade.pack(anchor="w", padx=12, pady=(0, 12))
 
