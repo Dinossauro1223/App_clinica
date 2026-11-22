@@ -5,6 +5,9 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Base64;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -19,6 +22,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.KeyStore;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 
 import org.json.JSONObject;
 
@@ -65,7 +73,7 @@ public class MainActivity extends Activity {
             @Override
             public void onReceivedError(WebView v, WebResourceRequest pedido, WebResourceError erro) {
                 if (pedido.isForMainFrame()) {
-                    v.loadUrl("file:///android_asset/erro.html?motivo=conexao");
+                    abrirOffline();
                 }
             }
 
@@ -92,6 +100,28 @@ public class MainActivity extends Activity {
     private void abrir() {
         String url = prefs.getString("servidor", "");
         web.loadUrl(url.isEmpty() ? "file:///android_asset/config.html" : url);
+    }
+
+    /** Carrega uma cópia local da interface mantendo a origem do servidor para as chamadas /api. */
+    private void abrirOffline() {
+        String servidor = prefs.getString("servidor", "");
+        if (servidor.isEmpty()) {
+            web.loadUrl("file:///android_asset/config.html");
+            return;
+        }
+        try {
+            InputStream in = getAssets().open("index.html");
+            BufferedReader leitor = new BufferedReader(new InputStreamReader(in, "UTF-8"));
+            StringBuilder html = new StringBuilder();
+            String linha;
+            while ((linha = leitor.readLine()) != null) {
+                html.append(linha).append("\n");
+            }
+            leitor.close();
+            web.loadDataWithBaseURL(servidor + "/", html.toString(), "text/html", "UTF-8", null);
+        } catch (Exception e) {
+            web.loadUrl("file:///android_asset/erro.html?motivo=conexao");
+        }
     }
 
     @Override
@@ -167,6 +197,72 @@ public class MainActivity extends Activity {
 
     /** Ponte entre as paginas locais (config e erro) e o aplicativo. */
     public class Ponte {
+        private static final String CACHE_PREFIX = "cache:";
+        private static final String CACHE_ALIAS = "NutriLabOfflineCache";
+
+        private SecretKey chaveCache() throws Exception {
+            KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+            ks.load(null);
+            if (!ks.containsAlias(CACHE_ALIAS)) {
+                KeyGenerator gerador = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+                gerador.init(new KeyGenParameterSpec.Builder(CACHE_ALIAS,
+                        KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                        .setRandomizedEncryptionRequired(true).build());
+                gerador.generateKey();
+            }
+            return (SecretKey) ks.getKey(CACHE_ALIAS, null);
+        }
+
+        @JavascriptInterface
+        public String cacheGet(String chave) {
+            try {
+                String valor = prefs.getString(CACHE_PREFIX + chave, "");
+                if (valor.isEmpty()) return "";
+                String[] partes = valor.split(":", 2);
+                if (partes.length != 2) return "";
+                byte[] iv = Base64.decode(partes[0], Base64.NO_WRAP);
+                byte[] cifrado = Base64.decode(partes[1], Base64.NO_WRAP);
+                Cipher cifra = Cipher.getInstance("AES/GCM/NoPadding");
+                cifra.init(Cipher.DECRYPT_MODE, chaveCache(), new GCMParameterSpec(128, iv));
+                return new String(cifra.doFinal(cifrado), "UTF-8");
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        @JavascriptInterface
+        public boolean cacheSet(String chave, String texto) {
+            try {
+                Cipher cifra = Cipher.getInstance("AES/GCM/NoPadding");
+                cifra.init(Cipher.ENCRYPT_MODE, chaveCache());
+                byte[] cifrado = cifra.doFinal(texto.getBytes("UTF-8"));
+                String valor = Base64.encodeToString(cifra.getIV(), Base64.NO_WRAP) + ":"
+                        + Base64.encodeToString(cifrado, Base64.NO_WRAP);
+                prefs.edit().putString(CACHE_PREFIX + chave, valor).apply();
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public void cacheRemove(String chave) {
+            prefs.edit().remove(CACHE_PREFIX + chave).apply();
+        }
+
+        @JavascriptInterface
+        public void cacheClear() {
+            SharedPreferences.Editor editor = prefs.edit();
+            for (String chave : prefs.getAll().keySet()) {
+                if (chave.startsWith(CACHE_PREFIX + "GET:") || chave.equals(CACHE_PREFIX + "queue")) {
+                    editor.remove(chave);
+                }
+            }
+            editor.apply();
+        }
+
         @JavascriptInterface
         public String servidor() {
             return prefs.getString("servidor", "");

@@ -338,6 +338,27 @@ class TestExportacao(unittest.TestCase):
         os.remove(cls.db)
         shutil.rmtree(cls.saida, ignore_errors=True)
 
+    def test_suplemento_mostra_volume_refeicoes_agua_e_fruta_no_mapa(self):
+        linha = mex.textos_linha({"codigo": "A01"}, {
+            "nome_paciente": "Paciente", "suplementos": [
+                {"nome": "Fórmula", "ml_oferta": 120, "agua_ml": 30, "refeicoes": ["desjejum", "ceia"],
+                 "qtd_dia": 240, "batido_fruta": True, "unidade": "ml"},
+                {"nome": "Módulo", "ml_oferta": 20, "agua_ml": 0, "refeicoes": ["almoco"],
+                 "qtd_dia": 20, "batido_fruta": False, "unidade": "ml"}
+            ]})
+        self.assertIn("120 mL/oferta × 2 = 240 mL/d", linha["supl"][0])
+        self.assertIn("água: 30 mL/oferta", linha["supl"][0])
+        self.assertIn("(batido com fruta)", linha["supl"][0])
+        self.assertNotIn("batido com fruta", linha["supl"][1])
+
+    def test_exportacao_da_visao_geral_identifica_o_setor(self):
+        geral = mex._colunas("Todos_os_setores")
+        especifico = mex._colunas("Clínica A")
+        self.assertIn("setor", [c[0] for c in geral])
+        self.assertNotIn("setor", [c[0] for c in especifico])
+        textos = mex.textos_linha({"codigo": "A01", "setor": "UTI"}, None)
+        self.assertEqual(textos["setor"], "UTI")
+
     def test_textos_da_celula_do_paciente(self):
         reg = mdb.obter_registro(self.db, "2026-10-14", self.leitos[1]["id_leito"]) or self.dia[0]["registro"]
         reg = dict(reg, sexo="H", cor="N", aj_cm=48.0, pp_cm=32.5, pb_cm=27.0, altura_cm=165.0, altura_origem="E",

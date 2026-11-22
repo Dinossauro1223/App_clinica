@@ -104,8 +104,8 @@ class MapaUI:
     def mostrar_mapa(self):
         area = self._preparar_area()
         self.setores = mdb.listar_setores(self.db)
-        if not self.id_setor or self.id_setor not in [s["id_setor"] for s in self.setores]:
-            self.id_setor = self.setores[0]["id_setor"] if self.setores else None
+        if self.id_setor not in [s["id_setor"] for s in self.setores]:
+            self.id_setor = None  # None representa a visão geral de todos os setores.
 
         topo = ctk.CTkFrame(area, fg_color="transparent")
         topo.pack(fill="x", padx=20, pady=(15, 5))
@@ -122,11 +122,11 @@ class MapaUI:
         _btn(barra, "▶", lambda: self._mudar_dia(1), 40).pack(side="left")
         _btn(barra, "Hoje", self._ir_hoje, 70, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(8, 16))
         ctk.CTkLabel(barra, text="Setor:").pack(side="left")
-        self.cb_setor = ctk.CTkComboBox(barra, values=[s["nome"] for s in self.setores], width=190, state="readonly",
-                                        command=self._trocar_setor)
+        self.cb_setor = ctk.CTkComboBox(barra, values=["Visão geral (todos os setores)"] + [s["nome"] for s in self.setores],
+                                        width=190, state="readonly", command=self._trocar_setor)
         self.cb_setor.pack(side="left", padx=6)
-        if self.id_setor:
-            self.cb_setor.set([s["nome"] for s in self.setores if s["id_setor"] == self.id_setor][0])
+        self.cb_setor.set(next((s["nome"] for s in self.setores if s["id_setor"] == self.id_setor),
+                               "Visão geral (todos os setores)"))
 
         acoes = ctk.CTkFrame(area, fg_color="transparent")
         acoes.pack(fill="x", padx=20, pady=4)
@@ -169,9 +169,7 @@ class MapaUI:
         self._recarregar()
 
     def _trocar_setor(self, nome):
-        for s in self.setores:
-            if s["nome"] == nome:
-                self.id_setor = s["id_setor"]
+        self.id_setor = next((s["id_setor"] for s in self.setores if s["nome"] == nome), None)
         self._recarregar()
 
     def _mudar_dia(self, delta):
@@ -205,7 +203,7 @@ class MapaUI:
         for it in self.linhas:
             l, r = it["leito"], it["registro"]
             if r is None:
-                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "", "")
+                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "", "", l.get("setor", ""))
                 tag = ("vago",)
             else:
                 ocupados += 1
@@ -216,7 +214,7 @@ class MapaUI:
                 cond = resumo.get(r.get("id_paciente"), {})
                 vals = (l["codigo"], "Sim" if r.get("acompanhante") else "Não", r["nome_paciente"],
                         "" if r.get("idade_anos") is None else r["idade_anos"], imc, r.get("via") or "",
-                        r.get("consistencia") or "", ", ".join(s["nome"] for s in r["suplementos"]),
+                        r.get("consistencia") or "", ", ".join(s["nome"] + (" (batido com fruta)" if s.get("batido_fruta") else "") for s in r["suplementos"]),
                         self._fi_txt(r), cond.get("texto", ""))
                 tag = ("condpend",) if cond.get("estado") == "pendente" else ()
                 com_pendencia += cond.get("estado") == "pendente"
@@ -361,7 +359,7 @@ class MapaUI:
 
     # ------------------------------------------------------------------- exportações
     def _nome_setor(self):
-        return next((s["nome"] for s in self.setores if s["id_setor"] == self.id_setor), "Setor")
+        return next((s["nome"] for s in self.setores if s["id_setor"] == self.id_setor), "Todos_os_setores")
 
     def _exportar(self, extensao, rotulo, funcao):
         if not self.linhas:
@@ -431,7 +429,7 @@ class MapaUI:
         self.cb_ano.pack(side="left", padx=6)
         self.cb_ano.set(str(ano))
         ctk.CTkLabel(barra, text="Setor:").pack(side="left", padx=(8, 0))
-        self.cb_setor_g = ctk.CTkComboBox(barra, values=["Todos os setores"] + [s["nome"] for s in self.setores],
+        self.cb_setor_g = ctk.CTkComboBox(barra, values=["Visão geral (todos os setores)"] + [s["nome"] for s in self.setores],
                                           width=180, state="readonly")
         self.cb_setor_g.pack(side="left", padx=6)
         self.cb_setor_g.set("Todos os setores")
@@ -861,7 +859,7 @@ class DialogHistorico(_Janela):
             imc = f"{_fmt(r.get('imc'))} ({r['imc_class']})" if r.get("imc") and r.get("imc_class") else _fmt(r.get("imc"))
             self.tree.insert("", "end", iid=str(r["id_registro"]), values=(
                 mdb.iso_para_br(r["data"]), r["leito_codigo"], _fmt(r.get("peso_kg")), imc, r.get("via") or "",
-                r.get("consistencia") or "", ", ".join(s["nome"] for s in r["suplementos"]),
+                r.get("consistencia") or "", ", ".join(s["nome"] + (" (batido com fruta)" if s.get("batido_fruta") else "") for s in r["suplementos"]),
                 mdb.iso_para_br(r.get("data_reavaliacao"))))
         _btn(self, "Abrir registro", self._abrir, 140).pack(pady=(0, 14))
 

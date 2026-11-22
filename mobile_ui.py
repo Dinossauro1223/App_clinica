@@ -123,7 +123,14 @@ class MobileUI:
         self._atualizar_banco()
 
     def _atualizar_banco(self):
-        achou = "encontrado" if os.path.exists(self.mobile_db) else "NÃO encontrado: ligue o servidor mobile uma vez"
+        if not os.path.exists(self.mobile_db):
+            achou = "NÃO encontrado: ligue o servidor mobile uma vez"
+        else:
+            try:
+                qtd = im.sincronizar_catalogo_suplementos(self.db, self.mobile_db)
+                achou = "encontrado; catálogo de %d suplemento(s) atualizado" % qtd
+            except Exception as e:
+                achou = "encontrado; falha ao atualizar catálogo: %s" % str(e)
         self.lbl_banco.configure(text="Banco do mobile: %s (%s)" % (self.mobile_db, achou))
 
     # ----------------------------------------------------------------- datas

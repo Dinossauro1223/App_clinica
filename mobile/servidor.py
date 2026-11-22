@@ -30,7 +30,8 @@ STAFF = ("admin", "nutricionista")  # escolhem o dia; o que gravam só muda com 
 EST_PERFIL = {"copa": "copa", "estoque_cozinha": "cozinha", "estoque_almox": "almox"}
 # Hierarquia de abastecimento: de quem cada estoque pode receber.
 ORIGENS = {"almox": ["externo"], "cozinha": ["almox"], "copa": ["cozinha", "almox"]}
-CAMPOS = ["nome", "idade_anos", "idade_meses", "dieta", "diagnostico", "pref_sim", "pref_nao", "acompanhante"]
+CAMPOS = ["nome", "idade_anos", "idade_meses", "dieta", "diagnostico", "pref_sim", "pref_nao",
+          "acompanhante", "cor", "consistencia", "via", "dm", "has", "laxativa", "constipante", "drc", "suplementos_json"]
 # Refeições conferidas hoje: almoço e jantar. As demais ficam desligadas até o administrador habilitar (com horário).
 CFG_INICIAL = [("desjejum", 0, None, None), ("colacao", 0, None, None), ("almoco", 1, "09:00", "16:00"),
                ("lanche", 0, None, None), ("jantar", 1, "16:00", "22:00"), ("ceia", 0, None, None)]
@@ -45,7 +46,12 @@ CREATE TABLE IF NOT EXISTS leitos(id INTEGER PRIMARY KEY, id_setor INTEGER NOT N
 CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
   idade_anos INTEGER, idade_meses INTEGER, diagnostico TEXT, pref_sim TEXT, pref_nao TEXT,
+  cor TEXT, consistencia TEXT, via TEXT, dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
+  constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, suplementos_json TEXT DEFAULT '[]',
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, id_leito));
+CREATE TABLE IF NOT EXISTS suplementos_catalogo(
+  id_suplemento INTEGER PRIMARY KEY, nome TEXT NOT NULL, modulo TEXT, emb_qtd REAL, emb_un TEXT,
+  kcal_100 REAL, ptn_100 REAL, lip_100 REAL, carb_100 REAL, sod_100 REAL, ativo INTEGER DEFAULT 1);
 CREATE TABLE IF NOT EXISTS mapa_rascunho(data TEXT, id_leito INTEGER, campos TEXT, por_usuario INTEGER, atualizado_em TEXT,
   PRIMARY KEY(data, id_leito));
 CREATE TABLE IF NOT EXISTS refeicoes_cfg(refeicao TEXT PRIMARY KEY, ativa INTEGER, abre TEXT, fecha TEXT);
@@ -145,7 +151,11 @@ def migrar(c):
     def cols(t):
         return {r[1] for r in c.execute("PRAGMA table_info(%s)" % t)}
     for col, tipo in (("nome", "TEXT"), ("idade_anos", "INTEGER"), ("idade_meses", "INTEGER"),
-                      ("diagnostico", "TEXT"), ("pref_sim", "TEXT"), ("pref_nao", "TEXT")):
+                      ("diagnostico", "TEXT"), ("pref_sim", "TEXT"), ("pref_nao", "TEXT"),
+                      ("cor", "TEXT"), ("consistencia", "TEXT"), ("via", "TEXT"),
+                      ("dm", "INTEGER DEFAULT 0"), ("has", "INTEGER DEFAULT 0"),
+                      ("laxativa", "INTEGER DEFAULT 0"), ("constipante", "INTEGER DEFAULT 0"),
+                      ("drc", "INTEGER DEFAULT 0"), ("suplementos_json", "TEXT")):
         if col not in cols("mapa_dia"):
             c.execute("ALTER TABLE mapa_dia ADD COLUMN %s %s" % (col, tipo))
     if "id_setor" not in cols("correcoes"):
@@ -230,7 +240,7 @@ def dia_alvo(u, pedido):
 
 # --------------------------------------------- mapa: normalização e gravação
 def norm(l):
-    """Padroniza uma linha do mapa. Leito sem nome = leito livre (limpa os demais campos)."""
+    """Normaliza o mapa da Copa e os detalhes estruturados da dieta e suplementação."""
     def t(k, n=120):
         return str(l.get(k) or "").strip()[:n]
 
@@ -245,11 +255,60 @@ def norm(l):
         if not 0 <= x <= mx:
             raise Erro("Idade fora do limite.")
         return x
-    n = {"nome": t("nome"), "idade_anos": i("idade_anos", 130), "idade_meses": i("idade_meses", 11), "dieta": t("dieta", 60),
-         "diagnostico": t("diagnostico", 200), "pref_sim": t("pref_sim", 200), "pref_nao": t("pref_nao", 200),
-         "acompanhante": int(bool(l.get("acompanhante")))}
+
+    def flag(k):
+        return int(bool(l.get(k)))
+
+    consistencias = ("Livre", "Branda", "Pastosa", "Líq/Past", "Líquida")
+    vias = ("Oral", "Enteral", "Zero")
+    cor = t("cor", 4)
+    if cor and cor not in ("B", "N"):
+        raise Erro("Cor inválida.")
+    consistencia = t("consistencia", 40)
+    via = t("via", 20)
+    if consistencia and consistencia not in consistencias:
+        raise Erro("Consistência inválida.")
+    if via and via not in vias:
+        raise Erro("Via de alimentação inválida.")
+
+    suplementos = l.get("suplementos") or []
+    if not isinstance(suplementos, list) or len(suplementos) > 20:
+        raise Erro("Lista de suplementos inválida.")
+    sup_norm = []
+    refeicoes_validas = set(REFEICOES)
+    for s in suplementos:
+        if not isinstance(s, dict):
+            raise Erro("Suplemento inválido.")
+        try:
+            sid = int(s.get("id_suplemento"))
+            ml = float(s.get("ml_oferta") or 0)
+            agua = float(s.get("agua_ml") or 0)
+        except (TypeError, ValueError):
+            raise Erro("Volume do suplemento inválido.")
+        if sid <= 0 or not 0 < ml <= 5000 or not 0 <= agua <= 5000:
+            raise Erro("Confira os volumes do suplemento e da água.")
+        refs = list(dict.fromkeys(str(x) for x in (s.get("refeicoes") or []) if str(x) in refeicoes_validas))
+        if not refs:
+            raise Erro("Selecione ao menos uma refeição para cada suplemento.")
+        sup_norm.append({
+            "id_suplemento": sid, "nome": str(s.get("nome") or "").strip()[:120],
+            "modulo": str(s.get("modulo") or "").strip()[:80],
+            "ml_oferta": ml, "agua_ml": agua, "refeicoes": refs,
+            "ofertas_dia": len(refs), "qtd_dia": ml * len(refs),
+            "batido_fruta": bool(s.get("batido_fruta")), "unidade": "ml"
+        })
+
+    n = {"nome": t("nome"), "idade_anos": i("idade_anos", 130), "idade_meses": i("idade_meses", 11),
+         "dieta": t("dieta", 60), "diagnostico": t("diagnostico", 200),
+         "pref_sim": t("pref_sim", 200), "pref_nao": t("pref_nao", 200),
+         "acompanhante": int(bool(l.get("acompanhante"))), "cor": cor,
+         "consistencia": consistencia, "via": via, "dm": flag("dm"), "has": flag("has"),
+         "laxativa": flag("laxativa"), "constipante": flag("constipante"), "drc": flag("drc"),
+         "suplementos": sup_norm, "suplementos_json": json.dumps(sup_norm, ensure_ascii=False)}
     if not n["nome"]:
-        n.update(idade_anos=None, idade_meses=None, dieta="", diagnostico="", pref_sim="", pref_nao="", acompanhante=0)
+        n.update(idade_anos=None, idade_meses=None, dieta="", diagnostico="", pref_sim="", pref_nao="",
+                 acompanhante=0, cor="", consistencia="", via="", dm=0, has=0, laxativa=0,
+                 constipante=0, drc=0, suplementos=[], suplementos_json="[]")
     n["ocupado"] = int(bool(n["nome"]))
     return n
 
@@ -257,7 +316,11 @@ def norm(l):
 def atual(c, tipo, data, chave):
     if tipo == "mapa":
         r = c.execute("SELECT ocupado,acompanhante,COALESCE(dieta,'') dieta,COALESCE(nome,'') nome,idade_anos,idade_meses,"
-                      "COALESCE(diagnostico,'') diagnostico,COALESCE(pref_sim,'') pref_sim,COALESCE(pref_nao,'') pref_nao,por_perfil "
+                      "COALESCE(diagnostico,'') diagnostico,COALESCE(pref_sim,'') pref_sim,COALESCE(pref_nao,'') pref_nao,"
+                      "COALESCE(cor,'') cor,COALESCE(consistencia,'') consistencia,COALESCE(via,'') via,"
+                      "COALESCE(dm,0) dm,COALESCE(has,0) has,COALESCE(laxativa,0) laxativa,"
+                      "COALESCE(constipante,0) constipante,COALESCE(drc,0) drc,"
+                      "COALESCE(suplementos_json,'[]') suplementos_json,por_perfil "
                       "FROM mapa_dia WHERE data=? AND id_leito=?", (data, int(chave)))
     elif tipo == "refeicao":
         sid, ref = chave.split("|")
@@ -273,13 +336,19 @@ def gravar(c, tipo, data, chave, v, uid, perfil):
     t = agora()
     if tipo == "mapa":
         c.execute("INSERT INTO mapa_dia(data,id_leito,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
-                  "por_usuario,por_perfil,atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
+                  "cor,consistencia,via,dm,has,laxativa,constipante,drc,suplementos_json,por_usuario,por_perfil,atualizado_em) "
+                  "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
                   "ocupado=excluded.ocupado,acompanhante=excluded.acompanhante,dieta=excluded.dieta,nome=excluded.nome,"
                   "idade_anos=excluded.idade_anos,idade_meses=excluded.idade_meses,diagnostico=excluded.diagnostico,"
-                  "pref_sim=excluded.pref_sim,pref_nao=excluded.pref_nao,por_usuario=excluded.por_usuario,"
-                  "por_perfil=excluded.por_perfil,atualizado_em=excluded.atualizado_em",
-                  (data, int(chave), v["ocupado"], v.get("acompanhante", 0), v.get("dieta", ""), v.get("nome", ""), v.get("idade_anos"),
-                   v.get("idade_meses"), v.get("diagnostico", ""), v.get("pref_sim", ""), v.get("pref_nao", ""), uid, perfil, t))
+                  "pref_sim=excluded.pref_sim,pref_nao=excluded.pref_nao,cor=excluded.cor,consistencia=excluded.consistencia,"
+                  "via=excluded.via,dm=excluded.dm,has=excluded.has,laxativa=excluded.laxativa,"
+                  "constipante=excluded.constipante,drc=excluded.drc,suplementos_json=excluded.suplementos_json,"
+                  "por_usuario=excluded.por_usuario,por_perfil=excluded.por_perfil,atualizado_em=excluded.atualizado_em",
+                  (data, int(chave), v["ocupado"], v.get("acompanhante", 0), v.get("dieta", ""), v.get("nome", ""),
+                   v.get("idade_anos"), v.get("idade_meses"), v.get("diagnostico", ""), v.get("pref_sim", ""),
+                   v.get("pref_nao", ""), v.get("cor", ""), v.get("consistencia", ""), v.get("via", ""),
+                   v.get("dm", 0), v.get("has", 0), v.get("laxativa", 0), v.get("constipante", 0), v.get("drc", 0),
+                   v.get("suplementos_json", "[]"), uid, perfil, t))
     else:
         tab, cols = ("refeicoes_dia", "id_setor,refeicao") if tipo == "refeicao" else ("estoque_dia", "estoque,id_item")
         a, b = chave.split("|")
@@ -316,15 +385,27 @@ def pendentes(c, tipo, data):
 def linhas_mapa(c, sid, d, rascunho=False):
     sql = ("SELECT l.id id_leito,l.codigo,COALESCE(h.ocupado,0) ocupado,COALESCE(h.acompanhante,0) acompanhante,COALESCE(h.dieta,'') dieta,"
            "COALESCE(h.nome,'') nome,h.idade_anos,h.idade_meses,COALESCE(h.diagnostico,'') diagnostico,COALESCE(h.pref_sim,'') pref_sim,"
-           "COALESCE(h.pref_nao,'') pref_nao,h.data data_base,h.por_perfil,h.atualizado_em FROM leitos l "
+           "COALESCE(h.pref_nao,'') pref_nao,COALESCE(h.cor,'') cor,COALESCE(h.consistencia,'') consistencia,COALESCE(h.via,'') via,COALESCE(h.dm,0) dm,COALESCE(h.has,0) has,COALESCE(h.laxativa,0) laxativa,COALESCE(h.constipante,0) constipante,COALESCE(h.drc,0) drc,COALESCE(h.suplementos_json,'[]') suplementos_json,h.data data_base,h.por_perfil,h.atualizado_em FROM leitos l "
            "LEFT JOIN mapa_dia h ON h.id_leito=l.id AND h.data=(SELECT MAX(data) FROM mapa_dia WHERE id_leito=l.id AND data<=?) "
            "WHERE l.id_setor=? ORDER BY l.codigo")
-    out = [{**dict(r), "herdado": r["data_base"] not in (None, d), "rascunho": False} for r in c.execute(sql, (d, sid))]
+    out = []
+    for r in c.execute(sql, (d, sid)):
+        item = dict(r)
+        try:
+            item["suplementos"] = json.loads(item.get("suplementos_json", "[]") or "[]")
+        except (TypeError, ValueError):
+            item["suplementos"] = []
+        item.update(herdado=item["data_base"] not in (None, d), rascunho=False)
+        out.append(item)
     if rascunho:  # visão da nutrição: o que está salvo + o que ainda não foi publicado para a copa
         rs = {r["id_leito"]: json.loads(r["campos"]) for r in c.execute("SELECT id_leito,campos FROM mapa_rascunho WHERE data=?", (d,))}
         for l in out:
             if l["id_leito"] in rs:
                 l.update(rs[l["id_leito"]])
+                try:
+                    l["suplementos"] = json.loads(l.get("suplementos_json") or "[]")
+                except (TypeError, ValueError):
+                    l["suplementos"] = []
                 l["rascunho"] = True
     return out
 
@@ -379,9 +460,10 @@ def post_mapa(c, u, s, d, linhas):
         if lid not in cods:
             raise Erro("Leito de outro setor.", 403)
         n = norm(l)
+        n.pop("suplementos", None)  # a forma persistida é o JSON; a leitura decodifica para a interface
         if not staff:
             res[salvar(c, u, "mapa", d, str(lid), "Leito %s (%s)" % (cods[lid], s["nome"]), n, s["id"])] += 1
-        elif all(vivo[lid][k] == v for k, v in n.items()):  # igual ao que a copa já vê: descarta rascunho antigo
+        elif all(vivo[lid].get(k) == v for k, v in n.items() if k != "suplementos_json") and vivo[lid].get("suplementos", []) == json.loads(n["suplementos_json"]):  # igual ao que a copa já vê: descarta rascunho antigo
             c.execute("DELETE FROM mapa_rascunho WHERE data=? AND id_leito=?", (d, lid))
             res["igual"] += 1
         else:
@@ -589,7 +671,8 @@ def criar_setor(c, b):
 def exportar(c, d):
     def t(sql, *a):
         return [dict(r) for r in c.execute(sql, a)]
-    return {"esquema": 2, "data": d, "gerado_em": agora(), "setores": t("SELECT * FROM setores"), "leitos": t("SELECT * FROM leitos"),
+    return {"esquema": 3, "data": d, "gerado_em": agora(), "setores": t("SELECT * FROM setores"), "leitos": t("SELECT * FROM leitos"),
+            "suplementos_catalogo": t("SELECT * FROM suplementos_catalogo WHERE ativo=1 ORDER BY nome"),
             "itens": t("SELECT * FROM itens"), "mapa": t("SELECT * FROM mapa_dia WHERE data=?", d),
             "mapa_rascunho": t("SELECT * FROM mapa_rascunho WHERE data=?", d),
             "refeicoes_cfg": t("SELECT * FROM refeicoes_cfg"), "janelas": t("SELECT * FROM janelas"),
@@ -609,6 +692,10 @@ def _rotear(c, ip, m, p, q, b, auth):
         return {"usuario": pub(u), "hoje": hoje()}
     if (m, p) == ("GET", "/api/itens"):
         return {"itens": [dict(r) for r in c.execute("SELECT id,nome,unidade FROM itens ORDER BY nome")]}
+    if (m, p) == ("GET", "/api/suplementos"):
+        return {"suplementos": [dict(r) for r in c.execute(
+            "SELECT id_suplemento,nome,modulo,emb_qtd,emb_un,kcal_100,ptn_100,lip_100,carb_100,sod_100 "
+            "FROM suplementos_catalogo WHERE ativo=1 ORDER BY nome")]}
     if (m, p) == ("GET", "/api/setores"):
         todos = adm or (perfil == "nutricionista" and not u["id_setor"])
         sql = "SELECT s.id,s.nome,(SELECT COUNT(*) FROM leitos WHERE id_setor=s.id) leitos FROM setores s %s ORDER BY s.nome"

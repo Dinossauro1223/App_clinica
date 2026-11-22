@@ -30,6 +30,17 @@ COLUNAS = [
     ("fi", "F. Int.", 18, 12),
 ]
 
+
+def _colunas(setor_nome):
+    """Acrescenta a identificação do setor na exportação da visão geral."""
+    if setor_nome != "Todos_os_setores":
+        return COLUNAS
+    ajustes = {"paciente": -6, "via": -2, "supl": -6, "obs": -10}
+    base = [(k, t, w + ajustes.get(k, 0), ex + ajustes.get(k, 0)) for k, t, w, ex in COLUNAS]
+    base.insert(1, ("setor", "Setor", 20, 16))
+    return base
+
+
 LEGENDA = ("Lt = leito; Ac. = possui acompanhante; Sx = sexo (H = homem, M = mulher); Cor (B = branco, N = negro); "
            "AJ = altura do joelho (cm); PP = perímetro da panturrilha (cm); PB = perímetro do braço (cm); "
            "Alt = altura; E = estimada/o, R = real; Id. = idade (anos); Reav. = data prevista para reavaliação; "
@@ -103,7 +114,7 @@ def linhas_paciente(reg, abreviar=True):
 
 def textos_linha(leito, reg, abreviar=True):
     """Textos de todas as colunas de uma linha. `reg` None = leito vago."""
-    t = {"leito": str(leito["codigo"])}
+    t = {"leito": str(leito["codigo"]), "setor": leito.get("setor", "")}
     if reg is None:
         t.update(paciente=None, acomp="", idade="", reav="", via="", carac="", consist="", supl=[], obs=[], fi="")
         return t
@@ -116,10 +127,21 @@ def textos_linha(leito, reg, abreviar=True):
     t["carac"] = ", ".join(nomes)
     t["consist"] = reg.get("consistencia") or ""
     supl = []
+    nomes_refeicoes = {"desjejum": "desjejum", "colacao": "lanche da manhã", "almoco": "almoço",
+                       "lanche": "lanche da tarde", "jantar": "jantar", "ceia": "ceia"}
     for s in reg.get("suplementos") or []:
         txt = s["nome"]
-        if s.get("qtd_dia"):
+        if s.get("ml_oferta") is not None:
+            refs = s.get("refeicoes") or []
+            txt += f" {_n(s['ml_oferta'])} mL/oferta × {len(refs)} = {_n(s.get('qtd_dia'))} mL/d"
+            if refs:
+                txt += " (" + ", ".join(nomes_refeicoes.get(r, r) for r in refs) + ")"
+            if s.get("agua_ml"):
+                txt += f"; água: {_n(s['agua_ml'])} mL/oferta"
+        elif s.get("qtd_dia"):
             txt += f" {_n(s['qtd_dia'])} {s.get('unidade') or ''}/d".rstrip()
+        if s.get("batido_fruta"):
+            txt += " (batido com fruta)"
         supl.append(txt)
     t["supl"] = supl
     obs = []
@@ -152,16 +174,18 @@ def exportar_excel(caminho, linhas_mapa, data_iso, setor_nome, abreviar=False, i
     except ImportError:  # openpyxl < 3.1
         rico = False
 
+    colunas = _colunas(setor_nome)
+    titulo_setor = "Todos os setores" if setor_nome == "Todos_os_setores" else setor_nome
     wb = Workbook()
     ws = wb.active
     ws.title = "Mapa"
-    n_col = len(COLUNAS)
+    n_col = len(colunas)
     ultima = chr(ord("A") + n_col - 1)
     borda = Side(style="thin", color="808080")
     caixa = Border(left=borda, right=borda, top=borda, bottom=borda)
 
     ws.merge_cells(f"A1:{ultima}1")
-    ws["A1"] = f"MAPA NUTRICIONAL  -  {setor_nome}  -  {mdb.iso_para_br(data_iso)}"
+    ws["A1"] = f"MAPA NUTRICIONAL  -  {titulo_setor}  -  {mdb.iso_para_br(data_iso)}"
     ws["A1"].font = Font(name="Arial", size=12, bold=True)
     ws["A1"].alignment = Alignment(horizontal="left", vertical="center")
     ws.row_dimensions[1].height = 22
@@ -169,7 +193,7 @@ def exportar_excel(caminho, linhas_mapa, data_iso, setor_nome, abreviar=False, i
     ws["A2"] = "Gerado em " + datetime.now().strftime("%d/%m/%Y %H:%M") + " pelo NutriLab"
     ws["A2"].font = Font(name="Arial", size=8, italic=True, color="666666")
 
-    for i, (_, titulo, _, larg) in enumerate(COLUNAS, start=1):
+    for i, (_, titulo, _, larg) in enumerate(colunas, start=1):
         c = ws.cell(row=3, column=i, value=titulo)
         c.font = Font(name="Arial", size=8, bold=True)
         c.fill = PatternFill("solid", fgColor="C8E6C9")
@@ -183,7 +207,7 @@ def exportar_excel(caminho, linhas_mapa, data_iso, setor_nome, abreviar=False, i
     for item in _filtrar(linhas_mapa, incluir_vagos):
         t = textos_linha(item["leito"], item["registro"], abreviar)
         altura_pt = 48.0
-        for i, (chave, _, _, larg) in enumerate(COLUNAS, start=1):
+        for i, (chave, _, _, larg) in enumerate(colunas, start=1):
             c = ws.cell(row=linha, column=i)
             c.border = caixa
             c.font = f8
@@ -298,12 +322,14 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
     pdf = pdf_factory(orientation="L", unit="mm", format="A4")
     pdf.set_auto_page_break(False)
     pdf.set_margins(_MARG, _MARG, _MARG)
+    colunas = _colunas(setor_nome)
+    titulo_setor = "Todos os setores" if setor_nome == "Todos_os_setores" else setor_nome
 
-    larguras = [c[2] for c in COLUNAS]
+    larguras = [c[2] for c in colunas]
     xs = [_MARG]
     for w in larguras[:-1]:
         xs.append(xs[-1] + w)
-    idx = {c[0]: i for i, c in enumerate(COLUNAS)}
+    idx = {c[0]: i for i, c in enumerate(colunas)}
 
     # 1) mede as linhas (precisa da fonte definida para get_string_width)
     itens = []
@@ -339,7 +365,7 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
     def cabecalho(n_pag):
         pdf.set_text_color(0, 0, 0)
         pdf.set_font("Arial", "B", 12)
-        pdf.text(_MARG, 13, _l1(f"MAPA NUTRICIONAL - {setor_nome}"))
+        pdf.text(_MARG, 13, _l1(f"MAPA NUTRICIONAL - {titulo_setor}"))
         pdf.set_font("Arial", "B", 10)
         dt = _l1("Data: " + mdb.iso_para_br(data_iso))
         pdf.text(297 - _MARG - pdf.get_string_width(dt), 13, dt)
@@ -351,7 +377,7 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
         pdf.set_draw_color(90, 90, 90)
         pdf.set_line_width(0.2)
         pdf.set_font("Arial", "B", 7)
-        for (chave, titulo, w, _), x in zip(COLUNAS, xs):
+        for (chave, titulo, w, _), x in zip(colunas, xs):
             pdf.rect(x, _Y_CAB, w, _H_CAB, "FD")
             tt = _l1(titulo)
             pdf.text(x + (w - pdf.get_string_width(tt)) / 2.0, baseline(_Y_CAB, _H_CAB, 7), tt)
@@ -373,13 +399,13 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
         for t, blocos, h in grupo:
             pdf.set_draw_color(90, 90, 90)
             pdf.set_line_width(0.2)
-            for (chave, _, w, _), x in zip(COLUNAS, xs):
+            for (chave, _, w, _), x in zip(colunas, xs):
                 pdf.rect(x, y, w, h, "D")
             # leito, acompanhante, idade, reav., via, consistência: texto centralizado
             pdf.set_text_color(0, 0, 0)
-            for chave, bold in (("leito", True), ("acomp", False), ("idade", False), ("reav", False),
+            for chave, bold in (("leito", True), ("setor", False), ("acomp", False), ("idade", False), ("reav", False),
                                 ("via", False), ("consist", False)):
-                if not t[chave]:
+                if chave not in idx or not t[chave]:
                     continue
                 pdf.set_font("Arial", "B" if bold else "", 9 if bold else 8)
                 tx = _l1(t[chave])

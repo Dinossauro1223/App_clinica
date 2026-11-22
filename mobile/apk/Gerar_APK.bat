@@ -108,6 +108,9 @@ set "OBJ=%W%\obj"
 if exist "%W%" rmdir /s /q "%W%"
 if exist "%~dp0obj" rmdir /s /q "%~dp0obj"
 mkdir "%W%"
+set "PASSO=atualizar a interface offline incluida no APK"
+copy /y "%~dp0..\static\index.html" "%FONTE%\assets\index.html" >nul
+if errorlevel 1 goto :falha_build
 set "PASSO=copiar o app para a pasta de trabalho sem acento"
 xcopy "%FONTE%" "%APP%\" /e /i /y /q >nul
 if errorlevel 1 goto :falha_build

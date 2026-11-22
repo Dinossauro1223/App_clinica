@@ -39,3 +39,11 @@ SE ALGO PARAR
 OBSERVACOES
   - O APK so abre o servidor que voce informar e nao guarda dados clinicos no celular.
   - A conexao e HTTP sem criptografia, so para rede interna.
+
+
+MODO OFFLINE (atualização):
+- O APK leva uma cópia local da interface para abrir quando o servidor não estiver acessível.
+- O mapa e o catálogo usam a última cópia recebida; alterações ficam numa fila local.
+- Ao reconectar, escolha enviar, adiar ou reverter a cópia local.
+- Cache e fila são cifrados no Android Keystore. Ainda assim, use somente aparelho protegido por bloqueio de tela.
+- Para incluir a versão mais recente da interface no APK, execute este Gerar_APK.bat; ele copia automaticamente mobile\static\index.html para app\assets\index.html.

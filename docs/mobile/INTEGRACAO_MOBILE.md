@@ -96,3 +96,28 @@ Em aberto: de onde nascem setores/leitos (hoje, do admin web); banco central def
 
 1–4: primeira entrega (servidor, interface, testes, documentação). 5–8, esta entrega: servidor com nutricionista/copa/rascunho/avisos/horários, interface por perfil,
 testes (8, dados sintéticos) e este arquivo.
+
+
+## Campos estruturados da Copa e modo offline (atualização)
+
+O registro diário mobile preserva, além dos campos legados:
+
+- `cor` (`B` = Branco; `N` = Negro), `consistencia` e `via`;
+- características booleanas `dm`, `has`, `laxativa`, `constipante` e `drc`;
+- `suplementos_json`, com uma lista de suplementos por paciente/leito.
+
+Cada suplemento contém `id_suplemento`, `nome`, `modulo`, `ml_oferta`, `agua_ml`, `refeicoes`, `ofertas_dia`, `qtd_dia`, `batido_fruta` e `unidade`. O volume diário é calculado como `ml_oferta × quantidade de refeições selecionadas`; a água adicional fica separada desse total.
+
+O endpoint autenticado `GET /api/suplementos` fornece o catálogo ativo do banco mobile. O painel de integração do desktop sincroniza esse catálogo com `Mapa_Suplementos` ao ser aberto e antes de enviar o mapa à Copa.
+
+### Uso offline no APK
+
+O APK inclui uma cópia local de `mobile/static/index.html`. Se o servidor não responder, a interface é carregada dessa cópia usando a URL do servidor como origem, para manter as mesmas rotas `/api`.
+
+- Respostas GET bem-sucedidas são armazenadas localmente.
+- No Android, cache, perfil e fila são cifrados com AES-GCM usando uma chave do Android Keystore.
+- POSTs que falham por ausência de conexão entram numa fila local; a tela continua usando o último mapa disponível.
+- Ao detectar o servidor novamente, o aplicativo oferece enviar as alterações, adiar ou descartar a cópia local e recarregar o servidor.
+- Antes do envio, o aplicativo compara o mapa atual do servidor com a base local salva para indicar possíveis conflitos. O servidor continua aplicando suas regras de correção/aprovação.
+
+**Limites:** o primeiro acesso e login precisam ocorrer online para preencher a cópia local; depois, a sincronização depende de uma sessão válida no servidor; se a sessão expirar, é necessário entrar novamente. O modo offline ainda precisa de validação prática no APK instalado, em diferentes aparelhos e condições de rede. O cache local contém dados clínicos e deve ser usado apenas em aparelho institucional protegido por bloqueio de tela; o APK desativa backup Android (`allowBackup=false`).

@@ -40,6 +40,10 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: requirements.txt
+      - name: Instalar Node.js (testes do modo offline do APK)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
 
       - name: Atualizar o pip
         run: python -m pip install --upgrade pip
@@ -63,3 +67,32 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb python3-tk
           xvfb-run -a python -m unittest discover -s tests -v
+
+  apk-java:
+    name: Compilação do código Android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v6
+
+      - name: Instalar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Preparar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar plataforma Android 34
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-34"
+
+      - name: Compilar MainActivity.java
+        run: |
+          mkdir -p build/apk-classes
+          javac -encoding UTF-8 -source 8 -target 8 \
+            -classpath "$ANDROID_HOME/platforms/android-34/android.jar" \
+            -d build/apk-classes \
+            mobile/apk/app/src/br/nutrilab/mobile/MainActivity.java
