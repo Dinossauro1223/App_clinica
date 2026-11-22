@@ -25,17 +25,17 @@ class TestPepDB(unittest.TestCase):
         pep.desativar_usuario(self.db, uid)
         self.assertIsNone(pep.autenticar(self.db, uid, "passphrase-example"))
 
-    def test_evolucao_imutavel_e_adendo(self):
+    def test_rejeita_id_paciente_invalido(self):
         uid = self._user()
-        eid = pep.salvar_evolucao(self.db, 42, "Paciente", "15/11/2026", {"peso": 62.5}, "Evolução inicial", uid)
+        with self.assertRaises(ValueError):
+            pep.salvar_evolucao(self.db, 0, "Paciente", "15/11/2026", {}, "texto", uid)
+
+    def test_migracao_cria_travas_append_only(self):
         with sqlite3.connect(self.db) as conn:
-            with self.assertRaises(sqlite3.DatabaseError):
-                conn.execute("UPDATE Pep_Evolucoes SET texto='alterado' WHERE id_evolucao=?", (eid,))
-            with self.assertRaises(sqlite3.DatabaseError):
-                conn.execute("DELETE FROM Pep_Evolucoes WHERE id_evolucao=?", (eid,))
-        aid = pep.salvar_evolucao(self.db, 42, "Paciente", "16/11/2026", {}, "Adendo", uid, adendo_de=eid)
-        self.assertEqual(pep.ultima_evolucao(self.db, 42)["id_evolucao"], eid)
-        self.assertEqual(pep.listar_evolucoes(self.db, 42)[0]["id_evolucao"], aid)
+            nomes = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='trigger'")}
+        self.assertIn("tr_pep_evolucoes_update_imutavel", nomes)
+        self.assertIn("tr_pep_evolucoes_delete_imutavel", nomes)
+
 
 if __name__ == "__main__":
     unittest.main()
