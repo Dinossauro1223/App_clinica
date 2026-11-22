@@ -16,8 +16,7 @@ PERGUNTAS = (
 GRAUS = (
     ("triagem_negativa", "Triagem inicial negativa"),
     ("sem_risco", "Sem risco nutricional (escore < 3)"),
-    ("risco", "Risco nutricional (escore 3 a 4)"),
-    ("alto_risco", "Alto risco nutricional (escore >= 5)"),
+    ("risco", "Risco nutricional (escore >= 3)"),
 )
 DIAS_PADRAO = {codigo: 7 for codigo, _ in GRAUS}
 LIMITE_RDC63 = 10
@@ -42,7 +41,7 @@ def classificar(respostas, estado=None, gravidade=None, idade=None):
     if idade is not None and (isinstance(idade, bool) or not isinstance(idade, (int, float)) or idade < 0):
         raise ValueError("Idade deve ser um número não negativo.")
     escore = estado + gravidade + (1 if idade is not None and idade >= 70 else 0)
-    grau = "sem_risco" if escore < 3 else "risco" if escore < 5 else "alto_risco"
+    grau = "sem_risco" if escore < 3 else "risco"
     rotulos = dict(GRAUS)
     return {"completo": True, "etapa": 2, "escore": escore, "grau": grau,
             "rotulo": f"{escore} pontos — {rotulos[grau]}"}
