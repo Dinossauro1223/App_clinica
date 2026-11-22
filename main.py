@@ -18,6 +18,7 @@ from fpdf import FPDF
 from PIL import Image
 import mapa_db
 import db_service
+import pacientes_integridade
 import db_migracoes
 from db_esquema_legado import garantir_esquema_legado
 import atalhos_edicao
@@ -309,11 +310,11 @@ class AppClinica(ctk.CTk):
             return
         url = resultado.get("url", "")
         tem_pacote = bool(resultado.get("pacote_windows"))
-        texto = ("Versão instalada: {local}\\nÚltima versão no GitHub: {remota}\\n\\n".format(**resultado))
+        texto = ("Versão instalada: {local}\nÚltima versão no GitHub: {remota}\n\n".format(**resultado))
         texto += ("Há um pacote Windows publicado. A atualização deverá preservar o banco e os arquivos locais."
                   if tem_pacote else
                   "A release existe, mas ainda não há pacote Windows publicado. Nenhum arquivo será alterado.")
-        if messagebox.askyesno("Atualização do NutriLab disponível", texto + "\\n\\nAbrir a página da atualização?"):
+        if messagebox.askyesno("Atualização do NutriLab disponível", texto + "\n\nAbrir a página da atualização?"):
             import webbrowser
             if url:
                 webbrowser.open(url)
@@ -715,11 +716,30 @@ class AppClinica(ctk.CTk):
         if not confirmar:
             return
 
+        # Antes de excluir, verifica referências clínicas e arquivos armazenados.
+        pasta_paciente = os.path.join(
+            get_writable_path("arquivos_pacientes"), f"paciente_{id_paciente}"
+        )
         conexao = sqlite3.connect(caminho_do_banco())
-        cursor = conexao.cursor()
-        cursor.execute("DELETE FROM Pacientes WHERE id_paciente = ?", (id_paciente,))
-        conexao.commit()
-        conexao.close()
+        try:
+            vinculados = pacientes_integridade.registros_vinculados(
+                conexao, int(id_paciente), pasta_paciente
+            )
+            if vinculados:
+                resumo = "\n".join(f"• {nome}: {quantidade}" for nome, quantidade in vinculados.items())
+                messagebox.showwarning(
+                    "Exclusão bloqueada",
+                    "Este paciente possui histórico clínico ou arquivos vinculados. "
+                    "Para proteger os dados, a exclusão definitiva foi bloqueada.\n\n"
+                    f"Registros encontrados:\n{resumo}\n\n"
+                    "Não apague manualmente esses dados. Considere manter o cadastro."
+                )
+                return
+            cursor = conexao.cursor()
+            cursor.execute("DELETE FROM Pacientes WHERE id_paciente = ?", (id_paciente,))
+            conexao.commit()
+        finally:
+            conexao.close()
 
         self.carregar_tabela_pacientes()
 
