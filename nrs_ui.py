@@ -67,9 +67,8 @@ class NRSUI:
             linha.pack(fill="x", padx=14, pady=4)
             ctk.CTkLabel(linha, text=pergunta, font=tema.fonte(13), text_color=tema.TEXTO,
                         anchor="w", width=320).pack(side="left")
-            combo = ctk.CTkSegmentedButton(linha, values=["Não", "Sim"], selected_color=tema.VERDE,
-                                            selected_hover_color=tema.VERDE_HOVER)
-            combo.set("Não")
+            combo = ctk.CTkComboBox(linha, values=["Selecione", "Não", "Sim"], width=130)
+            combo.set("Selecione")
             combo.pack(side="left")
             self.campos[chave] = combo
         ctk.CTkLabel(self.card_triagem, text="Se houver pelo menos um 'sim', preencha os escores da etapa 2.",
@@ -115,7 +114,8 @@ class NRSUI:
         return next((n for n, rotulo in valores.items() if rotulo == texto), None)
 
     def calcular(self):
-        respostas = {k: campo.get() == "Sim" for k, campo in self.campos.items()}
+        respostas = {k: (True if campo.get() == "Sim" else False if campo.get() == "Não" else None)
+                     for k, campo in self.campos.items()}
         idade_txt = self.entrada_idade.get().strip()
         try:
             idade = int(idade_txt) if idade_txt else None
@@ -144,7 +144,7 @@ class NRSUI:
 
     def limpar(self):
         for campo in self.campos.values():
-            campo.set("Não")
+            campo.set("Selecione")
         self.combo_estado.set("Selecione")
         self.combo_gravidade.set("Selecione")
         self.entrada_idade.delete(0, "end")
