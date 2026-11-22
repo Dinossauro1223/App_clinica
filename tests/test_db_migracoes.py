@@ -257,13 +257,13 @@ class TestListaEProducao(BaseTmp):
         mig.validar_lista(mig.MIGRACOES)
         criar_legado_sintetico(self.db)
         r = mig.aplicar_migracoes(self.db)
-        self.assertEqual((r.versao_final, r.baseline_adotado), (1, True))
+        self.assertEqual((r.versao_final, r.baseline_adotado), (2, True))
         novo = self.tmp / "novo.db"
         inicializador = mock.Mock(side_effect=inicializador_legado)
         r2 = mig.aplicar_migracoes(novo, inicializador_legado=inicializador)
-        self.assertEqual((r2.versao_final, r2.baseline_adotado), (1, False))
+        self.assertEqual((r2.versao_final, r2.baseline_adotado), (2, False))
         inicializador.assert_called_once()
-        self.assertEqual(registro(novo), [(1, "banco-novo")])
+        self.assertEqual(registro(novo), [(1, "banco-novo"), (2, "migracao")])
 
 
 if __name__ == "__main__":
