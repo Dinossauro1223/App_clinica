@@ -34,8 +34,6 @@ class TelaBoasVindas:
         self.itens_folhas = []
         self._fotos = []
         self._opcoes_visiveis = False
-        self._opcoes_widgets = []
-        self._opcoes_janelas = []
         self._ativo = True
         self._timer = None
         self._escala = 1.0
@@ -116,8 +114,7 @@ class TelaBoasVindas:
         self.canvas.delete("all")
         self._fotos = []
         self.itens_folhas = []
-        self._opcoes_janelas = []
-
+        
         # Camadas de fundo: decoração, arco e haste; cada folha é uma imagem RGBA.
         self._imagem("decoracao_inferior", 0, 0, 1533, 1026)
         self._imagem("arco", 815, 120, 570, 570)
@@ -153,7 +150,7 @@ class TelaBoasVindas:
                 font=("Segoe UI", max(14, int(23 * self._escala)), "bold"),
                 anchor="center"
             )
-            self._posicionar_opcoes()
+            self._desenhar_opcoes()
         else:
             self._item_instrucao = self.canvas.create_text(
                 self._px(766), self._py(974), text="Clique em qualquer lugar para continuar",
@@ -175,38 +172,43 @@ class TelaBoasVindas:
         if not self._ativo or self._opcoes_visiveis:
             return
         self._opcoes_visiveis = True
-        self.canvas.delete(self._item_instrucao)
-        self.canvas.create_text(
-            self._px(766), self._py(760), text="Escolha por onde deseja começar",
-            fill="#064D3C",
-            font=("Segoe UI", max(14, int(23 * self._escala)), "bold"),
-            anchor="center"
-        )
+        # Redesenha apenas a composição vetorial; as opções são texto nativo do Canvas,
+        # sem cartões/janelas que escondam as camadas da cena.
+        self._desenhar_cena()
+
+    def _desenhar_opcoes(self):
         opcoes = (
-            ("Gestão Clínica", "Pacientes, consultas, exames e avaliações", self._comando("clinica")),
-            ("Nutrição", "Mapa nutricional, gráficos e suplementos", self._comando("nutricao")),
-            ("Gestão Alimentar", "Almoxarifado, copa e fichas de consumo", self._comando("alimentar")),
+            ("clinica", "Gestão Clínica", "Pacientes, consultas, exames\ne avaliações"),
+            ("nutricao", "Nutrição", "Mapa nutricional, gráficos\ne suplementos"),
+            ("alimentar", "Gestão Alimentar", "Almoxarifado, copa e fichas\nde consumo"),
         )
-        for titulo, descricao, comando in opcoes:
-            cartao = ctk.CTkFrame(self.frame, fg_color="transparent", corner_radius=0)
-            ctk.CTkLabel(
-                cartao, text=titulo, fg_color="transparent", text_color="#08764B",
-                font=ctk.CTkFont(size=max(14, int(17 * self._escala)), weight="bold")
-            ).pack(pady=(4, 2))
-            ctk.CTkLabel(
-                cartao, text=descricao, fg_color="transparent", text_color="#536968",
-                font=ctk.CTkFont(size=max(10, int(12 * self._escala))),
-                wraplength=max(130, int(220 * self._escala))
-            ).pack(padx=5, pady=(0, 4))
-            ctk.CTkButton(
-                cartao, text="Entrar", fg_color="transparent", hover_color="#E8F4EA",
-                text_color="#176D42", border_width=1, border_color="#A8CFB7",
-                height=max(28, int(34 * self._escala)),
-                font=ctk.CTkFont(size=max(11, int(13 * self._escala)), weight="bold"),
-                command=comando
-            ).pack(fill="x", padx=10, pady=(0, 4))
-            self._opcoes_widgets.append(cartao)
-        self._posicionar_opcoes()
+        centros = (410, 766, 1122)
+        for (chave, titulo, descricao), centro in zip(opcoes, centros):
+            tag = "opcao-" + chave
+            self.canvas.create_text(
+                self._px(centro), self._py(804), text=titulo,
+                fill="#08764B",
+                font=("Segoe UI", max(13, int(18 * self._escala)), "bold"),
+                anchor="center", tags=(tag,)
+            )
+            self.canvas.create_text(
+                self._px(centro), self._py(846), text=descricao,
+                fill="#536968",
+                font=("Segoe UI", max(10, int(12 * self._escala))),
+                anchor="center", justify="center", tags=(tag,)
+            )
+            self.canvas.create_text(
+                self._px(centro), self._py(892), text="ENTRAR  ›",
+                fill="#176D42",
+                font=("Segoe UI", max(10, int(12 * self._escala)), "bold"),
+                anchor="center", tags=(tag,)
+            )
+            self.canvas.tag_bind(
+                tag, "<Button-1>",
+                lambda event, destino=chave: self._comando(destino)()
+            )
+            self.canvas.tag_bind(tag, "<Enter>", lambda event: self.canvas.configure(cursor="hand2"))
+            self.canvas.tag_bind(tag, "<Leave>", lambda event: self.canvas.configure(cursor=""))
 
     def _comando(self, destino):
         def executar():
@@ -214,25 +216,6 @@ class TelaBoasVindas:
                 self.parar()
                 self.ao_entrar(destino)
         return executar
-
-    def _posicionar_opcoes(self):
-        if not self._opcoes_widgets:
-            return
-        # Janela transparente e sem cartões sólidos; os patrocinadores ficam acima da faixa de opções.
-        largura = 210 * self._escala
-        espacamento = 18 * self._escala
-        centro = self._px(766)
-        topo = self._py(790)
-        if not self._opcoes_janelas:
-            for cartao in self._opcoes_widgets:
-                janela = self.canvas.create_window(0, 0, window=cartao, anchor="n")
-                self._opcoes_janelas.append(janela)
-        total = len(self._opcoes_janelas) * largura + (len(self._opcoes_janelas) - 1) * espacamento
-        inicio = centro - total / 2 + largura / 2
-        for indice, janela in enumerate(self._opcoes_janelas):
-            x = inicio + indice * (largura + espacamento)
-            self.canvas.coords(janela, x, topo)
-            self.canvas.itemconfigure(janela, width=max(150, int(largura)))
 
     def _animar(self):
         if not self._ativo:
