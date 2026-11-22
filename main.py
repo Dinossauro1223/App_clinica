@@ -21,6 +21,7 @@ from mapa_ui import MapaUI
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
 import ambulatorial
 import atualizador
+from backup_manager import BackupManager
 from ambulatorial_ui import PainelConsultaEstruturada, DialogoAssociacoesExames
 
 
@@ -208,6 +209,7 @@ class AppClinica(ctk.CTk):
 
         self.title("Sistema de Gestão Clínica")
         self.geometry("950x750")
+        self.protocol("WM_DELETE_WINDOW", self._ao_fechar)
 
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
@@ -288,8 +290,34 @@ class AppClinica(ctk.CTk):
         self.area_principal.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
         
         self.tela_inicial()
+        self._iniciar_backups()
         # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
         self.after(1200, lambda: atualizador.iniciar_verificacao(self, self._resultado_atualizacao))
+
+
+    def _iniciar_backups(self):
+        """Ativa snapshots periódicos e backup obrigatório no encerramento normal."""
+        self._gerenciador_backups = BackupManager(
+            self, caminho_do_banco(), on_error=self._erro_backup_automatico
+        )
+        self._gerenciador_backups.iniciar()
+
+    def _erro_backup_automatico(self, erro):
+        """Informa falhas sem ocultar que a proteção não foi concluída."""
+        messagebox.showerror(
+            "Falha no backup de segurança",
+            "Não foi possível concluir o backup automático do banco de dados. "
+            "O programa permanecerá aberto para evitar um encerramento sem a cópia de segurança.\\n\\n"
+            f"Detalhe: {erro}"
+        )
+
+    def _ao_fechar(self):
+        """Só encerra a interface depois de criar e validar o backup final."""
+        gerenciador = getattr(self, "_gerenciador_backups", None)
+        if gerenciador is None:
+            self.destroy()
+            return
+        gerenciador.fechar(ao_concluir=self.destroy)
 
     def _resultado_atualizacao(self, resultado):
         """Exibe comparação de versões sem executar alterações automáticas no banco de dados."""
