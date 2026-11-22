@@ -133,7 +133,7 @@ class ConfiguracoesUI:
         for arquivo in arquivos:
             nome = arquivo.name
             import re
-            m = re.search(r"\\.backup_(\\d{8})-(\\d{6})_(.+)\\.db$", nome)
+            m = re.search(r"\.backup_(\d{8})-(\d{6})_(.+)\.db$", nome)
             if m:
                 data = f"{m.group(1)[6:8]}/{m.group(1)[4:6]}/{m.group(1)[0:4]}"
                 hora = f"{m.group(2)[0:2]}:{m.group(2)[2:4]}:{m.group(2)[4:6]}"
@@ -143,17 +143,17 @@ class ConfiguracoesUI:
                 rotulo = nome
             opcoes[rotulo] = arquivo
 
-        selecionado = ctk.StringVar(value=next(iter(opcoes)))
-        seletor = ctk.CTkOptionMenu(card, values=list(opcoes), variable=selecionado,
+        seletor = ctk.CTkOptionMenu(card, values=list(opcoes),
                                     width=360, fg_color=tema.VERDE,
                                     button_color=tema.VERDE_HOVER)
+        seletor.set(next(iter(opcoes)))
         seletor.pack(anchor="w", padx=18, pady=(0, 10))
         status = ctk.CTkLabel(card, text=f"{len(arquivos)} backup(s) disponível(is).",
                               font=tema.fonte(12), text_color=tema.SUAVE)
         status.pack(anchor="w", padx=18, pady=(0, 8))
 
         def restaurar():
-            arquivo = opcoes.get(selecionado.get())
+            arquivo = opcoes.get(seletor.get())
             if arquivo is None:
                 status.configure(text="Selecione um backup válido.", text_color=tema.LARANJA_TEXTO)
                 return
@@ -172,8 +172,8 @@ class ConfiguracoesUI:
                 return
             messagebox.showinfo(
                 "Restauração concluída",
-                f"Backup restaurado com sucesso.\\n\\nCópia do estado anterior: "
-                f"{resultado.copia_de_seguranca or 'não necessária'}.\\n\\n"
+                f"Backup restaurado com sucesso.\n\nCópia do estado anterior: "
+                f"{resultado.copia_de_seguranca or 'não necessária'}.\n\n"
                 "Feche e abra novamente o NutriLab para recarregar os dados restaurados."
             )
             status.configure(text="Restauração concluída. Reinicie o aplicativo.",
