@@ -85,7 +85,7 @@ class TestBancoModelo(unittest.TestCase):
         launcher = (RAIZ / "Gerar_e_Abrir_NutriLab.bat").read_text(encoding="utf-8")
         busca_exe = launcher.index('if exist "%~dp0NutriLab.exe"')
         compilacao = launcher.index('call %PY_CMD% -m PyInstaller')
-        geracao_banco = launcher.index('tools\\\\gerar_banco_modelo.py --sobrescrever')
+        geracao_banco = launcher.index('tools\\gerar_banco_modelo.py --sobrescrever')
         self.assertLess(busca_exe, compilacao)
         self.assertLess(geracao_banco, compilacao)
         self.assertIn('call %PY_CMD% -m pip install -r requirements-build.txt', launcher)
