@@ -254,7 +254,7 @@ class AppClinica(ctk.CTk):
                                ("Triagem NRS-2002", self.tela_nrs),
                                ("Configurações", self.tela_configuracoes)):
             ctk.CTkButton(self.menu_mapa, text=texto, command=comando, fg_color="#4caf50", hover_color="#388e3c",
-                          text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold")).pack(padx=20, pady=10)
+                          text_color="#ffffff", width=160, font=ctk.CTkFont(size=14, weight="bold")).pack(padx=20, pady=10)
 
         # Rodapé fixado na parte inferior do menu lateral
         self.label_copyright = ctk.CTkLabel(
