@@ -286,8 +286,10 @@ class TestRestauracao(BaseTmp):
                 raise PermissionError("shm bloqueado")
             return replace_real(src, dst)
 
-        with mock.patch.object(Path, "exists", simular_shm_presente), \\
-                mock.patch("db_service.os.replace", side_effect=falhar_ao_mover_shm):
+        with mock.patch.object(Path, "exists", simular_shm_presente):
+            with mock.patch("db_service.os.replace", side_effect=falhar_ao_mover_shm):
+                with self.assertRaises(PermissionError):
+                    svc.restaurar_backup(backup, db, agora=AGORA)
             with self.assertRaises(PermissionError):
                 svc.restaurar_backup(backup, db, agora=AGORA)
 
