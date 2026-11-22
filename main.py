@@ -307,7 +307,7 @@ class AppClinica(ctk.CTk):
         messagebox.showerror(
             "Falha no backup de segurança",
             "Não foi possível concluir o backup automático do banco de dados. "
-            "O programa permanecerá aberto para evitar um encerramento sem a cópia de segurança.\\n\\n"
+            "O programa permanecerá aberto para evitar um encerramento sem a cópia de segurança.\n\n"
             f"Detalhe: {erro}"
         )
 
