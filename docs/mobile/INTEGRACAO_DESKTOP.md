@@ -65,3 +65,12 @@ O APK ainda não foi confirmado em aparelho: o primeiro teste real (14/11/2026) 
 ## 8. Commits (todos com o dia na mensagem)
 
 APK e gerador · módulo de integração e testes · tela Mobile · botão no `main.py` · esta documentação.
+
+
+## Suplementos e campos estruturados da Copa
+
+O envio desktop → mobile atualiza o catálogo ativo `Mapa_Suplementos` na tabela `suplementos_catalogo` do banco mobile. A sincronização também ocorre ao abrir o painel Mobile no desktop. O aplicativo da Copa consulta `GET /api/suplementos` ao entrar, utilizando o último catálogo sincronizado quando estiver sem conexão.
+
+O retorno mobile → desktop mapeia cor, via, consistência e características DM/HAS/laxativa/constipante/DRC para `Mapa_Registros`. Os detalhes de cada suplemento são preservados em `Mapa_Registro_Suplementos`, incluindo mL por oferta, água adicionada, refeições selecionadas e indicação de preparo com fruta.
+
+A tela principal do Mapa Nutricional abre em **Visão geral (todos os setores)**. A lista inclui registros recebidos de todos os setores mobile e apresenta uma coluna Setor para diferenciar leitos com códigos iguais. É possível selecionar um setor específico no mesmo filtro. Os dados permanecem vinculados ao setor original; não são mesclados em uma única tabela de leitos.

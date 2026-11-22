@@ -138,22 +138,50 @@ def _n(v):
 
 def _mapear(row):
     """Linha do mapa do mobile -> campos equivalentes do registro do desktop."""
+    suplementos = row.get("suplementos")
+    if suplementos is None and row.get("suplementos_json"):
+        try:
+            suplementos = json.loads(row["suplementos_json"])
+        except (TypeError, ValueError):
+            suplementos = []
     m = {"nome_paciente": _t(row.get("nome")), "idade_anos": _n(row.get("idade_anos")), "idade_meses": _n(row.get("idade_meses")),
-         "acompanhante": int(bool(row.get("acompanhante"))), "obs_sim": _t(row.get("pref_sim")), "obs_nao": _t(row.get("pref_nao"))}
-    m.update(dieta_para_desktop(row.get("dieta")))
+         "acompanhante": int(bool(row.get("acompanhante"))), "obs_sim": _t(row.get("pref_sim")),
+         "obs_nao": _t(row.get("pref_nao")), "cor": _t(row.get("cor")),
+         "via": _t(row.get("via")), "consistencia": _t(row.get("consistencia")),
+         "dm": int(bool(row.get("dm"))), "has": int(bool(row.get("has"))),
+         "laxativa": int(bool(row.get("laxativa"))), "constipante": int(bool(row.get("constipante"))),
+         "drc": int(bool(row.get("drc"))), "suplementos": list(suplementos or [])}
+    if not m["via"] and not m["consistencia"]:
+        m.update(dieta_para_desktop(row.get("dieta")))
     return m
 
 
 def _cmp(campo, v):
-    """Valor normalizado, só para comparar."""
-    if campo in ("idade_meses", "acompanhante"):
-        return int(v or 0)
+    """Valor normalizado, só para comparar sem confundir NULL e falso/vazio."""
+    if campo in ("idade_meses", "acompanhante", "dm", "has", "laxativa", "constipante", "drc"):
+        return int(bool(v)) if campo not in ("idade_meses",) else int(v or 0)
     if campo == "idade_anos":
         return _n(v)
+    if campo == "suplementos":
+        campos = ("id_suplemento", "nome", "modulo", "ml_oferta", "agua_ml", "refeicoes", "qtd_dia", "batido_fruta", "unidade")
+        itens = []
+        for s in (v or []):
+            if not isinstance(s, dict):
+                continue
+            refeicoes = s.get("refeicoes")
+            if refeicoes is None:
+                try:
+                    refeicoes = json.loads(s.get("refeicoes_json") or "[]")
+                except (TypeError, ValueError):
+                    refeicoes = []
+            itens.append({k: (refeicoes if k == "refeicoes" else s.get(k)) for k in campos})
+        return json.dumps(itens, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return _t(v).casefold()
 
 
 def _vazio(campo, v):
+    if campo == "suplementos":
+        return not v
     return _cmp(campo, v) in (None, 0, "")
 
 
@@ -350,8 +378,20 @@ def resumo(db, data_iso):
 # ------------------------------------------------------------- enviar: mapa
 def _linha_mobile(reg, vivo):
     """Registro do desktop -> linha do mapa do mobile. Dieta/diagnóstico que o desktop não tem não apagam o do mobile."""
+    suplementos = []
+    for s in reg.get("suplementos") or []:
+        suplementos.append({
+            "id_suplemento": s.get("id_suplemento"), "nome": s.get("nome"), "modulo": s.get("modulo"),
+            "ml_oferta": s.get("ml_oferta"), "agua_ml": s.get("agua_ml"),
+            "refeicoes": s.get("refeicoes") or [], "qtd_dia": s.get("qtd_dia"),
+            "batido_fruta": bool(s.get("batido_fruta")), "unidade": s.get("unidade") or "ml"
+        })
     return {"nome": reg["nome_paciente"], "idade_anos": reg.get("idade_anos"), "idade_meses": reg.get("idade_meses"),
             "acompanhante": bool(reg.get("acompanhante")), "pref_sim": reg.get("obs_sim") or "", "pref_nao": reg.get("obs_nao") or "",
+            "cor": reg.get("cor") or "", "via": reg.get("via") or "", "consistencia": reg.get("consistencia") or "",
+            "dm": bool(reg.get("dm")), "has": bool(reg.get("has")), "laxativa": bool(reg.get("laxativa")),
+            "constipante": bool(reg.get("constipante")), "drc": bool(reg.get("drc")),
+            "suplementos": suplementos,
             "dieta": dieta_para_mobile(reg) or vivo.get("dieta", ""),
             "diagnostico": diagnostico_para_mobile(reg) or vivo.get("diagnostico", "")}
 
@@ -394,9 +434,29 @@ def _enviar_setor(db, sv, c, adm, nome, itens, data_iso, texto):
     return {"setor": nome, "leitos": n}
 
 
+def sincronizar_catalogo_suplementos(db, mobile_db):
+    """Atualiza o catálogo mobile com os suplementos ativos cadastrados no desktop."""
+    sv = _servidor()
+    with sv.LOCK:
+        with closing(sv.conectar(mobile_db)) as c:
+            c.executescript(sv.ESQUEMA)
+            sv.migrar(c)
+            c.execute("DELETE FROM suplementos_catalogo")
+            itens = mdb.listar_suplementos(db, apenas_ativos=True)
+            for s in itens:
+                c.execute("""INSERT INTO suplementos_catalogo
+                    (id_suplemento,nome,modulo,emb_qtd,emb_un,kcal_100,ptn_100,lip_100,carb_100,sod_100,ativo)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,1)""",
+                    (s["id_suplemento"], s["nome"], s.get("modulo"), s.get("emb_qtd"), s.get("emb_un"),
+                     s.get("kcal_100"), s.get("ptn_100"), s.get("lip_100"), s.get("carb_100"), s.get("sod_100")))
+            c.commit()
+    return len(itens)
+
+
 def enviar_mapa(db, mobile_db, data_iso, id_setor=None, texto=None):
     """Envia o mapa do dia do desktop para o mobile e publica para a copa. Devolve [{'setor', 'leitos'}] com os leitos alterados."""
     garantir_tabelas(db)
+    sincronizar_catalogo_suplementos(db, mobile_db)
     sv, c = _abrir_mobile(mobile_db)
     try:
         with sv.LOCK:

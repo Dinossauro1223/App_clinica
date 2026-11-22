@@ -300,6 +300,17 @@ class TestInterface(unittest.TestCase):
     def _primeiro_leito(self):
         return self.ui.linhas[0]
 
+    def test_mapa_geral_reune_leitos_de_todos_os_setores(self):
+        setor2 = mdb.criar_setor(self.db, "Setor B")
+        mdb.criar_leito(self.db, setor2, "B01")
+        self.ui.id_setor = None
+        self.ui.mostrar_mapa()
+        self.assertEqual(len(self.ui.linhas), 5)
+        setores_visiveis = {linha["leito"]["setor"] for linha in self.ui.linhas}
+        self.assertEqual(setores_visiveis, {s["nome"] for s in mdb.listar_setores(self.db)})
+        self.assertIn("Visão geral (todos os setores)", self.ui.cb_setor.opts["values"])
+        self.assertEqual({v[-1] for v in self.ui.tree.items.values()}, setores_visiveis)
+
     def test_mapa_lista_leitos_e_vagos(self):
         self.ui.mostrar_mapa()
         self.assertEqual(len(self.ui.tree.items), 4)

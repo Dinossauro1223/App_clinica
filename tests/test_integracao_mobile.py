@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Testes da integração desktop <-> mobile (criado em 12/11/2026). Dados sintéticos; sem interface gráfica real."""
 import os
+import json
 import shutil
 import sys
 import tempfile
@@ -84,6 +85,21 @@ class TestMapeamento(unittest.TestCase):
 
 
 class TestReceber(_Base):
+    def test_mapa_recebido_de_varios_setores_fica_disponivel_na_visao_geral(self):
+        ex = exportacao({"A01": {"nome": "Paciente Clínica", "dieta": "Branda"}})
+        ex["setores"].append({"id": 2, "nome": "UTI"})
+        ex["leitos"].append({"id": 5, "id_setor": 2, "codigo": "U01"})
+        ex["mapa"].append({"data": DIA, "id_leito": 5, "nome": "Paciente UTI", "idade_anos": 60,
+                           "idade_meses": None, "acompanhante": 0, "dieta": "Pastosa", "diagnostico": "",
+                           "pref_sim": "", "pref_nao": "", "por_perfil": "copa"})
+        propostas = im.propostas_mapa(self.db, ex)
+        self.assertEqual({p["setor"] for p in propostas}, {"Clinica A", "UTI"})
+        res = im.aplicar_mapa(self.db, propostas)
+        self.assertEqual((res["aplicados"], res["erros"]), (2, []))
+        geral = mdb.mapa_do_dia(self.db, DIA, None)
+        self.assertEqual(len([x for x in geral if x["registro"]]), 2)
+        self.assertEqual({x["leito"]["setor"] for x in geral if x["registro"]}, {"Clinica A", "UTI"})
+
     def test_novo_paciente_aplica_e_nao_repete(self):
         ex = exportacao({"A02": {"nome": "Joao Teste", "idade_anos": 8, "idade_meses": 3, "acompanhante": 1,
                                  "dieta": "Pastosa", "diagnostico": "Teste", "pref_nao": "peixe"}})
@@ -210,6 +226,41 @@ class TestComServidor(_Base):
         im.enviar_mapa(self.db, self.mdb, DIA)
         a01 = next(r for r in self.mobile("SELECT m.*, l.codigo FROM mapa_dia m JOIN leitos l ON l.id=m.id_leito") if r["codigo"] == "A01")
         self.assertEqual(a01["nome"], "")
+
+    def test_campos_estruturados_e_suplementos_fazem_ida_e_volta(self):
+        catalogo = mdb.listar_suplementos(self.db, apenas_ativos=True)
+        self.assertTrue(catalogo)
+        s = catalogo[0]
+        self.salvar("A03", nome_paciente="Paciente Completo", cor="B", via="Oral", consistencia="Pastosa",
+                    dm=1, has=1, laxativa=1, constipante=0, drc=1,
+                    suplementos=[{"id_suplemento": s["id_suplemento"], "nome": s["nome"], "modulo": s.get("modulo"),
+                                  "ml_oferta": 120, "agua_ml": 25, "refeicoes": ["desjejum", "ceia"],
+                                  "qtd_dia": 240, "unidade": "ml", "batido_fruta": True}])
+        im.enviar_mapa(self.db, self.mdb, DIA)
+        linha = next(r for r in self.mobile("SELECT m.*,l.codigo FROM mapa_dia m JOIN leitos l ON l.id=m.id_leito")
+                     if r["codigo"] == "A03")
+        self.assertEqual((linha["cor"], linha["via"], linha["consistencia"], linha["dm"], linha["has"],
+                          linha["laxativa"], linha["constipante"], linha["drc"]),
+                         ("B", "Oral", "Pastosa", 1, 1, 1, 0, 1))
+        sup = json.loads(linha["suplementos_json"])[0]
+        self.assertEqual((sup["ml_oferta"], sup["agua_ml"], sup["refeicoes"], sup["qtd_dia"], sup["batido_fruta"]),
+                         (120.0, 25.0, ["desjejum", "ceia"], 240.0, True))
+        with closing(sv.conectar(self.mdb)) as c:
+            self.assertTrue(c.execute("SELECT 1 FROM suplementos_catalogo WHERE id_suplemento=? AND ativo=1",
+                                      (s["id_suplemento"],)).fetchone())
+        # A atualização feita pela Copa deve voltar com os mesmos detalhes ao desktop.
+        self.copa_salva({"A03": {"nome": "Paciente Completo", "cor": "B", "via": "Oral",
+                                  "consistencia": "Pastosa", "dm": 1, "has": 1, "laxativa": 1,
+                                  "constipante": 0, "drc": 1,
+                                  "suplementos": [{"id_suplemento": s["id_suplemento"], "nome": s["nome"],
+                                                   "modulo": s.get("modulo"), "ml_oferta": 130, "agua_ml": 30,
+                                                   "refeicoes": ["desjejum", "ceia"], "batido_fruta": False}]}})
+        propostas = im.propostas_mapa(self.db, im.ler_mobile(self.mdb, DIA))
+        proposta = next(p for p in propostas if p["leito"] == "A03")
+        im.aplicar_mapa(self.db, [proposta], self.mdb)
+        atualizado = self.reg("A03")["suplementos"][0]
+        self.assertEqual((atualizado["ml_oferta"], atualizado["agua_ml"], atualizado["refeicoes"],
+                          atualizado["batido_fruta"]), (130.0, 30.0, ["desjejum", "ceia"], 0))
 
     def test_correcao_recusada_no_desktop(self):
         im.enviar_mapa(self.db, self.mdb, DIA)

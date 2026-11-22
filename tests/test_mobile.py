@@ -3,6 +3,7 @@ import json
 import tempfile
 import threading
 import unittest
+from contextlib import closing
 import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta
@@ -37,6 +38,7 @@ class MobileTest(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         db = str(Path(cls.tmp.name) / "teste.db")
         senha = sv.preparar_banco(db)
+        cls.db = db
         cls.srv = sv.criar_servidor(db, 0)
         cls.base = "http://127.0.0.1:%d" % cls.srv.server_address[1]
         threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
@@ -81,6 +83,45 @@ class MobileTest(unittest.TestCase):
     # ------------------------------------------------------------------ testes
     def test_login_invalido(self):
         self.assertEqual(self.chamar(None, "POST", "/api/login", {"login": "admin", "senha": "errada"})[0], 401)
+
+    def test_catalogo_de_suplementos_disponivel_para_copa(self):
+        with closing(sv.conectar(self.db)) as c:
+            c.execute("INSERT OR REPLACE INTO suplementos_catalogo(id_suplemento,nome,modulo,emb_qtd,emb_un,ativo) "
+                      "VALUES(901,'Suplemento Teste','Fórmula completa',200,'ml',1)")
+            c.commit()
+        cod, dados = self.chamar(self.t["cop"], "GET", "/api/suplementos")
+        self.assertEqual(cod, 200)
+        item = next(s for s in dados["suplementos"] if s["id_suplemento"] == 901)
+        self.assertEqual((item["nome"], item["modulo"], item["emb_qtd"], item["emb_un"]),
+                         ("Suplemento Teste", "Fórmula completa", 200.0, "ml"))
+
+    def test_copa_salva_caracteristicas_e_varios_suplementos(self):
+        linha = {"id_leito": 6, "nome": "Paciente Suplementação", "cor": "B", "consistencia": "Pastosa",
+                 "via": "Oral", "dm": True, "has": True, "laxativa": False, "constipante": True, "drc": False,
+                 "suplementos": [
+                     {"id_suplemento": 901, "nome": "Suplemento Teste", "modulo": "Fórmula completa",
+                      "ml_oferta": 150, "agua_ml": 30, "refeicoes": ["desjejum", "ceia"], "batido_fruta": True},
+                     {"id_suplemento": 902, "nome": "Módulo Teste", "modulo": "Proteico",
+                      "ml_oferta": 50, "agua_ml": 0, "refeicoes": ["almoco"], "batido_fruta": False}
+                 ]}
+        cod, _ = self.chamar(self.t["cop"], "POST", "/api/mapa", {"linhas": [linha]})
+        self.assertEqual(cod, 200)
+        salvo = self.leito(self.t["cop"], 6)
+        self.assertEqual((salvo["cor"], salvo["consistencia"], salvo["via"], salvo["dm"], salvo["has"],
+                          salvo["laxativa"], salvo["constipante"], salvo["drc"]),
+                         ("B", "Pastosa", "Oral", 1, 1, 0, 1, 0))
+        self.assertEqual(len(salvo["suplementos"]), 2)
+        self.assertEqual((salvo["suplementos"][0]["qtd_dia"], salvo["suplementos"][0]["ofertas_dia"],
+                          salvo["suplementos"][0]["agua_ml"], salvo["suplementos"][0]["batido_fruta"]),
+                         (300.0, 2, 30.0, True))
+        self.assertEqual(salvo["suplementos"][1]["qtd_dia"], 50.0)
+
+    def test_suplemento_exige_ao_menos_uma_refeicao(self):
+        linha = {"id_leito": 5, "nome": "Paciente Teste", "suplementos": [
+            {"id_suplemento": 903, "nome": "Suplemento", "ml_oferta": 100, "refeicoes": []}]}
+        cod, dados = self.chamar(self.t["cop"], "POST", "/api/mapa", {"linhas": [linha]})
+        self.assertEqual(cod, 400)
+        self.assertIn("refeição", dados["erro"])
 
     def test_permissoes_por_perfil(self):
         t = self.t
