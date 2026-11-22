@@ -109,8 +109,10 @@ class TestCodigoFonte(unittest.TestCase):
     def test_anexos_de_pacientes_nao_usam_a_pasta_de_recursos(self):
         texto = (RAIZ / "main.py").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r'os\.path\.join\(\s*base_dir,\s*"arquivos_pacientes"', texto))
-        # dois anexos de paciente + a cópia em PDF da folha de alta (pasta_condutas_alta): todos gravam fora do bundle
-        self.assertEqual(texto.count('get_writable_path("arquivos_pacientes")'), 3)
+        # Os pontos de acesso a arquivos do paciente incluem agora a verificação de
+        # existência/contagem para bloquear exclusão se houver arquivos persistidos.
+        # Os locais que gravam anexos continuam usando a pasta externa ao bundle.
+        self.assertEqual(texto.count('get_writable_path("arquivos_pacientes")'), 4)
 
 
 class TestCaminhoDoBanco(BaseApp):
