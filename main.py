@@ -421,6 +421,9 @@ class AppClinica(ctk.CTk):
         if nome.strip() == "":
             self.lbl_mensagem.configure(text="Erro: O nome é obrigatório.", text_color="#c62828")
             return
+        if nasc.strip() and not tema.data_valida(nasc):
+            self.lbl_mensagem.configure(text="Erro: informe uma data de nascimento válida (DD/MM/AAAA).", text_color="#c62828")
+            return
         conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute('INSERT INTO Pacientes (nome, data_nascimento, sexo) VALUES (?, ?, ?)', (nome, nasc, sexo))
