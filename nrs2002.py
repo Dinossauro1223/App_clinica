@@ -25,7 +25,7 @@ LIMITE_RDC63 = 10
 def classificar(respostas, estado=None, gravidade=None, idade=None):
     """Avalia respostas e retorna dicionário de estado, escore e classificação."""
     valores = [respostas.get(chave) for chave, _ in PERGUNTAS]
-    if any(v not in (True, False, None) for v in valores):
+    if any(v is not None and type(v) is not bool for v in valores):
         raise ValueError("Respostas da triagem devem ser True, False ou None.")
     if any(v is None for v in valores):
         return {"completo": False, "etapa": 1, "escore": None, "grau": None,
