@@ -169,12 +169,110 @@ _CONDUTAS_ALTA_TRAVAS_DOWN = (
     "DROP TRIGGER IF EXISTS tr_condutas_alta_docs_ins_imutavel",
 )
 
+
+# --- v4: evolução ambulatorial estruturada, biblioteca DOCX, relações de exames e triagens ----------------------------
+_AMBULATORIAL_UP = (
+    """CREATE TABLE IF NOT EXISTS Consulta_Dados_Estruturados (
+        id_consulta INTEGER PRIMARY KEY,
+        anamnese_guiada_json TEXT NOT NULL DEFAULT '{}',
+        recordatorio_24h TEXT,
+        antropometria_json TEXT NOT NULL DEFAULT '{}',
+        necessidades_json TEXT NOT NULL DEFAULT '{}',
+        criado_em TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Consulta_Medicamentos (
+        id_medicamento INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_consulta INTEGER NOT NULL,
+        nome TEXT NOT NULL,
+        dose TEXT,
+        via TEXT,
+        frequencia TEXT,
+        indicacao TEXT,
+        observacao TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS Consulta_Metas (
+        id_meta INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_consulta INTEGER NOT NULL,
+        descricao TEXT NOT NULL,
+        indicador TEXT,
+        prazo TEXT,
+        status TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS Recomendacoes_Docs (
+        id_recomendacao INTEGER PRIMARY KEY AUTOINCREMENT,
+        titulo TEXT NOT NULL,
+        caso_clinico TEXT NOT NULL,
+        tags TEXT,
+        nome_original TEXT NOT NULL,
+        arquivo_relativo TEXT NOT NULL UNIQUE,
+        tamanho_bytes INTEGER NOT NULL,
+        sha256 TEXT NOT NULL,
+        ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0,1)),
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Consulta_Recomendacoes (
+        id_associacao INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_consulta INTEGER NOT NULL,
+        id_paciente INTEGER NOT NULL,
+        id_recomendacao INTEGER NOT NULL REFERENCES Recomendacoes_Docs(id_recomendacao),
+        conduta_relacionada TEXT,
+        observacao TEXT,
+        associado_em TEXT NOT NULL,
+        UNIQUE (id_consulta, id_recomendacao)
+    )""",
+    """CREATE TABLE IF NOT EXISTS Exames_Associacoes (
+        id_associacao INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_exame TEXT NOT NULL,
+        tipo_associacao TEXT NOT NULL CHECK (tipo_associacao IN ('exame_recomendado','diagnostico_clinico','diagnostico_nutricional')),
+        valor_relacionado TEXT NOT NULL,
+        justificativa TEXT,
+        fonte TEXT,
+        ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0,1)),
+        criado_em TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Consulta_Triagens (
+        id_triagem INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_consulta INTEGER NOT NULL,
+        instrumento TEXT NOT NULL,
+        versao TEXT,
+        pontuacao_total REAL,
+        classificacao TEXT,
+        resultado_json TEXT NOT NULL,
+        origem TEXT,
+        criado_em TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_consulta_medicamentos_consulta ON Consulta_Medicamentos(id_consulta)",
+    "CREATE INDEX IF NOT EXISTS ix_consulta_metas_consulta ON Consulta_Metas(id_consulta)",
+    "CREATE INDEX IF NOT EXISTS ix_recomendacoes_docs_ativas ON Recomendacoes_Docs(ativo,titulo)",
+    "CREATE INDEX IF NOT EXISTS ix_consulta_recomendacoes_consulta ON Consulta_Recomendacoes(id_consulta,id_paciente)",
+    "CREATE INDEX IF NOT EXISTS ix_exames_associacoes_exame ON Exames_Associacoes(id_exame,ativo)",
+    "CREATE INDEX IF NOT EXISTS ix_consulta_triagens_consulta ON Consulta_Triagens(id_consulta,instrumento)",
+)
+_AMBULATORIAL_DOWN = (
+    "DROP INDEX IF EXISTS ix_consulta_triagens_consulta",
+    "DROP INDEX IF EXISTS ix_exames_associacoes_exame",
+    "DROP INDEX IF EXISTS ix_consulta_recomendacoes_consulta",
+    "DROP INDEX IF EXISTS ix_recomendacoes_docs_ativas",
+    "DROP INDEX IF EXISTS ix_consulta_metas_consulta",
+    "DROP INDEX IF EXISTS ix_consulta_medicamentos_consulta",
+    "DROP TABLE IF EXISTS Consulta_Triagens",
+    "DROP TABLE IF EXISTS Exames_Associacoes",
+    "DROP TABLE IF EXISTS Consulta_Recomendacoes",
+    "DROP TABLE IF EXISTS Recomendacoes_Docs",
+    "DROP TABLE IF EXISTS Consulta_Metas",
+    "DROP TABLE IF EXISTS Consulta_Medicamentos",
+    "DROP TABLE IF EXISTS Consulta_Dados_Estruturados",
+)
+
 # Lista oficial. NOVAS migrações entram SEMPRE ao final, com versão contígua; nunca editar uma já publicada.
 MIGRACOES = (
     Migracao(versao=1, nome="baseline_esquema_legado", up=(), down=None, baseline=True),
     Migracao(versao=2, nome="condutas_alta", up=_CONDUTAS_ALTA_UP, down=_CONDUTAS_ALTA_DOWN),
     Migracao(versao=3, nome="condutas_alta_travas_contra_substituicao", up=_CONDUTAS_ALTA_TRAVAS_UP,
              down=_CONDUTAS_ALTA_TRAVAS_DOWN),
+    Migracao(versao=4, nome="ambulatorial_anamnese_recomendacoes_exames_triagens",
+             up=_AMBULATORIAL_UP, down=_AMBULATORIAL_DOWN),
 )
 
 
