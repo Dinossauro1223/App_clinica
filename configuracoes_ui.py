@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import customtkinter as ctk
+from tkinter import messagebox
+import db_service
 import tema
 import nrs2002 as nrs
 
@@ -58,6 +60,7 @@ class ConfiguracoesUI:
         self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
         self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
         self._nrs(raiz)
+        self._backups(raiz)
         ctk.CTkButton(raiz, text="Voltar ao início", fg_color=tema.VERDE,
                      hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=24, pady=10)
 
@@ -101,6 +104,84 @@ class ConfiguracoesUI:
                           text_color=tema.LARANJA_TEXTO if aviso else tema.VERDE)
         ctk.CTkButton(card, text="Salvar intervalos", command=salvar, fg_color=tema.VERDE,
                       hover_color=tema.VERDE_HOVER, font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
+
+
+    def _backups(self, raiz):
+        """Lista snapshots locais por data e permite restauração protegida."""
+        caminho_db = db_service.caminho_banco()
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                           border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=(4, 12))
+        ctk.CTkLabel(card, text="Backups e recuperação de dados",
+                     font=tema.fonte(16, "bold"), text_color=tema.TEXTO).pack(
+                         anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(
+            card,
+            text="As cópias ficam na pasta backups, ao lado do banco. Restaurar substitui o banco atual "
+                 "pela cópia escolhida e cria automaticamente uma cópia de segurança do estado atual.",
+            font=tema.fonte(12), text_color=tema.SUAVE, wraplength=760, justify="left"
+        ).pack(anchor="w", padx=18, pady=(0, 10))
+
+        arquivos = list(reversed(db_service.listar_backups(caminho_db)))
+        if not arquivos:
+            ctk.CTkLabel(card, text="Nenhum backup encontrado nesta instalação.",
+                         font=tema.fonte(12), text_color=tema.SUAVE).pack(
+                             anchor="w", padx=18, pady=(0, 14))
+            return
+
+        opcoes = {}
+        for arquivo in arquivos:
+            nome = arquivo.name
+            import re
+            m = re.search(r"\.backup_(\d{8})-(\d{6})_(.+)\.db$", nome)
+            if m:
+                data = f"{m.group(1)[6:8]}/{m.group(1)[4:6]}/{m.group(1)[0:4]}"
+                hora = f"{m.group(2)[0:2]}:{m.group(2)[2:4]}:{m.group(2)[4:6]}"
+                motivo = m.group(3).replace("-", " ")
+                rotulo = f"{data} {hora} — {motivo}"
+            else:
+                rotulo = nome
+            opcoes[rotulo] = arquivo
+
+        seletor = ctk.CTkOptionMenu(card, values=list(opcoes),
+                                    width=360, fg_color=tema.VERDE,
+                                    button_color=tema.VERDE_HOVER)
+        seletor.set(next(iter(opcoes)))
+        seletor.pack(anchor="w", padx=18, pady=(0, 10))
+        status = ctk.CTkLabel(card, text=f"{len(arquivos)} backup(s) disponível(is).",
+                              font=tema.fonte(12), text_color=tema.SUAVE)
+        status.pack(anchor="w", padx=18, pady=(0, 8))
+
+        def restaurar():
+            arquivo = opcoes.get(seletor.get())
+            if arquivo is None:
+                status.configure(text="Selecione um backup válido.", text_color=tema.LARANJA_TEXTO)
+                return
+            if not messagebox.askyesno(
+                "Confirmar restauração",
+                "O banco atual será substituído pelo backup selecionado. "
+                "Uma cópia do estado atual será criada automaticamente antes da troca. "
+                "Deseja continuar?"
+            ):
+                return
+            try:
+                resultado = db_service.restaurar_backup(arquivo, caminho_db)
+            except Exception as erro:
+                messagebox.showerror("Falha na restauração",
+                                     f"A restauração não foi concluída. Se houve falha na troca, use a cópia pre-restauração criada automaticamente.\n\nDetalhe: {erro}")
+                return
+            messagebox.showinfo(
+                "Restauração concluída",
+                f"Backup restaurado com sucesso.\n\nCópia do estado anterior: "
+                f"{resultado.copia_de_seguranca or 'não necessária'}.\n\n"
+                "Feche e abra novamente o NutriLab para recarregar os dados restaurados."
+            )
+            status.configure(text="Restauração concluída. Reinicie o aplicativo.",
+                              text_color=tema.VERDE)
+
+        ctk.CTkButton(card, text="Restaurar backup selecionado", command=restaurar,
+                      fg_color=tema.LARANJA, hover_color=tema.LARANJA_TEXTO,
+                      font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
 
     def _aplicar(self, nome):
         modo = self.OPCOES.get(nome, "Light")
