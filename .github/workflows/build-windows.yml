@@ -97,6 +97,10 @@ jobs:
           if (!(Test-Path $dll)) {
             throw "DLL do Python não encontrada: $dll"
           }
+          $camadas = "dist/NutriLab/_internal/identidade_camadas/folhas.json"
+          if (!(Test-Path $camadas)) {
+            throw "Camadas transparentes da tela inicial não foram empacotadas: $camadas"
+          }
           if (!(Test-Path $icon)) {
             throw "Ícone original não foi gerado: $icon"
           }
