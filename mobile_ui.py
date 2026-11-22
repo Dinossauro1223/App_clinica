@@ -13,6 +13,7 @@ import customtkinter as ctk
 
 import integracao_mobile as im
 import mapa_db as mdb
+import ui_workers
 
 VERDE_ESC, VERDE, VERDE_HOVER = "#1b5e20", "#4caf50", "#388e3c"
 CINZA, CINZA_HOVER, AZUL, AZUL_HOVER, LARANJA, LARANJA_HOVER = "#78909c", "#546e7a", "#1565c0", "#0d47a1", "#ef6c00", "#e65100"
@@ -59,6 +60,8 @@ class MobileUI:
         self.propostas = {}
         self.setores = []
         self.mobile_db = im.caminho_mobile_db(db_path, base_dir)
+        self._atualizando_banco = False
+        self._verificando = False
 
     # --------------------------------------------------------------- montagem
     def mostrar(self):
@@ -123,15 +126,34 @@ class MobileUI:
         self._atualizar_banco()
 
     def _atualizar_banco(self):
-        if not os.path.exists(self.mobile_db):
-            achou = "NÃO encontrado: ligue o servidor mobile uma vez"
-        else:
-            try:
-                qtd = im.sincronizar_catalogo_suplementos(self.db, self.mobile_db)
-                achou = "encontrado; catálogo de %d suplemento(s) atualizado" % qtd
-            except Exception as e:
-                achou = "encontrado; falha ao atualizar catálogo: %s" % str(e)
-        self.lbl_banco.configure(text="Banco do mobile: %s (%s)" % (self.mobile_db, achou))
+        """Atualiza o catálogo auxiliar sem bloquear a tela Mobile."""
+        if self._atualizando_banco:
+            return
+        self._atualizando_banco = True
+        self.lbl_banco.configure(text="Verificando banco do Mobile…")
+        mobile_db = self.mobile_db
+        def trabalho():
+            if not os.path.exists(mobile_db):
+                return "NÃO encontrado: ligue o servidor mobile uma vez"
+            qtd = im.sincronizar_catalogo_suplementos(self.db, mobile_db)
+            return "encontrado; catálogo de %d suplemento(s) atualizado" % qtd
+        def sucesso(achou):
+            if self._widgets_disponiveis():
+                self.lbl_banco.configure(text="Banco do mobile: %s (%s)" % (mobile_db, achou))
+        def erro(exc):
+            if self._widgets_disponiveis():
+                self.lbl_banco.configure(text="Banco do mobile: %s (falha ao atualizar catálogo: %s)" % (mobile_db, exc))
+        def finalizar():
+            self._atualizando_banco = False
+        return ui_workers.executar_em_segundo_plano(
+            self.app, trabalho, ao_sucesso=sucesso, ao_erro=erro, ao_finalizar=finalizar,
+            nome="nutrilab-mobile-atualizar-catalogo")
+
+    def _widgets_disponiveis(self):
+        try:
+            return bool(self.lbl_banco and self.lbl_banco.winfo_exists())
+        except Exception:
+            return False
 
     # ----------------------------------------------------------------- datas
     def _mostrar_data(self):
@@ -155,18 +177,36 @@ class MobileUI:
 
     # --------------------------------------------------------------- receber
     def _verificar(self):
+        """Lê o Mobile e concilia os dados em segundo plano; widgets só mudam no thread do Tk."""
+        if self._verificando:
+            return
         iso = self.data.isoformat()
-        try:
-            ex = im.ler_mobile(self.mobile_db, iso)
+        mobile_db = self.mobile_db
+        self._verificando = True
+        self.lbl_status.configure(text="Consultando alterações recebidas do Mobile…")
+        def trabalho():
+            ex = im.ler_mobile(mobile_db, iso)
             props = im.propostas_mapa(self.db, ex)
             im.importar_refeicoes(self.db, ex)
             im.importar_estoque(self.db, ex)
-        except im.ErroMobile as e:
-            messagebox.showwarning("Mobile", str(e))
-            return
-        self._preencher(props, iso)
-        self._resumo_texto(iso, len([k for k in ex.get("correcoes_pendentes", []) if k["tipo"] != "mapa"]))
-        self.lbl_status.configure(text=("%d item(ns) do mapa para conferir." % len(props)) if props else "Nada novo no mapa.")
+            pendentes = len([k for k in ex.get("correcoes_pendentes", []) if k["tipo"] != "mapa"])
+            return props, pendentes
+        def sucesso(resultado):
+            if not self._widgets_disponiveis():
+                return
+            props, pendentes = resultado
+            self._preencher(props, iso)
+            self._resumo_texto(iso, pendentes)
+            self.lbl_status.configure(text=("%d item(ns) do mapa para conferir." % len(props)) if props else "Nada novo no mapa.")
+        def erro(exc):
+            if self._widgets_disponiveis():
+                messagebox.showwarning("Mobile", str(exc))
+                self.lbl_status.configure(text="Não foi possível consultar o Mobile.")
+        def finalizar():
+            self._verificando = False
+        return ui_workers.executar_em_segundo_plano(
+            self.app, trabalho, ao_sucesso=sucesso, ao_erro=erro, ao_finalizar=finalizar,
+            nome="nutrilab-mobile-verificar")
 
     def _preencher(self, props, iso):
         for iid in self.tree.get_children():
