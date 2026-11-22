@@ -28,6 +28,15 @@ Uma pausa de mais de um segundo, mexer o cursor ou clicar no campo também come�
 | Ctrl+A | Selecionar todas as linhas |
 | Ctrl+C | Copiar as linhas selecionadas. As colunas saem separadas por tabulação: ao colar no Planilhas, cada coluna cai numa célula |
 
+## No Mapa Nutricional
+
+| Atalho | O que faz |
+|---|---|
+| Enter ou F2 | Abrir o registro do leito selecionado para registrar/editar |
+| Ctrl+H | Abrir o histórico do paciente selecionado |
+
+Também é possível abrir o registro com duplo clique no leito. Os comandos só atuam quando a lista de leitos está em foco; os botões continuam disponíveis.
+
 ## Em qualquer tela
 
 | Atalho | O que faz |
