@@ -69,8 +69,8 @@ call %PY_CMD% -m pip install -r requirements-build.txt >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_DEPENDENCIAS
 
 echo.
-echo [2/4] Gerando banco inicial do proprio codigo...
-echo [2/4] Banco inicial >> "%LOG%"
+echo [2/5] Gerando banco inicial do proprio codigo...
+echo [2/5] Banco inicial >> "%LOG%"
 call %PY_CMD% tools\gerar_banco_modelo.py --sobrescrever >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_BANCO
 if not exist "modelo_banco\clinica.db" goto ERRO_BANCO_AUSENTE
