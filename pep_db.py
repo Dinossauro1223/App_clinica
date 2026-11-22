@@ -28,7 +28,7 @@ class PEPError(Exception):
 
 
 def _conectar(db_path):
-    return svc.conectar(db_path)
+    return svc.conectar(db_path, foreign_keys=True)
 
 
 def _agora():
@@ -153,6 +153,9 @@ def salvar_evolucao(db_path, id_paciente, paciente_nome, data_evolucao, cabecalh
     json_cabecalho = json.dumps(cabecalho, ensure_ascii=False, sort_keys=True)
     with _conectar(db_path) as conn:
         _exigir_schema(conn)
+        paciente = conn.execute("SELECT id_paciente FROM Pacientes WHERE id_paciente=?", (id_paciente,)).fetchone()
+        if not paciente:
+            raise ValueError("Paciente não encontrado no cadastro clínico.")
         usuario = conn.execute("SELECT nome_completo, crn, ativo FROM Pep_Usuarios WHERE id_usuario=?", (int(id_usuario),)).fetchone()
         if not usuario or not usuario[2]:
             raise PEPError("Usuário profissional inexistente ou inativo.")
