@@ -1,14 +1,14 @@
 # NutriLab Mobile — descrição e guia de integração
 
-Entregue em **12/11/2026** (duas entregas no mesmo dia; este arquivo vale para a versão atual, branch `feat/mobile-nutricao-copa-refeicoes-2026-11-12`,
-que inclui a primeira). Descreve **tudo** o que existe, para o programa desktop (CustomTkinter/SQLite) ser atualizado depois, em outro chat,
-para receber/enviar estes dados.
+Documento atualizado em **22/11/2026** para a evolução mobile encadeada após o PR #14. Descreve o servidor, as permissões e a tela de orientações,
+compartilhados pela página mobile e pelo APK WebView, para que o desktop possa integrar esses dados posteriormente.
 
 ## 1. O que existe
 
 Um servidor pequeno (`mobile/servidor.py`, só biblioteca padrão do Python) que roda **no computador do administrador** e serve uma página
 (`mobile/static/index.html`) aos celulares da mesma rede. A página muda de cor e de abas conforme o login. Não toca em `main.py`, `mapa_db.py`
-nem no `clinica.db`.
+nem no `clinica.db`. A mesma página mobile/WebView agora também oferece a aba **Orientações**, com conteúdo educativo para cozinha e copa,
+ilustrações de preparo e frutas, comparações nutricionais por 100 g e textos editáveis pelo administrador.
 
 Como rodar: dois cliques em `mobile/iniciar_servidor.bat` (ou `python mobile/servidor.py`). Na primeira vez mostra a senha do usuário `admin`
 (`--redefinir-admin` gera outra). No computador: `http://localhost:8765`; nos celulares: o endereço `http://IP:8765` mostrado na tela, no **mesmo
@@ -19,11 +19,11 @@ Wi-Fi/rede** (liberar a porta 8765 no Firewall do Windows, rede privada). Qualqu
 
 | Perfil | Cor | Abas | Pode |
 |---|---|---|---|
-| `admin` | azul-petróleo | Painel, Mapa, Refeições, Estoques, Avisos, Cadastros | tudo, de qualquer dia; cria usuários, setores/leitos, itens; habilita refeições; decide correções |
-| `nutricionista` (`id_setor` vazio = todos os setores) | verde | Painel, Mapa, Refeições, Avisos | edita o mapa (rascunho) e **publica para a copa**; envia avisos; ajusta horários de contagem do setor; decide correções de mapa/refeições do setor; não acessa estoque |
-| `copa` (copeira; `id_setor` = setor dela) | âmbar | Mapa, Refeições, Estoque | mapa e contagem do próprio setor, só hoje; estoque da copa |
-| `estoque_cozinha` | tijolo | Estoque | só o estoque da cozinha, só hoje |
-| `estoque_almox` | índigo | Estoque | só o almoxarifado, só hoje |
+| `admin` | azul-petróleo | Painel, Mapa, Refeições, Estoques, Avisos, Cadastros, Orientações | tudo, de qualquer dia; administra usuários, conteúdos e dados operacionais |
+| `nutricionista` (`id_setor` vazio = todos os setores) | verde | Painel, Mapa, Refeições, Avisos, Orientações | edita o mapa (rascunho) e **publica para a copa**; envia avisos; ajusta horários de contagem; decide correções; não acessa estoque |
+| `copa` (copeira; `id_setor` = setor dela) | âmbar | Mapa, Refeições, Estoque, Orientações | mapa e contagem do próprio setor, só hoje; estoque da copa; consulta instruções |
+| `estoque_cozinha` | tijolo | Estoque, Orientações | só o estoque da cozinha, só hoje; consulta instruções |
+| `estoque_almox` | índigo | Estoque, Orientações | só o almoxarifado, só hoje; consulta instruções |
 
 Perfis `setor` e `estoque_copa` da primeira entrega viram `copa` na migração (a copa agora faz mapa, contagem e estoque com um só login).
 
@@ -74,6 +74,23 @@ zero naquele item, do almoxarifado (saldo da origem menor que o retirado = movim
 `POST /api/nutri/publicar {setor, data?, texto?}`, `POST /api/nutri/avisos`, `POST /api/nutri/janelas {setor?, refeicao, abre, fecha}` · admin: `GET|POST /api/admin/usuarios`,
 `POST /api/admin/usuarios/<id>`, `POST /api/admin/setores`, `POST /api/admin/itens`, `GET|POST /api/admin/refeicoes`, **`GET /api/admin/exportar?data=`**.
 Linhas do mapa: `{id_leito, nome, idade_anos, idade_meses, dieta, diagnostico, pref_sim, pref_nao, acompanhante}`.
+
+## 8.1 Orientações operacionais e educativas
+
+A aba **Orientações** é visível para os perfis de administração, nutrição, copa, estoque da cozinha e almoxarifado.
+O conteúdo é compartilhado entre a página mobile e o APK que abre essa página em WebView.
+
+- A tela apresenta sequência ilustrada para medir o líquido, dosar o pó e homogeneizar. Não fixa proporção genérica: quantidade, diluente e volume final devem seguir prescrição, rótulo e ficha técnica do produto específico.
+- Há textos sobre fibras e funcionamento intestinal, potássio e montagem da dieta para diabetes.
+- As frutas ilustradas são melão, melancia, banana-prata, maçã Fuji, uva Rubi, abacaxi, abacate, laranja Pera e mamão Papaia.
+- As escalas comparam fibra alimentar (maior para menor), potássio (menor para maior) e carboidrato disponível (menor para maior), todas por 100 g de parte comestível, com referências à TBCA/USP. A maturação/variedade, o preparo e a porção podem mudar a quantidade servida.
+- O gráfico de fibras não é uma escala clínica de efeito laxativo. A tela informa que não existe classificação universal de frutas constipantes; não proíbe/libera frutas automaticamente em diabetes ou doença renal.
+- O administrador pode editar os textos base e adicionar novos tópicos. A gravação é restrita ao perfil `admin`; os demais perfis têm leitura.
+- Rotas: `GET /api/orientacoes` (usuário autenticado) e `POST /api/admin/orientacoes` (somente administrador). Ilustrações estáticas: `/static/diluicao.svg` e `/static/frutas.svg`.
+- Rodapé da versão mobile: **Thiago S. Santos e Neis B. Alencar · NutriLab 2026**.
+
+A tabela `orientacoes` é criada automaticamente em `mobile.db` e recebe quatro textos iniciais quando ainda não existem. O administrador pode ajustar orientações locais;
+não se devem cadastrar volumes de diluição sem consultar a apresentação exata do produto e a prescrição vigente.
 
 ## 9. Integração com o desktop (próximo chat)
 

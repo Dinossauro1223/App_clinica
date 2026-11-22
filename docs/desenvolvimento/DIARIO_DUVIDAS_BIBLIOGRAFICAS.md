@@ -192,3 +192,22 @@ _Nenhuma nova dúvida bibliográfica foi registrada neste pacote de documentaç�
 - **Decisão:** incluir o método `planilha` (coeficientes idênticos aos da aba) em `nutri_calculos.METODOS_ALTURA_IDOSO`, sem mudar o padrão das demais telas; a tela Avaliação e evolução o usa por pedido do usuário (prática do setor). AJ do amputado: inverso de Chumlea (1985), como em `Peso-Alt`!B45:C45. A própria planilha mistura equações em 60+; a rotulagem na tela mostra qual foi usada.
 - **Limitações:** atribuição de ano/autor da equação da planilha não confirmada (ver REF-2026-11-11-002); validação clínica institucional pendente.
 - **Arquivos/testes:** `nutri_calculos.py`, `avaliacao_nutri.py`, `tests/test_avaliacao.py` (9 testes sintéticos, incluindo os valores da planilha). **Estado:** parcialmente resolvida.
+
+
+### REF-2026-11-22-001 — Orientações mobile para preparo de dietas e comparação de frutas
+
+- **Data/agente:** 22/11/2026 (America/Recife) — integração NutriLab.
+- **Dúvida:** como apresentar às equipes de cozinha e copa as instruções de diluição, frutas relacionadas ao trânsito intestinal, potássio e diabetes, sem transformar comparações nutricionais em prescrição clínica automática.
+- **Fontes consultadas:**
+  - TBCA/USP, composição de alimentos por 100 g da parte comestível: maçã Fuji com casca (BRC0064C), melancia (BRC0027C), mamão Papaia (BRC0044C), uva Rubi (BRC0035C), melão (BRC0028C), banana-prata (BRC0011C), abacate (BRC0001C), abacaxi (BRC0002C) e laranja Pera (BRC0020C). Base: https://www.tbca.net.br/base-dados/
+  - American Diabetes Association. *Standards of Care in Diabetes—2026*, seção 5 — planos alimentares individualizados, preferência por frutas inteiras, controle de bebidas açucaradas e consistência de carboidratos para doses fixas de insulina: https://doi.org/10.2337/dc26-S005
+  - National Institute of Diabetes and Digestive and Kidney Diseases (NIDDK). *Eating, Diet, & Nutrition for Constipation* — fibras, hidratação e adequação individual: https://www.niddk.nih.gov/health-information/digestive-diseases/constipation/eating-diet-nutrition
+- **Decisões adotadas:**
+  - Não inserir proporções universais de pó/água/suco. O volume e o tipo de diluente dependem do produto, da apresentação, do rótulo, da ficha técnica e da prescrição. A tela ensina o fluxo (medir, dosar, homogeneizar e conferir volume final), sem números inventados.
+  - Exibir três escalas por 100 g: fibra alimentar em ordem decrescente; potássio e carboidrato disponível em ordem crescente. O gráfico é comparativo e não define alimento proibido/livre.
+  - A escala de fibra é um indicador de conteúdo, não um índice de efeito laxativo. A interface não classifica as nove frutas como constipantes, pois essa categorização universal não é sustentada apenas pela composição. A maturação da banana, casca, forma de preparo, porção e tolerância devem ser consideradas.
+  - Para diabetes, reforçar fruta inteira, ausência de açúcar adicionado e respeito à porção e distribuição de carboidratos individualizadas; não classificar frutas como proibidas.
+  - Para doença renal, potássio por 100 g não substitui avaliação do potássio sérico, função renal, porção, medicamentos e plano individual.
+- **Limitações:** valores de TBCA são referências de alimentos/variedades selecionados, não substituem análise do lote servido. As medidas mudam com variedade, maturação, casca e preparo. Os valores publicados são apresentados apenas como comparações por 100 g com atribuição à TBCA/USP. Conteúdo e doses locais precisam ser revisados pela Nutrição e pela equipe responsável antes de uso assistencial.
+- **Arquivos/testes:** `mobile/servidor.py`, `mobile/static/index.html`, `mobile/static/diluicao.svg`, `mobile/static/frutas.svg`, `tests/test_mobile.py`, documentação mobile e roadmap. A alteração cria a tabela `orientacoes`, com quatro textos iniciais; GET para perfis autenticados; escrita somente pelo administrador; serviço de estáticos sob `/static/`.
+- **Estado:** implementação técnica proposta; pendente de CI completo e homologação no aparelho/servidor local.

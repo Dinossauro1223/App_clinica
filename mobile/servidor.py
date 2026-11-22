@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import mimetypes
 import re
 import secrets
 import socket
@@ -19,7 +20,7 @@ import traceback
 from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 AQUI = Path(__file__).resolve().parent
 TZ = timezone(timedelta(hours=-3))  # America/Recife (sem horário de verão)
@@ -61,7 +62,25 @@ CREATE TABLE IF NOT EXISTS correcoes(id INTEGER PRIMARY KEY, tipo TEXT, data TEX
 CREATE TABLE IF NOT EXISTS avisos(id INTEGER PRIMARY KEY, criado_em TEXT, por_usuario INTEGER, tipo TEXT, id_setor INTEGER,
   titulo TEXT, texto TEXT, leitos TEXT);
 CREATE TABLE IF NOT EXISTS avisos_lidos(id_aviso INTEGER, id_usuario INTEGER, lido_em TEXT, PRIMARY KEY(id_aviso, id_usuario));
+CREATE TABLE IF NOT EXISTS orientacoes(id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, titulo TEXT NOT NULL,
+  texto TEXT NOT NULL, ordem INTEGER NOT NULL DEFAULT 0, atualizado_por INTEGER, atualizado_em TEXT NOT NULL);
 """
+
+
+ORIENTACOES_INICIAIS = [
+    ("diluicao", "Diluição de pós e preparo de bebidas",
+     "Antes de preparar, confira o nome do produto, a prescrição, a quantidade de pó e o líquido indicados na ficha técnica ou no rótulo da apresentação utilizada.\n\nNão existe uma proporção universal de pó para água ou suco: medidas, concentração e volume final variam entre produtos. Use balança ou medida exclusiva do produto quando a ficha técnica determinar; não substitua por colher doméstica.\n\nMeça o líquido com recipiente graduado. Quando a orientação definir VOLUME FINAL, dissolva primeiro no volume inicial indicado e complete até o volume final depois de misturar. Não some automaticamente o volume do pó ao volume de água.\n\nUse água como diluente padrão, salvo orientação expressa da prescrição/ficha técnica. Suco de fruta só deve ser usado quando estiver escrito: ele acrescenta carboidratos e pode alterar sabor, acidez e características do preparo. Não acrescente açúcar.\n\nHigienize mãos, bancada e utensílios; misture até homogeneizar; identifique o preparo e siga o prazo, a temperatura e o descarte definidos pelo fabricante e pelo protocolo do serviço. Não reutilize sobras sem autorização.",
+     10),
+    ("intestino", "Frutas, fibras e funcionamento intestinal",
+     "Para auxiliar o trânsito intestinal, prefira a fruta inteira, respeitando a consistência prescrita; mantenha a casca comestível quando estiver higienizada e for permitida. Fibras precisam de líquido adequado, conforme a prescrição e as restrições de cada pessoa.\n\nO gráfico compara fibra alimentar por 100 g. Ele mostra a quantidade presente no alimento, não mede diretamente o efeito laxativo de uma porção nem substitui avaliação clínica. Entre estas opções, o abacate apresenta a maior quantidade de fibra na TBCA; banana-prata, laranja com bagaço e maçã com casca também contribuem.\n\nNão existe uma lista universal de frutas constipantes. A banana verde e a madura têm composição diferente; não classifique toda banana como constipante. Suco coado costuma fornecer menos fibra que a fruta inteira.\n\nAjuste a escolha à dieta prescrita, à aceitação, à mastigação/deglutição e à tolerância. Não transforme uma orientação laxativa ou constipante em mudança de cardápio sem confirmação da Nutrição.",
+     20),
+    ("potassio", "Teor de potássio das frutas",
+     "A escala apresenta potássio em mg por 100 g da parte comestível, em ordem crescente. Para uma mesma quantidade, os itens no início da lista fornecem menos potássio do que os do fim. A porção servida muda o total: 50 g fornecem aproximadamente metade do valor exibido para 100 g.\n\nEsta comparação não determina, sozinha, o que uma pessoa com doença renal pode comer. A necessidade de restrição depende da função renal, potássio sérico, medicamentos, método de preparo, porção e plano individual. Não proíba nem libere frutas por conta própria; confirme a prescrição da Nutrição.",
+     30),
+    ("diabetes", "Montagem da dieta para diabetes",
+     "Dieta para diabetes não significa retirar todas as frutas ou preparar refeições sem carboidratos. Arroz, feijão, leite, frutas, pães e outros alimentos fornecem carboidratos e precisam entrar na quantidade e na distribuição definidas na prescrição.\n\nPrefira fruta inteira, sem açúcar adicionado. Não troque fruta por suco por conta própria: o suco pode concentrar carboidratos em menor volume e geralmente contém menos fibra que a fruta inteira. Não ofereça refresco adoçado, açúcar, mel ou xaropes como rotina.\n\nA escala compara carboidrato disponível por 100 g; não classifica uma fruta como proibida ou liberada. Respeite porção, horário e consistência prescritos. Para pessoas com esquema fixo de insulina, a regularidade da quantidade e do horário de carboidratos é especialmente importante.\n\nA equipe da cozinha e da copa deve seguir o cardápio e a identificação da dieta. Dúvidas, substituições, hipoglicemia ou mudança de consistência devem ser encaminhadas à Nutrição/Enfermagem; não ajuste a dieta por iniciativa própria.",
+     40),
+]
 
 
 class Erro(Exception):
@@ -152,6 +171,9 @@ def migrar(c):
         c.execute("ALTER TABLE correcoes ADD COLUMN id_setor INTEGER")
     c.execute("UPDATE usuarios SET perfil='copa' WHERE perfil IN ('setor','estoque_copa')")
     c.executemany("INSERT OR IGNORE INTO refeicoes_cfg VALUES(?,?,?,?)", CFG_INICIAL)
+    for slug, titulo, texto, ordem in ORIENTACOES_INICIAIS:
+        c.execute("INSERT OR IGNORE INTO orientacoes(slug,titulo,texto,ordem,atualizado_em) VALUES(?,?,?,?,?)",
+                  (slug, titulo, texto, ordem, agora()))
 
 
 def preparar_banco(db, redefinir=False):
@@ -609,6 +631,9 @@ def _rotear(c, ip, m, p, q, b, auth):
         return {"usuario": pub(u), "hoje": hoje()}
     if (m, p) == ("GET", "/api/itens"):
         return {"itens": [dict(r) for r in c.execute("SELECT id,nome,unidade FROM itens ORDER BY nome")]}
+    if (m, p) == ("GET", "/api/orientacoes"):
+        return {"orientacoes": [dict(r) for r in c.execute(
+            "SELECT id,slug,titulo,texto,ordem,atualizado_em FROM orientacoes ORDER BY ordem,id")]}
     if (m, p) == ("GET", "/api/setores"):
         todos = adm or (perfil == "nutricionista" and not u["id_setor"])
         sql = "SELECT s.id,s.nome,(SELECT COUNT(*) FROM leitos WHERE id_setor=s.id) leitos FROM setores s %s ORDER BY s.nome"
@@ -653,6 +678,24 @@ def _rotear(c, ip, m, p, q, b, auth):
     if p.startswith("/api/admin/"):
         if not adm:
             raise Erro("Somente o administrador.", 403)
+        if (m, p) == ("POST", "/api/admin/orientacoes"):
+            titulo = str(b.get("titulo", "")).strip()
+            texto = str(b.get("texto", "")).strip()
+            if not titulo or len(titulo) > 120:
+                raise Erro("Informe um título com até 120 caracteres.")
+            if not texto or len(texto) > 8000:
+                raise Erro("Informe o texto (máximo de 8.000 caracteres).")
+            if b.get("id") not in (None, ""):
+                cur = c.execute("UPDATE orientacoes SET titulo=?,texto=?,atualizado_por=?,atualizado_em=? WHERE id=?",
+                                (titulo, texto, u["id"], agora(), int(b["id"])))
+                if not cur.rowcount:
+                    raise Erro("Tópico não encontrado.", 404)
+            else:
+                ordem = c.execute("SELECT COALESCE(MAX(ordem),0)+10 FROM orientacoes").fetchone()[0]
+                slug = "extra-" + secrets.token_hex(8)
+                c.execute("INSERT INTO orientacoes(slug,titulo,texto,ordem,atualizado_por,atualizado_em) VALUES(?,?,?,?,?,?)",
+                          (slug, titulo, texto, ordem, u["id"], agora()))
+            return {"ok": True}
         if (m, p) == ("GET", "/api/admin/exportar"):
             return exportar(c, dia_alvo(u, q.get("data")))
         if (m, p) == ("GET", "/api/admin/refeicoes"):
@@ -724,7 +767,17 @@ class Manipulador(BaseHTTPRequestHandler):
             u = urlparse(self.path)
             q = {k: v[0] for k, v in parse_qs(u.query).items()}
             if m == "GET" and not u.path.startswith("/api/"):
-                return self._enviar(200, (AQUI / "static" / "index.html").read_bytes(), "text/html; charset=utf-8")
+                raiz = (AQUI / "static").resolve()
+                if u.path in ("/", "/index.html"):
+                    return self._enviar(200, (raiz / "index.html").read_bytes(), "text/html; charset=utf-8")
+                if u.path.startswith("/static/"):
+                    nome = unquote(u.path[len("/static/"):])
+                    arquivo = (raiz / nome).resolve()
+                    if raiz not in arquivo.parents or not arquivo.is_file():
+                        raise Erro("Arquivo estático não encontrado.", 404)
+                    tipo = mimetypes.guess_type(arquivo.name)[0] or "application/octet-stream"
+                    return self._enviar(200, arquivo.read_bytes(), tipo)
+                raise Erro("Página não encontrada.", 404)
             b = {}
             if m == "POST":
                 n = min(int(self.headers.get("Content-Length") or 0), 1_000_000)

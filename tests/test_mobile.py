@@ -82,6 +82,38 @@ class MobileTest(unittest.TestCase):
     def test_login_invalido(self):
         self.assertEqual(self.chamar(None, "POST", "/api/login", {"login": "admin", "senha": "errada"})[0], 401)
 
+    def test_orientacoes_disponiveis_para_perfis_e_editaveis_so_pelo_admin(self):
+        tokens = [self.adm, *self.t.values()]
+        for tok in tokens:
+            cod, j = self.chamar(tok, "GET", "/api/orientacoes")
+            self.assertEqual(cod, 200)
+            self.assertEqual({x["slug"] for x in j["orientacoes"]} >=
+                             {"diluicao", "intestino", "potassio", "diabetes"}, True)
+        linhas = self.chamar(self.adm, "GET", "/api/orientacoes")[1]["orientacoes"]
+        dil = next(x for x in linhas if x["slug"] == "diluicao")
+        self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/admin/orientacoes",
+                                     {"id": dil["id"], "titulo": "Não autorizado", "texto": "x"})[0], 403)
+        self.assertEqual(self.chamar(self.adm, "POST", "/api/admin/orientacoes",
+                                     {"id": dil["id"], "titulo": "Preparo revisado", "texto": "Texto revisado"})[0], 200)
+        self.assertEqual(self.chamar(self.adm, "POST", "/api/admin/orientacoes",
+                                     {"titulo": "Aviso local", "texto": "Conteúdo adicional"})[0], 200)
+        atual = self.chamar(self.t["cop"], "GET", "/api/orientacoes")[1]["orientacoes"]
+        self.assertTrue(any(x["titulo"] == "Preparo revisado" for x in atual))
+        self.assertTrue(any(x["titulo"] == "Aviso local" for x in atual))
+
+    def test_arquivos_ilustrativos_e_creditos_mobile(self):
+        for caminho, tipo in (("/static/diluicao.svg", "image/svg+xml"),
+                              ("/static/frutas.svg", "image/svg+xml")):
+            with urllib.request.urlopen(self.base + caminho) as r:
+                self.assertEqual(r.status, 200)
+                self.assertIn(tipo, r.headers.get("Content-Type", ""))
+                self.assertIn(b"<svg", r.read(300))
+        pagina = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
+        for texto in ("Orientações", "Thiago S. Santos", "Neis B. Alencar", "NutriLab 2026",
+                      "Potássio: menor", "Fibra alimentar: maior"):
+            self.assertIn(texto, pagina)
+
+
     def test_permissoes_por_perfil(self):
         t = self.t
         self.assertEqual(self.chamar(t["cop"], "GET", "/api/nutri/painel")[0], 403)
