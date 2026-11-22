@@ -34,6 +34,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-build.txt
 
+      - name: Gerar identidade visual e ícones
+        run: python tools/gerar_identidade_visual.py
+
       - name: Gerar banco inicial vazio e sanitizado
         run: python tools/gerar_banco_modelo.py
 
