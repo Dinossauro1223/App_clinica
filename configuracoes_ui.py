@@ -6,6 +6,7 @@ import json
 import os
 import customtkinter as ctk
 import tema
+import nrs2002 as nrs
 
 CAMINHO = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
 
@@ -56,8 +57,50 @@ class ConfiguracoesUI:
         seletor.pack(anchor="w", padx=18, pady=(0, 16))
         self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
         self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
+        self._nrs(raiz)
         ctk.CTkButton(raiz, text="Voltar ao início", fg_color=tema.VERDE,
                      hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=24, pady=10)
+
+    def _nrs(self, raiz):
+        """Permite ajustar os intervalos de reavaliação, armazenados no banco oficial do Mapa."""
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                           border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=(4, 12))
+        ctk.CTkLabel(card, text="Reavaliação nutricional (NRS-2002)", font=tema.fonte(16, "bold"),
+                    text_color=tema.TEXTO).pack(anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(card, text="Configure o intervalo para cada classificação. Padrão: 7 dias; permitido: 1–90 dias.",
+                    font=tema.fonte(12), text_color=tema.SUAVE).pack(anchor="w", padx=18, pady=(0, 10))
+        caminho_db = getattr(getattr(self.app, "mapa", None), "db", None)
+        if not caminho_db:
+            ctk.CTkLabel(card, text="Banco de dados do Mapa não disponível nesta sessão.",
+                         text_color=tema.LARANJA_TEXTO).pack(anchor="w", padx=18, pady=(0, 14))
+            return
+        atuais = nrs.ler_intervalos(caminho_db)
+        campos = {}
+        for codigo, rotulo in nrs.GRAUS:
+            linha = ctk.CTkFrame(card, fg_color="transparent")
+            linha.pack(fill="x", padx=18, pady=3)
+            ctk.CTkLabel(linha, text=rotulo, font=tema.fonte(12), text_color=tema.TEXTO,
+                        anchor="w", width=300).pack(side="left")
+            entrada = ctk.CTkEntry(linha, width=65, border_color=tema.BORDA)
+            entrada.insert(0, str(atuais[codigo]))
+            entrada.pack(side="left")
+            ctk.CTkLabel(linha, text="dias", font=tema.fonte(12), text_color=tema.SUAVE).pack(side="left", padx=6)
+            campos[codigo] = entrada
+        status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
+        status.pack(anchor="w", padx=18, pady=(4, 8))
+        def salvar():
+            try:
+                novos = nrs.salvar_intervalos(caminho_db, {codigo: int(entry.get()) for codigo, entry in campos.items()})
+            except (ValueError, KeyError, TypeError):
+                status.configure(text="Informe números inteiros de 1 a 90 em todos os campos.",
+                              text_color=tema.LARANJA_TEXTO)
+                return
+            aviso = " Atenção: a RDC 63/2000 estabelece reavaliação no máximo a cada 10 dias." if max(novos.values()) > nrs.LIMITE_RDC63 else ""
+            status.configure(text="Intervalos salvos no banco do Mapa." + aviso,
+                          text_color=tema.LARANJA_TEXTO if aviso else tema.VERDE)
+        ctk.CTkButton(card, text="Salvar intervalos", command=salvar, fg_color=tema.VERDE,
+                      hover_color=tema.VERDE_HOVER, font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
 
     def _aplicar(self, nome):
         modo = self.OPCOES.get(nome, "Light")
