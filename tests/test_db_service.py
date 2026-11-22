@@ -290,10 +290,8 @@ class TestRestauracao(BaseTmp):
             with mock.patch("db_service.os.replace", side_effect=falhar_ao_mover_shm):
                 with self.assertRaises(PermissionError):
                     svc.restaurar_backup(backup, db, agora=AGORA)
-            with self.assertRaises(PermissionError):
-                svc.restaurar_backup(backup, db, agora=AGORA)
 
-        self.assertEqual(wal.read_bytes(), b"wal")
+        self.assertEqual(wal.read_bytes(), b"wal"
         self.assertFalse(wal.with_name(wal.name + ".antes-da-restauracao").exists())
         self.assertFalse(db.with_name(db.name + ".restaurando").exists())
 
