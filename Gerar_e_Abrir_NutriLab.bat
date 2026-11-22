@@ -30,7 +30,11 @@ if errorlevel 1 goto :erro
 "venv\Scripts\python.exe" -m pip install -r requirements-build.txt
 if errorlevel 1 goto :erro
 
-echo [3/5] Gerando o banco-modelo sanitizado...
+echo [3/6] Gerando os recursos visuais (PNG e ICO)...
+"venv\Scripts\python.exe" tools\gerar_identidade_visual.py
+if errorlevel 1 goto :erro
+
+echo [4/6] Gerando o banco-modelo sanitizado...
 "venv\Scripts\python.exe" tools\gerar_banco_modelo.py
 if errorlevel 1 goto :erro
 
@@ -39,7 +43,7 @@ if not exist "modelo_banco\clinica.db" (
     goto :erro
 )
 
-echo [4/5] Gerando o executavel com PyInstaller...
+echo [5/6] Gerando o executavel com PyInstaller...
 "venv\Scripts\python.exe" -m PyInstaller --clean --noconfirm app_clinica.spec
 if errorlevel 1 goto :erro
 
@@ -48,7 +52,7 @@ if not exist "dist\app_clinica\app_clinica.exe" (
     goto :erro
 )
 
-echo [5/5] Iniciando o servidor do NutriLab...
+echo [6/6] Iniciando o servidor do NutriLab...
 if exist "mobile\iniciar_servidor.bat" (
     start "NutriLab - Servidor" /min cmd /c call "%CD%\mobile\iniciar_servidor.bat"
 ) else (
