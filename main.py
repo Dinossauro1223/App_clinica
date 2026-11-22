@@ -235,6 +235,7 @@ class AppClinica(ctk.CTk):
                 ("✎", "Avaliação e evolução", "Peso ajustado, metas, DRI e evolução PEP assinada pelo nutricionista.", self.tela_avaliacao),
                 ("◔", "Gráficos do mês", "Atendimentos, dietas e suplementos do mês.", self.tela_mapa_graficos),
                 ("✚", "Suplementos", "Catálogo e ficha técnica dos suplementos.", self.tela_suplementos),
+                ("▤", "Almoxarifado", "Cadastro de itens, valores, movimentações e programação de custos por refeição.", self.tela_almoxarifado),
                 ("☎", "Mobile (copa)", "Servidor para as copeiras lançarem as refeições pelo celular.", self.tela_mobile)]),
         ], ("⚙", "Configurações", "Ajustes do programa; já abre na parte da tela em que você estava.", self.tela_configuracoes),
             "© 2026 Neis B. A. & Thiago S. S. Todos os direitos reservados.", self.prefs)
@@ -274,6 +275,10 @@ class AppClinica(ctk.CTk):
     def tela_mobile(self):
         from mobile_ui import MobileUI
         MobileUI(self, caminho_do_banco(), get_base_path()).mostrar()
+
+    def tela_almoxarifado(self):
+        from almox_ui import AlmoxUI
+        AlmoxUI(self, caminho_do_banco()).mostrar()
 
     def configurar_banco_dados(self):
         caminho = caminho_do_banco()
