@@ -857,8 +857,29 @@ class DialogBuscarPaciente(_Janela):
             self.tree.column(c, width=w, anchor="w" if c == "nome" else "center")
         self.tree.pack(fill="both", expand=True, padx=6, pady=6)
         self.tree.bind("<Double-1>", lambda e: self._escolher())
+        self.tree.bind("<Return>", self._atalho_escolher)
+        self.e_busca.bind("<Escape>", self._atalho_fechar)
+        self.e_busca.bind("<Control-f>", self._atalho_focar_busca)
+        self.e_busca.bind("<Control-F>", self._atalho_focar_busca)
+        self.tree.bind("<Escape>", self._atalho_fechar)
+        self.tree.bind("<Control-f>", self._atalho_focar_busca)
+        self.tree.bind("<Control-F>", self._atalho_focar_busca)
         _btn(self, "Usar este paciente", self._escolher, 170).pack(pady=(4, 14))
         self._buscar()
+        self.after(250, self.e_busca.focus_set)
+
+    def _atalho_escolher(self, _evento=None):
+        self._escolher()
+        return "break"
+
+    def _atalho_fechar(self, _evento=None):
+        self.destroy()
+        return "break"
+
+    def _atalho_focar_busca(self, _evento=None):
+        self.e_busca.focus_set()
+        self.e_busca.icursor("end")
+        return "break"
 
     def _buscar(self):
         self.tree.delete(*self.tree.get_children())
@@ -937,6 +958,9 @@ class FormRegistro(ctk.CTkToplevel):
         self._suplementos = [dict(s) for s in self.reg.get("suplementos", [])]
         self._catalogo = mdb.listar_suplementos(ui.db)
         self._montar()
+        self.bind("<Control-s>", self._atalho_salvar)
+        self.bind("<Control-S>", self._atalho_salvar)
+        self.bind("<Escape>", self._atalho_fechar)
         self._preencher()
         self._recalcular()
         if somente_leitura:
@@ -1267,6 +1291,15 @@ class FormRegistro(ctk.CTkToplevel):
         self.focus_force()
 
     # -------------------------------------------------------------------- salvar
+    def _atalho_salvar(self, _evento=None):
+        if not self.somente_leitura:
+            self._salvar()
+        return "break"
+
+    def _atalho_fechar(self, _evento=None):
+        self.destroy()
+        return "break"
+
     def _salvar(self):
         try:
             reg = self._coletar()
