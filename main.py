@@ -209,6 +209,7 @@ class AppClinica(ctk.CTk):
 
         self.title("Sistema de Gestão Clínica")
         self.geometry("950x750")
+        self.attributes("-fullscreen", True)
         self.protocol("WM_DELETE_WINDOW", self._ao_fechar)
 
         self.grid_rowconfigure(0, weight=1)
@@ -437,10 +438,24 @@ class AppClinica(ctk.CTk):
             widget.destroy()
 
     def tela_inicial(self):
+        """Apresentação inicial em tela cheia; a navegação normal só é ocultada temporariamente."""
         self.limpar_area_principal()
+        self._tela_inicial_ativa = True
+        self._areas_iniciais_visiveis = False
+        self._timer_areas_iniciais = None
 
-        caminho_imagem = os.path.join(get_base_path(), "welcome_nutrilab.png")
-        self.imagem_bem_vindo_pil = Image.open(caminho_imagem)
+        # O menu é apenas ocultado; seus botões e comandos permanecem intactos.
+        self.menu_lateral.grid_remove()
+        self.area_principal.grid_configure(row=0, column=0, padx=0, pady=0, sticky="nsew")
+        self.area_principal.configure(corner_radius=0)
+        self.grid_columnconfigure(0, weight=1, minsize=0)
+        self.grid_columnconfigure(1, weight=0, minsize=0)
+
+        caminho_imagem = os.path.join(get_base_path(), "nutrilab_identidade.png")
+        if not os.path.exists(caminho_imagem):
+            # Compatibilidade enquanto a imagem derivada do SVG não foi gerada pelo build.
+            caminho_imagem = os.path.join(get_base_path(), "welcome_nutrilab.png")
+        self.imagem_bem_vindo_pil = Image.open(caminho_imagem).convert("RGBA")
         self._tamanho_imagem_bem_vindo = self.imagem_bem_vindo_pil.size
         self.imagem_bem_vindo = ctk.CTkImage(
             light_image=self.imagem_bem_vindo_pil,
@@ -448,26 +463,122 @@ class AppClinica(ctk.CTk):
             size=self._tamanho_imagem_bem_vindo
         )
 
-        self.label_bem_vindo = ctk.CTkLabel(self.area_principal, text="", image=self.imagem_bem_vindo, fg_color="#F0F7F4")
-        self.label_bem_vindo.pack(fill="both", expand=True, padx=60, pady=40)
+        self._tela_boas_vindas = ctk.CTkFrame(self.area_principal, fg_color="#F8FCF5", corner_radius=0)
+        self._tela_boas_vindas.pack(fill="both", expand=True)
+        self.label_bem_vindo = ctk.CTkLabel(
+            self._tela_boas_vindas, text="", image=self.imagem_bem_vindo,
+            fg_color="#F8FCF5"
+        )
+        self.label_bem_vindo.pack(fill="both", expand=True)
         self.label_bem_vindo.bind("<Configure>", self._redimensionar_imagem_bem_vindo)
+        self.label_bem_vindo.bind("<Button-1>", self._revelar_areas_iniciais)
+
+        self.label_instrucao_inicial = ctk.CTkLabel(
+            self._tela_boas_vindas,
+            text="Clique em qualquer lugar para continuar",
+            text_color="#287B58",
+            fg_color="#F8FCF5",
+            font=ctk.CTkFont(size=15, weight="bold")
+        )
+        self.label_instrucao_inicial.place(relx=0.5, rely=0.91, anchor="center")
+        self.label_instrucao_inicial.bind("<Button-1>", self._revelar_areas_iniciais)
+
+        self.label_copyright_inicial = ctk.CTkLabel(
+            self._tela_boas_vindas,
+            text="© 2026 Neis Bila de Alencar. Todos os direitos reservados.",
+            text_color="#52746A",
+            fg_color="#F8FCF5",
+            font=ctk.CTkFont(size=10)
+        )
+        self.label_copyright_inicial.place(relx=0.985, rely=0.985, anchor="se")
+
+        self.bind("<Escape>", self._confirmar_saida_inicial)
+        self._timer_areas_iniciais = self.after(3000, self._mostrar_areas_iniciais)
 
     def _redimensionar_imagem_bem_vindo(self, event):
         largura_orig, altura_orig = self.imagem_bem_vindo_pil.size
-        largura_disp = self.area_principal.winfo_width() - 120
-        altura_disp = self.area_principal.winfo_height() - 80
-        if largura_disp > 1 and altura_disp > 1:
-            fator = min(largura_disp / largura_orig, altura_disp / altura_orig)
-            novo_w = int(largura_orig * fator)
-            novo_h = int(altura_orig * fator)
-            if novo_w > 1 and novo_h > 1 and (novo_w, novo_h) != self._tamanho_imagem_bem_vindo:
-                self._tamanho_imagem_bem_vindo = (novo_w, novo_h)
-                self.imagem_bem_vindo = ctk.CTkImage(
-                    light_image=self.imagem_bem_vindo_pil,
-                    dark_image=self.imagem_bem_vindo_pil,
-                    size=(novo_w, novo_h)
-                )
-                self.label_bem_vindo.configure(image=self.imagem_bem_vindo)
+        largura_disp = max(1, self._tela_boas_vindas.winfo_width())
+        altura_disp = max(1, self._tela_boas_vindas.winfo_height())
+        fator = min(largura_disp / largura_orig, altura_disp / altura_orig)
+        novo_w, novo_h = max(1, int(largura_orig * fator)), max(1, int(altura_orig * fator))
+        if (novo_w, novo_h) != self._tamanho_imagem_bem_vindo:
+            self._tamanho_imagem_bem_vindo = (novo_w, novo_h)
+            self.imagem_bem_vindo = ctk.CTkImage(
+                light_image=self.imagem_bem_vindo_pil,
+                dark_image=self.imagem_bem_vindo_pil,
+                size=(novo_w, novo_h)
+            )
+            self.label_bem_vindo.configure(image=self.imagem_bem_vindo)
+
+    def _revelar_areas_iniciais(self, event=None):
+        if not getattr(self, "_tela_inicial_ativa", False):
+            return
+        self._mostrar_areas_iniciais()
+
+    def _mostrar_areas_iniciais(self):
+        if not getattr(self, "_tela_inicial_ativa", False) or self._areas_iniciais_visiveis:
+            return
+        self._areas_iniciais_visiveis = True
+        if self._timer_areas_iniciais:
+            try:
+                self.after_cancel(self._timer_areas_iniciais)
+            except Exception:
+                pass
+            self._timer_areas_iniciais = None
+        self.label_instrucao_inicial.place_forget()
+
+        painel = ctk.CTkFrame(
+            self._tela_boas_vindas, fg_color="#F8FCF5",
+            border_color="#B8DCC8", border_width=1, corner_radius=18
+        )
+        painel.place(relx=0.5, rely=0.82, relwidth=0.78, anchor="center")
+        ctk.CTkLabel(
+            painel, text="Escolha por onde deseja começar",
+            text_color="#064D3C", font=ctk.CTkFont(size=23, weight="bold")
+        ).pack(pady=(14, 10))
+        opcoes = (
+            ("Gestão Clínica", "Pacientes, consultas, exames e avaliações", self.tela_pacientes),
+            ("Nutrição", "Mapa nutricional, gráficos e suplementos", self.tela_mapa),
+            ("Gestão Alimentar", "Almoxarifado, copa e fichas de consumo", self.tela_almoxarifado),
+        )
+        linha = ctk.CTkFrame(painel, fg_color="transparent")
+        linha.pack(fill="x", padx=14, pady=(0, 14))
+        for titulo, descricao, comando in opcoes:
+            cartao = ctk.CTkFrame(linha, fg_color="#FFFFFF", border_color="#C9E5D3",
+                                  border_width=1, corner_radius=12)
+            cartao.pack(side="left", fill="both", expand=True, padx=7)
+            ctk.CTkLabel(cartao, text=titulo, text_color="#08764B",
+                         font=ctk.CTkFont(size=17, weight="bold")).pack(padx=12, pady=(14, 5))
+            ctk.CTkLabel(cartao, text=descricao, text_color="#536968",
+                         font=ctk.CTkFont(size=12), wraplength=220).pack(padx=12, pady=(0, 12))
+            ctk.CTkButton(
+                cartao, text="Entrar", fg_color="#218C55", hover_color="#176D42",
+                command=lambda fn=comando: self._entrar_na_area_inicial(fn)
+            ).pack(fill="x", padx=12, pady=(0, 14))
+
+    def _entrar_na_area_inicial(self, comando):
+        if not getattr(self, "_tela_inicial_ativa", False):
+            return
+        self._tela_inicial_ativa = False
+        if self._timer_areas_iniciais:
+            try:
+                self.after_cancel(self._timer_areas_iniciais)
+            except Exception:
+                pass
+        self.unbind("<Escape>")
+        self._tela_boas_vindas.destroy()
+        self.menu_lateral.grid()
+        self.area_principal.grid_configure(row=0, column=1, padx=20, pady=20, sticky="nsew")
+        self.area_principal.configure(corner_radius=10)
+        self.grid_columnconfigure(0, weight=0, minsize=200)
+        self.grid_columnconfigure(1, weight=1, minsize=0)
+        comando()
+
+    def _confirmar_saida_inicial(self, event=None):
+        if getattr(self, "_tela_inicial_ativa", False):
+            if messagebox.askyesno("Sair do NutriLab", "Deseja realmente sair do NutriLab?"):
+                self._ao_fechar()
+            return "break"
 
     # --- MÓDULO DE PACIENTES ---
     def tela_pacientes(self):
