@@ -158,10 +158,10 @@ class TelaBoasVindas:
                 anchor="center"
             )
         self.canvas.create_text(
-            self._px(1500), self._py(1005),
+            self._px(766), self._py(1005),
             text="© 2026 Neis Bila de Alencar. Todos os direitos reservados.",
             fill="#52746A", font=("Segoe UI", max(8, int(10 * self._escala))),
-            anchor="se"
+            anchor="center"
         )
 
     def _clicar(self, event=None):
