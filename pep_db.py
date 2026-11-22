@@ -145,7 +145,7 @@ def salvar_evolucao(db_path, id_paciente, paciente_nome, data_evolucao, cabecalh
     if not paciente_nome or not texto:
         raise ValueError("Nome do paciente e texto da evolução são obrigatórios.")
     try:
-        datetime.strptime(data_evolucao, "%d/%m/%Y")
+        data_iso = datetime.strptime(data_evolucao, "%d/%m/%Y").date().isoformat()
     except (TypeError, ValueError):
         raise ValueError("Data da evolução deve estar no formato DD/MM/AAAA.")
     if not isinstance(cabecalho, dict):
@@ -165,14 +165,15 @@ def salvar_evolucao(db_path, id_paciente, paciente_nome, data_evolucao, cabecalh
                 raise ValueError("Adendo deve apontar para evolução do mesmo paciente.")
         cur = conn.execute("INSERT INTO Pep_Evolucoes (id_paciente, paciente_nome, data_evolucao, cabecalho_json, texto, "
                          "id_usuario, assinante_nome, assinante_crn, criada_em, adendo_de) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                         (id_paciente, paciente_nome, data_evolucao, json_cabecalho, texto, int(id_usuario),
+                         (id_paciente, paciente_nome, data_iso, json_cabecalho, texto, int(id_usuario),
                           usuario[0], usuario[1], _agora(), int(adendo_de) if adendo_de is not None else None))
         conn.commit()
         return cur.lastrowid
 
 
 def _evolucao(row):
-    return {"id_evolucao": row[0], "id_paciente": row[1], "paciente_nome": row[2], "data_evolucao": row[3],
+    data_exibicao = datetime.strptime(row[3], "%Y-%m-%d").strftime("%d/%m/%Y") if len(row[3]) == 10 and row[3][4] == "-" else row[3]
+    return {"id_evolucao": row[0], "id_paciente": row[1], "paciente_nome": row[2], "data_evolucao": data_exibicao,
             "cabecalho": json.loads(row[4]), "texto": row[5], "id_usuario": row[6],
             "assinante": row[7], "crn": row[8], "criada_em": row[9], "adendo_de": row[10]}
 
