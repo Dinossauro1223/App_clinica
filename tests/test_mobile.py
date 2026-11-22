@@ -119,6 +119,36 @@ class MobileTest(unittest.TestCase):
             self.assertNotIn(conteudo_individual, pagina)
 
 
+    def test_admin_cadastra_e_edita_preco_e_embalagem_do_item(self):
+        codigo, dados = self.chamar(self.adm, "POST", "/api/admin/itens", {
+            "nome": "Farinha Teste", "unidade": "pacote", "preco_unitario": 8.5,
+            "embalagem_qtd": 500, "embalagem_un": "g"
+        })
+        self.assertEqual(codigo, 200, dados)
+        item_id = dados.get("id")
+        self.assertTrue(item_id)
+        lista = self.chamar(self.adm, "GET", "/api/itens")[1]["itens"]
+        item = next(x for x in lista if x["id"] == item_id)
+        self.assertEqual((item["preco_unitario"], item["embalagem_qtd"], item["embalagem_un"]),
+                         (8.5, 500.0, "g"))
+        self.assertEqual(self.chamar(self.adm, "POST", "/api/admin/itens/%s" % item_id, {
+            "nome": "Farinha Teste", "unidade": "pacote", "preco_unitario": 9.0,
+            "embalagem_qtd": 1, "embalagem_un": "kg"
+        })[0], 200)
+        atual = next(x for x in self.chamar(self.adm, "GET", "/api/itens")[1]["itens"] if x["id"] == item_id)
+        self.assertEqual((atual["preco_unitario"], atual["embalagem_qtd"], atual["embalagem_un"]),
+                         (9.0, 1.0, "kg"))
+        self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/admin/itens/%s" % item_id, {
+            "nome": "Farinha Teste", "unidade": "pacote", "preco_unitario": 9.0
+        })[0], 403)
+
+    def test_admin_rejeita_embalagem_com_unidade_invalida(self):
+        codigo, _ = self.chamar(self.adm, "POST", "/api/admin/itens", {
+            "nome": "Item inválido", "unidade": "pacote", "preco_unitario": 8,
+            "embalagem_qtd": 500, "embalagem_un": "x"
+        })
+        self.assertEqual(codigo, 400)
+
     def test_catalogo_de_suplementos_disponivel_para_copa(self):
         with closing(sv.conectar(self.db)) as c:
             c.execute("INSERT OR REPLACE INTO suplementos_catalogo(id_suplemento,nome,modulo,emb_qtd,emb_un,ativo) "

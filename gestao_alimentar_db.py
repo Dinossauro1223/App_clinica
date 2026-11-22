@@ -636,7 +636,11 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
                     COALESCE((SELECT SUM(a.quantidade) FROM GA_Consumo_Alocacoes a
                       WHERE a.data_movimento=m.data AND a.id_movimento_mobile=m.id_mobile AND a.ativa=1),0) AS qtd_alocada,
                     COALESCE((SELECT SUM(a.custo_snapshot) FROM GA_Consumo_Alocacoes a
-                      WHERE a.data_movimento=m.data AND a.id_movimento_mobile=m.id_mobile AND a.ativa=1),0) AS custo_alocado
+                      WHERE a.data_movimento=m.data AND a.id_movimento_mobile=m.id_mobile AND a.ativa=1),0) AS custo_alocado,
+                    COALESCE((SELECT SUM(CASE WHEN a.custo_snapshot IS NULL THEN 1 ELSE 0 END)
+                      FROM GA_Consumo_Alocacoes a
+                      WHERE a.data_movimento=m.data AND a.id_movimento_mobile=m.id_mobile AND a.ativa=1),0)
+                      AS custos_alocados_faltantes
                 FROM Mobile_Movimentos m
                 LEFT JOIN {TABELA_PRODUTOS} p ON
                     (p.id_mobile={id_item}) OR ({id_item} IS NULL AND lower(p.nome)=lower(m.item)
@@ -653,7 +657,7 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
                 float(item["custo_retirada"]) if item["custo_retirada"] is not None else None
             )
             item["custo_alocado"] = (
-                float(item["custo_alocado"]) if item["custo_retirada"] is not None else None
+                None if item["custos_alocados_faltantes"] else float(item["custo_alocado"])
             )
             resultado.append(item)
         return resultado
@@ -791,7 +795,7 @@ def resumo_consumo_observado(db_path, inicio, fim):
         item = por_item.setdefault(chave, {
             "id_item_mobile":mov.get("id_item_mobile"),"item":mov["item"],"unidade":mov["unidade"],
             "total_retirado":0.0,"movimentos":0,"dias":set(),"custo_total":0.0,"preco_completo":True,
-            "total_alocado":0.0,"total_pendente":0.0,"custo_alocado":0.0,
+            "total_alocado":0.0,"total_pendente":0.0,"custo_alocado":0.0,"custo_alocado_completo":True,
             "precos_historicos":0,"precos_estimados":0
         })
         quantidade = float(mov["qtd"] or 0)
@@ -808,7 +812,12 @@ def resumo_consumo_observado(db_path, inicio, fim):
             item["precos_estimados"] += 1
         item["total_alocado"] += float(mov["qtd_alocada"] or 0)
         item["total_pendente"] += float(mov["qtd_disponivel_para_alocar"] or 0)
-        item["custo_alocado"] += float(mov["custo_alocado"] or 0)
+        if mov.get("custos_alocados_faltantes", 0) or (
+            float(mov["qtd_alocada"] or 0) > 1e-8 and mov.get("custo_alocado") is None
+        ):
+            item["custo_alocado_completo"] = False
+        elif mov.get("custo_alocado") is not None:
+            item["custo_alocado"] += float(mov["custo_alocado"])
     itens = []
     for item in por_item.values():
         dias = sorted(item["dias"])
@@ -822,7 +831,7 @@ def resumo_consumo_observado(db_path, inicio, fim):
             "custo_total":item["custo_total"] if item["preco_completo"] else None,
             "precos_historicos":item["precos_historicos"],"precos_estimados":item["precos_estimados"],
             "total_alocado":item["total_alocado"],"total_pendente":item["total_pendente"],
-            "custo_alocado":item["custo_alocado"]
+            "custo_alocado":item["custo_alocado"] if item["custo_alocado_completo"] else None
         })
     itens.sort(key=lambda x:x["item"].casefold())
 

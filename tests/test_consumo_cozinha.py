@@ -24,6 +24,37 @@ class TestConsumoCozinha(unittest.TestCase):
             self.db, self.mobile_db, "2026-11-20", "2026-11-22"
         )
 
+    def test_le_catalogo_com_preco_embalagem_e_saldo_mais_recente_do_almox(self):
+        c = sv.conectar(self.mobile_db)
+        try:
+            c.executemany("INSERT INTO estoque_dia(data,estoque,id_item,qtd,por_usuario,por_perfil,atualizado_em) "
+                          "VALUES(?,?,?,?,?,?,?)", [
+                ("2026-11-20","almox",1,12,1,"admin",sv.agora()),
+                ("2026-11-21","almox",1,8,1,"admin",sv.agora()),
+                ("2026-11-22","cozinha",1,3,1,"estoque_cozinha",sv.agora()),
+            ])
+            c.commit()
+        finally:
+            c.close()
+        feijao = next(x for x in im.ler_produtos_almox(self.mobile_db) if x["id_item"] == 1)
+        self.assertEqual(feijao["preco_unitario"], 8.0)
+        self.assertEqual((feijao["embalagem_qtd"], feijao["embalagem_un"]), (1.0, "kg"))
+        self.assertEqual((feijao["qtd"], feijao["data_base"]), (8.0, "2026-11-21"))
+
+    def test_custo_alocado_fica_indefinido_quando_preco_nao_existe(self):
+        with sqlite3.connect(self.db) as c:
+            c.execute("UPDATE Mobile_Movimentos SET valor_unitario_snapshot=NULL,custo_snapshot=NULL "
+                      "WHERE data='2026-11-20' AND id_mobile=102")
+        ga.salvar_alocacoes_retirada(self.db,"2026-11-20",102,[
+            {"tipo_destino":"uso_geral","quantidade":0.5}
+        ],usuario="teste")
+        oleo = next(x for x in ga.listar_movimentos_cozinha(self.db,"2026-11-20","2026-11-20")
+                    if x["id_mobile"] == 102)
+        self.assertIsNone(oleo["custo_alocado"])
+        resumo = ga.resumo_consumo_observado(self.db,"2026-11-20","2026-11-22")
+        item = next(x for x in resumo["itens"] if x["item"] == "Óleo")
+        self.assertIsNone(item["custo_alocado"])
+
     def test_transferencia_mobile_guarda_preco_historico(self):
         db = str(Path(self.tmp.name) / "snapshot.db")
         sv.preparar_banco(db)
