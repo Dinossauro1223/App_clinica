@@ -10,6 +10,7 @@ import customtkinter as ctk
 
 import gestao_alimentar_db as ga
 import integracao_mobile as im
+import ui_workers
 
 VERDE_ESC = "#0F3D2E"
 VERDE = "#1E7A4F"
@@ -71,6 +72,9 @@ class GestaoAlimentarUI:
         self.tree_medias_consumo = None
         self.tree_preparacoes_consumo = None
         self.lbl_consumo_status = None
+        self._sincronizando = False
+        self._importando_tbca = False
+        self._importando_retiradas = False
         ga.inicializar(self.db)
 
     def mostrar(self):
@@ -277,22 +281,44 @@ class GestaoAlimentarUI:
 
     # ------------------------------------------------------------ almoxarifado
     def sincronizar(self, silencioso=False):
-        try:
-            self.mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
-            linhas = im.ler_produtos_almox(self.mobile_db)
+        """Sincroniza o catálogo fora da thread gráfica para não congelar a interface."""
+        if self._sincronizando:
+            return None
+        self._sincronizando = True
+        if self.lbl_status:
+            self.lbl_status.configure(text="Sincronizando Almoxarifado…")
+        def trabalho():
+            mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
+            linhas = im.ler_produtos_almox(mobile_db)
             qtd = ga.sincronizar_produtos_almox(self.db, linhas)
+            return mobile_db, qtd
+        def sucesso(resultado):
+            if not self._widgets_disponiveis():
+                return
+            self.mobile_db, qtd = resultado
             self.lbl_status.configure(text=f"Almoxarifado sincronizado: {qtd} produto(s) · banco mobile: {self.mobile_db}")
             self.carregar_produtos()
             if self._ficha_selecionada:
                 self._mostrar_detalhes(self._ficha_selecionada)
-            return qtd
-        except Exception as exc:
-            mensagem = f"Não foi possível ler o Almoxarifado mobile. Confira se o servidor/banco está inicializado.\n\n{exc}"
-            if self.lbl_status:
-                self.lbl_status.configure(text="Almoxarifado não sincronizado. Consulte a aba Almoxarifado.")
+        def erro(exc):
+            if not self._widgets_disponiveis():
+                return
+            self.lbl_status.configure(text="Almoxarifado não sincronizado. Consulte a aba Almoxarifado.")
             if not silencioso:
+                mensagem = ("Não foi possível ler o Almoxarifado mobile. Confira se o servidor/banco está inicializado.\n\n"
+                            + str(exc))
                 messagebox.showwarning("Sincronização do Almoxarifado", mensagem)
-            return 0
+        def finalizar():
+            self._sincronizando = False
+        return ui_workers.executar_em_segundo_plano(
+            self.app, trabalho, ao_sucesso=sucesso, ao_erro=erro, ao_finalizar=finalizar,
+            nome="nutrilab-sincronizar-almoxarifado")
+
+    def _widgets_disponiveis(self):
+        try:
+            return bool(self.lbl_status and self.lbl_status.winfo_exists())
+        except Exception:
+            return False
 
     def carregar_produtos(self):
         if not self.produtos_tree:
@@ -370,21 +396,38 @@ class GestaoAlimentarUI:
         return ini, fim
 
     def importar_retiradas(self):
+        if self._importando_retiradas:
+            return None
         try:
             inicio, fim = self._periodo_consumo()
             self.mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
-            r = im.importar_movimentos_cozinha(self.db, self.mobile_db, inicio, fim)
+        except Exception as exc:
+            messagebox.showerror("Importação de retiradas", str(exc), parent=self.tab_consumo)
+            return None
+        self._importando_retiradas = True
+        if self.lbl_consumo_status:
+            self.lbl_consumo_status.configure(text="Importando retiradas do Mobile…")
+        def trabalho():
+            return im.importar_movimentos_cozinha(self.db, self.mobile_db, inicio, fim)
+        def sucesso(r):
+            if not self._widgets_disponiveis():
+                return
             self.carregar_consumo()
             if self.lbl_consumo_status:
                 self.lbl_consumo_status.configure(
                     text=f"Importação concluída: {r['retiradas_cozinha']} retirada(s) Almoxarifado → Cozinha; {r['importados']} movimento(s) no total. Chave original preservada; repetir a importação não duplica registros."
                 )
-            return r
-        except Exception as exc:
+        def erro(exc):
+            if not self._widgets_disponiveis():
+                return
             messagebox.showerror("Importação de retiradas", str(exc), parent=self.tab_consumo)
             if self.lbl_consumo_status:
                 self.lbl_consumo_status.configure(text="Não foi possível importar. Confira o servidor mobile e as datas informadas.")
-            return None
+        def finalizar():
+            self._importando_retiradas = False
+        return ui_workers.executar_em_segundo_plano(
+            self.app, trabalho, ao_sucesso=sucesso, ao_erro=erro, ao_finalizar=finalizar,
+            nome="nutrilab-importar-retiradas")
 
     def carregar_consumo(self):
         if not self.tree_movimentos:
@@ -452,15 +495,26 @@ class GestaoAlimentarUI:
     def importar_tbca(self):
         caminho = filedialog.askopenfilename(title="Selecione a planilha TBCA 2024",
             filetypes=[("Planilhas Excel", "*.xlsx"), ("Todos os arquivos", "*.*")])
-        if not caminho:
+        if not caminho or self._importando_tbca:
             return
-        try:
-            total = ga.importar_tbca_excel(self.db, caminho)
+        self._importando_tbca = True
+        self.lbl_tbca_count.configure(text="Importando TBCA…")
+        def trabalho():
+            return ga.importar_tbca_excel(self.db, caminho)
+        def sucesso(total):
+            if not self._widgets_disponiveis():
+                return
             self.carregar_tbca_count()
             self.buscar_tbca()
             messagebox.showinfo("Importação TBCA", f"{total} alimento(s) importado(s)/atualizado(s) com sucesso.")
-        except Exception as exc:
-            messagebox.showerror("Importação TBCA", str(exc))
+        def erro(exc):
+            if self._widgets_disponiveis():
+                messagebox.showerror("Importação TBCA", str(exc))
+        def finalizar():
+            self._importando_tbca = False
+        return ui_workers.executar_em_segundo_plano(
+            self.app, trabalho, ao_sucesso=sucesso, ao_erro=erro, ao_finalizar=finalizar,
+            nome="nutrilab-importar-tbca")
 
     def buscar_tbca(self):
         if not self.tbca_tree:

@@ -1,69 +1,30 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions
 cd /d "%~dp0"
+title NutriLab
 
-title NutriLab - Gerar e abrir
+set "EXE="
+if exist "%~dp0NutriLab.exe" set "EXE=%~dp0NutriLab.exe"
+if not defined EXE if exist "%~dp0dist\NutriLab\NutriLab.exe" set "EXE=%~dp0dist\NutriLab\NutriLab.exe"
+if not defined EXE if exist "%~dp0dist\app_clinica\app_clinica.exe" set "EXE=%~dp0dist\app_clinica\app_clinica.exe"
 
-echo ============================================================
-echo NutriLab - Gerar e abrir o programa
-echo ============================================================
-echo.
-
-set "PYTHON=python"
-where python >nul 2>&1
-if errorlevel 1 (
-    echo ERRO: Python nao foi encontrado no PATH.
-    echo Instale Python 3.12 e tente novamente.
+if not defined EXE (
+    echo ============================================================
+    echo NutriLab - executavel nao encontrado
+    echo ============================================================
+    echo.
+    echo Este inicializador nao cria mais ambiente virtual nem compila
+    echo o programa localmente.
+    echo.
+    echo Baixe o pacote Windows mais recente na secao Releases do GitHub
+    echo e extraia todos os arquivos mantendo a estrutura das pastas.
+    echo.
+    echo Para compilar a partir do codigo-fonte, use o workflow Build Windows
+    echo do repositorio ou execute o processo de desenvolvimento documentado.
     pause
     exit /b 1
 )
 
-if not exist "venv\Scripts\python.exe" (
-    echo [1/6] Criando ambiente virtual...
-    "%PYTHON%" -m venv venv
-    if errorlevel 1 goto :erro
-)
-
-echo [2/6] Atualizando ferramentas de build...
-"venv\Scripts\python.exe" -m pip install --upgrade pip
-if errorlevel 1 goto :erro
-"venv\Scripts\python.exe" -m pip install -r requirements-build.txt
-if errorlevel 1 goto :erro
-
-echo [3/6] Gerando os recursos visuais (PNG e ICO)...
-"venv\Scripts\python.exe" tools\gerar_identidade_visual.py
-if errorlevel 1 goto :erro
-
-echo [4/6] Gerando o banco-modelo sanitizado...
-"venv\Scripts\python.exe" tools\gerar_banco_modelo.py
-if errorlevel 1 goto :erro
-
-if not exist "modelo_banco\clinica.db" (
-    echo ERRO: o banco-modelo nao foi criado.
-    goto :erro
-)
-
-echo [5/6] Gerando o executavel com PyInstaller...
-"venv\Scripts\python.exe" -m PyInstaller --clean --noconfirm app_clinica.spec
-if errorlevel 1 goto :erro
-
-if not exist "dist\app_clinica\app_clinica.exe" (
-    echo ERRO: o executavel nao foi encontrado em dist\app_clinica\app_clinica.exe.
-    goto :erro
-)
-
-echo [6/6] Abrindo o NutriLab...
-start "" "%CD%\dist\app_clinica\app_clinica.exe"
-
-echo.
-echo Programa iniciado.
+echo Iniciando NutriLab...
+start "" "%EXE%"
 exit /b 0
-
-:erro
-echo.
-echo ============================================================
-echo ERRO: a geracao do NutriLab nao foi concluida.
-echo ============================================================
-echo Verifique a mensagem acima.
-pause
-exit /b 1
