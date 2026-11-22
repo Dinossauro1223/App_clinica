@@ -25,7 +25,10 @@ class TelaBoasVindas:
         self.frame = ctk.CTkFrame(master, fg_color=FUNDO, corner_radius=0)
         self.canvas = tk.Canvas(self.frame, bg=FUNDO, highlightthickness=0, bd=0)
         self.canvas.pack(fill="both", expand=True)
-        self.pasta = os.path.join(self._base_path(), "identidade_camadas")
+        base = self._base_path()
+        self.pasta = os.path.join(base, "identidade_camadas")
+        if not os.path.isdir(self.pasta):
+            self.pasta = os.path.join(base, "assets", "identidade", "renderizados")
         self.imagens = {}
         self.folhas = []
         self.itens_folhas = []
