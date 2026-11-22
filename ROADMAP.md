@@ -23,7 +23,7 @@
 | 4 | Anamnese e PEP estruturado | Interface clínica + Backend | Fases 1 e 3 | Não implementada como módulo estruturado |
 | 5 | Catálogo de suplementos e cálculo de aporte | Especialista em suplementos + Backend | Fases 1, 2 e 3 | Catálogo inicial parcial |
 | 6 | Estoque e controle da Nutrição | Estoque + Backend | Fases 0 e 3 | Não implementada |
-| 7 | Refeições de pacientes e servidores; acesso móvel | Mobile + Backend | Fase 3; integrações com 4–6 | Não implementada |
+| 7 | Refeições de pacientes/servidores, acesso móvel e orientações operacionais | Mobile + Backend | Fase 3; integrações com 4–6 | Parcialmente implementada |
 | 8 | Indicadores, relatórios e auditoria operacional | Dados/relatórios + QA | Fases 1–7 | Gráficos do mapa parciais |
 | 9 | Homologação e implantação hospitalar | QA + Segurança + Integrador | Fases 0–8 | Não iniciada |
 
@@ -486,6 +486,9 @@ Detalhes em [`docs/referencias/CONFERENCIA_PLANILHA_PESO_ALT.md`](docs/referenci
 # Fase 7 — Refeições de pacientes/servidores e módulo móvel
 
 **Objetivo:** criar registro por refeição e apontamento rápido por celular, com acesso restrito à tarefa e ao horário autorizado.
+
+> **Atualização de 22/11/2026 — módulo móvel parcialmente ampliado.** Além do mapa, contagem de refeições, avisos e estoques já existentes, a página mobile/APK agora inclui a aba **Orientações** para todos os perfis operacionais. A tela contém instruções ilustradas para diluição de pós sem proporções genéricas, textos editáveis pelo administrador, referências de fibras/potássio/carboidratos de nove frutas e orientações gerais para diabetes. **Pendente:** validação/homologação do conteúdo pela Nutrição e pelo serviço, revisão dos textos conforme protocolos locais e futura integração do conteúdo com fichas técnicas/produtos específicos. A escala de fibras não é uma classificação clínica de laxação; não há classificação automática de frutas constipantes.
+
 
 **Agentes:** `mobile-meal-engineer` (líder), `database-backend-engineer`, `desktop-clinical-ui-engineer`, `legacy-workbook-analyst`, `qa-security-reviewer`.
 

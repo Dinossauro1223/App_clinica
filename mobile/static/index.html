@@ -51,6 +51,36 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .caixa ul{margin:6px 0 0;padding-left:18px}
 #entrada{max-width:380px;margin:12vh auto;padding:0 16px}
 #entrada h1{font-size:2rem;margin:0 0 4px}
+
+.creditos{text-align:center;color:var(--suave);font-size:.78rem;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--linha);margin-top:12px}
+.orientacao-texto{white-space:normal;line-height:1.55}
+.orientacao-texto br{display:block;margin-bottom:5px;content:""}
+.orientacao-nota{background:#edf3ef;border-left:4px solid var(--cor);border-radius:6px;padding:10px 12px;margin:8px 0}
+.img-diluicao{display:block;width:100%;max-height:180px;object-fit:contain;margin:4px auto 10px}
+.passos-preparo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.passo-preparo{border:1px solid var(--linha);border-radius:8px;background:#fff;padding:9px;font-size:.82rem}
+.passo-preparo b{display:block;margin-bottom:4px}
+.frutas-grade{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fruta-card{border:1px solid var(--linha);border-radius:8px;padding:9px;background:#fff;min-width:0}
+.fruta-topo{display:flex;gap:8px;align-items:center;min-height:68px}
+.fruta-topo b{font-size:.98rem}
+.fruta-fig{display:block;width:64px;height:64px;flex:0 0 64px;background-image:url('/static/frutas.svg');background-size:300% 300%;background-repeat:no-repeat}
+.f-melao{background-position:0% 0%}.f-melancia{background-position:50% 0%}.f-banana{background-position:100% 0%}
+.f-maca{background-position:0% 50%}.f-uva{background-position:50% 50%}.f-abacaxi{background-position:100% 50%}
+.f-abacate{background-position:0% 100%}.f-laranja{background-position:50% 100%}.f-mamao{background-position:100% 100%}
+.fruta-dados{font-size:.8rem;line-height:1.45;margin-top:5px}
+.escala{display:grid;gap:7px;margin:8px 0 16px}
+.escala-linha{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;padding:7px 0;border-bottom:1px solid #e7ece8}
+.escala-fruta{display:flex;align-items:center;gap:7px;min-width:0;font-size:.88rem}
+.escala-fruta .fruta-fig{width:38px;height:38px;flex-basis:38px}
+.escala-valor{font-weight:750;font-variant-numeric:tabular-nums;font-size:.86rem;white-space:nowrap}
+.escala-trilho{grid-column:1/3;height:8px;background:#e9eeea;border-radius:20px;overflow:hidden}
+.escala-trilho span{display:block;height:100%;background:var(--cor);border-radius:20px}
+.editor-orientacao{border-top:1px solid var(--linha);padding-top:10px;margin-top:10px}
+.editor-orientacao textarea{min-height:140px}
+.orientacao-fonte{font-size:.78rem;color:var(--suave)}
+@media(min-width:650px){.frutas-grade{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:360px){.passos-preparo{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -64,9 +94,10 @@ const COR={admin:'#0f4c5c',nutricionista:'#2f7d4f',copa:'#a85f00',estoque_cozinh
 const REF={desjejum:'Desjejum',colacao:'Colação',almoco:'Almoço',lanche:'Lanche',jantar:'Jantar',ceia:'Ceia'};
 const ORI={externo:'Entrada de fornecedor/compra',almox:'Almoxarifado',cozinha:'Cozinha'};
 const LB={nome:'paciente',idade_anos:'idade (anos)',idade_meses:'meses',dieta:'dieta',diagnostico:'diagnóstico',pref_sim:'gosta',pref_nao:'não aceita',acompanhante:'acompanhante'};
-const ABAS={admin:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoques'],['avisos','Avisos'],['cadastros','Cadastros']],
- nutricionista:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['avisos','Avisos']],
- copa:[['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoque']],estoque_cozinha:[['estoque','Estoque']],estoque_almox:[['estoque','Estoque']]};
+const ABAS={admin:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoques'],['avisos','Avisos'],['cadastros','Cadastros'],['orientacoes','Orientações']],
+ nutricionista:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['avisos','Avisos'],['orientacoes','Orientações']],
+ copa:[['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoque'],['orientacoes','Orientações']],
+ estoque_cozinha:[['estoque','Estoque'],['orientacoes','Orientações']],estoque_almox:[['estoque','Estoque'],['orientacoes','Orientações']]};
 const ehStaff=()=>S.u.perfil==='admin'||S.u.perfil==='nutricionista';
 const escolheSetor=()=>S.u.perfil==='admin'||(S.u.perfil==='nutricionista'&&!S.u.id_setor);
 const br=i=>i?i.slice(8,10)+'/'+i.slice(5,7):'';
@@ -85,7 +116,7 @@ function telaLogin(msg){
   $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
   <label class=f>Login<input type=text id=lg autocapitalize=none autocomplete=username></label>
   <label class=f>Senha<input type=password id=sn autocomplete=current-password></label>
-  <button class=btn style="width:100%" onclick="entrar()">Entrar</button></div>`;
+  <button class=btn style="width:100%" onclick="entrar()">Entrar</button></div><footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   $('#sn').onkeydown=e=>{if(e.key==='Enter')entrar()};
 }
 async function entrar(){
@@ -102,14 +133,15 @@ async function abrir(u,hoje){
   if(u.estoque)S.est=u.estoque;
   const sub=!escolheSetor()&&S.setores[0]?' · '+S.setores[0].nome:'';
   $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span><button onclick="sair()">Sair</button></div></header>
-  <nav>${ABAS[u.perfil].map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>`;
+  <nav>${ABAS[u.perfil].map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
+  <footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   ir(ABAS[u.perfil][0][0]);
   verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);
 }
 const ir=tenta(async aba=>{
   S.aba=aba;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.a===aba));aviso('');
   $('#vista').innerHTML='<p class=mini>Carregando…</p>';
-  await({painel:vPainel,mapa:vMapa,refeicoes:vRef,estoque:vEstoque,avisos:vAvisos,cadastros:vCad})[aba]();
+  await({painel:vPainel,mapa:vMapa,refeicoes:vRef,estoque:vEstoque,avisos:vAvisos,cadastros:vCad,orientacoes:vOrientacoes})[aba]();
 });
 function filtros(tipo){
   if(!ehStaff())return '';
@@ -204,6 +236,64 @@ const repor=tenta(async()=>{
   const r=await api('/api/estoque/reposicao',{estoque:S.est,id_item:+$('#ri').value,qtd:$('#rq').value,origem:o.value});
   await vEstoque();aviso('Reposição registrada. Novo saldo: '+r.saldo+(r.divergente?' · atenção: o saldo da origem estava menor que o retirado; o administrador será avisado.':''),0);
 });
+
+/* ---------- Orientações para cozinha e copa ---------- */
+/* Valores da TBCA/USP: alimentos in natura, parte comestível, por 100 g.
+   Variedades fixadas para comparação: maçã Fuji c/ casca, banana-prata, uva Rubi,
+   laranja Pera e mamão Papaia. Consultado em 22/11/2026. */
+const FRUTAS=[
+ {id:'melao',nome:'Melão',k:173,f:1.22,carb:4.50,vit:'Vitamina C: 6,97 mg; B6: 0,02 mg'},
+ {id:'melancia',nome:'Melancia',k:83.62,f:0.13,carb:6.40,vit:'Vitamina A (RAE): 30,5 µg; C: 4,94 mg'},
+ {id:'banana',nome:'Banana-prata',k:357.68,f:1.95,carb:24.0,vit:'Vitamina B6: 0,10 mg; C: 21,6 mg; folato: 22,4 µg'},
+ {id:'maca',nome:'Maçã Fuji c/ casca',k:74.71,f:1.35,carb:13.8,vit:'Vitamina C: 2,41 mg; B6: 0,03 mg; folato: 3,25 µg'},
+ {id:'uva',nome:'Uva Rubi',k:150.67,f:0.89,carb:11.2,vit:'Vitamina E: 0,21 mg; C: 1,77 mg'},
+ {id:'abacaxi',nome:'Abacaxi',k:137.51,f:1.12,carb:10.5,vit:'Vitamina C: 33,1 mg; B1: 0,17 mg; folato: 11,3 µg'},
+ {id:'abacate',nome:'Abacate',k:174.21,f:4.03,carb:1.81,vit:'Vitamina C: 7,32 mg; riboflavina (B2): 0,04 mg'},
+ {id:'laranja',nome:'Laranja Pera',k:158.12,f:1.36,carb:7.27,vit:'Vitamina C: 52,2 mg; folato: 22,9 µg'},
+ {id:'mamao',nome:'Mamão Papaia',k:124.84,f:1.03,carb:9.19,vit:'Vitamina C: 81,4 mg; A (RAE): 59,0 µg; folato: 35,0 µg'}
+];
+const frutaFig=f=>`<span class="fruta-fig f-${f.id}" role=img aria-label="Ilustração de ${esc(f.nome)}"></span>`;
+function escalaFrutas(chave,ordem,unidade,titulo,descricao){
+ const itens=[...FRUTAS].sort((a,b)=>ordem==='desc'?b[chave]-a[chave]:a[chave]-b[chave]);
+ const max=Math.max(...itens.map(f=>f[chave]));
+ return `<div class=cartao><h2 style="margin-top:0">${titulo}</h2><p class=mini>${descricao}</p><div class=escala>${itens.map((f,i)=>`
+  <div class=escala-linha><div class=escala-fruta><b>${i+1}.</b>${frutaFig(f)}<span>${esc(f.nome)}</span></div><span class=escala-valor>${f[chave].toLocaleString('pt-BR',{maximumFractionDigits:2})} ${unidade}</span>
+  <div class=escala-trilho><span style="width:${Math.max(2,f[chave]/max*100)}%"></span></div></div>`).join('')}</div></div>`;
+}
+function textoOrientacao(o){
+ return o?`<div class=cartao><h2 style="margin-top:0">${esc(o.titulo)}</h2><div class=orientacao-texto>${esc(o.texto).replace(/\r?\n/g,'<br>')}</div></div>`:'';
+}
+async function vOrientacoes(){
+ const j=await api('/api/orientacoes'),os=j.orientacoes||[],by=Object.fromEntries(os.map(o=>[o.slug,o]));
+ const dil=`<div class=cartao><h2 style="margin-top:0">Preparo: líquido + pó + mistura</h2><p class=mini>Ilustração do fluxo; as quantidades devem vir da prescrição e da ficha técnica do produto.</p>
+  <img class=img-diluicao src="/static/diluicao.svg" alt="Sequência ilustrativa: medir o líquido, dosar o pó e misturar até homogeneizar">
+  <div class=passos-preparo>
+   <div class=passo-preparo><b>1. Medir o líquido</b>Use o volume e o diluente prescritos.</div>
+   <div class=passo-preparo><b>2. Dosar o pó</b>Pese ou use a medida exclusiva indicada.</div>
+   <div class=passo-preparo><b>3. Homogeneizar</b>Misture e confira o volume final.</div>
+  </div><div class=orientacao-nota><b>Atenção:</b> não há medida universal de pó para água ou suco. Nunca complete ou concentre uma preparação por estimativa.</div></div>${textoOrientacao(by.diluicao)}`;
+ const cards=`<div class=cartao><h2 style="margin-top:0">Reconheça as frutas e seus nutrientes</h2><p class=mini>Valores de potássio, fibra e carboidrato disponível por 100 g. As vitaminas abaixo são destaques da composição, não uma lista de todas as vitaminas presentes.</p><div class=frutas-grade>${FRUTAS.map(f=>`
+  <article class=fruta-card><div class=fruta-topo>${frutaFig(f)}<b>${esc(f.nome)}</b></div><div class=fruta-dados><b>Vitaminas:</b> ${esc(f.vit)}<br><b>Potássio:</b> ${f.k.toLocaleString('pt-BR',{maximumFractionDigits:2})} mg<br><b>Fibra:</b> ${f.f.toLocaleString('pt-BR',{maximumFractionDigits:2})} g<br><b>Carboidrato disponível:</b> ${f.carb.toLocaleString('pt-BR',{maximumFractionDigits:2})} g</div></article>`).join('')}</div><p class=orientacao-fonte>Fonte dos valores: TBCA/USP, alimentos in natura, parte comestível, por 100 g. <a href="https://www.tbca.net.br/base-dados/" target="_blank" rel="noopener">Consultar a TBCA</a>.</p></div>`;
+ const ranks=escalaFrutas('f','desc','g','Fibra alimentar: maior → menor','Indicador de contribuição de fibras, não uma escala clínica de efeito laxativo. O fim da lista reúne opções com menos fibra, mas isso não prova efeito constipante.')+
+  escalaFrutas('k','asc','mg','Potássio: menor → maior','Útil apenas quando há orientação para controlar potássio. Menor valor por 100 g não significa liberação irrestrita.')+
+  escalaFrutas('carb','asc','g','Carboidrato disponível: menor → maior','Comparação por peso igual. A porção e a distribuição ao longo do dia continuam sendo decisivas.');
+ const editor=S.u.perfil==='admin'&&os.length?`<div class=cartao><h2 style="margin-top:0">Editor de orientações</h2><p class=mini>Edite os textos abaixo ou acrescente um tópico. As alterações ficam salvas para todos os celulares.</p>
+  ${os.map(o=>`<div class=editor-orientacao data-oid=${o.id}><label class=f>Título<input type=text class=otitulo maxlength=120 value="${esc(o.titulo)}"></label><label class=f>Texto<textarea class=otexto maxlength=8000 rows=5>${esc(o.texto)}</textarea></label><button class="btn sec peq" onclick="salvaOrientacao(${o.id},this)">Salvar texto</button></div>`).join('')}
+  <div class=editor-orientacao><h3>Novo tópico</h3><label class=f>Título<input id=novoOtitulo type=text maxlength=120></label><label class=f>Texto<textarea id=novoOtexto rows=5 maxlength=8000 placeholder="Digite a orientação adicional"></textarea></label><button class=btn onclick="novaOrientacao()">Adicionar tópico</button></div></div>`:'';
+ $('#vista').innerHTML=editor+dil+'<h2>Frutas: intestino, potássio e diabetes</h2>'+textoOrientacao(by.intestino)+
+  '<div class=orientacao-nota><b>Sobre frutas constipantes:</b> a literatura não sustenta uma classificação universal das frutas desta lista como “constipantes”. Use a escala de fibras e a orientação clínica; a maturação, a casca, o preparo, a porção e a tolerância mudam o resultado.<br><b>Menor teor de fibras:</b> melancia, uva Rubi, mamão Papaia, abacaxi e melão podem ser comparados em dietas de baixo resíduo quando prescritas, mas não são automaticamente constipantes.</div>'+
+  cards+ranks+textoOrientacao(by.potassio)+textoOrientacao(by.diabetes)+os.filter(o=>o.slug.startsWith('extra-')).map(textoOrientacao).join('');
+}
+const salvaOrientacao=tenta(async(id,b)=>{
+ const e=b.closest('[data-oid]');
+ await api('/api/admin/orientacoes',{id,titulo:e.querySelector('.otitulo').value,texto:e.querySelector('.otexto').value});
+ await vOrientacoes();aviso('Orientação atualizada.',0);
+});
+const novaOrientacao=tenta(async()=>{
+ await api('/api/admin/orientacoes',{titulo:$('#novoOtitulo').value,texto:$('#novoOtexto').value});
+ await vOrientacoes();aviso('Novo tópico adicionado.',0);
+});
+
 /* ---------- Painel (admin e nutrição) ---------- */
 function dif(a,b){
   if('qtd' in b)return 'Valor atual: '+v(a.qtd)+' → pedido: '+v(b.qtd);

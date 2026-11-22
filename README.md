@@ -40,6 +40,7 @@ A análise considera o ZIP `App_clinica-main` enviado para esta conversa. O esta
 | Gráficos do mapa | `mapa_graficos.py` | Agregação mensal e gráficos implementados |
 | Catálogo inicial de suplementos | `mapa_db.py`, `mapa_ui.py` | Cadastro e manutenção do catálogo implementados; composição técnica inicial está incompleta |
 | Almoxarifado e custos | `almox_db.py`, `almox_ui.py`, `db_migracoes.py` | Cadastro com preço unitário e histórico, entradas/saídas, saldo derivado, custo realizado por refeição/dia/mês e programação manual de insumos |
+| Orientações da versão mobile | `mobile/servidor.py`, `mobile/static/index.html`, `mobile/static/*.svg` | Tela para cozinha/copa e demais perfis mobile, ilustrações, gráficos TBCA de fibras/potássio/carboidrato, orientações de diabetes e edição de textos pelo administrador |
 | Estimativas antropométricas | `nutri_calculos.py` | Estatura e peso por equações de Chumlea e IMC por faixa etária parcialmente implementados |
 | IMC infantil/adolescente | `TabelaLMS` em `nutri_calculos.py` | Leitura de CSV LMS implementada; arquivo oficial não veio no pacote |
 | Testes | `tests/test_mapa.py`, `tests/test_ui_smoke.py` | Há testes automatizados, mas parte da interface e do PDF usa simuladores |

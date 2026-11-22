@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 280" role="img" aria-label="Etapas ilustrativas de medição, dosagem e mistura">
+<defs>
+ <linearGradient id="water" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c6e8f2"/><stop offset="1" stop-color="#4fa5c2"/></linearGradient>
+ <linearGradient id="powder" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5e8c9"/><stop offset="1" stop-color="#d2a967"/></linearGradient>
+</defs>
+<rect width="900" height="280" rx="28" fill="#f5f8f5"/>
+<g transform="translate(65 20)">
+ <path d="M34 25h150l-18 190H52z" fill="#fff" stroke="#4b7380" stroke-width="8" stroke-linejoin="round"/>
+ <path d="M49 125h119l-11 78H59z" fill="url(#water)"/>
+ <path d="M52 105h36M52 85h25M52 65h36" stroke="#4b7380" stroke-width="6" stroke-linecap="round"/>
+ <path d="M189 75h24M189 112h24M189 149h24" stroke="#4b7380" stroke-width="5" stroke-linecap="round"/>
+ <path d="M106 235h16" stroke="#4b7380" stroke-width="7" stroke-linecap="round"/>
+</g>
+<path d="M295 136h70m-18-18 18 18-18 18" stroke="#78928a" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(400 20)">
+ <path d="M35 150c30-65 95-65 130 0" fill="none" stroke="#a57b43" stroke-width="15" stroke-linecap="round"/>
+ <path d="M31 152h142l-16 62H47z" fill="url(#powder)" stroke="#8b6b3d" stroke-width="7" stroke-linejoin="round"/>
+ <path d="M71 70h85l-20 50H91z" fill="#fff" stroke="#8b6b3d" stroke-width="7" stroke-linejoin="round"/>
+ <path d="M89 70V48h47v22" fill="none" stroke="#8b6b3d" stroke-width="7" stroke-linecap="round"/>
+ <circle cx="93" cy="150" r="6" fill="#a57b43"/><circle cx="120" cy="142" r="7" fill="#a57b43"/><circle cx="143" cy="155" r="5" fill="#a57b43"/>
+</g>
+<path d="M605 136h70m-18-18 18 18-18 18" stroke="#78928a" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(720 20)">
+ <path d="M26 40h150l-18 175H44z" fill="#fff" stroke="#4b7380" stroke-width="8" stroke-linejoin="round"/>
+ <path d="M41 130h120l-11 72H52z" fill="url(#water)"/>
+ <path d="M80 111c-14-20 9-29 3-47M119 109c-14-20 9-29 3-47" stroke="#4b7380" stroke-width="7" fill="none" stroke-linecap="round"/>
+ <path d="M82 102l54-40" stroke="#a57b43" stroke-width="9" stroke-linecap="round"/>
+ <path d="M35 226h142" stroke="#4b7380" stroke-width="7" stroke-linecap="round"/>
+</g>
+</svg>
