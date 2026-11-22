@@ -2,8 +2,11 @@ name: Build and publish NutriLab Android APK
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -85,6 +88,8 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.name }}
+          name: NutriLab v${{ steps.version.outputs.name }}
           generate_release_notes: true
           files: |
             dist/NutriLab-Mobile.apk
