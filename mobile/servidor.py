@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, login TEXT UNIQUE NO
   perfil TEXT NOT NULL, id_setor INTEGER, salt TEXT NOT NULL, senha TEXT NOT NULL, ativo INTEGER DEFAULT 1, criado_em TEXT);
 CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL);
 CREATE TABLE IF NOT EXISTS leitos(id INTEGER PRIMARY KEY, id_setor INTEGER NOT NULL, codigo TEXT NOT NULL, UNIQUE(id_setor, codigo));
-CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL,
+  preco_unitario REAL, embalagem_qtd REAL, embalagem_un TEXT);
 CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
   idade_anos INTEGER, idade_meses INTEGER, diagnostico TEXT, pref_sim TEXT, pref_nao TEXT,
   cor TEXT, consistencia TEXT, via TEXT, dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
@@ -62,7 +63,8 @@ CREATE TABLE IF NOT EXISTS refeicoes_dia(data TEXT, id_setor INTEGER, refeicao T
 CREATE TABLE IF NOT EXISTS estoque_dia(data TEXT, estoque TEXT, id_item INTEGER, qtd REAL,
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, estoque, id_item));
 CREATE TABLE IF NOT EXISTS movimentos(id INTEGER PRIMARY KEY, data TEXT, hora TEXT, origem TEXT, destino TEXT,
-  id_item INTEGER, qtd REAL, por_usuario INTEGER, divergente INTEGER DEFAULT 0);
+  id_item INTEGER, qtd REAL, por_usuario INTEGER, divergente INTEGER DEFAULT 0,
+  preco_unitario_snapshot REAL, custo_snapshot REAL);
 CREATE TABLE IF NOT EXISTS correcoes(id INTEGER PRIMARY KEY, tipo TEXT, data TEXT, chave TEXT, rotulo TEXT, id_setor INTEGER,
   valor_atual TEXT, valor_proposto TEXT, por_usuario INTEGER, criado_em TEXT, status TEXT DEFAULT 'pendente', decidido_em TEXT);
 CREATE TABLE IF NOT EXISTS avisos(id INTEGER PRIMARY KEY, criado_em TEXT, por_usuario INTEGER, tipo TEXT, id_setor INTEGER,
@@ -177,6 +179,13 @@ def migrar(c):
                       ("drc", "INTEGER DEFAULT 0"), ("suplementos_json", "TEXT")):
         if col not in cols("mapa_dia"):
             c.execute("ALTER TABLE mapa_dia ADD COLUMN %s %s" % (col, tipo))
+    # Metadados comerciais e snapshots de custo são aditivos: bancos antigos mantêm todo o histórico.
+    for col, tipo in (("preco_unitario", "REAL"), ("embalagem_qtd", "REAL"), ("embalagem_un", "TEXT")):
+        if col not in cols("itens"):
+            c.execute("ALTER TABLE itens ADD COLUMN %s %s" % (col, tipo))
+    for col in ("preco_unitario_snapshot", "custo_snapshot"):
+        if col not in cols("movimentos"):
+            c.execute("ALTER TABLE movimentos ADD COLUMN %s REAL" % col)
     if "id_setor" not in cols("correcoes"):
         c.execute("ALTER TABLE correcoes ADD COLUMN id_setor INTEGER")
     c.execute("UPDATE usuarios SET perfil='copa' WHERE perfil IN ('setor','estoque_copa')")
@@ -575,7 +584,8 @@ def mover(c, u, est, iid, qtd, d):
 
 def post_reposicao(c, u, est, b):
     iid, qtd, org, d = int(b["id_item"]), num(b["qtd"], "quantidade"), b.get("origem"), hoje()
-    if qtd <= 0 or not c.execute("SELECT 1 FROM itens WHERE id=?", (iid,)).fetchone():
+    item = c.execute("SELECT * FROM itens WHERE id=?", (iid,)).fetchone()
+    if qtd <= 0 or not item:
         raise Erro("Informe um item e uma quantidade maior que zero.")
     if org not in ORIGENS[est]:
         raise Erro("O estoque da %s só pode receber de: %s." % (est, ", ".join(ORIGENS[est])))
@@ -590,8 +600,12 @@ def post_reposicao(c, u, est, b):
         mover(c, u, org, iid, max(0.0, so - qtd), d)
     novo = saldo(c, est, iid, d) + qtd
     mover(c, u, est, iid, novo, d)
-    c.execute("INSERT INTO movimentos(data,hora,origem,destino,id_item,qtd,por_usuario,divergente) VALUES(?,?,?,?,?,?,?,?)",
-              (d, agora(), org, est, iid, qtd, u["id"], div))
+    preco = item["preco_unitario"]
+    custo = qtd * float(preco) if preco is not None else None
+    c.execute("""INSERT INTO movimentos
+        (data,hora,origem,destino,id_item,qtd,por_usuario,divergente,preco_unitario_snapshot,custo_snapshot)
+        VALUES(?,?,?,?,?,?,?,?,?,?)""",
+        (d, agora(), org, est, iid, qtd, u["id"], div, preco, custo))
     return {"ok": True, "saldo": novo, "divergente": bool(div)}
 
 
@@ -713,7 +727,8 @@ def _rotear(c, ip, m, p, q, b, auth):
     if (m, p) == ("GET", "/api/eu"):
         return {"usuario": pub(u), "hoje": hoje()}
     if (m, p) == ("GET", "/api/itens"):
-        return {"itens": [dict(r) for r in c.execute("SELECT id,nome,unidade FROM itens ORDER BY nome")]}
+        return {"itens": [dict(r) for r in c.execute(
+            "SELECT id,nome,unidade,preco_unitario,embalagem_qtd,embalagem_un FROM itens ORDER BY nome")]}
     if (m, p) == ("GET", "/api/orientacoes"):
         return {"orientacoes": [dict(r) for r in c.execute(
             "SELECT id,slug,titulo,texto,ordem,atualizado_em FROM orientacoes ORDER BY ordem,id")]}
@@ -810,11 +825,33 @@ def _rotear(c, ip, m, p, q, b, auth):
             return {"ok": True}
         if (m, p) == ("POST", "/api/admin/setores"):
             return criar_setor(c, b)
-        if (m, p) == ("POST", "/api/admin/itens"):
-            try:
-                c.execute("INSERT INTO itens(nome,unidade) VALUES(?,?)", (str(b.get("nome", "")).strip(), str(b.get("unidade", "un")).strip() or "un"))
-            except sqlite3.IntegrityError:
-                raise Erro("Esse item já existe.")
+        if (m == "POST" and p == "/api/admin/itens") or (m == "POST" and p.startswith("/api/admin/itens/")):
+            nome = str(b.get("nome", "")).strip()
+            unidade = str(b.get("unidade", "un")).strip() or "un"
+            preco = None if b.get("preco_unitario") in (None, "") else num(b.get("preco_unitario"), "preço unitário")
+            emb_qtd = None if b.get("embalagem_qtd") in (None, "") else num(b.get("embalagem_qtd"), "conteúdo da embalagem")
+            emb_un = str(b.get("embalagem_un") or "").strip().lower() or None
+            unidades = {"g", "kg", "mg", "ml", "l", "un"}
+            if emb_qtd is not None and emb_qtd <= 0:
+                raise Erro("O conteúdo da embalagem precisa ser maior que zero.")
+            if emb_qtd is not None and emb_un not in unidades:
+                raise Erro("Informe a unidade do conteúdo (g, kg, mg, ml, L ou un).")
+            if emb_qtd is None:
+                emb_un = None
+            if p == "/api/admin/itens":
+                if not nome:
+                    raise Erro("Informe o nome do item.")
+                try:
+                    cur = c.execute("INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un) VALUES(?,?,?,?,?)",
+                                    (nome, unidade, preco, emb_qtd, emb_un))
+                except sqlite3.IntegrityError:
+                    raise Erro("Esse item já existe.")
+                return {"ok": True, "id": cur.lastrowid}
+            iid = int(p.rsplit("/", 1)[1])
+            if not c.execute("SELECT 1 FROM itens WHERE id=?", (iid,)).fetchone():
+                raise Erro("Item não encontrado.", 404)
+            c.execute("UPDATE itens SET preco_unitario=?,embalagem_qtd=?,embalagem_un=? WHERE id=?",
+                      (preco, emb_qtd, emb_un, iid))
             return {"ok": True}
     raise Erro("Rota não encontrada.", 404)
 
