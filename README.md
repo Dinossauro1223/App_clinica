@@ -39,6 +39,7 @@ A análise considera o ZIP `App_clinica-main` enviado para esta conversa. O esta
 | PDF/Excel do mapa | `mapa_export.py` | Exportação implementada; precisa de conferência com o modelo institucional real |
 | Gráficos do mapa | `mapa_graficos.py` | Agregação mensal e gráficos implementados |
 | Catálogo inicial de suplementos | `mapa_db.py`, `mapa_ui.py` | Cadastro e manutenção do catálogo implementados; composição técnica inicial está incompleta |
+| Almoxarifado e custos | `almox_db.py`, `almox_ui.py`, `db_migracoes.py` | Cadastro com preço unitário e histórico, entradas/saídas, saldo derivado, custo realizado por refeição/dia/mês e programação manual de insumos |
 | Estimativas antropométricas | `nutri_calculos.py` | Estatura e peso por equações de Chumlea e IMC por faixa etária parcialmente implementados |
 | IMC infantil/adolescente | `TabelaLMS` em `nutri_calculos.py` | Leitura de CSV LMS implementada; arquivo oficial não veio no pacote |
 | Testes | `tests/test_mapa.py`, `tests/test_ui_smoke.py` | Há testes automatizados, mas parte da interface e do PDF usa simuladores |
@@ -333,6 +334,8 @@ python tools\auditar_repositorio.py
 ├── main.py                           # Aplicação desktop, pacientes, consultas e TMB/VET
 ├── setup_db.py                       # Inicialização legada do banco; revisar na Fase 0
 ├── nutri_calculos.py                 # Estimativas antropométricas e IMC/LMS
+├── almox_db.py                       # Cadastro, movimentos, preços e programação de custos do almoxarifado
+├── almox_ui.py                       # Guia desktop do almoxarifado
 ├── mapa_db.py                        # Persistência do mapa, setores, leitos e suplementos
 ├── mapa_ui.py                        # Telas de mapa, gráficos e catálogo de suplementos
 ├── mapa_export.py                    # Exportação PDF/Excel do mapa
