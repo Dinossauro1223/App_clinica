@@ -50,8 +50,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
-      - name: Baixar o código
+      - name: Baixar o código (histórico completo para auditoria)
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Configurar Python 3.12
         uses: actions/setup-python@v6
@@ -61,6 +63,9 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-build.txt
+
+      - name: Auditar privacidade antes da compilação
+        run: python tools/auditar_repositorio.py --ci
 
       - name: Instalar dependências de compilação
         run: |

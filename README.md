@@ -442,3 +442,8 @@ git ls-files | findstr /i "clinica.db arquivos_pacientes backup .env CONTROLE DE
 ## 13. Regra de continuidade
 
 O agente principal deve iniciar pela primeira fase incompleta do roadmap, conferir o estado atual do Git, implementar os itens que não dependem de decisão externa e avançar automaticamente para a próxima fase quando os critérios forem atendidos. **Não parar para perguntar se deve continuar.** Dúvidas sobre referências são pesquisadas e registradas no diário. Dúvidas clínicas que não possam ser resolvidas por evidência devem ser isoladas como pendência de validação, enquanto o restante do desenvolvimento prossegue.
+
+
+## Publicação segura e compilação
+
+Consulte [Segurança dos dados e compilação](docs/SEGURANCA_DADOS_E_COMPILACAO.md) para distinguir recursos públicos dos dados locais de pacientes e para gerar o executável Windows sem usar um banco clínico real.

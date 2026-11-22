@@ -45,7 +45,7 @@ EXT_DOCUMENTO = (".xlsx", ".xlsm", ".xls", ".ods", ".pdf", ".doc", ".docx", ".od
 EXT_SEGREDO = (".pem", ".key", ".p12", ".pfx", ".jks", ".keystore")
 NOMES_CHAVE_SSH = ("id_rsa", "id_dsa", "id_ecdsa", "id_ed25519")
 MODELOS_ENV = (".env.example", ".env.sample", ".env.template")
-PASTAS_RAIZ_BLOQUEADAS = ("backups", "dados_locais", "exports", "exportacoes", "relatorios_gerados")
+PASTAS_RAIZ_BLOQUEADAS = ("backups", "dados_locais", "exports", "exportacoes", "relatorios_gerados", "logs")
 EXT_TEXTO = {".py", ".json", ".md", ".txt", ".csv", ".sql", ".bat", ".cmd", ".ps1", ".sh", ".yml", ".yaml",
              ".ini", ".cfg", ".toml", ".spec", ".html", ".htm", ".js", ".xml"}
 TAMANHO_MAXIMO_TEXTO = 2 * 1024 * 1024
@@ -57,7 +57,7 @@ SONDAS_GITIGNORE = (
     "arquivos_pacientes/exemplo.pdf", "sub/arquivos_pacientes/exemplo.pdf", "backups/copia.db",
     ".env", ".env.local", "chave.pem",
     "CONTROLE DE REFEIÇÕES - Mes.xlsx", "CONTROLE DE FICHAS - Mes.xlsx", "Controle da Nutrição - Mes.xlsx",
-    "Mapa_externo_novo_layout.xlsx", "Evolucao_nutricional_pacientes.pdf",
+    "Mapa_externo_novo_layout.xlsx", "Evolucao_nutricional_pacientes.pdf", "logs/compilacao_local.log",
 )
 
 RE_CPF = re.compile(r"(?<!\d)(\d{3})\.(\d{3})\.(\d{3})-(\d{2})(?!\d)")

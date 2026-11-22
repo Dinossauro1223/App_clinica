@@ -22,3 +22,19 @@ venv/
 __pycache__/
 *.pyc
 Thumbs.db
+
+# Dados locais e artefatos que nunca devem entrar no repositório
+/logs/
+/backups/
+/dados_locais/
+/exports/
+/exportacoes/
+/relatorios_gerados/
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.bak
+*.backup*
