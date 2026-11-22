@@ -236,6 +236,8 @@ class AppClinica(ctk.CTk):
                 ("◔", "Gráficos do mês", "Atendimentos, dietas e suplementos do mês.", self.tela_mapa_graficos),
                 ("✚", "Suplementos", "Catálogo e ficha técnica dos suplementos.", self.tela_suplementos),
                 ("☎", "Mobile (copa)", "Servidor para as copeiras lançarem as refeições pelo celular.", self.tela_mobile)]),
+            ("GESTÃO ALIMENTAR", [
+                ("▤", "Gestão alimentar (Fichas)", "Fichas técnicas, composição TBCA, custos e conferência de estoque do Almoxarifado mobile.", self.tela_gestao_alimentar_fichas)]),
         ], ("⚙", "Configurações", "Ajustes do programa; já abre na parte da tela em que você estava.", self.tela_configuracoes),
             "© 2026 Neis B. A. & Thiago S. S. Todos os direitos reservados.", self.prefs)
 
@@ -274,6 +276,10 @@ class AppClinica(ctk.CTk):
     def tela_mobile(self):
         from mobile_ui import MobileUI
         MobileUI(self, caminho_do_banco(), get_base_path()).mostrar()
+
+    def tela_gestao_alimentar_fichas(self):
+        from gestao_alimentar_ui import GestaoAlimentarUI
+        GestaoAlimentarUI(self, caminho_do_banco(), get_base_path()).mostrar()
 
     def configurar_banco_dados(self):
         caminho = caminho_do_banco()

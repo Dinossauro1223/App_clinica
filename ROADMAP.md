@@ -26,6 +26,7 @@
 | 7 | Refeições de pacientes e servidores; acesso móvel | Mobile + Backend | Fase 3; integrações com 4–6 | Não implementada |
 | 8 | Indicadores, relatórios e auditoria operacional | Dados/relatórios + QA | Fases 1–7 | Gráficos do mapa parciais |
 | 9 | Homologação e implantação hospitalar | QA + Segurança + Integrador | Fases 0–8 | Não iniciada |
+| 10 | Gestão alimentar: fichas técnicas, TBCA e custos integrados ao Almoxarifado mobile | Backend + Interface de Dietética + QA | Fases 0, 3 e 6 | Primeira versão implementada nesta branch; importação das receitas existentes e homologação operacional pendentes |
 
 ---
 
@@ -617,6 +618,38 @@ Detalhes em [`docs/referencias/CONFERENCIA_PLANILHA_PESO_ALT.md`](docs/referenci
 - Pendências conhecidas publicadas na versão.
 
 ---
+
+# Fase 10 — Gestão alimentar (Fichas técnicas)
+
+**Objetivo:** transformar a planilha de fichas técnicas e a base TBCA em um módulo desktop de cadastro, cálculo e administração de preparações, ligado ao catálogo e ao saldo do Almoxarifado Mobile.
+
+**Agentes:** `database-backend-engineer` (modelo e cálculos), `desktop-clinical-ui-engineer` (interface), `legacy-workbook-analyst` (migração de planilhas), `qa-security-reviewer` (testes e segurança).
+
+### Atividades e entregas
+
+1. Manter a função **Gestão alimentar (Fichas)** como área própria, separada de Ambulatorial e Hospitalar.
+2. Importar a base de composição da aba `TBCA (2024)`, com mapeamento de cabeçalhos, atualização por ID e relatório de linhas processadas.
+3. Cadastrar/editar/inativar fichas e ingredientes, com porções, quantidade per capita, unidade, FC, medida caseira, TBCA, densidade quando aplicável, NPU informado, produto vinculado e observações.
+4. Calcular quantidade líquida/bruta, custo total/porção, composição nutricional disponível e suficiência estimada do saldo, sempre respeitando dimensão e conversões documentadas.
+5. Ler do Mobile o nome, preço unitário, conteúdo/unidade da embalagem e saldo do Almoxarifado; manter o desktop somente como consumidor desse dado, sem duplicar movimentos ou gravar estoque.
+6. Exibir pendências de vínculo, preço, embalagem, saldo e composição nutricional; não transformar campo ausente em zero nem inferir densidade.
+7. Criar importador das abas `Fichas Técnicas`/`Construção da ficha` com pré-visualização, seleção das preparações, mapeamento explícito de unidades, detecção de fórmulas não portáveis e revisão de linhas.
+8. Homologar porções, FC, custo, nutrientes, conversões, medidas caseiras e diferença entre quantidade por pacote e quantidade lançada no estoque junto à equipe do setor.
+
+### Estado desta branch (22/11/2026)
+
+- **Implementado:** módulo desktop e navegação; esquema `GA_*`; importação TBCA; CRUD de fichas/ingredientes; cálculos de FC, custo, nutrientes e saldo; leitura do Almoxarifado; campos comerciais no cadastro mobile com migração aditiva; testes automatizados sintéticos.
+- **Pendente:** importação assistida das seis preparações existentes na aba `Fichas Técnicas`. A estrutura contém fórmulas próprias do Google Sheets, zeros/`None` em cache e unidades não uniformes entre ingredientes, por isso não deve ser importada cegamente.
+- **Pendente:** homologação do conteúdo e das unidades com o setor; NDPcal não é calculado automaticamente.
+
+### Critérios de aceite
+
+- [x] Importação da aba TBCA repetível por ID e sem criar duplicatas.
+- [x] Custo e estoque só calculados quando unidades e conteúdo de embalagem são compatíveis.
+- [x] Ausência de registro de saldo é tratada como desconhecida; não como zero confirmado.
+- [x] Banco Mobile antigo recebe os metadados comerciais por migração aditiva, sem apagar cadastro/saldos.
+- [ ] Importação assistida das fichas existentes com pré-visualização e revisão do operador.
+- [ ] Conferência operacional dos resultados e das receitas com o nutricionista responsável.
 
 ## Matriz de responsabilidade dos agentes
 

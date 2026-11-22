@@ -1,6 +1,6 @@
 # NutriLab — Sistema integrado de Nutrição Clínica e Dietética
 
-> **Documentação de retomada e especificação funcional.** Revisada em 09/11/2026 a partir do pacote-fonte `App_clinica-main`, das planilhas operacionais de outubro de 2026, do relatório de fórmulas antropométricas, do modelo de Evolução Nutricional e das referências visuais fornecidas.
+> **Documentação de retomada e especificação funcional.** Revisada em 22/11/2026 a partir do pacote-fonte `App_clinica-main`, das planilhas operacionais de outubro de 2026, do relatório de fórmulas antropométricas, do modelo de Evolução Nutricional e das referências visuais fornecidas.
 >
 > Este documento diferencia o que foi encontrado no código, o que aparece nos materiais reais do setor e o que ainda será desenvolvido. Não certifica a validade clínica de cálculos, não substitui validação institucional e não autoriza usar o sistema em produção com dados reais.
 
@@ -39,6 +39,7 @@ A análise considera o ZIP `App_clinica-main` enviado para esta conversa. O esta
 | PDF/Excel do mapa | `mapa_export.py` | Exportação implementada; precisa de conferência com o modelo institucional real |
 | Gráficos do mapa | `mapa_graficos.py` | Agregação mensal e gráficos implementados |
 | Catálogo inicial de suplementos | `mapa_db.py`, `mapa_ui.py` | Cadastro e manutenção do catálogo implementados; composição técnica inicial está incompleta |
+| Gestão alimentar (Fichas) | `gestao_alimentar_ui.py`, `gestao_alimentar_db.py` | Primeira versão: fichas, importação da TBCA, custos e leitura do Almoxarifado mobile; importação assistida das receitas antigas pendente |
 | Estimativas antropométricas | `nutri_calculos.py` | Estatura e peso por equações de Chumlea e IMC por faixa etária parcialmente implementados |
 | IMC infantil/adolescente | `TabelaLMS` em `nutri_calculos.py` | Leitura de CSV LMS implementada; arquivo oficial não veio no pacote |
 | Testes | `tests/test_mapa.py`, `tests/test_ui_smoke.py` | Há testes automatizados, mas parte da interface e do PDF usa simuladores |
@@ -211,6 +212,12 @@ Nas páginas 5 e 6 há listas de perguntas e frases-modelo para anamnese/observa
 - **Escala de Bristol:** escala ilustrada de 1 a 7, de fezes muito endurecidas a totalmente líquidas. Deve ser um campo estruturado da função intestinal, com imagem/legenda acessível e opção “não observado/não informado”.
 - **Aceitação da dieta oral:** escala ilustrada de 0%, 25%, 50%, 75% e 100% de consumo do prato. Deve ser registrável por refeição e data, sem confundir percentual de aceitação com quantidade prescrita.
 
+### 4.8 TBCA 2024 e planilha de fichas técnicas
+
+A pasta de trabalho `TBCA 2024` contém a aba `TBCA (2024)`, com a base de composição nutricional, e as abas `Construção da ficha` e `Fichas Técnicas`, com a estrutura de preparação, porções, ingredientes, fatores de correção, quantidades, medidas caseiras e custos. A primeira versão do módulo importa a aba de composição para `GA_TBCA_Alimentos` e permite cadastrar/recalcular as fichas no desktop.
+
+As fórmulas específicas do Google Sheets/`DUMMYFUNCTION`, os valores em cache ausentes/zero e a falta de unidade inequívoca em algumas linhas impedem uma migração segura das seis preparações existentes sem uma pré-visualização e revisão por ingrediente. Portanto, as receitas da aba `Fichas Técnicas` ainda não são importadas automaticamente. O fluxo e os cálculos implementados estão documentados em [`docs/gestao_alimentar_fichas.md`](docs/gestao_alimentar_fichas.md).
+
 ## 5. PEP — estrutura funcional desejada
 
 O formulário de evolução deve contemplar, ao menos, os campos abaixo, de acordo com o modelo fornecido:
@@ -380,6 +387,7 @@ git ls-files | findstr /i "clinica.db arquivos_pacientes backup .env CONTROLE DE
 - [`AGENTS.md`](AGENTS.md): autonomia, limites, delegação e critérios de conclusão.
 - [`ROADMAP.md`](ROADMAP.md): fases, responsáveis, entregas e critérios de aceite.
 - [`docs/referencias/INVENTARIO_PLANILHAS_E_MODELOS.md`](docs/referencias/INVENTARIO_PLANILHAS_E_MODELOS.md): leitura detalhada dos arquivos reais de referência.
+- [`docs/gestao_alimentar_fichas.md`](docs/gestao_alimentar_fichas.md): operação, cálculos, integração com Almoxarifado e limites da primeira versão de Gestão alimentar (Fichas).
 - [`docs/desenvolvimento/DIARIO_DUVIDAS_BIBLIOGRAFICAS.md`](docs/desenvolvimento/DIARIO_DUVIDAS_BIBLIOGRAFICAS.md): registro obrigatório de dúvidas e decisões sobre fontes.
 - [`.claude/agents/`](.claude/agents/): agentes especialistas para pesquisa, planilhas, banco, interface, suplementos/estoque, mobile e QA.
 - [`docs/decisoes/`](docs/decisoes/): ADRs (banco local, ambiente reproduzível, arquitetura multiusuário preliminar).

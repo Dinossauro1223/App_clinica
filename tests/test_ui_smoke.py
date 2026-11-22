@@ -43,6 +43,15 @@ class W:
     def grid(self, *a, **kw):
         pass
 
+    def grid_columnconfigure(self, *a, **kw):
+        pass
+
+    def grid_rowconfigure(self, *a, **kw):
+        pass
+
+    def focus(self, *a):
+        pass
+
     def bind(self, ev, fn, add=None):
         self.bindings[ev] = fn
 
@@ -139,6 +148,22 @@ class Seg(W):
             self.opts["command"](v)
 
 
+class Tabs(W):
+    def add(self, label):
+        return W(self, text=label)
+
+
+class StringVar:
+    def __init__(self, value=""):
+        self.value = value
+
+    def get(self):
+        return self.value
+
+    def set(self, value):
+        self.value = value
+
+
 class Textbox(W):
     def get(self, a=None, b=None):
         return self._text
@@ -217,11 +242,13 @@ def instalar_falsos():
     for n in ("CTkFrame", "CTkLabel", "CTkButton", "CTkCheckBox", "CTkScrollableFrame", "CTkToplevel"):
         setattr(ctk, n, type(n, (W,), {}))
     ctk.CTkEntry, ctk.CTkComboBox, ctk.CTkSegmentedButton, ctk.CTkTextbox = Entry, Combo, Seg, Textbox
+    ctk.CTkTabview = Tabs
     ctk.CTkFont = lambda **kw: ("font", kw)
     ctk.CTkImage = Image
     tk = types.ModuleType("tkinter")
     tk.TclError = type("TclError", (Exception,), {})
     tk.IntVar = IntVar
+    tk.StringVar = StringVar
     ttk = types.ModuleType("tkinter.ttk")
     ttk.Treeview, ttk.Scrollbar = Tree, W
     ttk.Style = type("Style", (), {"configure": lambda s, *a, **k: None, "map": lambda s, *a, **k: None,
@@ -239,6 +266,7 @@ MB, FD = instalar_falsos()
 import mapa_db as mdb  # noqa: E402
 import mapa_ui  # noqa: E402
 import mapa_export as mex  # noqa: E402
+import gestao_alimentar_ui as ga_ui  # noqa: E402
 from fake_fpdf import FakePDF  # noqa: E402
 
 
@@ -483,6 +511,14 @@ class TestInterface(unittest.TestCase):
         dc.cb_alt.set(mapa_ui.nc.METODOS_ALTURA_IDOSO["chumlea1998"])
         dc._salvar()
         self.assertEqual((self.ui.criterio_idoso, self.ui.metodo_altura_idoso), ("opas", "chumlea1998"))
+
+    def test_gestao_alimentar_monta_com_banco_vazio_e_mobile_ausente(self):
+        app = AppFalso()
+        tela = ga_ui.GestaoAlimentarUI(app, self.db, os.path.dirname(self.db))
+        tela.mostrar()
+        self.assertEqual(tela.fichas_tree.get_children(), [])
+        self.assertEqual(tela.produtos_tree.get_children(), [])
+        self.assertIn("não sincronizado", tela.lbl_status.opts["text"].lower())
 
     def test_graficos(self):
         from test_mapa import popular_mes

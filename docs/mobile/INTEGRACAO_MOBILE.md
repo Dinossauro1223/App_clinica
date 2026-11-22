@@ -1,8 +1,6 @@
 # NutriLab Mobile — descrição e guia de integração
 
-Entregue em **12/11/2026** (duas entregas no mesmo dia; este arquivo vale para a versão atual, branch `feat/mobile-nutricao-copa-refeicoes-2026-11-12`,
-que inclui a primeira). Descreve **tudo** o que existe, para o programa desktop (CustomTkinter/SQLite) ser atualizado depois, em outro chat,
-para receber/enviar estes dados.
+Base entregue em **12/11/2026** (duas entregas no mesmo dia; branch de origem `feat/mobile-nutricao-copa-refeicoes-2026-11-12`). Atualizada em **22/11/2026** para documentar os metadados de preço e conteúdo de embalagem usados pela Gestão alimentar (Fichas).
 
 ## 1. O que existe
 
@@ -61,7 +59,7 @@ zero naquele item, do almoxarifado (saldo da origem menor que o retirado = movim
 
 ## 7. Dados (`mobile.db`)
 
-`usuarios(id, login, nome, perfil, id_setor, salt, senha[PBKDF2], ativo)` · `setores` · `leitos(id_setor, codigo)` · `itens(nome, unidade)` ·
+`usuarios(id, login, nome, perfil, id_setor, salt, senha[PBKDF2], ativo)` · `setores` · `leitos(id_setor, codigo)` · `itens(nome, unidade, preco_unitario, embalagem_qtd, embalagem_un)` ·
 `mapa_dia(data, id_leito, ocupado, acompanhante, dieta, nome, idade_anos, idade_meses, diagnostico, pref_sim, pref_nao, por_usuario, por_perfil, atualizado_em)` ·
 `mapa_rascunho(data, id_leito, campos[JSON])` · `refeicoes_cfg(refeicao, ativa, abre, fecha)` · `janelas(id_setor, refeicao, abre, fecha)` ·
 `refeicoes_dia(data, id_setor, refeicao, qtd, …)` · `estoque_dia(data, estoque, id_item, qtd, …)` · `movimentos` · `correcoes(tipo, data, chave, rotulo, id_setor, valor_atual, valor_proposto, status)` ·
@@ -72,16 +70,26 @@ zero naquele item, do almoxarifado (saldo da origem menor que o retirado = movim
 `POST /api/login` · `GET /api/eu|setores|itens|avisos` · `POST /api/avisos/lidos` · `GET|POST /api/mapa` · `GET|POST /api/refeicoes` · `GET|POST /api/estoque` ·
 `POST /api/estoque/reposicao` · nutrição e admin: `GET /api/nutri/painel`, `GET /api/nutri/correcoes`, `POST /api/nutri/correcoes/<id> {acao}`,
 `POST /api/nutri/publicar {setor, data?, texto?}`, `POST /api/nutri/avisos`, `POST /api/nutri/janelas {setor?, refeicao, abre, fecha}` · admin: `GET|POST /api/admin/usuarios`,
-`POST /api/admin/usuarios/<id>`, `POST /api/admin/setores`, `POST /api/admin/itens`, `GET|POST /api/admin/refeicoes`, **`GET /api/admin/exportar?data=`**.
+`POST /api/admin/usuarios/<id>`, `POST /api/admin/setores`, `POST /api/admin/itens`, `POST /api/admin/itens/<id>`, `GET|POST /api/admin/refeicoes`, **`GET /api/admin/exportar?data=`**.
 Linhas do mapa: `{id_leito, nome, idade_anos, idade_meses, dieta, diagnostico, pref_sim, pref_nao, acompanhante}`.
 
-## 9. Integração com o desktop (próximo chat)
+## 9. Integração com o desktop
+
+### 9.1 Mapa, refeições e estoque operacional
 
 O desktop entra como **nutricionista** e usa os mesmos endpoints: ao salvar o mapa, `POST /api/mapa` (vira rascunho) e, no botão "atualizar para a copa",
 `POST /api/nutri/publicar` — o aviso aos celulares sai automaticamente. Leitura de volta (contagens, estoque, correções): `GET /api/admin/exportar?data=`
 (`esquema: 2`). Mapeamento sugerido: `setores`→`Mapa_Setores`, `leitos`→`Mapa_Leitos`, `nome`→`nome_paciente`, `idade_anos/meses`→idem, `pref_sim/pref_nao`→`obs_sim/obs_nao`,
 `dieta`→(a decidir: `consistencia`/`via`), `diagnostico`→(a decidir; hoje o desktop tem só flags de doenças), `refeicoes_dia`/`estoque_dia`→tabelas novas.
 Em aberto: de onde nascem setores/leitos (hoje, do admin web); banco central definitivo (o `CLAUDE.md` proíbe compartilhar SQLite por rede; aqui só o processo do servidor abre o arquivo).
+
+### 9.2 Fichas técnicas e Almoxarifado (desktop → mobile local)
+
+A função desktop **Gestão alimentar (Fichas)** lê os produtos e o saldo do estoque `almox` a partir do mesmo `mobile/dados/mobile.db`, usando `integracao_mobile.ler_produtos_almox()` e a função `linhas_estoque()` do servidor. Essa integração é local ao computador que executa o servidor; não é uma chamada do navegador ao endpoint e não compartilha SQLite pela rede. O desktop não grava movimentos nem altera quantidades do estoque.
+
+A tabela `itens` tem os campos comerciais opcionais `preco_unitario` (preço em R$ da unidade de estoque), `embalagem_qtd` (conteúdo dessa unidade) e `embalagem_un` (`g`, `kg`, `mg`, `ml`, `l` ou `un`). O administrador pode informá-los ao criar item em `POST /api/admin/itens` ou atualizá-los em `POST /api/admin/itens/<id>`. `GET /api/itens`, `GET /api/estoque?estoque=almox` e a exportação incluem esses campos.
+
+A migração é aditiva: em banco antigo, os três campos começam como `NULL`. A ficha exige que preço, conteúdo e dimensão sejam compatíveis para calcular custo. Se não houver lançamento de saldo (`data_base` ausente), o desktop trata a quantidade como desconhecida, ainda que a tela do Mobile exiba zero padrão. Consulte [`../gestao_alimentar_fichas.md`](../gestao_alimentar_fichas.md) para regras e limites do cálculo.
 
 ## 10. Privacidade e limites
 

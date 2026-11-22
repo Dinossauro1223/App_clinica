@@ -97,7 +97,17 @@ O modelo PEP mais detalhado solicitado pelo usuário acrescenta admissão/evolu�
 1. **Escala de Bristol:** ilustração com tipos 1 a 7, do muito endurecido ao totalmente líquido. Digitalizar como classificação estruturada da função intestinal e oferecer “não observado/não informado”.
 2. **Aceitação da dieta oral:** ilustração com 0%, 25%, 50%, 75% e 100% de consumo. Usar como escala por refeição; o registro deve indicar data, refeição e responsável.
 
-## 9. Regras de uso dos arquivos-fonte
+## 9. TBCA 2024 e fichas técnicas
+
+A pasta de trabalho `TBCA 2024` contém três abas diretamente relevantes ao desenvolvimento de fichas:
+
+- `TBCA (2024)`: base tabular de alimentos e composição nutricional, com ID, tipo, NPU, fatores de correção, medida caseira, per capita e nutrientes. Foi usada como origem do importador TBCA do módulo Gestão alimentar.
+- `Construção da ficha`: folha para montar uma preparação, com porções, ingredientes, escolha do alimento TBCA, quantidades, correção, medidas caseiras, NPU/NDPcal e referências de estoque/preço. Há fórmulas especiais do Google Sheets/`DUMMYFUNCTION`, que não são executadas automaticamente pelo desktop.
+- `Fichas Técnicas`: apresenta seis blocos de preparação (salada, acompanhamento, prato principal, guarnição, sobremesa e suco), com colunas de ingredientes, per capita, FC, peso bruto, medida caseira e custo. As preparações têm fórmulas e valores em cache que incluem zeros/`None`, e nem toda linha deixa explícito se a quantidade é g ou ml.
+
+**Implicação de desenvolvimento:** importar a base TBCA por ID é seguro e repetível; as seis fichas existentes precisam de importador assistido, pré-visualização e revisão da unidade por ingrediente. Não copiar resultados de fórmulas externas sem reimplementação e teste. NPU pode ser mantido como dado de origem, mas NDPcal não deve ser calculado até que a fórmula institucional seja validada.
+
+## 10. Regras de uso dos arquivos-fonte
 
 - Guardar este inventário, não as planilhas originais, no repositório.
 - Para testes, construir arquivos sintéticos com a mesma estrutura, sem dados pessoais ou valores internos reais.
