@@ -21,6 +21,7 @@ from mapa_ui import MapaUI
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
 import ambulatorial
 import atualizador
+import ui_motion
 from ambulatorial_ui import PainelConsultaEstruturada, DialogoAssociacoesExames
 
 
@@ -350,32 +351,57 @@ class AppClinica(ctk.CTk):
         self.menu_compacto = not getattr(self, "menu_compacto", False)
         compacto = self.menu_compacto
         largura = 58 if compacto else 200
-        self.menu_lateral.configure(width=largura)
+        try:
+            largura_atual = int(self.menu_lateral.cget("width"))
+        except (TypeError, ValueError, AttributeError):
+            largura_atual = 200 if compacto else 58
         self.menu_lateral.grid_propagate(False)
-        self.grid_columnconfigure(0, minsize=largura)
+        ui_motion.animar_largura(
+            self.menu_lateral, largura_atual, largura, duracao_ms=190, passos=10,
+            ao_atualizar=lambda valor: self.grid_columnconfigure(0, minsize=valor))
         self.grid_columnconfigure(1, weight=1)
         if compacto:
             self.label_menu.grid_remove()
             self.label_copyright.grid_remove()
             for botao, rotulo in ((self.btn_pacientes, "👥"), (self.btn_consultas, "📝"), (self.btn_exames, "🧪")):
-                botao.configure(text=rotulo, width=40, font=ctk.CTkFont(size=17, weight="bold"))
+                try:
+                    largura_botao = int(botao.cget("width"))
+                except (TypeError, ValueError, AttributeError):
+                    largura_botao = 160
+                botao.configure(text=rotulo, font=ctk.CTkFont(size=17, weight="bold"))
+                ui_motion.animar_largura(botao, largura_botao, 40, duracao_ms=160, passos=8)
                 botao.grid_configure(padx=8, pady=6)
             icones = {"Mapa Nutricional": "🗺️", "Gráficos do Mês": "📊", "Suplementos": "🥣",
                       "Almoxarifado": "📦", "Mobile (copa)": "📱", "Triagem NRS-2002": "🩺",
                       "Avaliação nutricional": "🧮", "Configurações": "⚙️",
                       "Fichas e consumo da cozinha": "🍲"}
             for botao, rotulo in self.menu_mapa_botoes:
-                botao.configure(text=icones.get(rotulo, "•"), width=40, font=ctk.CTkFont(size=17, weight="bold"))
+                try:
+                    largura_botao = int(botao.cget("width"))
+                except (TypeError, ValueError, AttributeError):
+                    largura_botao = 160
+                botao.configure(text=icones.get(rotulo, "•"), font=ctk.CTkFont(size=17, weight="bold"))
+                ui_motion.animar_largura(botao, largura_botao, 40, duracao_ms=160, passos=8)
                 botao.pack_configure(padx=8, pady=6)
         else:
             self.label_menu.grid()
             self.label_copyright.grid()
             for botao, rotulo in ((self.btn_pacientes, "Pacientes"), (self.btn_consultas, "Nova Consulta"),
                                   (self.btn_exames, "Catálogo de Exames")):
-                botao.configure(text=rotulo, width=160, font=ctk.CTkFont(size=14, weight="bold"))
+                try:
+                    largura_botao = int(botao.cget("width"))
+                except (TypeError, ValueError, AttributeError):
+                    largura_botao = 40
+                botao.configure(text=rotulo, font=ctk.CTkFont(size=14, weight="bold"))
+                ui_motion.animar_largura(botao, largura_botao, 160, duracao_ms=160, passos=8)
                 botao.grid_configure(padx=20, pady=10)
             for botao, rotulo in self.menu_mapa_botoes:
-                botao.configure(text=rotulo, width=160, font=ctk.CTkFont(size=14, weight="bold"))
+                try:
+                    largura_botao = int(botao.cget("width"))
+                except (TypeError, ValueError, AttributeError):
+                    largura_botao = 40
+                botao.configure(text=rotulo, font=ctk.CTkFont(size=14, weight="bold"))
+                ui_motion.animar_largura(botao, largura_botao, 160, duracao_ms=160, passos=8)
                 botao.pack_configure(padx=20, pady=10)
         return "break"
 
