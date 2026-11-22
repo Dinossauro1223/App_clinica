@@ -8,7 +8,11 @@ if exist "%~dp0NutriLab.exe" set "EXE=%~dp0NutriLab.exe"
 if not defined EXE if exist "%~dp0dist\NutriLab\NutriLab.exe" set "EXE=%~dp0dist\NutriLab\NutriLab.exe"
 if not defined EXE if exist "%~dp0dist\app_clinica\app_clinica.exe" set "EXE=%~dp0dist\app_clinica\app_clinica.exe"
 
+rem Use /recompilar para ignorar um executavel existente e gerar uma nova versao.
+if /I "%~1"=="/recompilar" goto COMPILAR
 if defined EXE goto INICIAR
+
+:COMPILAR
 
 echo.
 echo ============================================================
