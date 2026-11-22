@@ -440,6 +440,10 @@ Detalhes em [`docs/referencias/CONFERENCIA_PLANILHA_PESO_ALT.md`](docs/referenci
 
 # Fase 6 — Estoque e controle do Serviço de Nutrição
 
+> **Atualização de 22/11/2026 — núcleo desktop implementado parcialmente.** A nova guia **Almoxarifado** inclui cadastro de itens com valor por unidade, histórico de preços, entradas/saídas, perdas, ajustes e estornos auditáveis; saldo calculado a partir dos movimentos; custos realizados por refeição, dia e mês; e programação manual por refeição e número de porções. Programações preservam preço e quantidade por porção e podem ser realizadas para gerar saídas reais no estoque. O banco foi ampliado pela migração reversível v2.
+>
+> **Ainda pendente:** importar e reconciliar as 139 linhas da planilha operacional; fechar semana; tratar equivalências de unidades somente quando documentadas; integrar fichas técnicas ao cálculo automático dos ingredientes; e homologar os relatórios com o modelo real do setor. A estrutura de programação já armazena origem/referência/versão da ficha técnica, mas nesta entrega a inclusão de insumos ainda é manual. Contagens e transferências do mobile não são tratadas como consumo real.
+
 **Objetivo:** digitalizar o controle operacional de gêneros e insumos conforme a planilha mensal do setor.
 
 **Agentes:** `supplement-stock-engineer` (líder), `database-backend-engineer`, `legacy-workbook-analyst`, `qa-security-reviewer`.
