@@ -65,8 +65,12 @@ def configurar_ctk() -> None:
             modo = preferencias["aparencia"]
     except (OSError, ValueError, TypeError):
         pass
-    ctk.set_appearance_mode(modo)
-    ctk.set_default_color_theme("green")
+    setter_aparencia = getattr(ctk, "set_appearance_mode", None)
+    setter_tema = getattr(ctk, "set_default_color_theme", None)
+    if callable(setter_aparencia):
+        setter_aparencia(modo)
+    if callable(setter_tema):
+        setter_tema("green")
 
 class CampoData(ctk.CTkEntry):
     """Entrada de data que aplica máscara DD/MM/AAAA e sinaliza data inválida."""
