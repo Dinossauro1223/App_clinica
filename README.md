@@ -32,6 +32,7 @@ A análise considera o ZIP `App_clinica-main` enviado para esta conversa. O esta
 | Área | Evidência no código | Situação observada |
 |---|---|---|
 | Aplicação desktop | `main.py`, `CustomTkinter` | Implementada no pacote analisado |
+| Gestão alimentar e consumo da cozinha | `gestao_alimentar_db.py`, `gestao_alimentar_ui.py`, `integracao_mobile.py` | Fichas técnicas, espelho do almoxarifado mobile, importação de retiradas, alocação por preparação e médias observacionais |
 | Pacientes e consultas | `Pacientes`, `Consultas`, telas em `main.py` | Implementado, com dados clínicos em texto livre e campos de consulta |
 | Condutas de alta | `condutas_alta.py`, `condutas_alta_ui.py`, `condutas_alta_export.py`, `condutas_alta/` | Implementada na branch `feat/condutas-de-alta` ([ADR-0006](docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md), seção 2.4); testada com simuladores, falta validar no Windows e homologar o conteúdo clínico |
 | TMB/VET | `main.py` | Há seleção de Harris-Benedict (1919), Mifflin-St Jeor (1990) e Cunningham (1980), com NAF para VET |
@@ -423,6 +424,12 @@ git ls-files | findstr /i "clinica.db arquivos_pacientes backup .env CONTROLE DE
 - [`docs/decisoes/`](docs/decisoes/): ADRs (banco local, ambiente reproduzível, arquitetura multiusuário preliminar).
 - [`docs/desenvolvimento/GUIA_DESENVOLVIMENTO_WINDOWS.md`](docs/desenvolvimento/GUIA_DESENVOLVIMENTO_WINDOWS.md): instalação, testes, auditoria, banco e build no Windows.
 - [`docs/desenvolvimento/NOTAS_DE_ENTREGA_FASE0.md`](docs/desenvolvimento/NOTAS_DE_ENTREGA_FASE0.md): o que a Fase 0 entregou e o que falta.
+
+## Gestão alimentar e consumo da cozinha
+
+- [`gestao_alimentar_db.py`](gestao_alimentar_db.py) e [`gestao_alimentar_ui.py`](gestao_alimentar_ui.py): fichas técnicas e nova aba **Consumo observado**.
+- [`docs/gestao_alimentar_consumo_cozinha.md`](docs/gestao_alimentar_consumo_cozinha.md): fluxo de importação, alocação, médias e limites de interpretação.
+- As retiradas Almoxarifado → Cozinha são importadas pela chave original `(data, id_mobile)`; transferências Cozinha → Copa não são contadas como segunda retirada de ingrediente.
 
 ## 13. Regra de continuidade
 

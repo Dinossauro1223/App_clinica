@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" role="img" aria-label="Ilustrações de melão, melancia, banana, maçã, uva, abacaxi, abacate, laranja e mamão">
+<defs>
+ <linearGradient id="melao" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff39a"/><stop offset="1" stop-color="#e6a82e"/></linearGradient>
+ <linearGradient id="cascaMelancia" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4d9b53"/><stop offset="1" stop-color="#17613d"/></linearGradient>
+ <linearGradient id="banana" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff17a"/><stop offset="1" stop-color="#e5a91e"/></linearGradient>
+ <linearGradient id="maca" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff7770"/><stop offset="1" stop-color="#bb1e25"/></linearGradient>
+ <linearGradient id="uva" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b96dcc"/><stop offset="1" stop-color="#54206f"/></linearGradient>
+ <linearGradient id="abacaxi" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffe278"/><stop offset="1" stop-color="#d87919"/></linearGradient>
+ <linearGradient id="abacate" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8acb65"/><stop offset="1" stop-color="#286c41"/></linearGradient>
+ <linearGradient id="laranja" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffd16a"/><stop offset="1" stop-color="#e87513"/></linearGradient>
+ <linearGradient id="mamao" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffc46a"/><stop offset="1" stop-color="#ec6c26"/></linearGradient>
+</defs>
+<!-- row 1: melon -->
+<g transform="translate(0 0)">
+ <ellipse cx="50" cy="54" rx="37" ry="31" fill="url(#melao)" stroke="#c68b28" stroke-width="2"/>
+ <path d="M50 23c-8 12-10 23-10 31s2 19 10 31m0-62c8 12 10 23 10 31s-2 19-10 31M17 54h66M23 39c16 8 38 8 54 0M23 69c16-8 38-8 54 0" fill="none" stroke="#cf9d45" stroke-width="1.5" opacity=".7"/>
+ <path d="M47 24l4-8 4 8" stroke="#527d38" stroke-width="3" fill="none" stroke-linecap="round"/>
+</g>
+<!-- row 1: watermelon -->
+<g transform="translate(100 0)">
+ <circle cx="50" cy="51" r="38" fill="url(#cascaMelancia)" stroke="#164c35" stroke-width="2"/>
+ <path d="M50 14c-9 10-13 23-13 37s4 27 13 37M24 24c10 10 16 25 16 38s-6 27-16 38M76 24C66 34 60 49 60 62s6 27 16 38" stroke="#b2d77a" stroke-width="5" fill="none" opacity=".9"/>
+ <path d="M50 51L82 77A38 38 0 0 1 19 80Z" fill="#e94f58" stroke="#fff2d4" stroke-width="4"/>
+ <g fill="#2d2520"><ellipse cx="47" cy="69" rx="1.8" ry="3"/><ellipse cx="57" cy="75" rx="1.8" ry="3"/><ellipse cx="66" cy="78" rx="1.8" ry="3"/></g>
+</g>
+<!-- row 1: banana -->
+<g transform="translate(200 0)">
+ <path d="M17 25c7 30 25 47 47 47 10 0 18-5 24-13-13 27-35 39-57 28C9 76 4 46 17 25Z" fill="url(#banana)" stroke="#bd871a" stroke-width="3" stroke-linejoin="round"/>
+ <path d="M17 25l-5-9m76 43 8 4" stroke="#76502a" stroke-width="5" stroke-linecap="round"/>
+ <path d="M24 31c8 23 23 35 41 38" stroke="#fff8bc" stroke-width="3" fill="none" opacity=".8"/>
+</g>
+<!-- row 2: apple -->
+<g transform="translate(0 100)">
+ <path d="M50 29c-12-13-34-2-36 20-3 27 17 44 36 42 19 2 39-15 36-42-2-22-24-33-36-20Z" fill="url(#maca)" stroke="#9d2630" stroke-width="2"/>
+ <path d="M50 31c-3-10 0-17 6-22" stroke="#6c4726" stroke-width="4" fill="none" stroke-linecap="round"/>
+ <path d="M55 17c12-12 24-8 27 0-10 9-20 9-27 0Z" fill="#4c9b4b"/>
+ <path d="M28 43c7-9 15-11 21-10" fill="none" stroke="#ffc1a3" stroke-width="3" stroke-linecap="round"/>
+</g>
+<!-- row 2: grapes -->
+<g transform="translate(100 100)">
+ <path d="M50 20c8-12 18-14 25-11" stroke="#526d35" stroke-width="4" fill="none" stroke-linecap="round"/>
+ <path d="M47 19c-9-9-16-8-20-4 8 10 14 12 20 4Z" fill="#4f964d"/>
+ <g fill="url(#uva)" stroke="#632b76" stroke-width="1.3">
+  <circle cx="34" cy="34" r="12"/><circle cx="54" cy="32" r="12"/><circle cx="73" cy="39" r="12"/>
+  <circle cx="25" cy="53" r="12"/><circle cx="45" cy="53" r="12"/><circle cx="65" cy="57" r="12"/>
+  <circle cx="36" cy="73" r="12"/><circle cx="55" cy="77" r="11"/><circle cx="46" cy="92" r="9"/>
+ </g>
+ <g fill="#efc8ff" opacity=".7"><circle cx="30" cy="30" r="3"/><circle cx="50" cy="28" r="3"/><circle cx="69" cy="35" r="3"/></g>
+</g>
+<!-- row 2: pineapple -->
+<g transform="translate(200 100)">
+ <path d="M50 15L38 37 24 21 29 49 9 42 28 62h45l18-20-20 7 5-28-15 16Z" fill="#4d9750" stroke="#317144" stroke-width="2"/>
+ <path d="M50 42c-22 0-34 20-29 43 4 18 16 28 29 28s25-10 29-28c5-23-7-43-29-43Z" fill="url(#abacaxi)" stroke="#b56c1d" stroke-width="2"/>
+ <path d="M30 56l39 49M22 72l49 32M25 91l39 25M69 55L30 105M78 72l-49 32" stroke="#b16a1c" stroke-width="2" opacity=".8"/>
+</g>
+<!-- row 3: avocado -->
+<g transform="translate(0 200)">
+ <path d="M50 12c-17 0-33 29-34 53-1 23 13 34 34 34s35-11 34-34C83 41 67 12 50 12Z" fill="url(#abacate)" stroke="#275a37" stroke-width="3"/>
+ <path d="M50 25c-11 0-21 25-21 40 0 15 8 23 21 23s21-8 21-23C71 50 61 25 50 25Z" fill="#d4e69a"/>
+ <circle cx="50" cy="66" r="12" fill="#92532c" stroke="#69391f" stroke-width="2"/>
+ <path d="M29 45c5-12 11-19 17-22" stroke="#f2ffd5" stroke-width="3" fill="none" opacity=".7"/>
+</g>
+<!-- row 3: orange -->
+<g transform="translate(100 200)">
+ <circle cx="50" cy="56" r="37" fill="url(#laranja)" stroke="#c65c14" stroke-width="2"/>
+ <path d="M50 18c-2-7 2-12 8-13" fill="none" stroke="#5b7c3b" stroke-width="4" stroke-linecap="round"/>
+ <path d="M56 13c9-8 17-3 17 3-8 7-16 6-17-3Z" fill="#4b984c"/>
+ <circle cx="50" cy="56" r="24" fill="#ffe49a" stroke="#f6a13a" stroke-width="3"/>
+ <circle cx="50" cy="56" r="5" fill="#f2aa46"/>
+ <g stroke="#f2a13c" stroke-width="2"><path d="M50 32v48M26 56h48M33 39l34 34M67 39L33 73"/></g>
+</g>
+<!-- row 3: papaya -->
+<g transform="translate(200 200)">
+ <path d="M26 19c18-12 45-4 53 14 8 19-4 52-27 65-20 11-44-1-45-23-1-20 5-45 19-56Z" fill="url(#mamao)" stroke="#bf5f26" stroke-width="2"/>
+ <path d="M40 26c15-8 29 0 31 13 3 15-8 34-21 44-13 10-27 5-29-9-2-16 6-39 19-48Z" fill="#ffdf91" stroke="#e89b42" stroke-width="3"/>
+ <g fill="#2c1d20"><ellipse cx="47" cy="39" rx="2.2" ry="3"/><ellipse cx="57" cy="43" rx="2.2" ry="3"/><ellipse cx="60" cy="54" rx="2.2" ry="3"/><ellipse cx="48" cy="59" rx="2.2" ry="3"/><ellipse cx="42" cy="48" rx="2.2" ry="3"/><ellipse cx="55" cy="68" rx="2.2" ry="3"/></g>
+ <path d="M28 20c-3-7-2-11 2-14" stroke="#57783e" stroke-width="4" fill="none" stroke-linecap="round"/>
+</g>
+</svg>

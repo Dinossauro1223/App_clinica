@@ -121,3 +121,27 @@ O APK inclui uma cópia local de `mobile/static/index.html`. Se o servidor não 
 - Antes do envio, o aplicativo compara o mapa atual do servidor com a base local salva para indicar possíveis conflitos. O servidor continua aplicando suas regras de correção/aprovação.
 
 **Limites:** o primeiro acesso e login precisam ocorrer online para preencher a cópia local; depois, a sincronização depende de uma sessão válida no servidor; se a sessão expirar, é necessário entrar novamente. O modo offline ainda precisa de validação prática no APK instalado, em diferentes aparelhos e condições de rede. O cache local contém dados clínicos e deve ser usado apenas em aparelho institucional protegido por bloqueio de tela; o APK desativa backup Android (`allowBackup=false`).
+
+
+## 12. Movimentações para análise de consumo e custo
+
+A versão atual do mobile conserva, em cada movimento, o identificador do item, usuário, preço unitário e custo no momento da transferência quando o produto tiver preço cadastrado. Em bancos antigos, a migração acrescenta os campos sem apagar as movimentações existentes; registros antigos permanecem sem snapshot de preço.
+
+- `GET /api/itens` inclui `preco_unitario`, `embalagem_qtd` e `embalagem_un`.
+- `POST /api/admin/itens` e `POST /api/admin/itens/<id>` permitem cadastrar/alterar o preço por unidade de estoque e o conteúdo de embalagem.
+- O registro de movimentação (`movimentos`) passa a guardar `preco_unitario_snapshot` e `custo_snapshot`. Alterar o preço atual do produto não altera os snapshots já gravados.
+- A integração desktop `importar_movimentos_cozinha(db,mobile_db,inicio,fim)` importa por intervalo, mantendo `(data,id_mobile)` como chave idempotente e preservando item, usuário, preço e custo. Repetir a importação do mesmo período atualiza a mesma linha e não duplica movimentos.
+- O relatório de consumo analisa apenas transferências com origem `almox` e destino `cozinha`. A transferência posterior `cozinha` → `copa` é exibida no histórico geral, mas não é contada novamente como retirada original de ingredientes.
+
+### Interpretação
+
+A primeira fase mede **retiradas**, não consumo efetivo. Cada retirada pode ser distribuída manualmente entre uma preparação esperada, uso geral/não identificado e perda. As quantidades alocadas são limitadas ao total da retirada, e as revisões anteriores são mantidas.
+
+As médias apresentadas incluem:
+- quantidade total retirada e média por dia corrido no período;
+- média por dia com retirada e intervalo médio entre datas de retirada;
+- quantidade associada e pendente de destinação;
+- custo com preço histórico quando disponível; preço atual de produto antigo sem snapshot é indicado como estimativa;
+- média por execução e por porção prevista, somente quando as porções foram informadas.
+
+O sistema não chama uma quantidade de consumo efetivo sem inventário físico/conciliação. Estoque inicial, entradas, transferências para copa, perdas/devoluções e estoque final deverão ser conciliados em etapa subsequente.
