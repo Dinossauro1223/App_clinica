@@ -19,6 +19,7 @@ import atalhos_edicao
 from mapa_ui import MapaUI
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
 import ambulatorial
+import atualizador
 from ambulatorial_ui import PainelConsultaEstruturada, DialogoAssociacoesExames
 
 
@@ -274,6 +275,27 @@ class AppClinica(ctk.CTk):
         self.area_principal.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
         
         self.tela_inicial()
+        # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
+        self.after(1200, lambda: atualizador.iniciar_verificacao(self, self._resultado_atualizacao))
+
+    def _resultado_atualizacao(self, resultado):
+        """Exibe comparação de versões sem executar alterações automáticas no banco de dados."""
+        if resultado.get("status") == "erro":
+            # Sem conexão ou falha na API: não assumir que o programa está atualizado.
+            print("NutriLab: não foi possível consultar atualizações:", resultado.get("erro"))
+            return
+        if resultado.get("status") != "atualizacao":
+            return
+        url = resultado.get("url", "")
+        tem_pacote = bool(resultado.get("pacote_windows"))
+        texto = ("Versão instalada: {local}\\nÚltima versão no GitHub: {remota}\\n\\n".format(**resultado))
+        texto += ("Há um pacote Windows publicado. A atualização deverá preservar o banco e os arquivos locais."
+                  if tem_pacote else
+                  "A release existe, mas ainda não há pacote Windows publicado. Nenhum arquivo será alterado.")
+        if messagebox.askyesno("Atualização do NutriLab disponível", texto + "\\n\\nAbrir a página da atualização?"):
+            import webbrowser
+            if url:
+                webbrowser.open(url)
 
     def tela_mapa(self):
         self.mapa.mostrar_mapa()
