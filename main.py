@@ -1996,7 +1996,7 @@ class AppClinica(ctk.CTk):
         for id_exame, (valor, status) in self.resultados_lancados.items():
             cursor.execute(
                 'INSERT INTO Resultados_Exames (id_consulta, id_exame, valor, status) VALUES (?, ?, ?, ?)',
-                (id_consame, id_exame, valor, status)
+                (id_consulta, id_exame, valor, status)
             )
 
         # Campos adicionais em tabelas próprias para manter compatibilidade com Consultas legadas.
