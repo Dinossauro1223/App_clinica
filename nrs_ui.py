@@ -94,7 +94,7 @@ class NRSUI:
         ctk.CTkButton(botoes, text="Limpar", command=self.limpar, fg_color=tema.SUAVE,
                       hover_color=tema.VERDE_ESC).pack(side="left", padx=8)
         ctk.CTkButton(botoes, text="Copiar resultado", command=self.copiar, fg_color=tema.LARANJA,
-                      hover_color=tema.LARANJA_TXT).pack(side="left", padx=8)
+                      hover_color=tema.LARANJA_TEXTO).pack(side="left", padx=8)
         self.resultado = ctk.CTkLabel(corpo, text="Preencha a triagem inicial e clique em Calcular.",
                                      font=tema.fonte(14, "bold"), text_color=tema.TEXTO,
                                      justify="left", anchor="w", wraplength=720)
@@ -122,13 +122,13 @@ class NRSUI:
             if idade is not None and idade < 0:
                 raise ValueError
         except ValueError:
-            self.resultado.configure(text="Informe idade em anos completos (número inteiro).", text_color=tema.LARANJA_TXT)
+            self.resultado.configure(text="Informe idade em anos completos (número inteiro).", text_color=tema.LARANJA_TEXTO)
             return
         estado = self._escore_combo(self.combo_estado, nrs.ESTADO)
         gravidade = self._escore_combo(self.combo_gravidade, nrs.GRAVIDADE)
         r = nrs.classificar(respostas, estado, gravidade, idade)
         if not r["completo"]:
-            self.resultado.configure(text=r["rotulo"], text_color=tema.LARANJA_TXT)
+            self.resultado.configure(text=r["rotulo"], text_color=tema.LARANJA_TEXTO)
             return
         try:
             intervalos = nrs.ler_intervalos(self.db_path)
@@ -140,7 +140,7 @@ class NRSUI:
         texto = f"{r['rotulo']}\nReavaliar em {dias} dias (até {alvo.strftime('%d/%m/%Y')})."
         if dias > nrs.LIMITE_RDC63:
             texto += f"\nAtenção: o intervalo supera {nrs.LIMITE_RDC63} dias (limite indicado pela RDC 63/2000)."
-        self.resultado.configure(text=texto, text_color=tema.VERDE if grau in ("triagem_negativa", "sem_risco") else tema.LARANJA_TXT)
+        self.resultado.configure(text=texto, text_color=tema.VERDE if grau in ("triagem_negativa", "sem_risco") else tema.LARANJA_TEXTO)
 
     def limpar(self):
         for campo in self.campos.values():
