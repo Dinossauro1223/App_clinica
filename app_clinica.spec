@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+import customtkinter
 
 # Fase 0 (ADR-0005): o executável NÃO embute mais o `clinica.db` real (ele contém pacientes). Embute um banco-MODELO
 # sanitizado (catálogo de exames e regras, sem pacientes), gerado ANTES do build com:  python tools\gerar_banco_modelo.py
@@ -14,7 +15,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('D:/app_clinica/venv/Lib/site-packages/customtkinter', 'customtkinter'), ('welcome_nutrilab.png', '.'), (MODELO_BANCO, '.'), ('regras_exames_complementares.json', '.'), ('exames_internos', 'exames_internos'), ('condutas_internas', 'condutas_internas'), ('sintomas_internos', 'sintomas_internos'), ('prescricoes_internas', 'prescricoes_internas'), ('condutas_alta', 'condutas_alta')],
+    datas=[(os.path.dirname(customtkinter.__file__), 'customtkinter'), ('welcome_nutrilab.png', '.'), (os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab_identidade.png'), '.'), (MODELO_BANCO, '.'), ('regras_exames_complementares.json', '.'), ('exames_internos', 'exames_internos'), ('condutas_internas', 'condutas_internas'), ('sintomas_internos', 'sintomas_internos'), ('prescricoes_internas', 'prescricoes_internas'), ('condutas_alta', 'condutas_alta')],
     hiddenimports=['mapa_export', 'mapa_graficos', 'graficos_ui', 'graficos_layout', 'openpyxl', 'matplotlib.backends.backend_agg'],
     hookspath=[],
     hooksconfig={},
@@ -36,6 +37,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
+    icon=os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab.ico'),
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
