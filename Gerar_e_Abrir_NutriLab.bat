@@ -63,8 +63,8 @@ echo Compilacao local do NutriLab - %DATE% %TIME% >> "%LOG%"
 echo Diretorio: %CD% >> "%LOG%"
 echo. >> "%LOG%"
 
-echo [1/4] Verificando e instalando dependencias (se necessario)...
-echo [1/4] Dependencias >> "%LOG%"
+echo [1/5] Verificando e instalando dependencias (se necessario)...
+echo [1/5] Dependencias >> "%LOG%"
 call %PY_CMD% -m pip install -r requirements-build.txt >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_DEPENDENCIAS
 
@@ -75,7 +75,6 @@ call %PY_CMD% tools\gerar_banco_modelo.py --sobrescrever >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_BANCO
 if not exist "modelo_banco\clinica.db" goto ERRO_BANCO_AUSENTE
 
-echo.
 echo.
 echo [3/5] Renderizando os componentes SVG transparentes...
 echo [3/5] Identidade visual SVG >> "%LOG%"
