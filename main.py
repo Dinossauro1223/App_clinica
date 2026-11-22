@@ -362,7 +362,7 @@ class AppClinica(ctk.CTk):
 
         self.entry_nome = ctk.CTkEntry(aba_cadastro, placeholder_text="Nome Completo", width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
         self.entry_nome.pack(pady=10)
-        self.entry_nasc = ctk.CTkEntry(aba_cadastro, placeholder_text="Data de Nascimento (DD/MM/AAAA)", width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_nasc = tema.CampoData(aba_cadastro, placeholder_text="Data de Nascimento (DD/MM/AAAA)", width=300, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.VERDE_ESC, placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_nasc.pack(pady=10)
         self.combo_sexo = ctk.CTkComboBox(aba_cadastro, values=["Feminino", "Masculino"], width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", button_color="#4caf50", button_hover_color="#388e3c", dropdown_fg_color="#ffffff", dropdown_hover_color="#c8e6c9", dropdown_text_color="#1b5e20")
         self.combo_sexo.set("Feminino")
