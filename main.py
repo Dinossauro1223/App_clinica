@@ -238,17 +238,17 @@ class AppClinica(ctk.CTk):
         self.label_menu.grid(row=0, column=1, padx=8, pady=(12, 8), sticky="w")
 
         self.btn_pacientes = ctk.CTkButton(self.menu_lateral, text="Pacientes", command=self.tela_pacientes, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_pacientes.grid(row=1, column=0, padx=20, pady=10)
+        self.btn_pacientes.grid(row=1, column=0, padx=20, pady=10, columnspan=2)
 
         self.btn_consultas = ctk.CTkButton(self.menu_lateral, text="Nova Consulta", command=self.tela_consultas, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_consultas.grid(row=2, column=0, padx=20, pady=10)
+        self.btn_consultas.grid(row=2, column=0, padx=20, pady=10, columnspan=2)
 
         self.btn_exames = ctk.CTkButton(self.menu_lateral, text="Catálogo de Exames", command=self.tela_exames, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_exames.grid(row=3, column=0, padx=20, pady=10)
+        self.btn_exames.grid(row=3, column=0, padx=20, pady=10, columnspan=2)
 
         # --- Mapa Nutricional ---
         self.menu_mapa = ctk.CTkFrame(self.menu_lateral, fg_color="transparent")
-        self.menu_mapa.grid(row=4, column=0, sticky="new")
+        self.menu_mapa.grid(row=4, column=0, columnspan=2, sticky="new")
         self.menu_mapa_botoes = []
         for texto, comando in (("Mapa Nutricional", self.tela_mapa),
                                ("Gráficos do Mês", self.tela_mapa_graficos),
@@ -270,7 +270,7 @@ class AppClinica(ctk.CTk):
             justify="left",
             wraplength=170,
         )
-        self.label_copyright.grid(row=5, column=0, padx=10, pady=(0, 10), sticky="sw")
+        self.label_copyright.grid(row=5, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="sw")
 
         # --- ÁREA PRINCIPAL ---
         self.area_principal = ctk.CTkFrame(self, corner_radius=10, fg_color=tema.FUNDO)
