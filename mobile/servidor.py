@@ -42,7 +42,9 @@ CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, login TEXT UNIQUE NO
   perfil TEXT NOT NULL, id_setor INTEGER, salt TEXT NOT NULL, senha TEXT NOT NULL, ativo INTEGER DEFAULT 1, criado_em TEXT);
 CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL);
 CREATE TABLE IF NOT EXISTS leitos(id INTEGER PRIMARY KEY, id_setor INTEGER NOT NULL, codigo TEXT NOT NULL, UNIQUE(id_setor, codigo));
-CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS itens(
+  id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL,
+  preco_unitario REAL, embalagem_qtd REAL, embalagem_un TEXT);
 CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
   idade_anos INTEGER, idade_meses INTEGER, diagnostico TEXT, pref_sim TEXT, pref_nao TEXT,
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, id_leito));
@@ -150,6 +152,10 @@ def migrar(c):
             c.execute("ALTER TABLE mapa_dia ADD COLUMN %s %s" % (col, tipo))
     if "id_setor" not in cols("correcoes"):
         c.execute("ALTER TABLE correcoes ADD COLUMN id_setor INTEGER")
+    # Metadados comerciais do item: migração aditiva e compatível com bancos antigos.
+    for col, tipo in (("preco_unitario", "REAL"), ("embalagem_qtd", "REAL"), ("embalagem_un", "TEXT")):
+        if col not in cols("itens"):
+            c.execute("ALTER TABLE itens ADD COLUMN %s %s" % (col, tipo))
     c.execute("UPDATE usuarios SET perfil='copa' WHERE perfil IN ('setor','estoque_copa')")
     c.executemany("INSERT OR IGNORE INTO refeicoes_cfg VALUES(?,?,?,?)", CFG_INICIAL)
 
@@ -356,7 +362,8 @@ def linhas_refeicoes(c, sid, d):
 
 
 def linhas_estoque(c, est, d):
-    sql = ("SELECT i.id id_item,i.nome,i.unidade,COALESCE(h.qtd,0) qtd,h.data data_base,h.por_perfil,h.atualizado_em FROM itens i "
+    sql = ("SELECT i.id id_item,i.nome,i.unidade,i.preco_unitario,i.embalagem_qtd,i.embalagem_un,"
+           "COALESCE(h.qtd,0) qtd,h.data data_base,h.por_perfil,h.atualizado_em FROM itens i "
            "LEFT JOIN estoque_dia h ON h.id_item=i.id AND h.estoque=? AND "
            "h.data=(SELECT MAX(data) FROM estoque_dia WHERE id_item=i.id AND estoque=? AND data<=?) ORDER BY i.nome")
     return [{**dict(r), "herdado": r["data_base"] not in (None, d)} for r in c.execute(sql, (est, est, d))]
@@ -608,7 +615,8 @@ def _rotear(c, ip, m, p, q, b, auth):
     if (m, p) == ("GET", "/api/eu"):
         return {"usuario": pub(u), "hoje": hoje()}
     if (m, p) == ("GET", "/api/itens"):
-        return {"itens": [dict(r) for r in c.execute("SELECT id,nome,unidade FROM itens ORDER BY nome")]}
+        return {"itens": [dict(r) for r in c.execute(
+            "SELECT id,nome,unidade,preco_unitario,embalagem_qtd,embalagem_un FROM itens ORDER BY nome")]}
     if (m, p) == ("GET", "/api/setores"):
         todos = adm or (perfil == "nutricionista" and not u["id_setor"])
         sql = "SELECT s.id,s.nome,(SELECT COUNT(*) FROM leitos WHERE id_setor=s.id) leitos FROM setores s %s ORDER BY s.nome"
@@ -681,10 +689,42 @@ def _rotear(c, ip, m, p, q, b, auth):
         if (m, p) == ("POST", "/api/admin/setores"):
             return criar_setor(c, b)
         if (m, p) == ("POST", "/api/admin/itens"):
+            nome = str(b.get("nome", "")).strip()
+            unidade = str(b.get("unidade", "un")).strip() or "un"
+            if not nome:
+                raise Erro("Informe o nome do item.")
+            preco = None if b.get("preco_unitario") in (None, "") else num(b.get("preco_unitario"), "preço unitário")
+            embalagem_qtd = None if b.get("embalagem_qtd") in (None, "") else num(b.get("embalagem_qtd"), "conteúdo da embalagem")
+            embalagem_un = str(b.get("embalagem_un") or "").strip().lower() or None
+            unidades_embalagem = {"g", "kg", "mg", "ml", "l", "un"}
+            if embalagem_qtd is not None and embalagem_qtd <= 0:
+                raise Erro("O conteúdo da embalagem precisa ser maior que zero.")
+            if embalagem_qtd is not None and embalagem_un not in unidades_embalagem:
+                raise Erro("Informe a unidade do conteúdo (g, kg, mg, ml, L ou un).")
+            if embalagem_qtd is None:
+                embalagem_un = None
             try:
-                c.execute("INSERT INTO itens(nome,unidade) VALUES(?,?)", (str(b.get("nome", "")).strip(), str(b.get("unidade", "un")).strip() or "un"))
+                c.execute("INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un) VALUES(?,?,?,?,?)",
+                          (nome, unidade, preco, embalagem_qtd, embalagem_un))
             except sqlite3.IntegrityError:
                 raise Erro("Esse item já existe.")
+            return {"ok": True, "id": c.execute("SELECT id FROM itens WHERE nome=?", (nome,)).fetchone()["id"]}
+        if m == "POST" and p.startswith("/api/admin/itens/"):
+            iid = int(p.rsplit("/", 1)[1])
+            if not c.execute("SELECT 1 FROM itens WHERE id=?", (iid,)).fetchone():
+                raise Erro("Item não encontrado.", 404)
+            preco = None if b.get("preco_unitario") in (None, "") else num(b.get("preco_unitario"), "preço unitário")
+            embalagem_qtd = None if b.get("embalagem_qtd") in (None, "") else num(b.get("embalagem_qtd"), "conteúdo da embalagem")
+            embalagem_un = str(b.get("embalagem_un") or "").strip().lower() or None
+            unidades_embalagem = {"g", "kg", "mg", "ml", "l", "un"}
+            if embalagem_qtd is not None and embalagem_qtd <= 0:
+                raise Erro("O conteúdo da embalagem precisa ser maior que zero.")
+            if embalagem_qtd is not None and embalagem_un not in unidades_embalagem:
+                raise Erro("Informe a unidade do conteúdo (g, kg, mg, ml, L ou un).")
+            if embalagem_qtd is None:
+                embalagem_un = None
+            c.execute("UPDATE itens SET preco_unitario=?,embalagem_qtd=?,embalagem_un=? WHERE id=?",
+                      (preco, embalagem_qtd, embalagem_un, iid))
             return {"ok": True}
     raise Erro("Rota não encontrada.", 404)
 

@@ -82,6 +82,44 @@ class MobileTest(unittest.TestCase):
     def test_login_invalido(self):
         self.assertEqual(self.chamar(None, "POST", "/api/login", {"login": "admin", "senha": "errada"})[0], 401)
 
+    def test_cadastro_de_item_guarda_preco_embalagem_e_unidade(self):
+        cod, criado = self.chamar(self.adm, "POST", "/api/admin/itens", {
+            "nome": "Aveia em flocos", "unidade": "pacote", "preco_unitario": 8.5,
+            "embalagem_qtd": 500, "embalagem_un": "g",
+        })
+        self.assertEqual(cod, 200, criado)
+        iid = criado["id"]
+        itens = self.chamar(self.adm, "GET", "/api/itens")[1]["itens"]
+        item = next(x for x in itens if x["id"] == iid)
+        self.assertEqual((item["preco_unitario"], item["embalagem_qtd"], item["embalagem_un"]), (8.5, 500, "g"))
+        estoque = self.chamar(self.adm, "GET", "/api/estoque?estoque=almox")[1]["linhas"]
+        linha = next(x for x in estoque if x["id_item"] == iid)
+        self.assertEqual((linha["nome"], linha["qtd"], linha["preco_unitario"]), ("Aveia em flocos", 0, 8.5))
+        cod, _ = self.chamar(self.adm, "POST", f"/api/admin/itens/{iid}", {
+            "preco_unitario": 9.25, "embalagem_qtd": 1, "embalagem_un": "kg",
+        })
+        self.assertEqual(cod, 200)
+        atual = next(x for x in self.chamar(self.adm, "GET", "/api/itens")[1]["itens"] if x["id"] == iid)
+        self.assertEqual((atual["preco_unitario"], atual["embalagem_qtd"], atual["embalagem_un"]), (9.25, 1, "kg"))
+
+    def test_migracao_aditiva_de_itens_antigos(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            db_antigo = str(Path(pasta) / "mobile_antigo.db")
+            c = sv.conectar(db_antigo)
+            c.execute("CREATE TABLE itens(id INTEGER PRIMARY KEY,nome TEXT UNIQUE NOT NULL,unidade TEXT NOT NULL)")
+            c.execute("INSERT INTO itens(nome,unidade) VALUES('Arroz','kg')")
+            c.commit()
+            c.close()
+            sv.preparar_banco(db_antigo)
+            c = sv.conectar(db_antigo)
+            try:
+                colunas = {r[1] for r in c.execute("PRAGMA table_info(itens)")}
+                self.assertTrue({"preco_unitario", "embalagem_qtd", "embalagem_un"}.issubset(colunas))
+                item = c.execute("SELECT nome,preco_unitario,embalagem_qtd,embalagem_un FROM itens").fetchone()
+                self.assertEqual(tuple(item), ("Arroz", None, None, None))
+            finally:
+                c.close()
+
     def test_permissoes_por_perfil(self):
         t = self.t
         self.assertEqual(self.chamar(t["cop"], "GET", "/api/nutri/painel")[0], 403)

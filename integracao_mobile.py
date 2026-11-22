@@ -105,6 +105,28 @@ def ler_mobile(mobile_db, data_iso):
         c.close()
 
 
+def ler_produtos_almox(mobile_db):
+    """Lê itens, metadados de embalagem e saldo atual do Almoxarifado mobile.
+
+    Retorna o mesmo contrato de linhas usado pela API de estoque, sem escrever
+    no banco mobile ou alterar quantidades. Campos comerciais ficam ausentes
+    (None) em bancos legados até que o administrador os cadastre.
+    """
+    sv, c = _abrir_mobile(mobile_db)
+    try:
+        if not hasattr(sv, "linhas_estoque"):
+            raise ErroMobile("A versão mobile não disponibiliza a leitura do saldo do Almoxarifado. Atualize o módulo mobile.")
+        linhas = sv.linhas_estoque(c, "almox", sv.hoje())
+        # O mobile exibe saldo zero quando nunca houve lançamento; para a ficha isso
+        # é dado desconhecido, diferente de um zero explicitamente registrado.
+        for linha in linhas:
+            if linha.get("data_base") is None:
+                linha["qtd"] = None
+        return linhas
+    finally:
+        c.close()
+
+
 # ------------------------------------------------- mapeamento mobile <-> desktop
 def dieta_para_desktop(txt):
     """'Pastosa' -> {'consistencia': 'Pastosa'}; 'Enteral' -> {'via': 'Enteral'}; o resto não tem campo no desktop."""

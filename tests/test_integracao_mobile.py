@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import integracao_mobile as im  # noqa: E402
 import mapa_db as mdb  # noqa: E402
+import gestao_alimentar_db as ga  # noqa: E402
 
 try:
     from mobile import servidor as sv
@@ -220,6 +221,51 @@ class TestComServidor(_Base):
         self.assertEqual(self.mobile("SELECT status FROM correcoes")[0]["status"], "recusada")
         self.assertIsNone(self.reg("A01")["obs_nao"] or None)
 
+
+
+@unittest.skipIf(not SERVIDOR_OK, "servidor mobile atualizado (pacote Mobile Completo) não instalado")
+class TestProdutosAlmox(_Base):
+    def test_saldo_nao_lancado_permanece_desconhecido_para_a_ficha(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            mobile_db = os.path.join(pasta, "mobile.db")
+            sv.preparar_banco(mobile_db)
+            c = sv.conectar(mobile_db)
+            try:
+                c.execute("INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un) VALUES(?,?,?,?,?)",
+                          ("Óleo", "garrafa", 8.0, 900, "ml"))
+                c.commit()
+            finally:
+                c.close()
+            linha = im.ler_produtos_almox(mobile_db)[0]
+            self.assertIsNone(linha["qtd"])
+            self.assertIsNone(linha["data_base"])
+
+    def test_leitura_de_produtos_preco_embalagem_e_saldo_do_almox(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            mobile_db = os.path.join(pasta, "mobile.db")
+            sv.preparar_banco(mobile_db)
+            c = sv.conectar(mobile_db)
+            try:
+                cur = c.execute(
+                    "INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un) VALUES(?,?,?,?,?)",
+                    ("Feijão", "pacote", 9.5, 1000, "g"))
+                iid = cur.lastrowid
+                c.execute("INSERT INTO estoque_dia(data,estoque,id_item,qtd) VALUES(?,?,?,?)",
+                          (sv.hoje(), "almox", iid, 6))
+                c.commit()
+            finally:
+                c.close()
+            linhas = im.ler_produtos_almox(mobile_db)
+            produto = next(x for x in linhas if x["id_item"] == iid)
+            self.assertEqual((produto["nome"], produto["preco_unitario"], produto["embalagem_qtd"],
+                              produto["embalagem_un"], produto["qtd"]),
+                             ("Feijão", 9.5, 1000, "g", 6.0))
+            ga.inicializar(self.db)
+            total = ga.sincronizar_produtos_almox(self.db, linhas)
+            self.assertEqual(total, 1)
+            espelho = ga.listar_produtos_almox(self.db)[0]
+            self.assertEqual((espelho["preco_unitario"], espelho["embalagem_qtd"], espelho["estoque_qtd"]),
+                             (9.5, 1000, 6.0))
 
 def _importar_mobile_ui():
     """Importa mobile_ui com tkinter/customtkinter trocados por mocks (sem janela) e restaura o resto do processo."""
