@@ -7,6 +7,7 @@ import os
 import importlib.util
 import socket
 import threading
+import math
 import json
 import shutil
 import sys
@@ -551,8 +552,36 @@ class AppClinica(ctk.CTk):
             text_color="#52746A", fg_color="#F8FCF5", font=ctk.CTkFont(size=10)
         )
         self.label_copyright_inicial.place(relx=0.985, rely=0.985, anchor="se")
+        self._iniciar_animacao_folhas()
         self.bind("<Escape>", self._confirmar_saida_inicial)
         self._timer_areas_iniciais = self.after(3000, self._mostrar_areas_iniciais)
+
+    def _iniciar_animacao_folhas(self):
+        """Cria folhas independentes que derivam suavemente a partir da marca."""
+        self._folhas_animadas = []
+        for indice in range(3):
+            folha = ctk.CTkLabel(
+                self._tela_boas_vindas, text="🍃", fg_color="transparent",
+                text_color="#36A66A", font=ctk.CTkFont(size=18 + indice * 2)
+            )
+            folha.bind("<Button-1>", self._revelar_areas_iniciais)
+            self._folhas_animadas.append({
+                "widget": folha, "x": 0.435 - indice * 0.018,
+                "base_y": 0.405 - indice * 0.018, "fase": indice * 2.1
+            })
+        self._timer_animacao_folhas = self.after(90, self._animar_folhas)
+
+    def _animar_folhas(self):
+        if not getattr(self, "_tela_inicial_ativa", False):
+            return
+        for folha in self._folhas_animadas:
+            folha["x"] += 0.0012
+            if folha["x"] > 0.69:
+                folha["x"] = 0.42
+            folha["fase"] += 0.075
+            y = folha["base_y"] + math.sin(folha["fase"]) * 0.018
+            folha["widget"].place(relx=folha["x"], rely=y, anchor="center")
+        self._timer_animacao_folhas = self.after(90, self._animar_folhas)
 
     def _redimensionar_imagem_bem_vindo(self, event):
         largura_orig, altura_orig = self.imagem_bem_vindo_pil.size
@@ -622,6 +651,11 @@ class AppClinica(ctk.CTk):
             except Exception:
                 pass
         self.unbind("<Escape>")
+        if getattr(self, "_timer_animacao_folhas", None):
+            try:
+                self.after_cancel(self._timer_animacao_folhas)
+            except Exception:
+                pass
         self._tela_boas_vindas.destroy()
         self.menu_lateral.grid()
         self.area_principal.grid_configure(row=0, column=1, padx=20, pady=20, sticky="nsew")
