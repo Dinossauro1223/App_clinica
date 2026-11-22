@@ -140,7 +140,7 @@ class NRSUI:
         texto = f"{r['rotulo']}\nReavaliar em {dias} dias (até {alvo.strftime('%d/%m/%Y')})."
         if dias > nrs.LIMITE_RDC63:
             texto += f"\nAtenção: o intervalo supera {nrs.LIMITE_RDC63} dias (limite indicado pela RDC 63/2000)."
-        self.resultado.configure(text=texto, text_color=tema.VERDE if grau == "sem_risco" else tema.LARANJA_TXT)
+        self.resultado.configure(text=texto, text_color=tema.VERDE if grau in ("triagem_negativa", "sem_risco") else tema.LARANJA_TXT)
 
     def limpar(self):
         for campo in self.campos.values():
