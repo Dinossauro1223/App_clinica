@@ -319,6 +319,51 @@ _ALMOX_DOWN = (
     "DROP TABLE IF EXISTS Almox_Itens",
 )
 
+# --- v6: prontuário eletrônico nutricional, usuários e evoluções imutáveis ----------------
+_PEP_UP = (
+    """CREATE TABLE IF NOT EXISTS Pep_Config (
+        chave TEXT PRIMARY KEY,
+        valor TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Pep_Usuarios (
+        id_usuario INTEGER PRIMARY KEY AUTOINCREMENT,
+        login TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        nome_completo TEXT NOT NULL,
+        crn TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        senha_hash TEXT NOT NULL,
+        assinatura BLOB,
+        ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
+        criado_em TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Pep_Evolucoes (
+        id_evolucao INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_paciente INTEGER NOT NULL,
+        paciente_nome TEXT NOT NULL,
+        data_evolucao TEXT NOT NULL,
+        cabecalho_json TEXT NOT NULL,
+        texto TEXT NOT NULL,
+        id_usuario INTEGER NOT NULL REFERENCES Pep_Usuarios(id_usuario),
+        assinante_nome TEXT NOT NULL,
+        assinante_crn TEXT NOT NULL,
+        criada_em TEXT NOT NULL,
+        adendo_de INTEGER REFERENCES Pep_Evolucoes(id_evolucao)
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_pep_evolucoes_paciente_data ON Pep_Evolucoes (id_paciente, data_evolucao, id_evolucao)",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucoes_update_imutavel BEFORE UPDATE ON Pep_Evolucoes
+       BEGIN SELECT RAISE(ABORT, 'Evolução PEP imutável: registre um adendo.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucoes_delete_imutavel BEFORE DELETE ON Pep_Evolucoes
+       BEGIN SELECT RAISE(ABORT, 'Evolução PEP imutável: não é permitido apagar.'); END""",
+)
+_PEP_DOWN = (
+    "DROP TRIGGER IF EXISTS tr_pep_evolucoes_delete_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_evolucoes_update_imutavel",
+    "DROP INDEX IF EXISTS ix_pep_evolucoes_paciente_data",
+    "DROP TABLE IF EXISTS Pep_Evolucoes",
+    "DROP TABLE IF EXISTS Pep_Usuarios",
+    "DROP TABLE IF EXISTS Pep_Config",
+)
+
 # Lista oficial. NOVAS migrações entram SEMPRE ao final, com versão contígua; nunca editar uma já publicada.
 MIGRACOES = (
     Migracao(versao=1, nome="baseline_esquema_legado", up=(), down=None, baseline=True),
@@ -328,6 +373,7 @@ MIGRACOES = (
     Migracao(versao=4, nome="ambulatorial_anamnese_recomendacoes_exames_triagens",
              up=_AMBULATORIAL_UP, down=_AMBULATORIAL_DOWN),
     Migracao(versao=5, nome="almoxarifado_custos_programacao", up=_ALMOX_UP, down=_ALMOX_DOWN),
+    Migracao(versao=6, nome="pep_evolucoes_immutability", up=_PEP_UP, down=_PEP_DOWN),
 )
 
 

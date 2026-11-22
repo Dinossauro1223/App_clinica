@@ -158,13 +158,14 @@ class TestConfigurarBancoDados(BaseApp):
         "Almox_Itens", "Almox_Historico_Preco", "Almox_Movimentos",
         "Almox_Programacoes", "Almox_Programacao_Itens",
     }                                                                    # migração 5
+    PEP = {"Pep_Config", "Pep_Usuarios", "Pep_Evolucoes"}                 # migração 6
 
     def test_banco_novo_cria_o_esquema_e_registra_a_baseline_sem_backup(self):
         caminho = self.usar_banco()
         self.main.AppClinica.configurar_banco_dados(self.app)
         self.assertEqual(
             tabelas(caminho),
-            self.ESQUEMA | self.CONDUTAS_ALTA | self.AMBULATORIAL | self.ALMOX | {"schema_migrations"},
+            self.ESQUEMA | self.CONDUTAS_ALTA | self.AMBULATORIAL | self.ALMOX | self.PEP | {"schema_migrations"},
         )
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo"), [(15,)])
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Regras_Complementares"), [(1,)])

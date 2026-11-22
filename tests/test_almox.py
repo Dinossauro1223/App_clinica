@@ -104,7 +104,7 @@ class TestMigracaoAlmox(unittest.TestCase):
             c.execute("CREATE TABLE Consultas(id INTEGER PRIMARY KEY)")
             c.commit()
             c.close()
-            r = db_migracoes.aplicar_migracoes(path, backup=False)
+            r = db_migracoes.aplicar_migracoes(path, alvo=5, backup=False)
             self.assertEqual(r.versao_final, 5)
             c = sqlite3.connect(path)
             nomes = {x[0] for x in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
