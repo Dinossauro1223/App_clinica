@@ -120,7 +120,7 @@ class AppClinica(ctk.CTk):
         self.title("NutriLab — Sistema de Gestão Clínica")
         self.geometry("1280x800")
         # Maximizada, mas sem modo fullscreen exclusivo: mantém a barra do Windows.
-        self.after(0, lambda: self.state("zoomed"))
+        self.after(0, self._maximizar_janela)
         self.protocol("WM_DELETE_WINDOW", self._ao_fechar)
 
         self.grid_rowconfigure(0, weight=1)
@@ -207,6 +207,19 @@ class AppClinica(ctk.CTk):
         # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
         self.after(1200, lambda: atualizador.iniciar_verificacao(self, self._resultado_atualizacao))
 
+
+    def _maximizar_janela(self):
+        """Maximiza no Windows e ocupa a área disponível nos demais sistemas."""
+        try:
+            if sys.platform.startswith("win"):
+                self.state("zoomed")
+            else:
+                self.update_idletasks()
+                largura = self.winfo_screenwidth()
+                altura = self.winfo_screenheight()
+                self.geometry(f"{largura}x{altura}+0+0")
+        except Exception:
+            self.geometry("1280x800")
 
     def _iniciar_servidor_mobile(self):
         """Inicia o servidor local uma única vez; não assume propriedade de processo preexistente."""
