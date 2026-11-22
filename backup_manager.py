@@ -1,4 +1,4 @@
-"""Snapshots automáticos do banco local do NutriLab.
+""""Snapshots automáticos do banco local do NutriLab.
 
 A cópia usa a API de backup do SQLite implementada em db_service. O agendamento
 periódico cobre encerramentos do sistema que não passam pelo protocolo normal
@@ -41,7 +41,11 @@ class BackupManager:
         self._encerrado = False
 
     def iniciar(self):
-        """Cria snapshot de abertura e agenda cópias periódicas."""
+        """Cria snapshot de abertura e agenda cópias periódicas.
+
+        Chamadas repetidas são inofensivas: não registram outro atexit nem
+        criam timers duplicados.
+        """
         if self._iniciado or self._encerrado:
             return
         self._iniciado = True
@@ -53,11 +57,20 @@ class BackupManager:
         if not self._encerrado:
             self._after_id = self.root.after(self.intervalo_ms, self._backup_periodico)
 
+    def _notificar_erro(self, erro):
+        """Um erro na interface de notificação não pode interromper o agendador."""
+        try:
+            self.on_error(erro)
+        except Exception:
+            # A proteção do banco não deve depender de messagebox/log/UI.
+            # A falha original continua sendo tratada como falha de backup.
+            pass
+
     def _tentar_backup(self, motivo):
         try:
             return db_service.criar_backup(self.caminho_banco, motivo=motivo)
         except Exception as erro:
-            self.on_error(erro)
+            self._notificar_erro(erro)
             return None
 
     def _backup_periodico(self):
