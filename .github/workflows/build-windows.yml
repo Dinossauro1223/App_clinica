@@ -42,6 +42,7 @@ jobs:
             assets/identidade/nutrilab_identidade.png
             assets/identidade/nutrilab_icone.png
             assets/identidade/nutrilab.ico
+            assets/identidade/renderizados/
           if-no-files-found: error
 
   build:
