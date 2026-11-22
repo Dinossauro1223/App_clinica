@@ -313,11 +313,9 @@ class TestTela(_Base):
         app.mapa = None  # sem a tela do Mapa: critério e tabelas LMS padrão
         mobile_ui = _importar_mobile_ui()
         ui = mobile_ui.MobileUI(app, self.db, os.path.dirname(self.db))
-        ui.mostrar()
-        ui.data = date(2026, 11, 12)
 
         # Este teste valida o fluxo da tela, não o agendamento concorrente.
-        # Executa o worker de forma determinística; a thread real é coberta
+        # Executa os workers de forma determinística; a thread real é coberta
         # separadamente por tests/test_ui_workers.py.
         def executar_sincrono(janela, trabalho, ao_sucesso=None, ao_erro=None,
                               ao_finalizar=None, nome="teste"):
@@ -335,6 +333,8 @@ class TestTela(_Base):
 
         with mock.patch.object(mobile_ui.ui_workers, "executar_em_segundo_plano",
                                side_effect=executar_sincrono):
+            ui.mostrar()
+            ui.data = date(2026, 11, 12)
             ui._verificar()
             self.assertEqual(len(ui.propostas), 1)
             ui.tree.selection.return_value = tuple(ui.propostas)
