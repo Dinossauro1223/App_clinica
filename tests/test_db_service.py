@@ -291,7 +291,7 @@ class TestRestauracao(BaseTmp):
                 with self.assertRaises(PermissionError):
                     svc.restaurar_backup(backup, db, agora=AGORA)
 
-        self.assertEqual(wal.read_bytes(), b"wal"
+        self.assertEqual(wal.read_bytes(), b"wal")
         self.assertFalse(wal.with_name(wal.name + ".antes-da-restauracao").exists())
         self.assertFalse(db.with_name(db.name + ".restaurando").exists())
 
