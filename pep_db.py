@@ -13,6 +13,7 @@ import json
 import os
 import secrets
 import sqlite3
+from contextlib import closing
 from datetime import datetime
 
 import db_service as svc
@@ -58,7 +59,7 @@ def _salvar_config(conn, chave, valor):
 
 
 def hospital_configurado(db_path):
-    with _conectar(db_path) as conn:
+    with closing(_conectar(db_path)) as conn:
         _exigir_schema(conn)
         return _config(conn, _CHAVE_HOSPITAL) is not None
 
