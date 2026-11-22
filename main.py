@@ -16,6 +16,7 @@ import mapa_db
 import db_service
 import db_migracoes
 import atalhos_edicao
+import tema
 from mapa_ui import MapaUI
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
 
@@ -72,8 +73,7 @@ def caminho_do_banco():
     return str(destino)
 
 
-ctk.set_appearance_mode("Light")
-ctk.set_default_color_theme("green")
+tema.configurar_ctk()
 
 def banco_interno_com_dados(destino):
     """Executável: devolve o caminho de OUTRO banco (em `_MEIPASS`/`_internal`) que contenha pacientes, ou None.
@@ -197,6 +197,7 @@ def garantir_esquema_legado(conexao):
 class AppClinica(ctk.CTk):
     def __init__(self):
         super().__init__()
+        tema.aplicar_tema_ttk(self)
 
         # Atalhos de edição no estilo do Google Planilhas (Ctrl+Z, Ctrl+Y, F4, colar de planilha, Ctrl+C nas tabelas).
         # Vale para todos os campos e tabelas de todas as janelas; a lista aparece com F1 (docs/desenvolvimento/ATALHOS_DE_TECLADO.md).
@@ -227,14 +228,14 @@ class AppClinica(ctk.CTk):
         self.vet_atual = ""
 
         # --- MENU LATERAL ---
-        self.menu_lateral = ctk.CTkFrame(self, width=200, corner_radius=0, fg_color="#1b5e20")
+        self.menu_lateral = ctk.CTkFrame(self, width=200, corner_radius=0, fg_color=tema.VERDE_ESC)
         self.menu_lateral.grid(row=0, column=0, sticky="nsew")
         self.menu_lateral.grid_rowconfigure(4, weight=1)
 
         self.label_menu = ctk.CTkLabel(self.menu_lateral, text="Menu", font=ctk.CTkFont(size=24, weight="bold"), text_color="#ffffff")
         self.label_menu.grid(row=0, column=0, padx=20, pady=(20, 10))
 
-        self.btn_pacientes = ctk.CTkButton(self.menu_lateral, text="Pacientes", command=self.tela_pacientes, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
+        self.btn_pacientes = ctk.CTkButton(self.menu_lateral, text="Pacientes", command=self.tela_pacientes, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
         self.btn_pacientes.grid(row=1, column=0, padx=20, pady=10)
 
         self.btn_consultas = ctk.CTkButton(self.menu_lateral, text="Nova Consulta", command=self.tela_consultas, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
@@ -265,7 +266,7 @@ class AppClinica(ctk.CTk):
         self.label_copyright.grid(row=5, column=0, padx=10, pady=(0, 10), sticky="sw")
 
         # --- ÁREA PRINCIPAL ---
-        self.area_principal = ctk.CTkFrame(self, corner_radius=10, fg_color="#F0F7F4")
+        self.area_principal = ctk.CTkFrame(self, corner_radius=10, fg_color=tema.FUNDO)
         self.area_principal.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
         
         self.tela_inicial()
