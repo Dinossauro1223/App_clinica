@@ -779,5 +779,20 @@ class TestInterface(unittest.TestCase):
         dialogo._atalho_fechar()
         self.assertTrue(dialogo.destroyed)
 
+    def test_vincular_paciente_preenche_idade_em_anos_e_meses(self):
+        self.ui.mostrar_mapa()
+        self.ui.data = __import__("datetime").date(2026, 11, 22)
+        form = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        form.e_idade.insert(0, "20")
+        form.e_meses.insert(0, "2")
+        form._paciente_escolhido({
+            "id_paciente": 99, "nome": "Paciente Teste",
+            "data_nascimento": "15/05/1950", "sexo": "F"
+        })
+        self.assertEqual(form.e_idade.get(), "76")
+        self.assertEqual(form.e_meses.get(), "6")
+        self.assertEqual(form.seg_sexo.get(), "Mulher")
+        self.assertEqual(form.e_nome.get(), "Paciente Teste")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
