@@ -189,7 +189,7 @@ _PEP_UP = (
     )""",
     """CREATE TABLE IF NOT EXISTS Pep_Evolucoes (
         id_evolucao INTEGER PRIMARY KEY AUTOINCREMENT,
-        id_paciente INTEGER NOT NULL REFERENCES Pacientes(id_paciente),
+        id_paciente INTEGER NOT NULL,
         paciente_nome TEXT NOT NULL,
         data_evolucao TEXT NOT NULL,
         cabecalho_json TEXT NOT NULL,
