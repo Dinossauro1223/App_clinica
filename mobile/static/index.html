@@ -576,7 +576,22 @@ const salvaCfg=tenta(async()=>{
 });
 async function recarregaBase(){S.setores=(await api('/api/setores')).setores;S.setor=S.setor||(S.setores[0]||{}).id||'';S.itens=(await api('/api/itens')).itens}
 const novoSetor=tenta(async()=>{await api('/api/admin/setores',{id_setor:$('#ss').value,nome:$('#sn2').value,prefixo:$('#sp').value,inicio:+$('#si').value||1,fim:+$('#sf').value||0});await recarregaBase();await vCad();aviso('Setor/leitos salvos.',0)});
-const novoItem=tenta(async()=>{await api('/api/admin/itens',{nome:$('#in').value,unidade:$('#iu').value});await recarregaBase();await vCad();aviso('Item adicionado.',0)});
+function editarItem(id){
+ const item=S.itens.find(x=>String(x.id)===String(id));if(!item)return;
+ S.itemEditando=id;
+ $('#in').value=item.nome;$('#iu').value=item.unidade;
+ $('#ip').value=item.preco_unitario??'';$('#ie').value=item.embalagem_qtd??'';
+ $('#ieu').value=item.embalagem_un||'g';
+ $('#btnSalvarItem').textContent='Salvar alterações do item';
+ $('#in').scrollIntoView({behavior:'smooth',block:'center'});
+}
+const novoItem=tenta(async()=>{
+ const corpo={nome:$('#in').value,unidade:$('#iu').value,preco_unitario:$('#ip').value,
+  embalagem_qtd:$('#ie').value,embalagem_un:$('#ieu').value};
+ if(S.itemEditando)await api('/api/admin/itens/'+S.itemEditando,corpo);
+ else await api('/api/admin/itens',corpo);
+ S.itemEditando=null;await recarregaBase();await vCad();aviso('Item salvo.',0);
+});
 (async()=>{try{const j=await api('/api/eu');if(j.usuario)return await abrir(j.usuario,j.hoje)}catch(e){}telaLogin('Não foi possível validar a sessão. Conecte-se ao servidor e entre novamente para continuar.')})();
 window.NL={token:()=>S.tok,userId:()=>S.u&&S.u.id,isStaff:()=>ehStaff(),refresh:()=>ir('mapa'),
   aviso:(t,erro)=>aviso(t,erro),expired:()=>{sair();telaLogin('Sessão expirada. Entre novamente para sincronizar as alterações pendentes.')}};
