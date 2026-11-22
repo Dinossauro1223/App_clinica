@@ -55,7 +55,7 @@ def novo_banco():
     fd, caminho = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     mdb.inicializar(caminho)                                   # Pacientes e Mapa_*
-    db_migracoes.aplicar_migracoes(caminho, backup=False)      # baseline adotada + v2 (condutas de alta)
+    db_migracoes.aplicar_migracoes(caminho, backup=False, alvo=3)      # baseline + migracoes 2-3 do modulo de alta
     return caminho
 
 
@@ -636,7 +636,7 @@ class TestMigracao(unittest.TestCase):
         os.close(fd)
         try:
             mdb.inicializar(caminho)
-            r = db_migracoes.aplicar_migracoes(caminho, backup=False)
+            r = db_migracoes.aplicar_migracoes(caminho, backup=False, alvo=3)
             self.assertEqual((r.versao_final, r.aplicadas), (3, [1, 2, 3]))
 
             def consulta_mestre(tipo):
@@ -655,7 +655,7 @@ class TestMigracao(unittest.TestCase):
             self.assertFalse({"Condutas_Alta_Docs", "Condutas_Alta_Itens"} & tabelas())
             self.assertEqual(gatilhos(), set())
             self.assertIn("Mapa_Registros", tabelas())            # o resto do banco não é tocado
-            self.assertEqual(db_migracoes.aplicar_migracoes(caminho, backup=False).versao_final, 3)  # reaplica
+            self.assertEqual(db_migracoes.aplicar_migracoes(caminho, backup=False, alvo=3).versao_final, 3)  # reaplica v3
             self.assertEqual(len(gatilhos()), 10)
         finally:
             os.remove(caminho)
@@ -666,7 +666,7 @@ class TestMigracao(unittest.TestCase):
             caminho = os.path.join(pasta, "clinica.db")
             mdb.inicializar(caminho)
             db_migracoes.aplicar_migracoes(caminho, migracoes=db_migracoes.MIGRACOES[:1])   # banco na v1
-            r = db_migracoes.aplicar_migracoes(caminho)
+            r = db_migracoes.aplicar_migracoes(caminho, alvo=3)
             self.assertEqual(r.aplicadas, [2, 3])
             self.assertIsNotNone(r.backup)
             self.assertTrue(os.path.exists(r.backup))
@@ -710,7 +710,7 @@ class TestTravasDaMigracao3(unittest.TestCase):
     def test_v3_fecha_a_brecha_e_nao_mexe_nos_dados(self):
         id_doc = self.entregar()
         antes = instantaneo(self.db)
-        r = db_migracoes.aplicar_migracoes(self.db)                       # v2 -> v3, com backup
+        r = db_migracoes.aplicar_migracoes(self.db, alvo=3)                       # v2 -> v3, com backup
         self.assertEqual((r.versao_inicial, r.versao_final, r.aplicadas), (2, 3, [3]))
         self.assertTrue(os.path.exists(r.backup))
         self.assertEqual(instantaneo(self.db), antes)                     # a migração não alterou nenhum dado

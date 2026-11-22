@@ -16,6 +16,7 @@ import mapa_db
 import db_service
 import db_migracoes
 import atalhos_edicao
+import tema
 from mapa_ui import MapaUI
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
 
@@ -72,8 +73,7 @@ def caminho_do_banco():
     return str(destino)
 
 
-ctk.set_appearance_mode("Light")
-ctk.set_default_color_theme("green")
+tema.configurar_ctk()
 
 def banco_interno_com_dados(destino):
     """Executável: devolve o caminho de OUTRO banco (em `_MEIPASS`/`_internal`) que contenha pacientes, ou None.
@@ -197,6 +197,7 @@ def garantir_esquema_legado(conexao):
 class AppClinica(ctk.CTk):
     def __init__(self):
         super().__init__()
+        tema.aplicar_tema_ttk(self)
 
         # Atalhos de edição no estilo do Google Planilhas (Ctrl+Z, Ctrl+Y, F4, colar de planilha, Ctrl+C nas tabelas).
         # Vale para todos os campos e tabelas de todas as janelas; a lista aparece com F1 (docs/desenvolvimento/ATALHOS_DE_TECLADO.md).
@@ -227,31 +228,39 @@ class AppClinica(ctk.CTk):
         self.vet_atual = ""
 
         # --- MENU LATERAL ---
-        self.menu_lateral = ctk.CTkFrame(self, width=200, corner_radius=0, fg_color="#1b5e20")
+        self.menu_lateral = ctk.CTkFrame(self, width=200, corner_radius=0, fg_color=tema.VERDE_ESC)
         self.menu_lateral.grid(row=0, column=0, sticky="nsew")
         self.menu_lateral.grid_rowconfigure(4, weight=1)
 
+        self.btn_menu_toggle = ctk.CTkButton(self.menu_lateral, text="☰", width=40, height=36, fg_color="transparent", hover_color="#14513C", text_color="#ffffff", font=ctk.CTkFont(size=18, weight="bold"), command=self.alternar_menu)
+        self.btn_menu_toggle.grid(row=0, column=0, padx=8, pady=(12, 8))
         self.label_menu = ctk.CTkLabel(self.menu_lateral, text="Menu", font=ctk.CTkFont(size=24, weight="bold"), text_color="#ffffff")
-        self.label_menu.grid(row=0, column=0, padx=20, pady=(20, 10))
+        self.label_menu.grid(row=0, column=1, padx=8, pady=(12, 8), sticky="w")
 
-        self.btn_pacientes = ctk.CTkButton(self.menu_lateral, text="Pacientes", command=self.tela_pacientes, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_pacientes.grid(row=1, column=0, padx=20, pady=10)
+        self.btn_pacientes = ctk.CTkButton(self.menu_lateral, text="Pacientes", command=self.tela_pacientes, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
+        self.btn_pacientes.grid(row=1, column=0, padx=20, pady=10, columnspan=2)
 
         self.btn_consultas = ctk.CTkButton(self.menu_lateral, text="Nova Consulta", command=self.tela_consultas, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_consultas.grid(row=2, column=0, padx=20, pady=10)
+        self.btn_consultas.grid(row=2, column=0, padx=20, pady=10, columnspan=2)
 
         self.btn_exames = ctk.CTkButton(self.menu_lateral, text="Catálogo de Exames", command=self.tela_exames, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_exames.grid(row=3, column=0, padx=20, pady=10)
+        self.btn_exames.grid(row=3, column=0, padx=20, pady=10, columnspan=2)
 
         # --- Mapa Nutricional ---
         self.menu_mapa = ctk.CTkFrame(self.menu_lateral, fg_color="transparent")
-        self.menu_mapa.grid(row=4, column=0, sticky="new")
+        self.menu_mapa.grid(row=4, column=0, columnspan=2, sticky="new")
+        self.menu_mapa_botoes = []
         for texto, comando in (("Mapa Nutricional", self.tela_mapa),
                                ("Gráficos do Mês", self.tela_mapa_graficos),
                                ("Suplementos", self.tela_suplementos),
-                               ("Mobile (copa)", self.tela_mobile)):
-            ctk.CTkButton(self.menu_mapa, text=texto, command=comando, fg_color="#4caf50", hover_color="#388e3c",
-                          text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold")).pack(padx=20, pady=10)
+                               ("Mobile (copa)", self.tela_mobile),
+                               ("Triagem NRS-2002", self.tela_nrs),
+                               ("Avaliação nutricional", self.tela_avaliacao),
+                               ("Configurações", self.tela_configuracoes)):
+            botao = ctk.CTkButton(self.menu_mapa, text=texto, command=comando, fg_color="#4caf50", hover_color="#388e3c",
+                          text_color="#ffffff", width=160, font=ctk.CTkFont(size=14, weight="bold"))
+            botao.pack(padx=20, pady=10)
+            self.menu_mapa_botoes.append((botao, texto))
 
         # Rodapé fixado na parte inferior do menu lateral
         self.label_copyright = ctk.CTkLabel(
@@ -262,13 +271,55 @@ class AppClinica(ctk.CTk):
             justify="left",
             wraplength=170,
         )
-        self.label_copyright.grid(row=5, column=0, padx=10, pady=(0, 10), sticky="sw")
+        self.label_copyright.grid(row=5, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="sw")
 
         # --- ÁREA PRINCIPAL ---
-        self.area_principal = ctk.CTkFrame(self, corner_radius=10, fg_color="#F0F7F4")
+        self.area_principal = ctk.CTkFrame(self, corner_radius=10, fg_color=tema.FUNDO)
         self.area_principal.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
         
         self.tela_inicial()
+
+    def alternar_menu(self):
+        """Alterna a largura da navegação lateral, preservando os rótulos das opções."""
+        self.menu_compacto = not getattr(self, "menu_compacto", False)
+        compacto = self.menu_compacto
+        largura = 58 if compacto else 200
+        self.menu_lateral.configure(width=largura)
+        self.menu_lateral.grid_propagate(False)
+        self.grid_columnconfigure(0, minsize=largura)
+        self.grid_columnconfigure(1, weight=1)
+        if compacto:
+            self.label_menu.grid_remove()
+            self.label_copyright.grid_remove()
+            for botao, rotulo in ((self.btn_pacientes, "👥"), (self.btn_consultas, "📝"), (self.btn_exames, "🧪")):
+                botao.configure(text=rotulo, width=40, font=ctk.CTkFont(size=17, weight="bold"))
+                botao.grid_configure(padx=8, pady=6)
+            icones = {"Mapa Nutricional": "🗺️", "Gráficos do Mês": "📊", "Suplementos": "🥣", "Mobile (copa)": "📱", "Triagem NRS-2002": "🩺", "Avaliação nutricional": "🧮", "Configurações": "⚙️"}
+            for botao, rotulo in self.menu_mapa_botoes:
+                botao.configure(text=icones.get(rotulo, "•"), width=40, font=ctk.CTkFont(size=17, weight="bold"))
+                botao.pack_configure(padx=8, pady=6)
+        else:
+            self.label_menu.grid()
+            self.label_copyright.grid()
+            for botao, rotulo in ((self.btn_pacientes, "Pacientes"), (self.btn_consultas, "Nova Consulta"), (self.btn_exames, "Catálogo de Exames")):
+                botao.configure(text=rotulo, width=160, font=ctk.CTkFont(size=14, weight="bold"))
+                botao.grid_configure(padx=20, pady=10)
+            for botao, rotulo in self.menu_mapa_botoes:
+                botao.configure(text=rotulo, width=160, font=ctk.CTkFont(size=14, weight="bold"))
+                botao.pack_configure(padx=20, pady=10)
+        return "break"
+
+    def tela_configuracoes(self):
+        from configuracoes_ui import ConfiguracoesUI
+        ConfiguracoesUI(self).mostrar()
+
+    def tela_nrs(self):
+        from nrs_ui import NRSUI
+        NRSUI(self, self.mapa.db).mostrar()
+
+    def tela_avaliacao(self):
+        from avaliacao_ui import AvaliacaoUI
+        AvaliacaoUI(self, self.mapa.db).mostrar()
 
     def tela_mapa(self):
         self.mapa.mostrar_mapa()
@@ -361,7 +412,7 @@ class AppClinica(ctk.CTk):
 
         self.entry_nome = ctk.CTkEntry(aba_cadastro, placeholder_text="Nome Completo", width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
         self.entry_nome.pack(pady=10)
-        self.entry_nasc = ctk.CTkEntry(aba_cadastro, placeholder_text="Data de Nascimento (DD/MM/AAAA)", width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_nasc = tema.CampoData(aba_cadastro, placeholder_text="Data de Nascimento (DD/MM/AAAA)", width=300, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.VERDE_ESC, placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_nasc.pack(pady=10)
         self.combo_sexo = ctk.CTkComboBox(aba_cadastro, values=["Feminino", "Masculino"], width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", button_color="#4caf50", button_hover_color="#388e3c", dropdown_fg_color="#ffffff", dropdown_hover_color="#c8e6c9", dropdown_text_color="#1b5e20")
         self.combo_sexo.set("Feminino")
@@ -414,6 +465,9 @@ class AppClinica(ctk.CTk):
         sexo = self.combo_sexo.get()
         if nome.strip() == "":
             self.lbl_mensagem.configure(text="Erro: O nome é obrigatório.", text_color="#c62828")
+            return
+        if nasc.strip() and not tema.data_valida(nasc):
+            self.lbl_mensagem.configure(text="Erro: informe uma data de nascimento válida (DD/MM/AAAA).", text_color="#c62828")
             return
         conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
