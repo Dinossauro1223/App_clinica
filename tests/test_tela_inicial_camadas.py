@@ -52,7 +52,7 @@ class TestTelaInicialEmCamadas(unittest.TestCase):
         spec = (RAIZ / "app_clinica.spec").read_text(encoding="utf-8")
         launcher = (RAIZ / "Gerar_e_Abrir_NutriLab.bat").read_text(encoding="utf-8")
         self.assertIn("assets', 'identidade', 'renderizados", spec)
-        self.assertIn("tools\\\\gerar_identidade_visual.py", launcher)
+        self.assertIn("tools\\gerar_identidade_visual.py", launcher)
         self.assertLess(
             launcher.index("gerar_identidade_visual.py"),
             launcher.index("-m PyInstaller")
