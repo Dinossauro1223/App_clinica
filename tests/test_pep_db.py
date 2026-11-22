@@ -39,6 +39,12 @@ class TestPepDB(unittest.TestCase):
 
     def _paciente(self, nome="Paciente Sintético"):
         with closing(sqlite3.connect(self.db)) as conn:
+            # A migração PEP não cria o esquema clínico legado; os testes precisam
+            # simular explicitamente a tabela Pacientes em seu banco temporário.
+            conn.execute("""CREATE TABLE IF NOT EXISTS Pacientes (
+                id_paciente INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL, data_nascimento TEXT, sexo TEXT
+            )""")
             cur = conn.execute("INSERT INTO Pacientes (nome, data_nascimento, sexo) VALUES (?, ?, ?)",
                                (nome, "01/01/1990", "F"))
             conn.commit()
