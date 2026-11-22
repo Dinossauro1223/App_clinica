@@ -54,6 +54,8 @@ class ConfiguracoesUI:
                                          unselected_hover_color=tema.BORDA)
         seletor.set(escolha)
         seletor.pack(anchor="w", padx=18, pady=(0, 16))
+        self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
+        self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
         ctk.CTkButton(raiz, text="Voltar ao início", fg_color=tema.VERDE,
                      hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=24, pady=10)
 
@@ -63,4 +65,7 @@ class ConfiguracoesUI:
         dados = _ler()
         dados["aparencia"] = modo
         if _salvar(dados):
-            return
+            if hasattr(self, "lbl_status"):
+                self.lbl_status.configure(text="Aparência salva. A alteração já está aplicada.", text_color=tema.VERDE)
+        elif hasattr(self, "lbl_status"):
+            self.lbl_status.configure(text="Não foi possível salvar a preferência.", text_color=tema.LARANJA_TEXTO)
