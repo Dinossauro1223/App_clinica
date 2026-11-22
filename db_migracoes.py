@@ -189,16 +189,16 @@ _PEP_UP = (
     )""",
     """CREATE TABLE IF NOT EXISTS Pep_Evolucoes (
         id_evolucao INTEGER PRIMARY KEY AUTOINCREMENT,
-        id_paciente INTEGER NOT NULL,
+        id_paciente INTEGER NOT NULL REFERENCES Pacientes(id_paciente),
         paciente_nome TEXT NOT NULL,
         data_evolucao TEXT NOT NULL,
         cabecalho_json TEXT NOT NULL,
         texto TEXT NOT NULL,
-        id_usuario INTEGER NOT NULL,
+        id_usuario INTEGER NOT NULL REFERENCES Pep_Usuarios(id_usuario),
         assinante_nome TEXT NOT NULL,
         assinante_crn TEXT NOT NULL,
         criada_em TEXT NOT NULL,
-        adendo_de INTEGER
+        adendo_de INTEGER REFERENCES Pep_Evolucoes(id_evolucao)
     )""",
     "CREATE INDEX IF NOT EXISTS ix_pep_evolucoes_paciente_data ON Pep_Evolucoes (id_paciente, data_evolucao, id_evolucao)",
     """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucoes_update_imutavel BEFORE UPDATE ON Pep_Evolucoes
