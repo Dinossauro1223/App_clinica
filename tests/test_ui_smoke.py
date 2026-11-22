@@ -11,6 +11,7 @@ import sys
 import tempfile
 import types
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.dirname(__file__))
@@ -546,15 +547,21 @@ class TestInterface(unittest.TestCase):
         f._salvar()
         self.ui._recarregar()
         FD.destino = os.path.join(tempfile.gettempdir(), "teste_ui.xlsx")
-        self.ui._exportar_excel()
+        # a tela pergunta "Deseja abri-lo agora?" e o fake responde sim: sem este mock, no Windows o teste abria o
+        # programa de verdade (o Excel, ou a janela "Selecione um aplicativo" quando não há nenhum associado)
+        with mock.patch.object(os, "startfile", create=True) as abrir:
+            self.ui._exportar_excel()
         self.assertTrue(os.path.exists(FD.destino))
+        abrir.assert_called_once_with(FD.destino)
         # PDF com o FPDF simulado (a biblioteca real não existe neste ambiente de teste)
         original = mex.exportar_pdf
         mex.exportar_pdf = lambda c, l, d, s, **kw: original(c, l, d, s, pdf_factory=FakePDF)
         try:
             FD.destino = os.path.join(tempfile.gettempdir(), "teste_ui.pdf")
-            self.ui._exportar_pdf()
+            with mock.patch.object(os, "startfile", create=True) as abrir:
+                self.ui._exportar_pdf()
             self.assertTrue(os.path.exists(FD.destino))
+            abrir.assert_called_once_with(FD.destino)
         finally:
             mex.exportar_pdf = original
 

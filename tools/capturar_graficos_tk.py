@@ -85,9 +85,9 @@ def main(argv):
     lado = g.gl.DISPOSICAO_LADO_A_LADO
     try:
         g.montar(lado, "animado", espera=0.0)
-        v.bombear(raiz, 0.45)
+        v.bombear(raiz, 0.25)
         capturar(raiz, pasta, "01_entrada_no_meio.png", mostrar_base64)       # barras e linhas ainda crescendo
-        v.bombear(raiz, 2.2)
+        v.bombear(raiz, 2.4)
         capturar(raiz, pasta, "02_entrada_pronta.png", mostrar_base64)
         # balão com o valor: passa o mouse numa barra do primeiro gráfico
         faixa = g.painel.faixas[0]

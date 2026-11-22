@@ -65,6 +65,20 @@ def igual(a, b, tolerancia=0.0, rotulo=""):
     assert abs(a - b) <= tolerancia, f"{rotulo} esperado {b}, veio {a}"
 
 
+def destruir_rolavel(quadro):
+    """Destrói um CTkScrollableFrame por inteiro. O destroy() dele deixa o quadro externo (canvas e barra de rolagem)
+    ocupando a janela; os quadros seguintes ficavam espremidos, estreitos (largura natural) e sem receber o foco."""
+    externo = getattr(quadro, "_parent_frame", None)
+    try:
+        quadro.destroy()
+    finally:
+        if externo is not None:
+            try:
+                externo.destroy()
+            except Exception:  # noqa: BLE001  (já destruído pelo próprio destroy)
+                pass
+
+
 # --------------------------------------------------------------------------------------------- dados sintéticos
 def registros_sinteticos():
     """Um mês de registros inventados (nenhum dado de paciente real)."""
@@ -108,7 +122,7 @@ class Graficos:
     def montar(self, disposicao, estilo="animado", espera=0.9):
         """Monta a tela de gráficos. `espera`: quanto o Tk processa eventos antes de devolver (0 = já no 1º quadro)."""
         if self.quadro is not None:
-            self.quadro.destroy()
+            destruir_rolavel(self.quadro)
             bombear(self.raiz, 0.3)
         self.quadro = self.ctk.CTkScrollableFrame(self.raiz, fg_color="white")
         self.quadro.pack(fill="both", expand=True)
@@ -120,6 +134,10 @@ class Graficos:
     def faixa_com_rolagem(self):
         for faixa, ctrl in zip(self.painel.faixas, self.painel.controles):
             if faixa.n_posicoes > 2:
+                largura = faixa.carrossel.largura_visivel
+                assert largura >= 0.45 * self.raiz.winfo_width(), (
+                    f"a faixa tem só {largura:.0f} px numa janela de {self.raiz.winfo_width()} px: o quadro dos "
+                    f"gráficos não esticou (sobrou quadro antigo na janela?)")
                 return faixa, ctrl
         raise AssertionError("nenhum grupo com 3 posições para arrastar")
 
@@ -157,8 +175,11 @@ class Graficos:
             assert faixa.carrossel is not None, "a faixa não recebeu o tamanho (evento Configure)"
             assert faixa.canvas.winfo_width() > 300, f"largura da faixa {faixa.canvas.winfo_width()}"
             assert all(type(c).__name__ == "CardNativo" for c in faixa.cards), "os gráficos deveriam ser nativos"
-            formas = len(faixa.canvas.find_all())
-            assert formas > 25 * len(faixa.cards), f"só {formas} formas desenhadas para {len(faixa.cards)} gráficos"
+            desenhadas = len(faixa.canvas.find_all())
+            esperadas = sum(len(c.pintor.itens) for c in faixa.cards)
+            assert desenhadas == esperadas, f"{desenhadas} formas no canvas, a cena do grupo tem {esperadas}"
+            assert all(len(c.pintor.itens) >= 8 for c in faixa.cards), \
+                f"gráfico com quase nada desenhado: {[len(c.pintor.itens) for c in faixa.cards]} formas"
             assert faixa.fotos == [], "não deveria haver foto no estilo animado"
             alturas = {c.altura for c in faixa.cards}
             assert len(alturas) == 1, f"gráficos do grupo com alturas diferentes: {alturas}"
@@ -293,14 +314,15 @@ class Graficos:
 
     def entrada_durante_o_redimensionamento(self):
         p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.2)
-        self.raiz.geometry("900x700")
+        largura_janela, altura_janela = self.raiz.winfo_width(), self.raiz.winfo_height()
+        self.raiz.geometry(f"{int(largura_janela * 0.72)}x{altura_janela}")
         bombear(self.raiz, 2.0)
         for faixa in p.faixas:
-            assert faixa.canvas.winfo_width() < 1000, "a faixa não encolheu"
+            assert faixa.canvas.winfo_width() < 0.72 * largura_janela, "a faixa não encolheu"
             assert faixa.carrossel.largura_card <= faixa.canvas.winfo_width(), "gráfico mais largo que a faixa"
             for carta in faixa.cards:
                 assert carta.inicio is None or carta.pronto, f"entrada parada no meio depois de redimensionar: p={carta.p}"
-        self.raiz.geometry("1240x800")
+        self.raiz.geometry(f"{largura_janela}x{altura_janela}")
         bombear(self.raiz, 0.9)
 
     def de_cima_para_baixo_animado(self):
@@ -317,30 +339,41 @@ class Graficos:
         bombear(self.raiz, 1.8)
         assert all(f.cards[0].pronto for f in p.faixas_empilhadas), "a entrada não terminou em todos os gráficos"
 
+    def voltar_ao_inicio(self, faixa):
+        faixa.ir_para(0)
+        bombear(self.raiz, 0.6)
+        self.na_posicao(faixa, 0, "voltar ao começo")
+
     def arraste_lento_volta_ao_encaixe(self):
         faixa, _ = self.faixa_com_rolagem()
-        self.arrastar(faixa, 700, 440, pausa_final=0.2)          # 260 px para a esquerda, depois soltou parado
+        self.voltar_ao_inicio(faixa)
+        inicio = int(faixa.canvas.winfo_width() * 0.8)
+        # 30% de um gráfico para a esquerda, depois soltou parado: não chega à metade, então volta
+        self.arrastar(faixa, inicio, inicio - int(0.3 * faixa.carrossel.passo), pausa_final=0.2)
         bombear(self.raiz, 0.7)
         self.na_posicao(faixa, 0, "arraste curto")
 
     def arraste_lento_avanca(self):
         faixa, _ = self.faixa_com_rolagem()
         c = faixa.canvas
-        self.evento_de_mouse(c, "<ButtonPress-1>", 900)
+        inicio = int(c.winfo_width() * 0.9)
+        fim = int(inicio - 0.7 * faixa.carrossel.passo)          # 70% de um gráfico: passa da metade
+        self.evento_de_mouse(c, "<ButtonPress-1>", inicio)
         for i in range(1, 9):
-            self.evento_de_mouse(c, "<B1-Motion>", 900 - i * 75)
+            self.evento_de_mouse(c, "<B1-Motion>", inicio + (fim - inicio) * i / 8)
             self.raiz.update()
             time.sleep(0.02)
-        igual(faixa.deslocamento, 600.0, 0.6, "durante o arraste")
-        igual(c.canvasx(0), 600.0, 1.5, "o Tk acompanha o mouse")
+        igual(faixa.deslocamento, float(inicio - fim), 0.6, "durante o arraste")
+        igual(c.canvasx(0), float(inicio - fim), 1.5, "o Tk acompanha o mouse")
         time.sleep(0.2)
-        self.evento_de_mouse(c, "<ButtonRelease-1>", 300)
+        self.evento_de_mouse(c, "<ButtonRelease-1>", fim)
         bombear(self.raiz, 0.7)
         self.na_posicao(faixa, 1, "arraste longo")
 
     def arremesso_rapido(self):
         faixa, _ = self.faixa_com_rolagem()
-        self.arrastar(faixa, 500, 440, passos=3, espera=0.0)     # 60 px em poucos milissegundos, soltou na hora
+        meio = int(faixa.canvas.winfo_width() * 0.5)
+        self.arrastar(faixa, meio, meio - 60, passos=3, espera=0.0)     # 60 px em poucos milissegundos, soltou na hora
         bombear(self.raiz, 0.7)
         self.na_posicao(faixa, 2, "arremesso")
 
@@ -386,14 +419,15 @@ class Graficos:
     def janela_menor_redesenha(self):
         faixa, _ = self.faixa_com_rolagem()
         antes = faixa.carrossel.largura_visivel
-        self.raiz.geometry("900x700")
+        largura_janela, altura_janela = self.raiz.winfo_width(), self.raiz.winfo_height()
+        self.raiz.geometry(f"{int(largura_janela * 0.72)}x{altura_janela}")
         bombear(self.raiz, 0.9)
         agora = faixa.canvas.winfo_width()
         assert agora < antes - 100, f"a faixa não encolheu junto com a janela ({antes} -> {agora})"
         igual(faixa.carrossel.largura_visivel, agora, 2, "largura usada no desenho")
         assert faixa.carrossel.largura_card <= agora, "o gráfico ficou mais largo que a faixa"
         self.na_posicao(faixa, faixa.ativo, "depois de redimensionar")
-        self.raiz.geometry("1240x800")
+        self.raiz.geometry(f"{largura_janela}x{altura_janela}")
         bombear(self.raiz, 0.9)
 
     def de_cima_para_baixo_imagem(self):
@@ -423,7 +457,7 @@ class Graficos:
         self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.15)   # no meio da entrada
         faixa, _ = self.faixa_com_rolagem()
         faixa.proximo()                                           # animação em andamento ao destruir
-        self.quadro.destroy()
+        destruir_rolavel(self.quadro)
         self.quadro = None
         bombear(self.raiz, 0.6)
 
@@ -540,7 +574,7 @@ def main():
 
     erros = []
     raiz.report_callback_exception = lambda *info: erros.append("".join(traceback.format_exception(*info)))
-    raiz.geometry("1240x800+0+0")
+    raiz.geometry(f"{min(1240, raiz.winfo_screenwidth())}x{min(800, raiz.winfo_screenheight())}+0+0")
     try:                                                          # invisível no Windows; o Xvfb ignora
         raiz.attributes("-alpha", 0.0)
     except Exception:  # noqa: BLE001
