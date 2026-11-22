@@ -19,12 +19,12 @@ if errorlevel 1 (
 )
 
 if not exist "venv\Scripts\python.exe" (
-    echo [1/5] Criando ambiente virtual...
+    echo [1/6] Criando ambiente virtual...
     "%PYTHON%" -m venv venv
     if errorlevel 1 goto :erro
 )
 
-echo [2/5] Atualizando ferramentas de build...
+echo [2/6] Atualizando ferramentas de build...
 "venv\Scripts\python.exe" -m pip install --upgrade pip
 if errorlevel 1 goto :erro
 "venv\Scripts\python.exe" -m pip install -r requirements-build.txt
