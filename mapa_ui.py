@@ -72,7 +72,8 @@ class MapaUI:
         for pasta in (os.path.dirname(os.path.abspath(db_path)), base_dir):
             self.lms = self.lms or nc.TabelaLMS.carregar_padrao(pasta)
         self._imagens = []
-        self._grupos = None   # gráficos do mês já agrupados (ver mapa_graficos.gerar_por_grupo)
+        self._grupos = None   # gráficos do mês agrupados (ver mapa_graficos.especificar_por_grupo)
+        self._grupos_png = None   # os mesmos, já em imagem (só se o estilo "imagens simples" for usado)
         self._painel = None
 
     # ------------------------------------------------------------------ configurações
@@ -83,6 +84,11 @@ class MapaUI:
     @property
     def metodo_altura_idoso(self):
         return mdb.obter_config(self.db, "metodo_altura_idoso", "chumlea1985")
+
+    @property
+    def estilo_graficos(self):
+        """Como cada gráfico é desenhado: animado (na tela) ou imagem simples (matplotlib)."""
+        return gl.estilo_valido(mdb.obter_config(self.db, gl.CHAVE_ESTILO, gl.ESTILO_ANIMADO))
 
     @property
     def disposicao_graficos(self):
@@ -443,7 +449,7 @@ class MapaUI:
         self.quadro_kpi.pack(fill="x", padx=20, pady=(8, 2))
         self.quadro_graf = ctk.CTkScrollableFrame(area, fg_color="white")
         self.quadro_graf.pack(fill="both", expand=True, padx=20, pady=(4, 12))
-        self._agg = self._grupos = self._painel = None
+        self._agg = self._grupos = self._grupos_png = self._painel = None
         self._gerar_graficos()
 
     def _parametros_graficos(self):
@@ -473,21 +479,36 @@ class MapaUI:
             cx.pack(side="left", padx=4, ipadx=8, ipady=4)
             ctk.CTkLabel(cx, text=val, font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC).pack(padx=8)
             ctk.CTkLabel(cx, text=rot, font=ctk.CTkFont(size=11), text_color="#546e7a").pack(padx=8)
-        self._grupos = self._mgr.gerar_por_grupo(self._agg)
+        self._grupos = self._mgr.especificar_por_grupo(self._agg)   # só contas: o desenho é feito na tela
+        self._grupos_png = None
         self._montar_painel()
 
+    def _grupos_para_o_estilo(self):
+        """Animados: as especificações (instantâneo). Imagens simples: os PNGs do matplotlib, feitos uma vez só."""
+        if self.estilo_graficos == gl.ESTILO_ANIMADO:
+            return self._grupos or []
+        if self._grupos_png is None:
+            try:
+                self._grupos_png = self._mgr.renderizar_grupos(self._grupos or [])
+            except ImportError as e:   # matplotlib não instalado: os gráficos animados não dependem dele
+                messagebox.showwarning("Imagens simples", f"{e}\n\nEste estilo precisa de:  pip install matplotlib\n"
+                                                          "Mostrando os gráficos animados.")
+                return self._grupos or []
+        return self._grupos_png
+
     def _montar_painel(self):
-        """Desenha os grupos já gerados (self._grupos) no jeito escolhido em Configurações."""
+        """Desenha os grupos já calculados (self._grupos) no jeito escolhido em Configurações."""
         import graficos_ui
         for w in self.quadro_graf.winfo_children():
             w.destroy()
-        self._painel = graficos_ui.PainelGraficos(self.quadro_graf, self._grupos or [], self.disposicao_graficos)
+        self._painel = graficos_ui.PainelGraficos(self.quadro_graf, self._grupos_para_o_estilo(),
+                                                  self.disposicao_graficos)
         self._imagens = self._painel.imagens
 
     def aplicar_config_graficos(self):
         """Depois de salvar as Configurações: se a tela de gráficos está aberta, redesenha no novo jeito.
 
-        Não gera os gráficos de novo (é a parte demorada): só reorganiza os que já existem.
+        Não refaz as contas dos dados: só reorganiza (e, se o estilo mudou para imagem, desenha os PNGs uma vez).
         """
         quadro = getattr(self, "quadro_graf", None)
         try:
@@ -505,6 +526,9 @@ class MapaUI:
             return
         try:
             caminhos = self._mgr.salvar_graficos(self._agg, pasta)
+        except ImportError as e:   # as imagens são feitas pelo matplotlib; a tela animada não precisa dele
+            messagebox.showerror("Biblioteca ausente", f"{e}\n\nInstale com:  pip install matplotlib")
+            return
         except OSError as e:
             messagebox.showerror("Salvar imagens", f"Não foi possível gravar:\n{e}")
             return
@@ -600,7 +624,7 @@ class _Janela(ctk.CTkToplevel):
 
 class DialogConfig(_Janela):
     def __init__(self, ui):
-        super().__init__(ui, "Configurações do Mapa", "560x390")
+        super().__init__(ui, "Configurações do Mapa", "560x470")
         ctk.CTkLabel(self, text="Critério de IMC para idosos (60 anos ou mais):").pack(anchor="w", padx=20, pady=(20, 2))
         self.cb_imc = ctk.CTkComboBox(self, values=list(nc.CRITERIOS_IMC_IDOSO.values()), width=500, state="readonly")
         self.cb_imc.pack(padx=20)
@@ -617,6 +641,10 @@ class DialogConfig(_Janela):
         self.cb_graf = ctk.CTkComboBox(self, values=list(gl.ROTULOS_DISPOSICAO.values()), width=500, state="readonly")
         self.cb_graf.pack(padx=20)
         self.cb_graf.set(gl.ROTULOS_DISPOSICAO[ui.disposicao_graficos])
+        ctk.CTkLabel(self, text="Estilo dos gráficos:").pack(anchor="w", padx=20, pady=(16, 2))
+        self.cb_estilo = ctk.CTkComboBox(self, values=list(gl.ROTULOS_ESTILO.values()), width=500, state="readonly")
+        self.cb_estilo.pack(padx=20)
+        self.cb_estilo.set(gl.ROTULOS_ESTILO[ui.estilo_graficos])
         _btn(self, "Salvar", self._salvar, 120).pack(pady=16)
 
     def _salvar(self):
@@ -627,6 +655,7 @@ class DialogConfig(_Janela):
             if rot == self.cb_alt.get():
                 mdb.salvar_config(self.ui.db, "metodo_altura_idoso", chave)
         mdb.salvar_config(self.ui.db, gl.CHAVE_CONFIG, gl.rotulo_para_disposicao(self.cb_graf.get()))
+        mdb.salvar_config(self.ui.db, gl.CHAVE_ESTILO, gl.rotulo_para_estilo(self.cb_estilo.get()))
         self.destroy()
         self.ui.aplicar_config_graficos()
 

@@ -15,6 +15,7 @@ from unittest import mock
 
 RAIZ = os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, RAIZ)
+sys.path.insert(0, os.path.dirname(__file__))
 
 from PIL import Image  # noqa: E402
 
@@ -29,6 +30,7 @@ class Evento:
     def __init__(self, **kw):
         self.width = kw.get("width", 0)
         self.x_root = kw.get("x_root", 0)
+        self.x, self.y = kw.get("x", 0), kw.get("y", 0)
         self.delta = kw.get("delta", 0)
 
 
@@ -86,13 +88,82 @@ class TelaFalsa(Base):
         super().__init__(*a, **kw)
         self.itens, self.fracoes, self.agendados, self.cancelados, self._n = [], [], {}, [], 0
         self.com_foco = False
+        self.formas, self.chamadas, self._nf = {}, [], 0   # formas desenhadas e o que foi pedido ao Tk (coords, config)
+        self.largura_tela, self.altura_tela = 1100, 400
 
     def create_image(self, x, y, **kw):
         self.itens.append({"x": x, "y": y, **kw})
         return len(self.itens)
 
+    def _nova(self, tipo, coords, kw):
+        self._nf += 1
+        self.formas[self._nf] = {"t": tipo, "c": tuple(coords), **kw}
+        self.chamadas.append(("criar", self._nf))
+        return self._nf
+
+    def create_rectangle(self, *c, **kw):
+        return self._nova("ret", c, kw)
+
+    def create_polygon(self, *c, **kw):
+        return self._nova("poli", c, kw)
+
+    def create_line(self, *c, **kw):
+        return self._nova("linha", c, kw)
+
+    def create_text(self, *c, **kw):
+        return self._nova("texto", c, kw)
+
+    def create_oval(self, *c, **kw):
+        return self._nova("oval", c, kw)
+
+    def create_arc(self, *c, **kw):
+        return self._nova("arco", c, kw)
+
+    def coords(self, item, *c):
+        self.chamadas.append(("coords", item))
+        self.formas[item]["c"] = tuple(c)
+
+    def itemconfigure(self, item, **kw):
+        self.chamadas.append(("config", item, tuple(sorted(kw))))
+        self.formas[item].update(kw)
+
+    def itemcget(self, item, chave):
+        return self.formas[item].get(chave, "normal" if chave == "state" else "")
+
+    def bbox(self, item):
+        c = self.formas[item]["c"]
+        if self.formas[item]["t"] == "arco":
+            return c[0], c[1], c[2], c[3]
+        return min(c[0::2]), min(c[1::2]), max(c[0::2]), max(c[1::2])
+
+    def find_overlapping(self, x0, y0, x1, y1):
+        achados = []
+        for item in self.formas:
+            a, b, c, d = self.bbox(item)
+            if a <= x1 and c >= x0 and b <= y1 and d >= y0:
+                achados.append(item)
+        return tuple(achados)
+
+    def tag_raise(self, item):
+        self.chamadas.append(("topo", item))
+
+    def canvasx(self, x):
+        return x
+
+    canvasy = canvasx
+
+    def winfo_width(self):
+        return self.largura_tela
+
+    def winfo_height(self):
+        return self.altura_tela
+
     def delete(self, *a):
-        self.itens = []
+        if a and a[0] != "all":
+            for item in a:
+                self.formas.pop(item, None)
+            return
+        self.itens, self.formas = [], {}
 
     def xview_moveto(self, f):
         self.fracoes.append(f)
@@ -115,6 +186,16 @@ class TelaFalsa(Base):
         for _, fn in fila.values():
             fn()
         return len(fila)
+
+
+class FontesFalsas:
+    """Fontes do Tk simuladas: cada letra mede 0,55 do tamanho (0,6 no negrito), como nos testes da cena."""
+
+    def fonte(self, tam, negrito=False):
+        return ("fonte", round(tam), bool(negrito))
+
+    def medir(self, texto, tam, negrito=False):
+        return len(texto) * tam * (0.6 if negrito else 0.55)
 
 
 def carregar_graficos_ui(com_rastreador=None):
@@ -582,6 +663,444 @@ class TestEscalaDaTela(unittest.TestCase):
                 return 120.0
         rastreador = types.SimpleNamespace(get_widget_scaling=falha)
         self.assertEqual(carregar_graficos_ui(rastreador).escala_da_tela(Tela()), 1.25)
+
+
+# ====================================================================== gráficos desenhados na tela (animados)
+from test_graficos_nativos import SPECS  # noqa: E402
+import graficos_nativos as gn  # noqa: E402
+import graficos_pintor as gp  # noqa: E402
+
+
+def cena(extensao=-90.0, texto="42", visivel=True, dx=0):
+    """Uma forma de cada tipo, como o graficos_nativos monta."""
+    return [
+        {"t": "poli", "c": [dx, 0, dx + 10, 0, dx + 10, 10, dx, 10], "fill": "#fff", "outline": "#ccc", "suave": True},
+        {"t": "ret", "c": (dx + 1, 1, dx + 5, 5), "fill": "#000"},
+        {"t": "linha", "c": [dx, 0, dx + 5, 5], "fill": "#111", "largura": 2, "tracejado": (5, 3)},
+        {"t": "texto", "c": (dx + 3, 3), "texto": texto, "tam": 11, "negrito": False, "fill": "#222", "ancora": "nw",
+         "dica": "balão"},
+        {"t": "oval", "c": (dx + 1, 1, dx + 3, 3), "fill": "#333", "visivel": visivel},
+        {"t": "arco", "c": (dx, 0, dx + 20, 20), "inicio": 90.0, "extensao": extensao, "fill": "#444", "largura": 6},
+    ]
+
+
+class TestPintor(unittest.TestCase):
+    def setUp(self):
+        self.tela = TelaFalsa()
+        self.dicas = {}
+        self.pintor = gp.PintorCanvas(self.tela, FontesFalsas(), self.dicas)
+
+    def pedidos(self):
+        return [c[0] for c in self.tela.chamadas]
+
+    def test_cria_uma_forma_de_cada_tipo_com_as_opcoes_certas(self):
+        self.pintor.desenhar(cena(), 100, 5)
+        f = [self.tela.formas[i] for i in sorted(self.tela.formas)]
+        self.assertEqual([x["t"] for x in f], ["poli", "ret", "linha", "texto", "oval", "arco"])
+        self.assertEqual(f[0]["c"], (100, 5, 110, 5, 110, 15, 100, 15))            # deslocada em (dx, dy)
+        self.assertEqual((f[0]["smooth"], f[0]["outline"]), (True, "#ccc"))
+        self.assertEqual((f[2]["dash"], f[2]["width"], f[2]["capstyle"]), ((5, 3), 2, "round"))
+        self.assertEqual((f[3]["text"], f[3]["anchor"], f[3]["font"]), ("42", "nw", ("fonte", 11, False)))
+        self.assertEqual((f[5]["start"], f[5]["extent"], f[5]["style"], f[5]["width"]), (90.0, -90.0, "arc", 6))
+        self.assertEqual(f[5]["outline"], "#444")                                   # o traço do anel é a cor da fatia
+        self.assertEqual(f[1]["outline"], "")
+
+    def test_linha_sem_tracejado_nao_pede_dash(self):
+        forma = {"t": "linha", "c": [0, 0, 5, 5], "fill": "#111", "largura": 2, "tracejado": None}
+        self.pintor.desenhar([forma])
+        self.assertNotIn("dash", self.tela.formas[1])
+
+    def test_segundo_quadro_so_atualiza_o_que_mudou(self):
+        self.pintor.desenhar(cena())
+        self.tela.chamadas.clear()
+        self.pintor.desenhar(cena())                       # nada mudou: nenhum pedido ao Tk
+        self.assertEqual(self.tela.chamadas, [])
+        self.pintor.desenhar(cena(extensao=-180.0))        # só o arco mudou
+        self.assertEqual(self.tela.chamadas, [("config", 6, ("extent", "start"))])
+        self.assertEqual(self.tela.formas[6]["extent"], -180.0)
+        self.tela.chamadas.clear()
+        self.pintor.desenhar(cena(extensao=-180.0, texto="43"))
+        self.assertEqual(self.tela.chamadas, [("config", 4, ("text",))])
+        self.tela.chamadas.clear()
+        self.pintor.desenhar(cena(extensao=-180.0, texto="43", dx=7))   # tudo andou para o lado: só coordenadas
+        self.assertEqual(set(self.pedidos()), {"coords"})
+        self.assertEqual(self.pedidos().count("coords"), 6)
+
+    def test_visibilidade_liga_e_desliga(self):
+        self.pintor.desenhar(cena(visivel=False))
+        self.assertEqual(self.tela.formas[5]["state"], "hidden")          # já nasce escondida
+        self.assertNotIn("state", self.tela.formas[4])
+        self.tela.chamadas.clear()
+        self.pintor.desenhar(cena(visivel=True))
+        self.assertEqual(self.tela.chamadas, [("config", 5, ("state",))])
+        self.assertEqual(self.tela.formas[5]["state"], "normal")
+
+    def test_dicas_ficam_registradas_pelo_numero_do_item(self):
+        self.pintor.desenhar(cena())
+        self.assertEqual(self.dicas, {4: "balão"})
+
+    def test_cena_de_outra_forma_recria_tudo_e_limpa_as_dicas_velhas(self):
+        self.pintor.desenhar(cena())
+        self.pintor.desenhar(cena()[:3])
+        self.assertEqual(sorted(self.tela.formas), [7, 8, 9])
+        self.assertEqual(self.dicas, {})
+
+    def test_apagar(self):
+        self.pintor.desenhar(cena())
+        self.pintor.apagar()
+        self.assertEqual((self.tela.formas, self.dicas, self.pintor.itens), ({}, {}, []))
+        self.pintor.desenhar(cena())                                      # e dá para desenhar de novo
+        self.assertEqual(len(self.tela.formas), 6)
+
+    def test_forma_desconhecida_avisa(self):
+        with self.assertRaises(ValueError):
+            self.pintor.desenhar([{"t": "estrela", "c": (0, 0)}])
+
+    def test_cenas_reais_passam_pelo_pintor_em_todos_os_progressos(self):
+        for nome, spec in SPECS.items():
+            tela = TelaFalsa()
+            pintor = gp.PintorCanvas(tela, FontesFalsas())
+            fontes = FontesFalsas()
+            for prog in (0.0, 0.3, 0.6, 1.0):
+                formas, _ = gn.construir(spec, 840, prog, fontes.medir, 1.0)
+                pintor.desenhar(formas, 12, 0)
+            self.assertEqual(len(tela.formas), len(formas), nome)         # nunca criou formas a mais durante a animação
+            self.assertEqual(self.contar("criar", tela), len(formas), nome)
+
+    @staticmethod
+    def contar(tipo, tela):
+        return sum(1 for c in tela.chamadas if c[0] == tipo)
+
+
+class TestCartasNativas(BaseDosTestes):
+    def nova_faixa_nativa(self, nomes=("barras_v", "linhas", "roscas"), largura=1100, escala=1.0, **kw):
+        pai = Base()
+        cartas = [self.ui.CardNativo(SPECS[n]) for n in nomes]
+        faixa = self.ui.FaixaHorizontal(pai, cartas, escala=escala, fontes=FontesFalsas(), **kw)
+        faixa.canvas.bindings["<Configure>"](Evento(width=largura))
+        return faixa
+
+    @staticmethod
+    def textos(faixa):
+        return [f["text"] for f in faixa.canvas.formas.values() if f["t"] == "texto"]
+
+    @staticmethod
+    def barras(faixa):
+        """As barras do gráfico de barras (a mais alta tem um tom mais escuro)."""
+        cores = ("#4caf50", gn.escurecer("#4caf50"))
+        return [f for f in faixa.canvas.formas.values() if f["t"] == "poli" and f.get("fill") in cores]
+
+    def test_desenha_logo_a_moldura_de_todos_e_so_anima_os_que_aparecem(self):
+        faixa = self.nova_faixa_nativa(largura=1100)
+        self.assertEqual(self.textos(faixa).count("Título do gráfico"), 3)         # os três já têm moldura e título
+        self.assertEqual([c.inicio is not None for c in faixa.cards], [True, False, False])
+        self.assertEqual(len(faixa.canvas.agendados), 1)                           # um único relógio da animação
+        self.assertEqual(faixa.canvas.itens, [])                                   # nenhuma imagem
+        self.assertEqual(faixa.imagens, [])
+
+    def test_antes_de_comecar_nada_de_dados_aparece(self):
+        faixa = self.nova_faixa_nativa(("barras_v",), largura=1100)
+        barras = self.barras(faixa)
+        self.assertEqual(len(barras), len(SPECS["barras_v"]["x"]))
+        self.assertTrue(all(b.get("state") == "hidden" for b in barras))
+
+    def test_entrada_progride_com_o_relogio_e_termina_sozinha(self):
+        faixa = self.nova_faixa_nativa(("barras_v",), largura=1100)
+        carta = faixa.cards[0]
+        progressos = []
+        for _ in range(100):
+            if not faixa.canvas.agendados:
+                break
+            self.relogio.avancar(0.016)
+            faixa.canvas.executar_agendados()
+            progressos.append(carta.p)
+        self.assertEqual(progressos, sorted(progressos))                          # só cresce
+        self.assertEqual(progressos[-1], 1.0)
+        self.assertTrue(carta.pronto)
+        self.assertEqual(faixa.canvas.agendados, {})                              # parou de agendar quadros
+        self.assertAlmostEqual(len(progressos) * 0.016, gl.DURACAO_ENTRADA, delta=0.05)
+        barras = self.barras(faixa)
+        self.assertEqual(sum(1 for b in barras if b.get("state") != "hidden"),
+                         sum(1 for v in SPECS["barras_v"]["y"] if v))             # todas as barras com valor aparecem
+
+    def test_quadro_final_e_igual_ao_da_cena_calculada_direto(self):
+        faixa = self.nova_faixa_nativa(("linhas",), largura=1100)
+        self.rodar_animacao(faixa)
+        carta = faixa.cards[0]
+        esperado, _ = gn.construir(SPECS["linhas"], carta.largura, 1.0, faixa.fontes.medir, 1.0, carta.altura)
+        desenhado = [faixa.canvas.formas[i] for i in sorted(faixa.canvas.formas)]
+        self.assertEqual([f["t"] for f in desenhado], [f["t"] for f in esperado])
+        for d, e in zip(desenhado, esperado):
+            self.assertEqual(d["c"], tuple(e["c"]))
+
+    def test_so_um_pouco_depois_do_anterior_e_com_atraso_inicial(self):
+        faixa = self.nova_faixa_nativa(largura=1900, atraso=0.5)    # cabem dois gráficos inteiros
+        a, b, c = faixa.cards
+        self.assertEqual(a.inicio, self.relogio() + 0.5)
+        self.assertAlmostEqual(b.inicio - a.inicio, gl.ATRASO_ENTRE_CARDS)
+        self.assertIsNone(c.inicio)
+        # durante o atraso nada é redesenhado
+        self.relogio.avancar(0.3)
+        faixa.canvas.chamadas.clear()
+        faixa.canvas.executar_agendados()
+        self.assertEqual(faixa.canvas.chamadas, [])
+        self.assertEqual((a.p, b.p), (0.0, 0.0))
+
+    def test_o_gafico_que_aparece_depois_anima_uma_vez_so(self):
+        faixa = self.nova_faixa_nativa(largura=1100)
+        self.rodar_animacao(faixa)
+        a, b, c = faixa.cards
+        self.assertTrue(a.pronto)
+        self.assertEqual((b.p, c.p, b.inicio, c.inicio), (0.0, 0.0, None, None))
+        faixa.ir_para(1)                                                         # o segundo passa a aparecer
+        self.rodar_animacao(faixa)                                               # (encaixe e entrada juntos)
+        self.assertIsNotNone(b.inicio)
+        self.assertIsNone(c.inicio)
+        self.assertTrue(b.pronto)
+        inicio_b = b.inicio
+        faixa.ir_para(0)
+        self.rodar_animacao(faixa)
+        faixa.ir_para(1)
+        self.rodar_animacao(faixa)
+        self.assertEqual(b.inicio, inicio_b)                                     # não repete a entrada
+        self.assertTrue(a.pronto and b.pronto)
+
+    def test_arrastar_ate_ver_o_terceiro_tambem_inicia_a_entrada_dele(self):
+        faixa = self.nova_faixa_nativa(largura=1100)
+        c = faixa.canvas
+        c.bindings["<ButtonPress-1>"](Evento(x_root=900))
+        c.bindings["<B1-Motion>"](Evento(x_root=100))                            # 800 px para a esquerda
+        self.assertIsNotNone(faixa.cards[1].inicio)
+        self.assertIsNone(faixa.cards[2].inicio)
+        c.bindings["<B1-Motion>"](Evento(x_root=-700))
+        self.assertIsNotNone(faixa.cards[2].inicio)
+
+    def test_todos_os_graficos_da_faixa_tem_a_mesma_altura(self):
+        faixa = self.nova_faixa_nativa(("barras_h", "roscas", "barras_v"), largura=1100)
+        alturas = {c.altura for c in faixa.cards}
+        self.assertEqual(len(alturas), 1)
+        naturais = [gn.altura_natural(c.spec, c.largura, faixa.fontes.medir) for c in faixa.cards]
+        self.assertEqual(alturas, {max(naturais)})
+        self.assertEqual(faixa.canvas.opts["height"], max(naturais))
+        self.assertEqual(faixa.canvas.opts["scrollregion"][3], max(naturais))
+
+    def test_mudar_a_largura_no_meio_da_entrada_continua_de_onde_parou(self):
+        faixa = self.nova_faixa_nativa(("barras_v",), largura=1100)
+        carta = faixa.cards[0]
+        for _ in range(20):
+            self.relogio.avancar(0.016)
+            faixa.canvas.executar_agendados()
+        parcial = carta.p
+        self.assertTrue(0 < parcial < 1)
+        faixa.canvas.bindings["<Configure>"](Evento(width=700))
+        faixa.canvas.executar_agendados()                                        # o redesenho com espera de 120 ms
+        self.assertEqual(carta.largura, 700 - 0)
+        self.assertEqual(carta.p, parcial)                                       # não voltou ao zero nem pulou ao fim
+        self.assertTrue(faixa.canvas.agendados)                                  # e a animação continua
+        self.rodar_animacao(faixa)
+        self.assertTrue(carta.pronto)
+
+    def test_gráfico_pronto_continua_pronto_depois_de_redimensionar(self):
+        faixa = self.nova_faixa_nativa(("barras_v",), largura=1100)
+        self.rodar_animacao(faixa)
+        faixa.canvas.bindings["<Configure>"](Evento(width=700))
+        faixa.canvas.executar_agendados()
+        self.assertTrue(faixa.cards[0].pronto)
+        self.assertEqual(faixa.canvas.agendados, {})                             # sem repetir a animação
+        barras = self.barras(faixa)
+        self.assertTrue(any(b.get("state") != "hidden" for b in barras))         # e já redesenhado cheio
+
+    def test_destruir_a_faixa_para_a_animacao(self):
+        faixa = self.nova_faixa_nativa(("barras_v",), largura=1100)
+        c = faixa.canvas
+        self.assertTrue(c.agendados)
+        c.bindings["<Destroy>"](Evento())
+        self.assertEqual(c.agendados, {})
+        self.assertTrue(c.cancelados)
+        formas = dict(c.formas)
+        c.executar_agendados()                                                   # um `after` que chegou tarde
+        faixa._passo_entrada()
+        self.assertEqual(c.formas, formas)
+
+    def test_escala_do_windows_aumenta_a_fonte_e_a_largura_do_grafico(self):
+        faixa = self.nova_faixa_nativa(("barras_v",), largura=1900, escala=1.5)
+        carta = faixa.cards[0]
+        self.assertEqual(carta.largura, 840 * 1.5)
+        titulo = next(f for f in faixa.canvas.formas.values() if f["t"] == "texto" and f["text"] == "Título do gráfico")
+        self.assertEqual(titulo["font"], ("fonte", round(gn.TAM_TITULO * 1.5), True))
+
+    def test_imagens_e_graficos_na_mesma_faixa(self):
+        pai = Base()
+        faixa = self.ui.FaixaHorizontal(pai, [imagem(), self.ui.CardNativo(SPECS["roscas"])], escala=1.0,
+                                        fontes=FontesFalsas())
+        faixa.canvas.bindings["<Configure>"](Evento(width=1100))
+        self.assertEqual((len(faixa.canvas.itens), len(faixa.imagens)), (1, 1))
+        self.assertTrue(faixa.canvas.formas)
+
+    def test_gráfico_unico_fica_no_meio_quando_pedido(self):
+        faixa = self.nova_faixa_nativa(("barras_v",), largura=1100, centralizar=True)
+        fundo = faixa.canvas.formas[1]
+        self.assertEqual(fundo["t"], "poli")
+        self.assertAlmostEqual(min(fundo["c"][0::2]), (1100 - 840) / 2 + 0.5)    # (1100 - 840) / 2 + a borda
+        sem = self.nova_faixa_nativa(("barras_v",), largura=1100)
+        self.assertAlmostEqual(min(sem.canvas.formas[1]["c"][0::2]), 0.5)
+
+
+class TestBalao(BaseDosTestes):
+    def faixa_pronta(self):
+        pai = Base()
+        faixa = self.ui.FaixaHorizontal(pai, [self.ui.CardNativo(SPECS["barras_v"])], escala=1.0,
+                                        fontes=FontesFalsas())
+        faixa.canvas.bindings["<Configure>"](Evento(width=1100))
+        self.rodar_animacao(faixa)
+        return faixa
+
+    @staticmethod
+    def barra_do_dia(faixa, dica):
+        item = next(i for i, texto in faixa.dicas.items() if texto == dica)
+        x0, y0, x1, y1 = faixa.canvas.bbox(item)
+        return item, (x0 + x1) / 2, (y0 + y1) / 2
+
+    def balao(self, faixa):
+        fundo, texto = faixa._dica
+        return faixa.canvas.formas[fundo], faixa.canvas.formas[texto]
+
+    def test_mostra_o_valor_da_barra_sob_o_ponteiro(self):
+        faixa = self.faixa_pronta()
+        _, x, y = self.barra_do_dia(faixa, "Dia 9: 9")
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=y))
+        fundo, texto = self.balao(faixa)
+        self.assertEqual((texto["text"], texto["state"], fundo["state"]), ("Dia 9: 9", "normal", "normal"))
+        # o balão fica perto do ponteiro, à direita e abaixo
+        self.assertGreater(fundo["c"][0], x)
+        self.assertGreater(fundo["c"][1], y)
+        self.assertGreater(fundo["c"][2] - fundo["c"][0], 30)
+
+    def test_sai_do_canvas_ou_arrasta_e_o_balao_some(self):
+        faixa = self.faixa_pronta()
+        _, x, y = self.barra_do_dia(faixa, "Dia 9: 9")
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=y))
+        faixa.canvas.bindings["<Leave>"](Evento())
+        self.assertEqual(self.balao(faixa)[1]["state"], "hidden")
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=y))
+        faixa.canvas.bindings["<ButtonPress-1>"](Evento(x_root=10))
+        self.assertEqual(self.balao(faixa)[1]["state"], "hidden")
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=y))                       # com o botão apertado: sem balão
+        self.assertEqual(self.balao(faixa)[1]["state"], "hidden")
+        faixa.canvas.bindings["<ButtonRelease-1>"](Evento(x_root=10))
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=y))
+        self.assertEqual(self.balao(faixa)[1]["state"], "normal")
+
+    def test_longe_de_qualquer_barra_esconde(self):
+        faixa = self.faixa_pronta()
+        _, x, y = self.barra_do_dia(faixa, "Dia 9: 9")
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=y))
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=2))                       # em cima, no título
+        self.assertEqual(self.balao(faixa)[1]["state"], "hidden")
+
+    def test_barra_ainda_escondida_pela_animacao_nao_mostra_balao(self):
+        pai = Base()
+        faixa = self.ui.FaixaHorizontal(pai, [self.ui.CardNativo(SPECS["barras_v"])], escala=1.0, fontes=FontesFalsas())
+        faixa.canvas.bindings["<Configure>"](Evento(width=1100))                  # p = 0: barras escondidas
+        item, x, y = self.barra_do_dia(faixa, "Dia 9: 9")
+        self.assertEqual(faixa.canvas.formas[item]["state"], "hidden")
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=y))
+        self.assertIsNone(faixa._dica)
+
+    def test_perto_da_borda_direita_o_balao_vai_para_a_esquerda(self):
+        faixa = self.faixa_pronta()
+        item, x, y = self.barra_do_dia(faixa, "Dia 31: 5")
+        faixa.canvas.largura_tela = int(x + 20)                                    # só 20 px sobram à direita
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=y))
+        fundo, _ = self.balao(faixa)
+        self.assertLess(fundo["c"][2], x)
+
+    def test_perto_do_fundo_o_balao_vai_para_cima(self):
+        faixa = self.faixa_pronta()
+        _, x, y = self.barra_do_dia(faixa, "Dia 9: 9")
+        faixa.canvas.altura_tela = int(y + 5)
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=y))
+        fundo, _ = self.balao(faixa)
+        self.assertLess(fundo["c"][3], y)
+
+    def test_roda_do_mouse_esconde_o_balao_sem_impedir_a_tela_de_rolar(self):
+        faixa = self.faixa_pronta()
+        _, x, y = self.barra_do_dia(faixa, "Dia 9: 9")
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=y))
+        resultado = faixa.canvas.bindings["<MouseWheel>"](Evento(delta=120))
+        self.assertIsNone(resultado)                                               # nunca "break": a tela continua rolando
+        self.assertEqual(self.balao(faixa)[1]["state"], "hidden")
+
+    def test_faixa_de_imagens_nao_tem_balao(self):
+        faixa = self.nova_faixa(2, largura=1100)
+        faixa.canvas.bindings["<Motion>"](Evento(x=10, y=10))
+        self.assertIsNone(faixa._dica)
+
+    def test_redesenhar_a_faixa_zera_os_baloes_antigos(self):
+        faixa = self.faixa_pronta()
+        _, x, y = self.barra_do_dia(faixa, "Dia 9: 9")
+        faixa.canvas.bindings["<Motion>"](Evento(x=x, y=y))
+        faixa.ajustar(900)
+        self.assertIsNone(faixa._dica)
+        self.assertTrue(faixa.dicas)                                               # os novos já estão registrados
+        self.assertTrue(all(i in faixa.canvas.formas for i in faixa.dicas))        # e nenhum aponta para item apagado
+
+
+def grupos_nativos():
+    def itens(*nomes):
+        return [(n, n, SPECS[n]) for n in nomes]
+    return [
+        {"id": "a", "titulo": "Atendimentos", "cor": "#4caf50", "descricao": "texto",
+         "graficos": itens("barras_v", "linhas", "roscas")},
+        {"id": "b", "titulo": "Dieta", "cor": "#ef6c00", "descricao": "", "graficos": itens("barras_h", "vazio")},
+    ]
+
+
+class TestPainelNativo(BaseDosTestes):
+    def test_conteudo_decide_o_tipo_da_carta(self):
+        painel = self.ui.PainelGraficos(Base(), grupos_nativos(), gl.DISPOSICAO_LADO_A_LADO, fontes=FontesFalsas())
+        tipos_ = [[type(c).__name__ for c in f.cards] for f in painel.faixas]
+        self.assertEqual(tipos_, [["CardNativo"] * 3, ["CardNativo"] * 2])
+        self.assertEqual(painel.imagens, [])
+        misto = [{"id": "m", "titulo": "M", "cor": "#000000", "descricao": "",
+                  "graficos": [("a", "A", png_de()), ("b", "B", SPECS["barras_v"])]}]
+        painel = self.ui.PainelGraficos(Base(), misto, gl.DISPOSICAO_LADO_A_LADO, fontes=FontesFalsas())
+        self.assertEqual([type(c).__name__ for c in painel.faixas[0].cards], ["CardImagem", "CardNativo"])
+        self.assertEqual(len(painel.imagens), 1)
+
+    def test_fontes_so_sao_criadas_quando_ha_grafico_animado(self):
+        painel = self.ui.PainelGraficos(Base(), grupos_de_teste(), gl.DISPOSICAO_LADO_A_LADO)
+        self.assertIsNone(painel._fontes)                                          # só imagens: nada de Tk font
+        self.assertTrue(all(f._fontes is None for f in painel.faixas))
+
+    def test_as_faixas_dividem_as_mesmas_fontes(self):
+        fontes = FontesFalsas()
+        painel = self.ui.PainelGraficos(Base(), grupos_nativos(), gl.DISPOSICAO_LADO_A_LADO, fontes=fontes)
+        self.assertTrue(all(f.fontes is fontes for f in painel.faixas))
+
+    def test_de_cima_para_baixo_um_grafico_por_faixa_cada_um_no_meio(self):
+        painel = self.ui.PainelGraficos(Base(), grupos_nativos(), gl.DISPOSICAO_VERTICAL, fontes=FontesFalsas())
+        self.assertEqual((painel.faixas, painel.controles), ([], []))
+        self.assertEqual(len(painel.faixas_empilhadas), 5)
+        self.assertTrue(all(f.centralizar and len(f.cards) == 1 for f in painel.faixas_empilhadas))
+        # dentro do grupo, cada gráfico começa um pouco depois do anterior
+        self.assertEqual([round(f.atraso, 2) for f in painel.faixas_empilhadas],
+                         [0.0, 0.12, 0.24, 0.0, 0.12])
+        painel.ajustar_todas(1100)
+        self.assertTrue(all(f.cards[0].largura == 840 for f in painel.faixas_empilhadas))
+        self.assertTrue(all(f.cards[0].x == 130 for f in painel.faixas_empilhadas))
+        self.assertTrue(all(f.canvas.opts["cursor"] == "" for f in painel.faixas_empilhadas))   # não arrasta
+
+    def test_de_cima_para_baixo_com_imagens_continua_como_antes(self):
+        painel = self.ui.PainelGraficos(Base(), grupos_de_teste(), gl.DISPOSICAO_VERTICAL)
+        self.assertEqual(painel.faixas_empilhadas, [])
+        self.assertEqual(len(painel.imagens), 6)
+
+    def test_ajustar_todas_desenha_lado_a_lado_e_empilhadas(self):
+        painel = self.ui.PainelGraficos(Base(), grupos_nativos(), gl.DISPOSICAO_LADO_A_LADO, fontes=FontesFalsas())
+        painel.ajustar_todas(1100)
+        self.assertTrue(all(f.canvas.formas for f in painel.faixas))
+        self.assertTrue(all(c.inicio is not None for f in painel.faixas for c in f.cards[:1]))
 
 
 if __name__ == "__main__":

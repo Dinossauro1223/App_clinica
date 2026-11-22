@@ -8,7 +8,14 @@ escolhidos em Configurações do Mapa (graficos_layout.DISPOSICAO_*):
   Ao soltar, a faixa encaixa no gráfico mais próximo. Shift + roda do mouse e as setas do teclado também andam.
 * de cima para baixo: os gráficos de cada grupo um embaixo do outro, como a tela era antes, mas ainda agrupados.
 
-As contas (larguras, encaixe, suavização) estão em graficos_layout.py e são testadas sem janela. Aqui só há widgets.
+Cada gráfico é uma "carta" da faixa. Há dois tipos (graficos_layout.ESTILO_*):
+
+* CardNativo: desenhado direto no canvas (graficos_nativos + graficos_pintor), com animação de entrada e um balão
+  com o valor ao passar o mouse. É o padrão.
+* CardImagem: imagem PNG do matplotlib, como era antes, sem animação.
+
+As contas (larguras, encaixe, suavização) estão em graficos_layout.py e a geometria dos gráficos em
+graficos_nativos.py; ambas são testadas sem janela. Aqui só há widgets.
 """
 import io
 import time
@@ -17,12 +24,15 @@ import tkinter as tk
 import customtkinter as ctk
 
 import graficos_layout as gl
+import graficos_nativos as gn
+from graficos_pintor import Fontes, PintorCanvas
 
 VERDE, VERDE_HOVER, VERDE_ESC = "#4caf50", "#388e3c", "#1b5e20"
 CINZA_BTN, CINZA_TEXTO, FUNDO_SECAO = "#b0bec5", "#546e7a", "#f7fbf8"
-INTERVALO_QUADROS_MS = 16          # cerca de 60 quadros por segundo no encaixe
+INTERVALO_QUADROS_MS = 16          # cerca de 60 quadros por segundo no encaixe e na animação de entrada
 PAUSA_ENTRE_ROLAGENS = 0.25        # segundos: Shift + roda anda uma posição por vez, mesmo girando rápido
 LIMIAR_ARRASTE = 3                 # pixels: menos que isso é um clique, não um arraste
+FUNDO_DICA, TEXTO_DICA, TAM_DICA = "#263238", "#ffffff", 11   # balão que mostra o valor ao passar o mouse
 _agora = time.perf_counter         # os testes trocam por um relógio falso
 
 
@@ -70,18 +80,82 @@ def _tolerante(metodo):
     return interno
 
 
+class CardImagem:
+    """Gráfico em imagem PNG (estilo "Imagens simples"): redimensionada para a faixa, sem animação."""
+    animado = False
+    pronto, p, inicio = True, 1.0, None     # mesma interface do CardNativo: já nasce "pronto", nunca anima
+
+    def __init__(self, imagem):
+        self.imagem = imagem      # PIL.Image no tamanho original
+        self.x = self.largura = self.altura = 0
+
+    def desenhar(self):
+        """Imagem não muda quadro a quadro."""
+
+    def _tamanho(self, faixa, largura):
+        return gl.tamanho_do_card(self.imagem.width * faixa.escala, self.imagem.height * faixa.escala, largura)
+
+    def altura_para(self, faixa, largura):
+        return self._tamanho(faixa, largura)[1]
+
+    def montar(self, faixa, x, largura, altura):
+        self.x, self.largura, self.altura = x, largura, altura
+        w, h = self._tamanho(faixa, largura)
+        foto = foto_tk(_redimensionar(self.imagem, w, h))
+        faixa.fotos.append(foto)      # o Tk apaga a imagem que ninguém referencia
+        faixa.canvas.create_image(x, 0, image=foto, anchor="nw")
+
+
+class CardNativo:
+    """Gráfico desenhado direto no canvas, com animação de entrada (estilo "Animados")."""
+    animado = True
+
+    def __init__(self, spec):
+        self.spec = spec          # dicionário do mapa_graficos (tipo, título, dados)
+        self.p = 0.0              # progresso da entrada: 0 = só a moldura, 1 = completo
+        self.inicio = None        # instante em que a entrada começa (None = ainda não apareceu na faixa)
+        self.faixa = self.pintor = None
+        self.x = self.largura = self.altura = 0
+
+    @property
+    def pronto(self):
+        return self.p >= 1.0
+
+    def altura_para(self, faixa, largura):
+        return gn.altura_natural(self.spec, largura, faixa.fontes.medir, faixa.escala)
+
+    def montar(self, faixa, x, largura, altura):
+        self.faixa, self.x, self.largura, self.altura = faixa, x, largura, altura
+        self.pintor = PintorCanvas(faixa.canvas, faixa.fontes, faixa.dicas)
+        self.desenhar()
+
+    def desenhar(self):
+        f = self.faixa
+        if f is None or self.pintor is None:      # ainda não foi montado na faixa
+            return
+        formas, _ = gn.construir(self.spec, self.largura, self.p, f.fontes.medir, f.escala, self.altura)
+        self.pintor.desenhar(formas, self.x, 0)
+
+
 class FaixaHorizontal:
     """Os gráficos de um grupo lado a lado num tk.Canvas que se arrasta com o mouse e encaixa ao soltar."""
 
-    def __init__(self, pai, imagens, cor_fundo=FUNDO_SECAO, escala=1.0, ao_mudar=None, ao_montar=None):
-        self.imagens = list(imagens)          # PIL.Image no tamanho original de cada gráfico
+    def __init__(self, pai, itens, cor_fundo=FUNDO_SECAO, escala=1.0, ao_mudar=None, ao_montar=None, fontes=None,
+                 atraso=0.0, centralizar=False):
+        # cada item é uma carta (CardNativo, CardImagem) ou uma PIL.Image (vira CardImagem)
+        self.cards = [i if hasattr(i, "montar") else CardImagem(i) for i in itens]
         self.escala = max(0.5, float(escala))
         self.ao_mudar, self.ao_montar = ao_mudar, ao_montar
+        self.atraso = float(atraso)           # segundos a esperar antes de animar o primeiro gráfico
+        self.centralizar = centralizar        # um gráfico só, no meio da faixa (disposição de cima para baixo)
+        self._fontes = fontes
         self.carrossel = None
         self.deslocamento, self.ativo = 0.0, 0   # `ativo` é o índice da posição de encaixe (não do gráfico)
         self.fotos = []                       # o Tk apaga a imagem que ninguém referencia: guardamos aqui
+        self.dicas = {}                       # item do canvas -> texto do balão (preenchido pelo pintor)
+        self._dica = None                     # (retângulo, texto) do balão, criado na primeira vez que aparece
         self._largura_montada = 0
-        self._job_ajuste = self._job_animacao = None
+        self._job_ajuste = self._job_animacao = self._job_entrada = None
         self._anim = self._arraste = None
         self._ultima_rolagem = 0.0
         self._morto = False
@@ -90,12 +164,26 @@ class FaixaHorizontal:
         c.bind("<ButtonPress-1>", self._pressionar)
         c.bind("<B1-Motion>", self._arrastar)
         c.bind("<ButtonRelease-1>", self._soltar)
+        c.bind("<Motion>", self._mover)
+        c.bind("<Leave>", lambda ev: self._esconder_dica())
+        c.bind("<MouseWheel>", lambda ev: self._esconder_dica(), add="+")   # a tela rola por baixo do balão
         c.bind("<Shift-MouseWheel>", self._rolar)
         c.bind("<Shift-Button-4>", lambda ev: self._rolar_para(-1))   # Linux
         c.bind("<Shift-Button-5>", lambda ev: self._rolar_para(1))
         c.bind("<Left>", lambda ev: self.anterior())
         c.bind("<Right>", lambda ev: self.proximo())
         c.bind("<Destroy>", self._ao_destruir)
+
+    @property
+    def fontes(self):
+        if self._fontes is None:
+            self._fontes = Fontes(self.canvas)
+        return self._fontes
+
+    @property
+    def imagens(self):
+        """As imagens (PIL) dos gráficos que são imagem; os gráficos nativos não têm."""
+        return [c.imagem for c in self.cards if isinstance(c, CardImagem)]
 
     # ------------------------------------------------------------------ montagem
     @_tolerante
@@ -115,24 +203,24 @@ class FaixaHorizontal:
         """Desenha os gráficos para uma faixa de `largura_px` pixels (refeito quando a janela muda de largura)."""
         self._job_ajuste = None
         self._cancelar_animacao()
-        n = len(self.imagens)
+        self._cancelar_entrada()
+        n = len(self.cards)
         card = gl.largura_do_card(largura_px, n, gl.LARGURA_MAX_CARD * self.escala, gl.ESPIADA * self.escala)
         self.carrossel = gl.Carrossel(n, card, largura_px, round(gl.ESPACO_ENTRE_CARDS * self.escala))
         self._largura_montada = largura_px
         c = self.canvas
         c.delete("all")
-        self.fotos = []
-        altura = 1
-        for i, img in enumerate(self.imagens):
-            w, h = gl.tamanho_do_card(img.width * self.escala, img.height * self.escala, card)
-            foto = foto_tk(_redimensionar(img, w, h))
-            self.fotos.append(foto)
-            c.create_image(round(self.carrossel.x_do_card(i)), 0, image=foto, anchor="nw")
-            altura = max(altura, h)
-        c.configure(height=altura, scrollregion=(0, 0, round(self.carrossel.largura_total), altura),
+        self.fotos, self.dicas, self._dica = [], {}, None
+        # todos os gráficos da faixa ficam com a altura do mais alto
+        altura = max([1] + [cd.altura_para(self, card) for cd in self.cards])
+        margem = round((largura_px - card) / 2) if self.centralizar and n == 1 else 0
+        for i, cd in enumerate(self.cards):
+            cd.montar(self, margem + round(self.carrossel.x_do_card(i)), card, altura)
+        c.configure(height=altura, scrollregion=(0, 0, round(max(self.carrossel.largura_total, largura_px)), altura),
                     cursor=self._cursor_de_repouso())
         self.ativo = min(self.ativo, self.carrossel.n_posicoes - 1)
         self._definir_deslocamento(self.carrossel.x_da_posicao(self.ativo), notificar=False)
+        self._agendar_entrada()     # o que já estava animando continua; o que apareceu agora é iniciado acima
         if self.ao_montar:
             self.ao_montar(self)
 
@@ -159,6 +247,7 @@ class FaixaHorizontal:
             self.ativo = novo
             if notificar and self.ao_mudar:
                 self.ao_mudar(novo)
+        self._iniciar_visiveis()
 
     def ir_para(self, posicao):
         """Anda (com animação) até a posição de encaixe `posicao`."""
@@ -191,6 +280,103 @@ class FaixaHorizontal:
         self._definir_deslocamento(de + (para - de) * gl.suavizar(t))
         self._job_animacao = self.canvas.after(INTERVALO_QUADROS_MS, self._passo_animacao)
 
+    # ------------------------------------------------------------------ animação de entrada
+    def _iniciar_visiveis(self):
+        """Um gráfico começa a animar na primeira vez em que boa parte dele aparece na faixa."""
+        if self.carrossel is None or self._morto:
+            return
+        de, ate = self.deslocamento, self.deslocamento + self.carrossel.largura_visivel
+        esperando = [cd for cd in self.cards if cd.animado and cd.inicio is None
+                     and min(cd.x + cd.largura, ate) - max(cd.x, de) >= gl.FRACAO_PARA_ANIMAR * cd.largura]
+        if not esperando:
+            return
+        agora = _agora()
+        for k, cd in enumerate(esperando):
+            cd.inicio = agora + self.atraso + k * gl.ATRASO_ENTRE_CARDS
+        self._agendar_entrada()
+
+    def _agendar_entrada(self):
+        if self._job_entrada or self._morto:
+            return
+        if any(cd.animado and cd.inicio is not None and not cd.pronto for cd in self.cards):
+            self._job_entrada = self.canvas.after(INTERVALO_QUADROS_MS, self._passo_entrada)
+
+    @_tolerante
+    def _passo_entrada(self):
+        self._job_entrada = None
+        agora = _agora()
+        for cd in self.cards:
+            if not cd.animado or cd.inicio is None or cd.pronto:
+                continue
+            p = max(0.0, min(1.0, (agora - cd.inicio) / gl.DURACAO_ENTRADA))
+            if p != cd.p:
+                cd.p = p
+                cd.desenhar()
+        self._agendar_entrada()
+
+    def _cancelar_entrada(self):
+        if self._job_entrada:
+            self._cancelar(self._job_entrada)
+        self._job_entrada = None
+
+    # ------------------------------------------------------------------ balão com o valor
+    def _dica_em(self, x, y):
+        """Texto do balão do item sob o ponteiro (x e y em coordenadas do canvas), ou None."""
+        c, raio = self.canvas, max(2, round(4 * self.escala))
+        melhor, distancia = None, None
+        for item in c.find_overlapping(x - raio, y - raio, x + raio, y + raio):
+            texto = self.dicas.get(item)
+            if not texto or c.itemcget(item, "state") == "hidden":
+                continue
+            x0, y0, x1, y1 = c.bbox(item)
+            d = (x - (x0 + x1) / 2) ** 2 + (y - (y0 + y1) / 2) ** 2
+            if distancia is None or d <= distancia:      # empate: o de cima (os itens vêm de baixo para cima)
+                melhor, distancia = texto, d
+        return melhor
+
+    def _mostrar_dica(self, texto, x, y):
+        c, e = self.canvas, self.escala
+        tam, pad = round(TAM_DICA * e), round(6 * e)
+        if self._dica is None:
+            fonte = self.fontes.fonte(tam, False)
+            self._dica = (c.create_rectangle(0, 0, 1, 1, fill=FUNDO_DICA, outline=""),
+                          c.create_text(0, 0, text="", fill=TEXTO_DICA, anchor="nw", font=fonte))
+        fundo, rotulo = self._dica
+        w, h = self.fontes.medir(texto, tam, False) + 2 * pad, tam + 2 * pad
+        esquerda, direita = c.canvasx(0), c.canvasx(c.winfo_width())
+        bx = x + 14 * e
+        if bx + w > direita:                           # não cabe à direita do ponteiro: vai para a esquerda
+            bx = max(esquerda, x - 14 * e - w)
+        by = y + 16 * e
+        if by + h > c.canvasy(c.winfo_height()):       # nem embaixo: vai para cima
+            by = max(c.canvasy(0), y - 16 * e - h)
+        c.coords(fundo, bx, by, bx + w, by + h)
+        c.coords(rotulo, bx + pad, by + pad)
+        c.itemconfigure(rotulo, text=texto, state="normal")
+        c.itemconfigure(fundo, state="normal")
+        c.tag_raise(fundo)
+        c.tag_raise(rotulo)
+
+    def _esconder_dica(self):
+        if self._dica is None or self._morto:
+            return
+        try:
+            for item in self._dica:
+                self.canvas.itemconfigure(item, state="hidden")
+        except tk.TclError:
+            pass
+
+    @_tolerante
+    def _mover(self, ev):
+        if self._arraste or not self.dicas:
+            return
+        x, y = self.canvas.canvasx(ev.x), self.canvas.canvasy(ev.y)
+        texto = self._dica_em(x, y)
+        if texto:
+            self._mostrar_dica(texto, x, y)
+        else:
+            self._esconder_dica()
+
     # ------------------------------------------------------------------ mouse e teclado
     @_tolerante
     def _pressionar(self, ev):
@@ -198,6 +384,7 @@ class FaixaHorizontal:
             return
         self.canvas.focus_set()
         self._cancelar_animacao()
+        self._esconder_dica()
         self._arraste = {"x0": ev.x_root, "d0": self.deslocamento, "t": _agora(), "x": ev.x_root, "v": 0.0,
                          "mexeu": False}
         if not self.cabe_sem_rolar():
@@ -254,23 +441,34 @@ class FaixaHorizontal:
     def _ao_destruir(self, _ev=None):
         self._morto = True
         self._cancelar_animacao()
+        self._cancelar_entrada()
         if self._job_ajuste:
             self._cancelar(self._job_ajuste)
             self._job_ajuste = None
 
 
 class PainelGraficos:
-    """Monta as seções dos grupos dentro de `pai` e guarda as imagens para o Tk não as apagar."""
+    """Monta as seções dos grupos dentro de `pai`. Cada gráfico do grupo é um dicionário (desenhado na tela, com
+    animação) ou bytes PNG (imagem, como antes): o conteúdo decide o tipo da carta."""
 
-    def __init__(self, pai, grupos, disposicao=gl.DISPOSICAO_LADO_A_LADO):
+    def __init__(self, pai, grupos, disposicao=gl.DISPOSICAO_LADO_A_LADO, fontes=None):
         self.pai = pai
         self.disposicao = gl.disposicao_valida(disposicao)
-        self.imagens = []        # uma por gráfico: PIL.Image (lado a lado) ou CTkImage (de cima para baixo)
+        self.imagens = []        # uma por gráfico em imagem: PIL.Image (lado a lado) ou CTkImage (de cima para baixo)
         self.faixas = []         # FaixaHorizontal, na disposição lado a lado
+        self.faixas_empilhadas = []   # um gráfico por faixa, na disposição de cima para baixo (estilo animado)
         self.controles = []      # setas e pontos de cada faixa (mesma ordem de `faixas`)
         self.escala = escala_da_tela(pai)
+        self._fontes = fontes
         for grupo in grupos:
             self._criar_secao(grupo)
+
+    @property
+    def fontes(self):
+        """Fontes dos gráficos animados, criadas só quando há algum (e repartidas entre todas as faixas)."""
+        if self._fontes is None:
+            self._fontes = Fontes(self.pai)
+        return self._fontes
 
     # ------------------------------------------------------------------ seções
     def _criar_secao(self, grupo):
@@ -295,20 +493,33 @@ class PainelGraficos:
         else:
             self._empilhar(quadro, itens)
 
+    def _carta(self, conteudo):
+        if isinstance(conteudo, dict):
+            return CardNativo(conteudo)
+        imagem = abrir_png(conteudo)
+        self.imagens.append(imagem)
+        return CardImagem(imagem)
+
     def _faixa(self, quadro, cabecalho, itens):
-        imagens = [abrir_png(png) for _, _, png in itens]
-        self.imagens.extend(imagens)
+        cartas = [self._carta(conteudo) for _, _, conteudo in itens]
         controles = _Controles(cabecalho)
-        faixa = FaixaHorizontal(quadro, imagens, FUNDO_SECAO, self.escala, controles.mostrar_posicao,
-                                lambda f: controles.configurar(f))
+        fontes = self.fontes if any(c.animado for c in cartas) else None
+        faixa = FaixaHorizontal(quadro, cartas, FUNDO_SECAO, self.escala, controles.mostrar_posicao,
+                                lambda f: controles.configurar(f), fontes=fontes)
         controles.ligar(faixa)
         faixa.canvas.pack(fill="x", padx=12, pady=(2, 12))
         self.faixas.append(faixa)
         self.controles.append(controles)
 
     def _empilhar(self, quadro, itens):
-        for _, _, png in itens:
-            img = abrir_png(png)
+        for k, (_, _, conteudo) in enumerate(itens):
+            if isinstance(conteudo, dict):    # desenhado na tela: uma faixa de um gráfico só, no meio
+                faixa = FaixaHorizontal(quadro, [CardNativo(conteudo)], FUNDO_SECAO, self.escala, fontes=self.fontes,
+                                        atraso=k * gl.ATRASO_ENTRE_CARDS, centralizar=True)
+                faixa.canvas.pack(fill="x", padx=12, pady=6)
+                self.faixas_empilhadas.append(faixa)
+                continue
+            img = abrir_png(conteudo)
             largura = min(img.width, gl.LARGURA_MAX_CARD)
             ci = ctk.CTkImage(light_image=img, dark_image=img, size=(largura, int(img.height * largura / img.width)))
             self.imagens.append(ci)
@@ -316,7 +527,7 @@ class PainelGraficos:
 
     def ajustar_todas(self, largura_px):
         """Desenha todas as faixas para essa largura (usado nos testes; no programa o Tk avisa o tamanho)."""
-        for faixa in self.faixas:
+        for faixa in self.faixas + self.faixas_empilhadas:
             faixa.ajustar(largura_px)
 
 

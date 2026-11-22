@@ -185,24 +185,97 @@ class Tree(W):
 
 
 class Canvas(W):
-    """tk.Canvas falso: guarda as imagens desenhadas e a posição da rolagem horizontal."""
+    """tk.Canvas falso: guarda as imagens e as formas desenhadas e a posição da rolagem horizontal."""
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.itens, self.rolagem = [], 0.0
+        self.formas, self._n = {}, 0          # número do item -> {"t": tipo, "c": coordenadas, ...opções}
+
+    def _nova(self, tipo, coords, kw):
+        self._n += 1
+        self.formas[self._n] = {"t": tipo, "c": tuple(coords), **kw}
+        return self._n
 
     def create_image(self, x, y, **kw):
         self.itens.append((x, y, kw.get("image")))
         return len(self.itens)
 
+    def create_rectangle(self, *c, **kw):
+        return self._nova("ret", c, kw)
+
+    def create_polygon(self, *c, **kw):
+        return self._nova("poli", c, kw)
+
+    def create_line(self, *c, **kw):
+        return self._nova("linha", c, kw)
+
+    def create_text(self, *c, **kw):
+        return self._nova("texto", c, kw)
+
+    def create_oval(self, *c, **kw):
+        return self._nova("oval", c, kw)
+
+    def create_arc(self, *c, **kw):
+        return self._nova("arco", c, kw)
+
+    def coords(self, item, *c):
+        self.formas[item]["c"] = tuple(c)
+
+    def itemconfigure(self, item, **kw):
+        self.formas[item].update(kw)
+
+    def itemcget(self, item, chave):
+        return self.formas[item].get(chave, "normal" if chave == "state" else "")
+
     def delete(self, *a):
-        self.itens = []
+        if a and a[0] != "all":
+            for item in a:
+                self.formas.pop(item, None)
+            return
+        self.itens, self.formas = [], {}
+
+    def bbox(self, item):
+        c = self.formas[item]["c"]
+        return min(c[0::2]), min(c[1::2]), max(c[0::2]), max(c[1::2])
+
+    def find_overlapping(self, x0, y0, x1, y1):
+        achados = []
+        for item, f in self.formas.items():
+            a, b, c, d = self.bbox(item)
+            if a <= x1 and c >= x0 and b <= y1 and d >= y0:
+                achados.append(item)
+        return tuple(achados)
+
+    def tag_raise(self, item):
+        pass
+
+    def canvasx(self, x):
+        return x
+
+    canvasy = canvasx
+
+    def winfo_height(self):
+        return 400
 
     def xview_moveto(self, fracao):
         self.rolagem = fracao
 
     def after_cancel(self, i):
         pass
+
+
+class Fonte:
+    """tkinter.font.Font falso: cada letra mede 0,55 do tamanho."""
+
+    def __init__(self, root=None, family="Fonte Falsa", size=12, weight="normal"):
+        self.family, self.size, self.weight = family, size, weight
+
+    def measure(self, texto):
+        return len(texto) * abs(self.size) * 0.55
+
+    def actual(self, opcao=None):
+        return self.family if opcao == "family" else {"family": self.family}
 
 
 class IntVar:
@@ -256,12 +329,16 @@ def instalar_falsos():
     ttk.Treeview, ttk.Scrollbar = Tree, W
     ttk.Style = type("Style", (), {"configure": lambda s, *a, **k: None, "map": lambda s, *a, **k: None,
                                    "theme_use": lambda s, *a: None})
+    fonte = types.ModuleType("tkinter.font")
+    fonte.Font = Fonte
+    fonte.nametofont = lambda nome, root=None: Fonte(root=root, family="Fonte Falsa", size=-12)
+    tk.font = fonte
     mb = Caixas()
     fd = types.SimpleNamespace(asksaveasfilename=lambda **kw: fd.destino, askdirectory=lambda **kw: fd.pasta,
                                destino="", pasta="")
     tk.ttk, tk.messagebox, tk.filedialog = ttk, mb, fd
     sys.modules.update({"customtkinter": ctk, "tkinter": tk, "tkinter.ttk": ttk, "tkinter.messagebox": mb,
-                        "tkinter.filedialog": fd})
+                        "tkinter.filedialog": fd, "tkinter.font": fonte})
     return mb, fd
 
 
@@ -520,17 +597,24 @@ class TestInterface(unittest.TestCase):
         self.assertEqual(mapa_ui.DialogConfig(self.ui).cb_graf.get(),
                          mapa_ui.gl.ROTULOS_DISPOSICAO[mapa_ui.gl.DISPOSICAO_VERTICAL])   # reabre já com o valor salvo
 
+    def _cartas(self):
+        """(desenhadas na tela, em imagem) de todas as faixas da tela de gráficos aberta."""
+        painel = self.ui._painel
+        cartas = [c for f in painel.faixas + painel.faixas_empilhadas for c in f.cards]
+        return [c for c in cartas if c.animado], [c for c in cartas if not c.animado]
+
     def test_graficos(self):
         from test_mapa import popular_mes
         popular_mes(self.db, n_leitos=6)
         self.ui.mostrar_graficos()
-        self.assertEqual(len(self.ui._imagens), 8)
+        nativas, imagens = self._cartas()
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (8, 0, 0))   # padrão: desenhados na tela
         self.assertEqual(self.ui.cb_mes.get(), "Outubro")
         self.ui.cb_mes.set("Fevereiro")
         self.ui._gerar_graficos()  # mês sem dados: gráficos vazios, sem erro
-        self.assertEqual(len(self.ui._imagens), 8)
+        self.assertEqual(len(self._cartas()[0]), 8)
         FD.pasta = tempfile.mkdtemp()
-        self.ui._salvar_graficos()
+        self.ui._salvar_graficos()   # exportar as imagens PNG continua igual (o matplotlib só entra aqui)
         self.assertEqual(len(os.listdir(FD.pasta)), 8)
 
     def test_graficos_agrupados_lado_a_lado_e_de_cima_para_baixo(self):
@@ -543,16 +627,18 @@ class TestInterface(unittest.TestCase):
         self.assertEqual([g["id"] for g in self.ui._grupos], ["atendimentos", "dieta", "suplementos", "cronicas"])
         self.assertEqual(len(self.ui._painel.faixas), 4)
         self.assertEqual(len(self.ui.quadro_graf.winfo_children()), 4)
-        # trocar nas Configurações redesenha a tela aberta SEM gerar os gráficos de novo (a parte demorada)
+        # trocar nas Configurações redesenha a tela aberta SEM refazer as contas dos dados
         dc = mapa_ui.DialogConfig(self.ui)
         dc.cb_graf.set(mapa_ui.gl.ROTULOS_DISPOSICAO[mapa_ui.gl.DISPOSICAO_VERTICAL])
-        with mock.patch.object(self.ui._mgr, "gerar_por_grupo", wraps=self.ui._mgr.gerar_por_grupo) as gerar:
+        with mock.patch.object(self.ui._mgr, "especificar_por_grupo") as espec, \
+                mock.patch.object(self.ui._mgr, "gerar_por_grupo") as gerar:
             dc._salvar()
+            espec.assert_not_called()
             gerar.assert_not_called()
         self.assertEqual(self.ui._painel.disposicao, mapa_ui.gl.DISPOSICAO_VERTICAL)
         self.assertEqual(self.ui._painel.faixas, [])
+        self.assertEqual(len(self.ui._painel.faixas_empilhadas), 8)        # um gráfico por faixa, de cima para baixo
         self.assertEqual(len(self.ui.quadro_graf.winfo_children()), 4)    # continua agrupado: uma seção por grupo
-        self.assertEqual(len(self.ui._imagens), 8)
         # a escolha vale também na próxima vez que a tela de gráficos é aberta
         self.ui.mostrar_graficos()
         self.assertEqual(self.ui._painel.disposicao, mapa_ui.gl.DISPOSICAO_VERTICAL)
@@ -561,6 +647,88 @@ class TestInterface(unittest.TestCase):
         dc.cb_graf.set(mapa_ui.gl.ROTULOS_DISPOSICAO[mapa_ui.gl.DISPOSICAO_LADO_A_LADO])
         dc._salvar()
         self.assertEqual(len(self.ui._painel.faixas), 4)
+
+    def test_estilo_dos_graficos_animado_ou_imagem_simples(self):
+        from unittest import mock
+        from test_mapa import popular_mes
+        gl = mapa_ui.gl
+        popular_mes(self.db, n_leitos=6)
+        self.ui.mostrar_graficos()
+        self.assertEqual(self.ui.estilo_graficos, gl.ESTILO_ANIMADO)
+        dc = mapa_ui.DialogConfig(self.ui)
+        self.assertEqual(dc.cb_estilo.get(), gl.ROTULOS_ESTILO[gl.ESTILO_ANIMADO])
+        # imagens simples: os PNG são feitos uma vez, sem refazer as contas dos dados
+        dc.cb_estilo.set(gl.ROTULOS_ESTILO[gl.ESTILO_IMAGEM])
+        with mock.patch.object(self.ui._mgr, "especificar_por_grupo") as espec, \
+                mock.patch.object(self.ui._mgr, "renderizar_grupos", wraps=self.ui._mgr.renderizar_grupos) as render:
+            dc._salvar()
+            espec.assert_not_called()
+            render.assert_called_once()
+        nativas, imagens = self._cartas()
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (0, 8, 8))
+        self.assertEqual(self.ui.estilo_graficos, gl.ESTILO_IMAGEM)
+        # mudar só a disposição não desenha os PNG de novo (ficam guardados)
+        dc = mapa_ui.DialogConfig(self.ui)
+        self.assertEqual(dc.cb_estilo.get(), gl.ROTULOS_ESTILO[gl.ESTILO_IMAGEM])   # reabre com o valor salvo
+        dc.cb_graf.set(gl.ROTULOS_DISPOSICAO[gl.DISPOSICAO_VERTICAL])
+        with mock.patch.object(self.ui._mgr, "renderizar_grupos") as render:
+            dc._salvar()
+            render.assert_not_called()
+        self.assertEqual((self.ui._painel.faixas, self.ui._painel.faixas_empilhadas, len(self.ui._imagens)), ([], [], 8))
+        # novo mês: as imagens antigas são descartadas, as novas valem para o mês novo
+        antigos = self.ui._grupos_png
+        self.ui.cb_mes.set("Fevereiro")
+        self.ui._gerar_graficos()
+        self.assertIsNot(self.ui._grupos_png, antigos)
+        self.assertEqual(len(self.ui._imagens), 8)
+        # volta para animado
+        dc = mapa_ui.DialogConfig(self.ui)
+        dc.cb_estilo.set(gl.ROTULOS_ESTILO[gl.ESTILO_ANIMADO])
+        dc._salvar()
+        nativas, imagens = self._cartas()
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (8, 0, 0))
+        # valor desconhecido na configuração volta para o padrão
+        mapa_ui.mdb.salvar_config(self.db, gl.CHAVE_ESTILO, "qualquer coisa")
+        self.assertEqual(self.ui.estilo_graficos, gl.ESTILO_ANIMADO)
+
+    def test_estilo_imagem_sem_matplotlib_mostra_o_animado_e_avisa(self):
+        from unittest import mock
+        from test_mapa import popular_mes
+        gl = mapa_ui.gl
+        popular_mes(self.db, n_leitos=6)
+        self.ui.mostrar_graficos()
+        dc = mapa_ui.DialogConfig(self.ui)
+        dc.cb_estilo.set(gl.ROTULOS_ESTILO[gl.ESTILO_IMAGEM])
+        with mock.patch.object(self.ui._mgr, "renderizar_grupos", side_effect=ImportError("No module named matplotlib")):
+            dc._salvar()
+        avisos = [c for c in MB.chamadas if c[0] == "showwarning"]
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("pip install matplotlib", avisos[0][2])
+        nativas, imagens = self._cartas()
+        self.assertEqual((len(nativas), len(imagens)), (8, 0))     # a tela não fica em branco
+
+    def test_exportar_imagens_sem_matplotlib_avisa_em_vez_de_quebrar(self):
+        from unittest import mock
+        from test_mapa import popular_mes
+        popular_mes(self.db, n_leitos=6)
+        self.ui.mostrar_graficos()
+        FD.pasta = tempfile.mkdtemp()
+        with mock.patch.object(self.ui._mgr, "salvar_graficos", side_effect=ImportError("No module named matplotlib")):
+            self.ui._salvar_graficos()
+        self.assertEqual([c[0] for c in MB.chamadas if c[0] == "showerror"], ["showerror"])
+
+    def test_graficos_animados_tem_forma_desenhada_no_canvas(self):
+        from test_mapa import popular_mes
+        popular_mes(self.db, n_leitos=6)
+        self.ui.mostrar_graficos()
+        painel = self.ui._painel
+        painel.ajustar_todas(1300)
+        faixa = painel.faixas[0]
+        textos = [f["text"] for f in faixa.canvas.formas.values() if f["t"] == "texto"]
+        self.assertIn("Pacientes atendidos por dia", textos)       # o título do primeiro gráfico do grupo
+        self.assertTrue(any(f["t"] == "poli" for f in faixa.canvas.formas.values()))   # moldura e barras
+        self.assertEqual(faixa.canvas.itens, [])                    # nenhuma imagem: tudo desenhado
+        self.assertTrue(faixa.dicas)                                # o balão tem o que mostrar
 
     def test_salvar_configuracoes_sem_a_tela_de_graficos_aberta_nao_da_erro(self):
         self.ui.mostrar_mapa()

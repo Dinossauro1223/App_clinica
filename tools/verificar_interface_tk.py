@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Verificação da interface com Tk de VERDADE: atalhos de edição e gráficos agrupados.
+"""Verificação da interface com Tk de VERDADE: atalhos de edição e gráficos agrupados (animados e em imagem).
 
 Os testes automáticos usam widgets falsos: são rápidos e não abrem janela, mas não provam como o Tk real se
 comporta (eventos, rolagem do Canvas, imagens, botões do CustomTkinter). Este script abre uma janela de verdade,
@@ -34,6 +34,7 @@ class Relatorio:
         self.puladas = 0
 
     def checar(self, nome, funcao, *args):
+        inicio = time.monotonic()
         try:
             funcao(*args)
         except Pulou as p:
@@ -48,7 +49,7 @@ class Relatorio:
             print(f"[FALHA] {nome}: {resumo}", flush=True)
         else:
             self.ok += 1
-            print(f"[OK] {nome}", flush=True)
+            print(f"[OK] {nome} ({time.monotonic() - inicio:.1f} s)", flush=True)
 
 
 def bombear(raiz, segundos=0.3):
@@ -83,8 +84,15 @@ def registros_sinteticos():
 
 
 def grupos_sinteticos():
+    """Os gráficos do mês em PNG (estilo "imagens simples")."""
     import mapa_graficos as mgr
     return mgr.gerar_por_grupo(mgr.agregar_mes(registros_sinteticos(), 2026, 10))
+
+
+def especificacoes_sinteticas():
+    """Os mesmos gráficos como especificações (estilo animado, desenhado na tela)."""
+    import mapa_graficos as mgr
+    return mgr.especificar_por_grupo(mgr.agregar_mes(registros_sinteticos(), 2026, 10))
 
 
 # --------------------------------------------------------------------------------------------- gráficos agrupados
@@ -94,16 +102,19 @@ class Graficos:
         import graficos_ui
         self.raiz, self.ctk, self.erros, self.gl, self.ui = raiz, ctk, erros, gl, graficos_ui
         self.grupos = grupos_sinteticos()
+        self.especs = especificacoes_sinteticas()
         self.quadro = self.painel = None
 
-    def montar(self, disposicao):
+    def montar(self, disposicao, estilo="animado", espera=0.9):
+        """Monta a tela de gráficos. `espera`: quanto o Tk processa eventos antes de devolver (0 = já no 1º quadro)."""
         if self.quadro is not None:
             self.quadro.destroy()
             bombear(self.raiz, 0.3)
         self.quadro = self.ctk.CTkScrollableFrame(self.raiz, fg_color="white")
         self.quadro.pack(fill="both", expand=True)
-        self.painel = self.ui.PainelGraficos(self.quadro, self.grupos, disposicao)
-        bombear(self.raiz, 0.9)
+        grupos = self.especs if estilo == "animado" else self.grupos
+        self.painel = self.ui.PainelGraficos(self.quadro, grupos, disposicao)
+        bombear(self.raiz, espera)
         return self.painel
 
     def faixa_com_rolagem(self):
@@ -138,7 +149,28 @@ class Graficos:
 
     # ------------------------------------------------------------------ verificações
     def desenho_inicial(self):
-        p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO)
+        """Estilo animado (o padrão): os gráficos são desenhados direto no canvas, sem imagens."""
+        p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado")
+        assert len(p.faixas) == 4, f"{len(p.faixas)} faixas, esperadas 4 (um por grupo)"
+        assert p.imagens == [], "no estilo animado não há imagens"
+        for faixa in p.faixas:
+            assert faixa.carrossel is not None, "a faixa não recebeu o tamanho (evento Configure)"
+            assert faixa.canvas.winfo_width() > 300, f"largura da faixa {faixa.canvas.winfo_width()}"
+            assert all(type(c).__name__ == "CardNativo" for c in faixa.cards), "os gráficos deveriam ser nativos"
+            formas = len(faixa.canvas.find_all())
+            assert formas > 25 * len(faixa.cards), f"só {formas} formas desenhadas para {len(faixa.cards)} gráficos"
+            assert faixa.fotos == [], "não deveria haver foto no estilo animado"
+            alturas = {c.altura for c in faixa.cards}
+            assert len(alturas) == 1, f"gráficos do grupo com alturas diferentes: {alturas}"
+            assert faixa.canvas.winfo_height() >= max(alturas) - 1, "faixa mais baixa que os gráficos"
+            assert faixa.dicas, "nenhum balão registrado"
+        visiveis = [c.visivel for c in p.controles]
+        assert visiveis[0] and visiveis[1], f"setas deveriam aparecer nos grupos com 3 e 2 gráficos: {visiveis}"
+        assert not visiveis[3], "o grupo com um gráfico só não deveria ter setas"
+
+    def desenho_inicial_imagem(self):
+        """Estilo "imagens simples": os PNG do matplotlib, como antes."""
+        p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "imagem")
         assert len(p.faixas) == 4, f"{len(p.faixas)} faixas, esperadas 4 (um por grupo)"
         assert len(p.imagens) == 8, f"{len(p.imagens)} imagens, esperadas 8"
         for faixa in p.faixas:
@@ -151,6 +183,139 @@ class Graficos:
         visiveis = [c.visivel for c in p.controles]
         assert visiveis[0] and visiveis[1], f"setas deveriam aparecer nos grupos com 3 e 2 gráficos: {visiveis}"
         assert not visiveis[3], "o grupo com um gráfico só não deveria ter setas"
+
+    # ------------------------------------------------------------------ gráficos animados
+    def entrada_anima_ate_o_fim(self):
+        p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.0)
+        primeira = p.faixas[0].cards[0]
+        amostras = []
+        fim = time.monotonic() + 4.0
+        while time.monotonic() < fim and not primeira.pronto:
+            bombear(self.raiz, 0.07)
+            amostras.append(round(primeira.p, 3))
+        assert primeira.pronto, f"a entrada do primeiro gráfico não terminou: {amostras}"
+        assert amostras == sorted(amostras), f"o progresso voltou atrás: {amostras}"
+        assert len([a for a in amostras if 0 < a < 1]) >= 2, f"nenhum quadro intermediário visto: {amostras}"
+        bombear(self.raiz, 1.0)
+        for faixa in p.faixas:
+            for carta in faixa.cards:
+                if carta.inicio is None:     # fora da faixa: espera aparecer, sem gastar nada
+                    assert carta.p == 0.0, f"gráfico fora da tela animou: p={carta.p}"
+                else:
+                    assert carta.pronto, f"gráfico visível não terminou a entrada: p={carta.p}"
+            assert faixa._job_entrada is None, "o relógio da animação continuou depois de todos terminarem"
+
+    def entrada_do_grafico_que_aparece_depois(self):
+        p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado")
+        faixa, _ = self.faixa_com_rolagem()
+        ultima = faixa.cards[-1]
+        assert ultima.inicio is None and ultima.p == 0.0, "o último gráfico não deveria ter começado a animar"
+        faixa.ir_para(faixa.n_posicoes - 1)
+        bombear(self.raiz, 1.8)
+        assert ultima.inicio is not None, "o último gráfico não começou ao aparecer"
+        assert ultima.pronto, f"o último gráfico não terminou a entrada: p={ultima.p}"
+        faixa.ir_para(0)
+        bombear(self.raiz, 0.8)
+        assert p is self.painel and ultima.pronto, "voltar não deveria repetir a animação"
+
+    def balao_com_o_valor(self):
+        p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado")
+        bombear(self.raiz, 1.2)
+        faixa = p.faixas[0]
+        c = faixa.canvas
+        visiveis = [(i, t) for i, t in faixa.dicas.items() if c.itemcget(i, "state") != "hidden"]
+        assert visiveis, "depois da entrada deveria haver itens com balão visíveis"
+        alvo = None
+        for item, texto in visiveis:
+            x0, y0, x1, y1 = c.bbox(item)
+            wx, wy = (x0 + x1) / 2 - c.canvasx(0), (y0 + y1) / 2 - c.canvasy(0)
+            if 20 < wx < c.winfo_width() - 20 and 5 < wy < c.winfo_height() - 5:
+                alvo = (item, texto, wx, wy)
+                break
+        assert alvo, "nenhum item com balão dentro da parte visível"
+        item, texto, wx, wy = alvo
+        c.event_generate("<Motion>", x=int(wx), y=int(wy))
+        bombear(self.raiz, 0.05)
+        assert faixa._dica is not None, "o balão não foi criado ao passar o mouse"
+        fundo, rotulo = faixa._dica
+        assert c.itemcget(rotulo, "state") == "normal", "o balão não ficou visível"
+        achado = c.itemcget(rotulo, "text")
+        assert achado, "balão sem texto"
+        # o texto é o do item sob o ponteiro (vários itens podem se sobrepor: confere que é um dos candidatos)
+        candidatos = {faixa.dicas[i] for i in c.find_overlapping(wx - 6, wy - 6, wx + 6, wy + 6) if i in faixa.dicas}
+        assert achado in candidatos, f"balão {achado!r} não é de nenhum item sob o ponteiro ({candidatos})"
+        bx0, by0, bx1, by1 = c.bbox(fundo)
+        assert bx0 >= c.canvasx(0) - 1 and bx1 <= c.canvasx(c.winfo_width()) + 1, "balão saiu pela lateral"
+        c.event_generate("<Leave>")
+        bombear(self.raiz, 0.05)
+        assert c.itemcget(rotulo, "state") == "hidden", "o balão não sumiu ao sair do gráfico"
+
+    def textos_cabem_nos_cartoes_com_a_fonte_real(self):
+        p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado")
+        bombear(self.raiz, 1.5)
+        for faixa in p.faixas:
+            c = faixa.canvas
+            for carta in faixa.cards:
+                dentro = 0
+                for item in c.find_all():
+                    if c.type(item) != "text" or c.itemcget(item, "state") == "hidden":
+                        continue
+                    x0, y0, x1, y1 = c.bbox(item)
+                    if not (carta.x <= (x0 + x1) / 2 <= carta.x + carta.largura):
+                        continue
+                    dentro += 1
+                    assert x0 >= carta.x - 3 and x1 <= carta.x + carta.largura + 3, \
+                        f"texto {c.itemcget(item, 'text')!r} passa da borda do cartão ({x0:.0f}..{x1:.0f})"
+                    assert y1 <= carta.altura + 3, f"texto {c.itemcget(item, 'text')!r} abaixo do cartão"
+                assert dentro >= 3, f"só {dentro} textos no cartão"
+
+    def custo_dos_quadros(self):
+        """Mede (e mostra no relatório) quanto custa desenhar um quadro da animação neste computador."""
+        p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado")
+        bombear(self.raiz, 1.5)
+        cena, tela = [], []
+        for faixa in p.faixas:
+            for carta in faixa.cards:
+                for prog in (0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.0):
+                    carta.p = prog
+                    t0 = time.perf_counter()
+                    carta.desenhar()
+                    t1 = time.perf_counter()
+                    faixa.canvas.update()
+                    t2 = time.perf_counter()
+                    cena.append((t1 - t0) * 1000)
+                    tela.append((t2 - t0) * 1000)
+        media = lambda v: sum(v) / len(v)  # noqa: E731
+        print(f"[INFO] custo de um quadro da animação ({len(cena)} quadros): cena e formas "
+              f"média {media(cena):.2f} ms, máx {max(cena):.2f} ms; com redesenho da tela "
+              f"média {media(tela):.2f} ms, máx {max(tela):.2f} ms", flush=True)
+        assert max(tela) < 400, f"um quadro levou {max(tela):.0f} ms (limite de segurança 400 ms)"
+
+    def entrada_durante_o_redimensionamento(self):
+        p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.2)
+        self.raiz.geometry("900x700")
+        bombear(self.raiz, 2.0)
+        for faixa in p.faixas:
+            assert faixa.canvas.winfo_width() < 1000, "a faixa não encolheu"
+            assert faixa.carrossel.largura_card <= faixa.canvas.winfo_width(), "gráfico mais largo que a faixa"
+            for carta in faixa.cards:
+                assert carta.inicio is None or carta.pronto, f"entrada parada no meio depois de redimensionar: p={carta.p}"
+        self.raiz.geometry("1240x800")
+        bombear(self.raiz, 0.9)
+
+    def de_cima_para_baixo_animado(self):
+        p = self.montar(self.gl.DISPOSICAO_VERTICAL, "animado")
+        assert p.faixas == [], "no modo de cima para baixo não há faixas com setas"
+        assert len(p.faixas_empilhadas) == 8, f"{len(p.faixas_empilhadas)} gráficos empilhados, esperados 8"
+        for faixa in p.faixas_empilhadas:
+            assert faixa.carrossel is not None, "a faixa não recebeu o tamanho"
+            (carta,) = faixa.cards
+            largura = faixa.canvas.winfo_width()
+            assert carta.largura <= largura, "gráfico mais largo que a tela"
+            igual(carta.x, (largura - carta.largura) / 2, 1.5, "gráfico no meio da tela")
+            assert faixa.canvas.winfo_height() >= carta.altura - 1, "faixa mais baixa que o gráfico"
+        bombear(self.raiz, 1.8)
+        assert all(f.cards[0].pronto for f in p.faixas_empilhadas), "a entrada não terminou em todos os gráficos"
 
     def arraste_lento_volta_ao_encaixe(self):
         faixa, _ = self.faixa_com_rolagem()
@@ -231,8 +396,8 @@ class Graficos:
         self.raiz.geometry("1240x800")
         bombear(self.raiz, 0.9)
 
-    def de_cima_para_baixo(self):
-        p = self.montar(self.gl.DISPOSICAO_VERTICAL)
+    def de_cima_para_baixo_imagem(self):
+        p = self.montar(self.gl.DISPOSICAO_VERTICAL, "imagem")
         assert p.faixas == [], "no modo de cima para baixo não há faixas"
         assert len(p.imagens) == 8, f"{len(p.imagens)} imagens"
         assert all(type(i).__name__ == "CTkImage" for i in p.imagens), "as imagens deveriam ser CTkImage"
@@ -255,7 +420,7 @@ class Graficos:
             bombear(self.raiz, 0.4)
 
     def destruir_sem_erros(self):
-        self.montar(self.gl.DISPOSICAO_LADO_A_LADO)
+        self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.15)   # no meio da entrada
         faixa, _ = self.faixa_com_rolagem()
         faixa.proximo()                                           # animação em andamento ao destruir
         self.quadro.destroy()
@@ -391,7 +556,12 @@ def main():
         rel.checar(nome, f)
 
     g = Graficos(raiz, ctk, erros)
-    for nome, f in (("gráficos: desenho inicial por grupo", g.desenho_inicial),
+    for nome, f in (("gráficos animados: desenho inicial por grupo", g.desenho_inicial),
+                    ("gráficos animados: a entrada anima até o fim", g.entrada_anima_ate_o_fim),
+                    ("gráficos animados: entrada do gráfico que aparece depois", g.entrada_do_grafico_que_aparece_depois),
+                    ("gráficos animados: balão com o valor", g.balao_com_o_valor),
+                    ("gráficos animados: textos cabem nos cartões (fonte real)", g.textos_cabem_nos_cartoes_com_a_fonte_real),
+                    ("gráficos animados: custo de um quadro", g.custo_dos_quadros),
                     ("gráficos: arraste curto volta ao encaixe", g.arraste_lento_volta_ao_encaixe),
                     ("gráficos: arraste longo avança uma posição", g.arraste_lento_avanca),
                     ("gráficos: arremesso rápido vai para a próxima", g.arremesso_rapido),
@@ -399,9 +569,12 @@ def main():
                     ("gráficos: setas do teclado", g.setas_do_teclado),
                     ("gráficos: Shift + roda do mouse", g.shift_com_a_roda),
                     ("gráficos: janela menor redesenha", g.janela_menor_redesenha),
-                    ("gráficos: de cima para baixo", g.de_cima_para_baixo),
+                    ("gráficos animados: redimensionar durante a entrada", g.entrada_durante_o_redimensionamento),
+                    ("gráficos animados: de cima para baixo", g.de_cima_para_baixo_animado),
                     ("gráficos: escala de tela de 150%", g.escala_do_windows),
-                    ("gráficos: destruir durante a animação", g.destruir_sem_erros)):
+                    ("gráficos: destruir durante a animação", g.destruir_sem_erros),
+                    ("gráficos em imagem: desenho inicial por grupo", g.desenho_inicial_imagem),
+                    ("gráficos em imagem: de cima para baixo", g.de_cima_para_baixo_imagem)):
         rel.checar(nome, f)
 
     bombear(raiz, 0.3)
