@@ -21,6 +21,9 @@ a = Analysis(
     datas=[
         (CUSTOMTKINTER_PATH, 'customtkinter'),
         ('welcome_nutrilab.png', '.'),
+        (os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab_identidade.png'), '.'),
+        (os.path.join(SPECPATH, 'mobile', 'servidor.py'), 'mobile'),
+        (os.path.join(SPECPATH, 'mobile', 'static'), 'mobile/static'),
         (MODELO_BANCO, '.'),
         ('regras_exames_complementares.json', '.'),
         ('exames_internos', 'exames_internos'),
@@ -53,6 +56,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
+    icon=os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab.ico'),
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
