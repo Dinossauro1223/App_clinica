@@ -168,7 +168,7 @@ class ConfiguracoesUI:
                 resultado = db_service.restaurar_backup(arquivo, caminho_db)
             except Exception as erro:
                 messagebox.showerror("Falha na restauração",
-                                     f"O banco atual foi preservado.\\n\\nDetalhe: {erro}")
+                                     f"A restauração não foi concluída. Se houve falha na troca, use a cópia pre-restauração criada automaticamente.\n\nDetalhe: {erro}")
                 return
             messagebox.showinfo(
                 "Restauração concluída",

@@ -13,7 +13,7 @@ O serviço `db_service.py` já implementa backup SQLite consistente pela API nat
 2. Durante o uso, criar snapshots a cada 15 minutos. Isso protege inclusive contra desligamento forçado, queda de energia ou encerramento do processo que não acione o protocolo da janela.
 3. Ao fechar normalmente pela janela, criar e validar um snapshot final antes de destruir a interface. Se falhar, informar o erro e manter o aplicativo aberto para nova tentativa.
 4. Registrar tentativa best-effort via `atexit` para encerramentos normais do interpretador.
-5. Manter os arquivos em `backups/` ao lado do banco, com data e hora local no nome, sem versioná-los no Git. A restauração continua usando a tela/ferramenta de restauração já existente em `db_service`.
+5. Manter os arquivos em `backups/` ao lado do banco, com data e hora local no nome, sem versioná-los no Git. A tela Configurações lista os backups do mais recente para o mais antigo, mostra data/hora e permite escolher qual restaurar. A restauração usa `db_service.restaurar_backup`, que valida a cópia e cria um backup pre-restauração.
 
 ## Limitações e garantias
 
@@ -25,4 +25,4 @@ O serviço `db_service.py` já implementa backup SQLite consistente pela API nat
 
 ## Validação
 
-Testes unitários usam banco e agendador sintéticos. CI Windows/Linux deve confirmar compatibilidade. Testes de desligamento real e restauração em instalação PyInstaller permanecem validação operacional.
+Testes unitários do agendador usam rotinas simuladas; `tests/test_db_service.py` cobre criação, integridade e restauração com bancos SQLite sintéticos. CI Windows/Linux deve confirmar compatibilidade. Testes de desligamento real, interação visual da tela de restauração e restauração em instalação PyInstaller permanecem validação operacional.
