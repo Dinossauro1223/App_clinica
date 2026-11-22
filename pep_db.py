@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Persistência do PEP nutricional. Requer migração v4 de db_migracoes.
+"""Persistência do PEP nutricional. Requer migração v5 de db_migracoes.
 
 As evoluções são append-only: correções devem ser registradas como adendos.
 Pacientes são vinculados pelo ID do banco clínico, não por nome normalizado.
@@ -69,14 +69,14 @@ def definir_senha_hospital(db_path, senha):
         raise ValueError("A senha institucional deve ter pelo menos 8 caracteres.")
     salt = secrets.token_hex(_TAMANHO_SALT)
     registro = json.dumps({"salt": salt, "hash": _hash_senha(senha, salt)})
-    with _conectar(db_path) as conn:
+    with closing(_conectar(db_path)) as conn:
         _exigir_schema(conn)
         _salvar_config(conn, _CHAVE_HOSPITAL, registro)
         conn.commit()
 
 
 def entrar_hospital(db_path, senha):
-    with _conectar(db_path) as conn:
+    with closing(_conectar(db_path)) as conn:
         _exigir_schema(conn)
         registro = _config(conn, _CHAVE_HOSPITAL)
     if not registro:
@@ -99,7 +99,7 @@ def criar_usuario(db_path, login, nome_completo, crn, senha, assinatura=None):
         raise ValueError("Assinatura deve ser um arquivo de imagem de até 2 MB.")
     salt = secrets.token_hex(_TAMANHO_SALT)
     digest = _hash_senha(senha, salt)
-    with _conectar(db_path) as conn:
+    with closing(_conectar(db_path)) as conn:
         _exigir_schema(conn)
         cur = conn.execute("INSERT INTO Pep_Usuarios (login, nome_completo, crn, salt, senha_hash, assinatura, criado_em) "
                          "VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -109,7 +109,7 @@ def criar_usuario(db_path, login, nome_completo, crn, senha, assinatura=None):
 
 
 def autenticar(db_path, id_usuario, senha):
-    with _conectar(db_path) as conn:
+    with closing(_conectar(db_path)) as conn:
         _exigir_schema(conn)
         row = conn.execute("SELECT id_usuario, login, nome_completo, crn, salt, senha_hash, ativo "
                          "FROM Pep_Usuarios WHERE id_usuario=?", (int(id_usuario),)).fetchone()
@@ -121,7 +121,7 @@ def autenticar(db_path, id_usuario, senha):
 
 
 def listar_usuarios(db_path, ativos=True):
-    with _conectar(db_path) as conn:
+    with closing(_conectar(db_path)) as conn:
         _exigir_schema(conn)
         sql = "SELECT id_usuario, login, nome_completo, crn, ativo FROM Pep_Usuarios"
         if ativos:
@@ -132,7 +132,7 @@ def listar_usuarios(db_path, ativos=True):
 
 
 def desativar_usuario(db_path, id_usuario):
-    with _conectar(db_path) as conn:
+    with closing(_conectar(db_path)) as conn:
         _exigir_schema(conn)
         conn.execute("UPDATE Pep_Usuarios SET ativo=0 WHERE id_usuario=?", (int(id_usuario),))
         conn.commit()
@@ -152,7 +152,7 @@ def salvar_evolucao(db_path, id_paciente, paciente_nome, data_evolucao, cabecalh
     if not isinstance(cabecalho, dict):
         raise ValueError("Cabeçalho da evolução deve ser um dicionário.")
     json_cabecalho = json.dumps(cabecalho, ensure_ascii=False, sort_keys=True)
-    with _conectar(db_path) as conn:
+    with closing(_conectar(db_path)) as conn:
         _exigir_schema(conn)
         paciente = conn.execute("SELECT id_paciente FROM Pacientes WHERE id_paciente=?", (id_paciente,)).fetchone()
         if not paciente:
@@ -180,7 +180,7 @@ def _evolucao(row):
 
 
 def listar_evolucoes(db_path, id_paciente):
-    with _conectar(db_path) as conn:
+    with closing(_conectar(db_path)) as conn:
         _exigir_schema(conn)
         rows = conn.execute("SELECT id_evolucao, id_paciente, paciente_nome, data_evolucao, cabecalho_json, texto, id_usuario, "
                            "assinante_nome, assinante_crn, criada_em, adendo_de FROM Pep_Evolucoes "
