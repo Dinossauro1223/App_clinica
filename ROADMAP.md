@@ -470,6 +470,9 @@ Entrega parcial da Fase 4, pedida em 14/11/2026: **condutas de alta na consulta*
 
 # Fase 6 — Estoque e controle do Serviço de Nutrição
 
+> **Entrega desktop em integração:** cadastro de itens e unidades, histórico de preços, livro de movimentos com estorno, saldo calculado, custos realizados por refeição/dia/mês e programação manual com snapshot de quantidade e preço. A migração é a v5, posterior à anamnese ambulatorial (v4). Não há importação presumida de preços ou fichas técnicas.
+
+
 **Objetivo:** digitalizar o controle operacional de gêneros e insumos conforme a planilha mensal do setor.
 
 **Agentes:** `supplement-stock-engineer` (líder), `database-backend-engineer`, `legacy-workbook-analyst`, `qa-security-reviewer`.
