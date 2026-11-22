@@ -55,7 +55,7 @@ def novo_banco():
     fd, caminho = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     mdb.inicializar(caminho)                                   # Pacientes e Mapa_*
-    db_migracoes.aplicar_migracoes(caminho, backup=False)      # baseline adotada + v2 (condutas de alta)
+    db_migracoes.aplicar_migracoes(caminho, backup=False, alvo=3)      # baseline + migracoes 2-3 do modulo de alta
     return caminho
 
 
