@@ -18,7 +18,7 @@ GITIGNORE_COMPLETO = "\n".join([
     "/arquivos_pacientes/", "**/arquivos_pacientes/", "/backups/",
     ".env", ".env.*", "!.env.example", "*.pem", "*.key", "*.p12", "*.pfx",
     "/CONTROLE DE REFEIÇÕES*.xlsx", "/CONTROLE DE FICHAS*.xlsx", "/Controle da Nutrição*.xlsx",
-    "/Mapa_externo*.xlsx", "/Evolucao_nutricional_pacientes*.pdf",
+    "/Mapa_externo*.xlsx", "/Evolucao_nutricional_pacientes*.pdf", "/logs/",
 ]) + "\n"
 
 CPF_VALIDO_DIGITOS = "12345678909"    # exemplo clássico de CPF com dígitos verificadores corretos
