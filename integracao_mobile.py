@@ -112,6 +112,23 @@ def ler_mobile(mobile_db, data_iso):
         c.close()
 
 
+def ler_produtos_almox(mobile_db):
+    """Lê produtos, preço/embalagem e o saldo mais recente do Almoxarifado, sem misturar outros estoques."""
+    sv, c = _abrir_mobile(mobile_db)
+    try:
+        with sv.LOCK:
+            rows = c.execute("""SELECT i.id AS id_item,i.nome,i.unidade,i.preco_unitario,
+                    i.embalagem_qtd,i.embalagem_un,e.qtd,e.data AS data_base
+                FROM itens i
+                LEFT JOIN estoque_dia e ON e.id_item=i.id AND e.estoque='almox'
+                  AND e.data=(SELECT MAX(e2.data) FROM estoque_dia e2
+                              WHERE e2.id_item=i.id AND e2.estoque='almox')
+                ORDER BY i.nome COLLATE NOCASE""").fetchall()
+            return [dict(row) for row in rows]
+    finally:
+        c.close()
+
+
 # ------------------------------------------------- mapeamento mobile <-> desktop
 def dieta_para_desktop(txt):
     """'Pastosa' -> {'consistencia': 'Pastosa'}; 'Enteral' -> {'via': 'Enteral'}; o resto não tem campo no desktop."""
