@@ -70,9 +70,64 @@ class Migracao:
         return hashlib.sha256(bruto.encode("utf-8")).hexdigest()
 
 
+# --- v2: Almoxarifado, movimentos com valor histórico e programação por refeição ----------------
+_ALMOX_UP = (
+"""CREATE TABLE IF NOT EXISTS Almox_Itens (
+ id_item INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, unidade TEXT NOT NULL,
+ categoria TEXT NOT NULL DEFAULT 'Gêneros alimentícios', valor_unitario REAL, estoque_minimo REAL,
+ ativo INTEGER NOT NULL DEFAULT 1, observacao TEXT, criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL,
+ UNIQUE(nome COLLATE NOCASE, unidade COLLATE NOCASE))""",
+"""CREATE TABLE IF NOT EXISTS Almox_Historico_Preco (
+ id_preco INTEGER PRIMARY KEY AUTOINCREMENT, id_item INTEGER NOT NULL, valor_unitario REAL NOT NULL,
+ origem TEXT NOT NULL, fonte TEXT, registrado_em TEXT NOT NULL)""",
+"CREATE INDEX IF NOT EXISTS ix_almox_preco_item ON Almox_Historico_Preco(id_item, registrado_em)",
+"""CREATE TABLE IF NOT EXISTS Almox_Movimentos (
+ id_movimento INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, hora TEXT NOT NULL, id_item INTEGER NOT NULL,
+ operacao TEXT NOT NULL CHECK(operacao IN ('entrada','saida')),
+ motivo TEXT NOT NULL CHECK(motivo IN ('compra','consumo','perda','ajuste','estorno')),
+ quantidade REAL NOT NULL CHECK(quantidade > 0), valor_unitario REAL NOT NULL CHECK(valor_unitario >= 0),
+ valor_total REAL NOT NULL CHECK(valor_total >= 0), refeicao TEXT, observacao TEXT, usuario TEXT,
+ origem TEXT NOT NULL DEFAULT 'manual', id_programacao INTEGER, id_linha_programacao INTEGER,
+ id_estorno_de INTEGER UNIQUE, criado_em TEXT NOT NULL, UNIQUE(id_linha_programacao))""",
+"CREATE INDEX IF NOT EXISTS ix_almox_mov_data ON Almox_Movimentos(data, motivo, refeicao)",
+"CREATE INDEX IF NOT EXISTS ix_almox_mov_item ON Almox_Movimentos(id_item, data)",
+"""CREATE TABLE IF NOT EXISTS Almox_Programacoes (
+ id_programacao INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, refeicao TEXT NOT NULL,
+ porcoes REAL NOT NULL CHECK(porcoes > 0), status TEXT NOT NULL DEFAULT 'rascunho',
+ observacao TEXT, criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL)""",
+"CREATE INDEX IF NOT EXISTS ix_almox_prog_data ON Almox_Programacoes(data, refeicao, status)",
+"""CREATE TABLE IF NOT EXISTS Almox_Programacao_Itens (
+ id_linha INTEGER PRIMARY KEY AUTOINCREMENT, id_programacao INTEGER NOT NULL, id_item INTEGER NOT NULL,
+ quantidade_por_porcao REAL NOT NULL CHECK(quantidade_por_porcao > 0),
+ quantidade_total REAL NOT NULL CHECK(quantidade_total > 0),
+ valor_unitario REAL NOT NULL CHECK(valor_unitario >= 0), valor_total REAL NOT NULL CHECK(valor_total >= 0),
+ origem TEXT NOT NULL DEFAULT 'manual', referencia_ficha TEXT, versao_ficha TEXT, observacao TEXT)""",
+"CREATE INDEX IF NOT EXISTS ix_almox_prog_item ON Almox_Programacao_Itens(id_programacao, id_item)",
+"""CREATE TRIGGER IF NOT EXISTS tr_almox_mov_nao_alterar BEFORE UPDATE ON Almox_Movimentos
+ BEGIN SELECT RAISE(ABORT, 'Movimento é histórico: registre ajuste ou estorno.'); END""",
+"""CREATE TRIGGER IF NOT EXISTS tr_almox_mov_nao_apagar BEFORE DELETE ON Almox_Movimentos
+ BEGIN SELECT RAISE(ABORT, 'Movimento não pode ser apagado; registre estorno.'); END""",
+"""CREATE TRIGGER IF NOT EXISTS tr_almox_preco_nao_alterar BEFORE UPDATE ON Almox_Historico_Preco
+ BEGIN SELECT RAISE(ABORT, 'Histórico de preço não pode ser alterado.'); END""",
+"""CREATE TRIGGER IF NOT EXISTS tr_almox_preco_nao_apagar BEFORE DELETE ON Almox_Historico_Preco
+ BEGIN SELECT RAISE(ABORT, 'Histórico de preço não pode ser apagado.'); END""",
+)
+_ALMOX_DOWN = (
+ "DROP TRIGGER IF EXISTS tr_almox_preco_nao_apagar",
+ "DROP TRIGGER IF EXISTS tr_almox_preco_nao_alterar",
+ "DROP TRIGGER IF EXISTS tr_almox_mov_nao_apagar",
+ "DROP TRIGGER IF EXISTS tr_almox_mov_nao_alterar",
+ "DROP TABLE IF EXISTS Almox_Programacao_Itens",
+ "DROP TABLE IF EXISTS Almox_Programacoes",
+ "DROP TABLE IF EXISTS Almox_Movimentos",
+ "DROP TABLE IF EXISTS Almox_Historico_Preco",
+ "DROP TABLE IF EXISTS Almox_Itens",
+)
+
 # Lista oficial. NOVAS migrações entram SEMPRE ao final, com versão contígua; nunca editar uma já publicada.
 MIGRACOES = (
     Migracao(versao=1, nome="baseline_esquema_legado", up=(), down=None, baseline=True),
+    Migracao(versao=2, nome="almoxarifado_custos_programacao", up=_ALMOX_UP, down=_ALMOX_DOWN),
 )
 
 
