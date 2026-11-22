@@ -112,8 +112,11 @@ class MobileTest(unittest.TestCase):
                 self.assertIn(b"<svg", r.read(300))
         pagina = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
         for texto in ("Orientações", "Thiago S. Santos", "Neis B. Alencar", "NutriLab 2026",
-                      "Potássio: menor", "Fibra alimentar: maior"):
+                      "https://www.tbca.net.br/base-dados/", "Reconheça as frutas"):
             self.assertIn(texto, pagina)
+        for conteudo_individual in ("escalaFrutas", "Carboidrato disponível:", "Fibra alimentar: maior",
+                                    "Potássio: menor", "k:173", "f:4.03"):
+            self.assertNotIn(conteudo_individual, pagina)
 
 
     def test_catalogo_de_suplementos_disponivel_para_copa(self):
