@@ -20,12 +20,23 @@ ROTULOS_DISPOSICAO = {
     DISPOSICAO_VERTICAL: "Agrupados, de cima para baixo",
 }
 
+ESTILO_ANIMADO = "animado"
+ESTILO_IMAGEM = "imagem"
+CHAVE_ESTILO = "graficos_estilo"
+ROTULOS_ESTILO = {
+    ESTILO_ANIMADO: "Animados (desenhados na tela)",
+    ESTILO_IMAGEM: "Imagens simples, sem animação",
+}
+
 LARGURA_MAX_CARD = 840      # largura máxima de um gráfico, em pixels lógicos (a mesma de antes)
 ESPACO_ENTRE_CARDS = 16
 ESPIADA = 56                # pedaço do próximo gráfico que fica à vista, para sugerir que dá para arrastar
 LARGURA_MIN_CARD = 160
 VELOCIDADE_DE_ARREMESSO = 500.0   # px/s: soltar mais rápido que isso passa para o gráfico seguinte
 DURACAO_ENCAIXE = 0.28            # segundos
+DURACAO_ENTRADA = 0.9
+ATRASO_ENTRE_CARDS = 0.12
+FRACAO_PARA_ANIMAR = 0.3
 
 
 def disposicao_valida(valor):
@@ -38,6 +49,17 @@ def rotulo_para_disposicao(rotulo):
         if texto == rotulo:
             return chave
     return DISPOSICAO_LADO_A_LADO
+
+
+def estilo_valido(valor):
+    return valor if valor in ROTULOS_ESTILO else ESTILO_ANIMADO
+
+
+def rotulo_para_estilo(rotulo):
+    for chave, texto in ROTULOS_ESTILO.items():
+        if texto == rotulo:
+            return chave
+    return ESTILO_ANIMADO
 
 
 def largura_do_card(largura_visivel, n_cards, maximo=LARGURA_MAX_CARD, espiada=ESPIADA):
