@@ -26,7 +26,17 @@ CAMADAS = (
 
 
 def renderizar_svg(origem, destino, escala=2):
-    cairosvg.svg2png(url=str(origem), write_to=str(destino), scale=escala)
+    raiz = ET.parse(origem).getroot()
+    viewbox = raiz.attrib.get("viewBox")
+    if not viewbox:
+        raise SystemExit(f"SVG sem viewBox explícito: {origem}")
+    _, _, largura, altura = map(float, viewbox.replace(",", " ").split())
+    cairosvg.svg2png(
+        url=str(origem),
+        write_to=str(destino),
+        output_width=round(largura * escala),
+        output_height=round(altura * escala),
+    )
 
 
 def renderizar_folhas_individuais():
