@@ -51,7 +51,7 @@ def dias_para(grau, intervalos=None):
     """Intervalo de reavaliação em dias; o padrão do pacote é 7 dias."""
     if grau not in DIAS_PADRAO:
         raise ValueError("Grau de risco desconhecido.")
-    valor = (intervalos or {}).get(grau, DIAS_PADRAO[grau)
+    valor = (intervalos or {}).get(grau, DIAS_PADRAO[grau]
     return max(1, int(valor))
 
 def proxima_reavaliacao(base, grau, intervalos=None):
