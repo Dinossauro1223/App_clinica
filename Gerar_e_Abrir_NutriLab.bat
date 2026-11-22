@@ -52,15 +52,7 @@ if not exist "dist\app_clinica\app_clinica.exe" (
     goto :erro
 )
 
-echo [6/6] Iniciando o servidor do NutriLab...
-if exist "mobile\iniciar_servidor.bat" (
-    start "NutriLab - Servidor" /min cmd /c call "%CD%\mobile\iniciar_servidor.bat"
-) else (
-    echo AVISO: mobile\iniciar_servidor.bat nao foi encontrado.
-)
-
-echo.
-echo Abrindo o NutriLab...
+echo [6/6] Abrindo o NutriLab...
 start "" "%CD%\dist\app_clinica\app_clinica.exe"
 
 echo.
