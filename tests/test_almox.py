@@ -123,7 +123,7 @@ class TestMenuAlmox(unittest.TestCase):
     def test_menu_e_callback_desktop(self):
         raiz = Path(__file__).resolve().parents[1]
         source = (raiz / "main.py").read_text(encoding="utf-8")
-        self.assertIn('("▤", "Almoxarifado"', source)
+        self.assertIn('("Almoxarifado", self.tela_almoxarifado)', source)
         self.assertIn("def tela_almoxarifado(self):", source)
         self.assertIn("AlmoxUI(self, caminho_do_banco()).mostrar()", source)
 

@@ -19,7 +19,7 @@ class TestMigracaoAmbulatorial(unittest.TestCase):
             conn.commit()
             conn.close()
 
-            resultado = mig.aplicar_migracoes(db, backup=False)
+            resultado = mig.aplicar_migracoes(db, migracoes=mig.MIGRACOES[:4], backup=False)
             self.assertEqual(resultado.versao_final, 4)
             self.assertEqual(resultado.aplicadas, [1, 2, 3, 4])
             conn = sqlite3.connect(db)
