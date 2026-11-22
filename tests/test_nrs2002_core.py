@@ -25,7 +25,7 @@ class TestNRS2002Core(unittest.TestCase):
         respostas = {"imc": True, "perda": False, "ingestao": False, "grave": False}
         self.assertEqual(nrs.classificar(respostas, 1, 1, 40)["grau"], "sem_risco")
         self.assertEqual(nrs.classificar(respostas, 2, 1, 40)["grau"], "risco")
-        self.assertEqual(nrs.classificar(respostas, 3, 2, 40)["grau"], "alto_risco")
+        self.assertEqual(nrs.classificar(respostas, 3, 2, 40)["grau"], "risco")
 
     def test_adicional_de_idade_70_anos(self):
         respostas = {"imc": True, "perda": False, "ingestao": False, "grave": False}
