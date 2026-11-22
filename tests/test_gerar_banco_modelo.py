@@ -81,6 +81,17 @@ class TestBancoModelo(unittest.TestCase):
         self.assertIn("(MODELO_BANCO, '.')", spec)
         self.assertNotIn("('clinica.db', '.')", spec)
 
+    def test_launcher_procura_exe_antes_de_compilar_e_gera_banco_sem_origem(self):
+        launcher = (RAIZ / "Gerar_e_Abrir_NutriLab.bat").read_text(encoding="utf-8")
+        busca_exe = launcher.index('if exist "%~dp0NutriLab.exe"')
+        compilacao = launcher.index('call %PY_CMD% -m PyInstaller')
+        geracao_banco = launcher.index('tools\\\\gerar_banco_modelo.py --sobrescrever')
+        self.assertLess(busca_exe, compilacao)
+        self.assertLess(geracao_banco, compilacao)
+        self.assertIn('call %PY_CMD% -m pip install -r requirements-build.txt', launcher)
+        self.assertNotIn('python -m venv', launcher.lower())
+        self.assertIn('nao e necessario possuir clinica.db previamente', launcher.lower())
+
 
 if __name__ == "__main__":
     unittest.main()
