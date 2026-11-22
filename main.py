@@ -255,6 +255,7 @@ class AppClinica(ctk.CTk):
                                ("Suplementos", self.tela_suplementos),
                                ("Mobile (copa)", self.tela_mobile),
                                ("Triagem NRS-2002", self.tela_nrs),
+                               ("Avaliação nutricional", self.tela_avaliacao),
                                ("Configurações", self.tela_configuracoes)):
             botao = ctk.CTkButton(self.menu_mapa, text=texto, command=comando, fg_color="#4caf50", hover_color="#388e3c",
                           text_color="#ffffff", width=160, font=ctk.CTkFont(size=14, weight="bold"))
@@ -293,7 +294,7 @@ class AppClinica(ctk.CTk):
             for botao, rotulo in ((self.btn_pacientes, "👥"), (self.btn_consultas, "📝"), (self.btn_exames, "🧪")):
                 botao.configure(text=rotulo, width=40, font=ctk.CTkFont(size=17, weight="bold"))
                 botao.grid_configure(padx=8, pady=6)
-            icones = {"Mapa Nutricional": "🗺️", "Gráficos do Mês": "📊", "Suplementos": "🥣", "Mobile (copa)": "📱", "Triagem NRS-2002": "🩺", "Configurações": "⚙️"}
+            icones = {"Mapa Nutricional": "🗺️", "Gráficos do Mês": "📊", "Suplementos": "🥣", "Mobile (copa)": "📱", "Triagem NRS-2002": "🩺", "Avaliação nutricional": "🧮", "Configurações": "⚙️"}
             for botao, rotulo in self.menu_mapa_botoes:
                 botao.configure(text=icones.get(rotulo, "•"), width=40, font=ctk.CTkFont(size=17, weight="bold"))
                 botao.pack_configure(padx=8, pady=6)
@@ -315,6 +316,10 @@ class AppClinica(ctk.CTk):
     def tela_nrs(self):
         from nrs_ui import NRSUI
         NRSUI(self, self.mapa.db).mostrar()
+
+    def tela_avaliacao(self):
+        from avaliacao_ui import AvaliacaoUI
+        AvaliacaoUI(self, self.mapa.db).mostrar()
 
     def tela_mapa(self):
         self.mapa.mostrar_mapa()
