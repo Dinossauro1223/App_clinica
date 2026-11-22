@@ -240,6 +240,55 @@ class TestRestauracao(BaseTmp):
         self.assertEqual(db.read_bytes(), antes)
         self.assertFalse(db.with_name(db.name + ".restaurando").exists())
 
+
+    def test_falha_na_troca_recoloca_wal_no_nome_original(self):
+        db = criar_banco_sintetico(self.tmp / "clinica.db")
+        backup = svc.criar_backup(db, agora=AGORA)
+        antes = db.read_bytes()
+        wal = db.with_name(db.name + "-wal")
+        wal.write_bytes(b"wal antigo preservado")
+
+        replace_real = svc.os.replace
+
+        def falhar_apenas_na_troca(src, dst):
+            if str(src).endswith(".restaurando"):
+                raise PermissionError("arquivo em uso")
+            return replace_real(src, dst)
+
+        with mock.patch("db_service.os.replace", side_effect=falhar_apenas_na_troca):
+            with self.assertRaises(PermissionError):
+                svc.restaurar_backup(backup, db, agora=AGORA)
+
+        self.assertEqual(db.read_bytes(), antes)
+        self.assertEqual(wal.read_bytes(), b"wal antigo preservado")
+        self.assertFalse(wal.with_name(wal.name + ".antes-da-restauracao").exists())
+        self.assertFalse(db.with_name(db.name + ".restaurando").exists())
+
+    def test_falha_ao_mover_segundo_auxiliar_reverte_primeiro(self):
+        db = criar_banco_sintetico(self.tmp / "clinica.db")
+        backup = svc.criar_backup(db, agora=AGORA)
+        wal = db.with_name(db.name + "-wal")
+        shm = db.with_name(db.name + "-shm")
+        wal.write_bytes(b"wal")
+        shm.write_bytes(b"shm")
+
+        replace_real = svc.os.replace
+
+        def falhar_ao_mover_shm(src, dst):
+            if str(src).endswith("-shm"):
+                raise PermissionError("shm bloqueado")
+            return replace_real(src, dst)
+
+        with mock.patch("db_service.os.replace", side_effect=falhar_ao_mover_shm):
+            with self.assertRaises(PermissionError):
+                svc.restaurar_backup(backup, db, agora=AGORA)
+
+        self.assertEqual(wal.read_bytes(), b"wal")
+        self.assertEqual(shm.read_bytes(), b"shm")
+        self.assertFalse(wal.with_name(wal.name + ".antes-da-restauracao").exists())
+        self.assertFalse(shm.with_name(shm.name + ".antes-da-restauracao").exists())
+        self.assertFalse(db.with_name(db.name + ".restaurando").exists())
+
     def test_backup_inexistente(self):
         with self.assertRaises(FileNotFoundError):
             svc.restaurar_backup(self.tmp / "nao-existe.db", self.tmp / "clinica.db")
