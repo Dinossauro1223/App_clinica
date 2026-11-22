@@ -552,8 +552,19 @@ async function vCad(){
   <div class=cartao><h2 style="margin-top:0">Setor e leitos</h2><label class=f>Setor<select id=ss>${opSet(null,'— novo setor —')}</select></label>
   <label class=f>Nome do novo setor<input type=text id=sn2></label><label class=f>Prefixo dos leitos (ex.: A)<input type=text id=sp></label>
   <div class=filtros><label class=f>De<input type=number id=si value=1></label><label class=f>Até<input type=number id=sf></label></div><button class=btn onclick="novoSetor()">Salvar setor/leitos</button></div>
-  <div class=cartao><h2 style="margin-top:0">Itens de estoque</h2><label class=f>Nome<input type=text id=in></label><label class=f>Unidade (kg, L, un…)<input type=text id=iu></label>
-  <button class=btn onclick="novoItem()">Adicionar item</button><p class=mini>${S.itens.length} itens: ${esc(S.itens.map(i=>i.nome).join(', '))}</p></div></div>`;
+  <div class=cartao><h2 style="margin-top:0">Itens do almoxarifado</h2>
+  <label class=f>Nome do produto<input type=text id=in></label>
+  <label class=f>Unidade de estoque (kg, pacote, un…)<input type=text id=iu></label>
+  <div class=filtros><label class=f>Preço unitário (R$)<input type=number id=ip min=0 step=0.01 placeholder="Ex.: 8,50"></label>
+  <label class=f>Conteúdo por unidade<input type=number id=ie min=0.000001 step=any placeholder="Ex.: 500"></label>
+  <label class=f>Unidade do conteúdo<select id=ieu><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">L</option><option value="mg">mg</option><option value="un">un</option></select></label></div>
+  <p class=mini>O preço corresponde à unidade de estoque cadastrada. Informe também o conteúdo da embalagem para permitir converter o custo nas fichas técnicas.</p>
+  <button class=btn id=btnSalvarItem onclick="novoItem()">Adicionar item</button>
+  <h3>Itens cadastrados (${S.itens.length})</h3>
+  ${S.itens.map(i=>`<div style="padding:7px 0;border-bottom:1px solid var(--linha)"><b>${esc(i.nome)}</b>
+   <span class=mini>${esc(i.unidade)} · ${i.preco_unitario==null?'preço pendente':'R$ '+Number(i.preco_unitario).toFixed(2)} · ${i.embalagem_qtd==null?'conteúdo pendente':esc(i.embalagem_qtd+' '+i.embalagem_un)}</span>
+   <button class="btn sec peq" onclick="editarItem(${i.id})">Editar preço/embalagem</button></div>`).join('')}
+  </div></div>`;
 }
 const novoUsuario=tenta(async()=>{await api('/api/admin/usuarios',{login:$('#nl').value,nome:$('#nn').value,perfil:$('#np').value,id_setor:+$('#ns').value||null,senha:$('#nx').value});await vCad();aviso('Usuário criado.',0)});
 const ativa=tenta(async(id,a)=>{await api('/api/admin/usuarios/'+id,{ativo:a});await vCad()});
@@ -565,7 +576,22 @@ const salvaCfg=tenta(async()=>{
 });
 async function recarregaBase(){S.setores=(await api('/api/setores')).setores;S.setor=S.setor||(S.setores[0]||{}).id||'';S.itens=(await api('/api/itens')).itens}
 const novoSetor=tenta(async()=>{await api('/api/admin/setores',{id_setor:$('#ss').value,nome:$('#sn2').value,prefixo:$('#sp').value,inicio:+$('#si').value||1,fim:+$('#sf').value||0});await recarregaBase();await vCad();aviso('Setor/leitos salvos.',0)});
-const novoItem=tenta(async()=>{await api('/api/admin/itens',{nome:$('#in').value,unidade:$('#iu').value});await recarregaBase();await vCad();aviso('Item adicionado.',0)});
+function editarItem(id){
+ const item=S.itens.find(x=>String(x.id)===String(id));if(!item)return;
+ S.itemEditando=id;
+ $('#in').value=item.nome;$('#iu').value=item.unidade;
+ $('#ip').value=item.preco_unitario??'';$('#ie').value=item.embalagem_qtd??'';
+ $('#ieu').value=item.embalagem_un||'g';
+ $('#btnSalvarItem').textContent='Salvar alterações do item';
+ $('#in').scrollIntoView({behavior:'smooth',block:'center'});
+}
+const novoItem=tenta(async()=>{
+ const corpo={nome:$('#in').value,unidade:$('#iu').value,preco_unitario:$('#ip').value,
+  embalagem_qtd:$('#ie').value,embalagem_un:$('#ieu').value};
+ if(S.itemEditando)await api('/api/admin/itens/'+S.itemEditando,corpo);
+ else await api('/api/admin/itens',corpo);
+ S.itemEditando=null;await recarregaBase();await vCad();aviso('Item salvo.',0);
+});
 (async()=>{try{const j=await api('/api/eu');if(j.usuario)return await abrir(j.usuario,j.hoje)}catch(e){}telaLogin('Não foi possível validar a sessão. Conecte-se ao servidor e entre novamente para continuar.')})();
 window.NL={token:()=>S.tok,userId:()=>S.u&&S.u.id,isStaff:()=>ehStaff(),refresh:()=>ir('mapa'),
   aviso:(t,erro)=>aviso(t,erro),expired:()=>{sair();telaLogin('Sessão expirada. Entre novamente para sincronizar as alterações pendentes.')}};

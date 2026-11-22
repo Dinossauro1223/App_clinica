@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS Mobile_Refeicoes (data TEXT, setor TEXT, refeicao TEX
 CREATE TABLE IF NOT EXISTS Mobile_Estoque_Dia (data TEXT, estoque TEXT, item TEXT, unidade TEXT, qtd REAL, atualizado_em TEXT,
     PRIMARY KEY (data, estoque, item));
 CREATE TABLE IF NOT EXISTS Mobile_Movimentos (data TEXT, id_mobile INTEGER, hora TEXT, origem TEXT, destino TEXT, item TEXT,
-    unidade TEXT, qtd REAL, divergente INTEGER, PRIMARY KEY (data, id_mobile));
+    unidade TEXT, qtd REAL, divergente INTEGER, id_item_mobile INTEGER, por_usuario INTEGER,
+    valor_unitario_snapshot REAL, custo_snapshot REAL, PRIMARY KEY (data, id_mobile));
 """
 
 # Campos do registro do desktop que o mobile conhece (o resto do registro nunca é tocado).
@@ -50,8 +51,14 @@ def _agora():
 
 
 def garantir_tabelas(db):
+    """Garante as tabelas locais e acrescenta metadados às versões antigas sem apagar histórico."""
     with closing(mdb.conectar(db)) as c:
         c.executescript(_SCHEMA)
+        colunas = {r[1] for r in c.execute("PRAGMA table_info(Mobile_Movimentos)")}
+        for nome, tipo in (("id_item_mobile", "INTEGER"), ("por_usuario", "INTEGER"),
+                           ("valor_unitario_snapshot", "REAL"), ("custo_snapshot", "REAL")):
+            if nome not in colunas:
+                c.execute("ALTER TABLE Mobile_Movimentos ADD COLUMN %s %s" % (nome, tipo))
         c.commit()
 
 
@@ -357,12 +364,89 @@ def importar_estoque(db, ex):
             nome, un = itens.get(r["id_item"], ("?", ""))
             c.execute("INSERT OR REPLACE INTO Mobile_Estoque_Dia (data, estoque, item, unidade, qtd, atualizado_em) VALUES (?,?,?,?,?,?)",
                       (r["data"], r["estoque"], nome, un, r["qtd"], r.get("atualizado_em") or _agora()))
+        cols_mov = {r[1] for r in c.execute("PRAGMA table_info(Mobile_Movimentos)")}
         for m in ex["movimentos"]:
             nome, un = itens.get(m["id_item"], ("?", ""))
-            c.execute("INSERT OR REPLACE INTO Mobile_Movimentos (data, id_mobile, hora, origem, destino, item, unidade, qtd, divergente) "
-                      "VALUES (?,?,?,?,?,?,?,?,?)", (m["data"], m["id"], m["hora"], m["origem"], m["destino"], nome, un, m["qtd"], m["divergente"]))
+            preco = m.get("preco_unitario_snapshot")
+            custo = m.get("custo_snapshot")
+            if custo is None and preco is not None:
+                custo = float(m["qtd"]) * float(preco)
+            c.execute("""INSERT INTO Mobile_Movimentos
+                (data,id_mobile,hora,origem,destino,item,unidade,qtd,divergente,id_item_mobile,por_usuario,
+                 valor_unitario_snapshot,custo_snapshot)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(data,id_mobile) DO UPDATE SET
+                 hora=excluded.hora,origem=excluded.origem,destino=excluded.destino,item=excluded.item,
+                 unidade=excluded.unidade,qtd=excluded.qtd,divergente=excluded.divergente,
+                 id_item_mobile=excluded.id_item_mobile,por_usuario=excluded.por_usuario,
+                 valor_unitario_snapshot=COALESCE(excluded.valor_unitario_snapshot,Mobile_Movimentos.valor_unitario_snapshot),
+                 custo_snapshot=COALESCE(excluded.custo_snapshot,Mobile_Movimentos.custo_snapshot)""",
+                (m["data"],m["id"],m["hora"],m["origem"],m["destino"],nome,un,m["qtd"],m["divergente"],
+                 m["id_item"],m.get("por_usuario"),preco,custo))
         c.commit()
     return len(ex["estoque"]), len(ex["movimentos"])
+
+
+
+def importar_movimentos_cozinha(db, mobile_db, inicio, fim):
+    """Importa transferências do mobile por intervalo, preservando IDs, usuário e preço histórico.
+
+    A chave (data, id_mobile) torna a operação idempotente. A função não altera o saldo do mobile.
+    """
+    from datetime import date
+    try:
+        inicio = date.fromisoformat(str(inicio)).isoformat()
+        fim = date.fromisoformat(str(fim)).isoformat()
+    except (TypeError, ValueError):
+        raise ErroMobile("Informe as datas no formato AAAA-MM-DD.")
+    if fim < inicio:
+        raise ErroMobile("A data final deve ser igual ou posterior à data inicial.")
+    sv, origem = _abrir_mobile(mobile_db)
+    try:
+        cols_mov = {r[1] for r in origem.execute("PRAGMA table_info(movimentos)")}
+        cols_item = {r[1] for r in origem.execute("PRAGMA table_info(itens)")}
+        if not {"id", "data", "hora", "origem", "destino", "id_item", "qtd"}.issubset(cols_mov):
+            raise ErroMobile("O histórico de movimentações do mobile está incompleto.")
+        preco_select = "i.preco_unitario" if "preco_unitario" in cols_item else "NULL"
+        user_select = "m.por_usuario" if "por_usuario" in cols_mov else "NULL"
+        price_select = "m.preco_unitario_snapshot" if "preco_unitario_snapshot" in cols_mov else "NULL"
+        cost_select = "m.custo_snapshot" if "custo_snapshot" in cols_mov else "NULL"
+        rows = origem.execute(f"""SELECT m.data,m.id,m.hora,m.origem,m.destino,m.id_item,m.qtd,m.divergente,
+                    {user_select} AS por_usuario,COALESCE({price_select},NULL) AS preco_unitario_snapshot,
+                    COALESCE({cost_select},NULL) AS custo_snapshot,i.nome AS item,i.unidade,
+                    {preco_select} AS preco_atual
+                FROM movimentos m LEFT JOIN itens i ON i.id=m.id_item
+                WHERE m.data BETWEEN ? AND ? ORDER BY m.data,m.hora,m.id""", (inicio, fim)).fetchall()
+        preparados = []
+        for r in rows:
+            preco = r["preco_unitario_snapshot"]
+            custo = r["custo_snapshot"]
+            # Só calcula com preço atual quando o registro histórico é anterior ao recurso de snapshot;
+            # o custo resultante fica marcado como estimado pela ausência de valor histórico.
+            if custo is None and preco is not None:
+                custo = float(r["qtd"]) * float(preco)
+            preparados.append((
+                r["data"], r["id"], r["hora"], r["origem"], r["destino"], r["item"] or ("Item #%s" % r["id_item"]),
+                r["unidade"] or "", r["qtd"], int(r["divergente"] or 0), r["id_item"], r["por_usuario"],
+                preco, custo
+            ))
+    finally:
+        origem.close()
+    garantir_tabelas(db)
+    with closing(mdb.conectar(db)) as destino:
+        destino.executemany("""INSERT INTO Mobile_Movimentos
+            (data,id_mobile,hora,origem,destino,item,unidade,qtd,divergente,id_item_mobile,por_usuario,
+             valor_unitario_snapshot,custo_snapshot)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(data,id_mobile) DO UPDATE SET
+             hora=excluded.hora,origem=excluded.origem,destino=excluded.destino,item=excluded.item,
+             unidade=excluded.unidade,qtd=excluded.qtd,divergente=excluded.divergente,
+             id_item_mobile=excluded.id_item_mobile,por_usuario=excluded.por_usuario,
+             valor_unitario_snapshot=COALESCE(excluded.valor_unitario_snapshot,Mobile_Movimentos.valor_unitario_snapshot),
+             custo_snapshot=COALESCE(excluded.custo_snapshot,Mobile_Movimentos.custo_snapshot)""", preparados)
+        destino.commit()
+    return {"importados": len(preparados), "inicio": inicio, "fim": fim,
+            "retiradas_cozinha": sum(1 for x in preparados if str(x[3]).lower()=="almox" and str(x[4]).lower()=="cozinha")}
 
 
 def resumo(db, data_iso):
