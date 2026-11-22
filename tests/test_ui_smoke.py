@@ -65,6 +65,9 @@ class W:
     def focus_set(self):
         pass
 
+    def icursor(self, *args):
+        pass
+
     def winfo_width(self):
         return 1300
 
@@ -753,6 +756,43 @@ class TestInterface(unittest.TestCase):
             dc._salvar()
             montar.assert_not_called()
 
+
+    def test_atalhos_do_formulario_de_registro(self):
+        self.ui.mostrar_mapa()
+        form = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self.assertIn("<Control-s>", form.bindings)
+        self.assertIn("<Control-S>", form.bindings)
+        self.assertIn("<Escape>", form.bindings)
+        with mock.patch.object(form, "_salvar") as salvar:
+            form._atalho_salvar()
+            salvar.assert_called_once()
+        form._atalho_fechar()
+        self.assertTrue(form.destroyed)
+
+    def test_atalhos_da_busca_de_paciente(self):
+        dialogo = mapa_ui.DialogBuscarPaciente(self.ui, lambda paciente: None)
+        self.assertIn("<Return>", dialogo.tree.bindings)
+        self.assertIn("<Escape>", dialogo.tree.bindings)
+        self.assertIn("<Control-f>", dialogo.tree.bindings)
+        self.assertIn("<Control-F>", dialogo.e_busca.bindings)
+        dialogo._atalho_focar_busca()
+        dialogo._atalho_fechar()
+        self.assertTrue(dialogo.destroyed)
+
+    def test_vincular_paciente_preenche_idade_em_anos_e_meses(self):
+        self.ui.mostrar_mapa()
+        self.ui.data = __import__("datetime").date(2026, 11, 22)
+        form = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        form.e_idade.insert(0, "20")
+        form.e_meses.insert(0, "2")
+        form._paciente_escolhido({
+            "id_paciente": 99, "nome": "Paciente Teste",
+            "data_nascimento": "15/05/1950", "sexo": "F"
+        })
+        self.assertEqual(form.e_idade.get(), "76")
+        self.assertEqual(form.e_meses.get(), "6")
+        self.assertEqual(form.seg_sexo.get(), "Mulher")
+        self.assertEqual(form.e_nome.get(), "Paciente Teste")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

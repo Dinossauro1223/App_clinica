@@ -37,6 +37,16 @@ Uma pausa de mais de um segundo, mexer o cursor ou clicar no campo também come�
 
 Também é possível abrir o registro com duplo clique no leito. Os comandos só atuam quando a lista de leitos está em foco; os botões continuam disponíveis.
 
+## Formulário do Mapa Nutricional
+
+| Atalho | O que faz |
+|---|---|
+| Ctrl+S | Salvar o registro aberto (não funciona em consulta) |
+| Esc | Fechar o formulário ou a busca de paciente |
+| Ctrl+F | Voltar o foco para a pesquisa de pacientes |
+| Enter na lista de pacientes | Usar o paciente selecionado |
+
+A busca abre com o cursor no campo de pesquisa. Para evitar vínculos acidentais, Enter só escolhe um paciente quando uma linha está selecionada.
 ## Em qualquer tela
 
 | Atalho | O que faz |
