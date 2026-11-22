@@ -655,7 +655,7 @@ class TestMigracao(unittest.TestCase):
             self.assertFalse({"Condutas_Alta_Docs", "Condutas_Alta_Itens"} & tabelas())
             self.assertEqual(gatilhos(), set())
             self.assertIn("Mapa_Registros", tabelas())            # o resto do banco não é tocado
-            self.assertEqual(db_migracoes.aplicar_migracoes(caminho, backup=False).versao_final, 3)  # reaplica
+            self.assertEqual(db_migracoes.aplicar_migracoes(caminho, backup=False, alvo=3).versao_final, 3)  # reaplica v3
             self.assertEqual(len(gatilhos()), 10)
         finally:
             os.remove(caminho)
