@@ -984,8 +984,18 @@ class AppClinica(ctk.CTk):
             frame_dri, text="Preencha peso, altura e atividade física para estimar as necessidades.",
             text_color="#556b58", font=ctk.CTkFont(size=14), justify="left", wraplength=780)
         self.lbl_resultado_dri.pack(anchor="w", padx=8, pady=(4, 8))
+        linha_condicao = ctk.CTkFrame(frame_dri, fg_color="transparent")
+        linha_condicao.pack(fill="x", padx=8, pady=(2, 4))
+        ctk.CTkLabel(linha_condicao, text="Condição reprodutiva:", text_color="#1b5e20").pack(side="left", padx=(0, 6))
+        self.combo_dri_condicao = ctk.CTkComboBox(
+            linha_condicao,
+            values=["Não informado", "Não gestante/não lactante", "Gestante", "Lactante", "Não se aplica"],
+            width=235, command=self.calcular_necessidades_dri)
+        sexo_cadastro = str(self.paciente_atual_sexo or "").strip().casefold()
+        self.combo_dri_condicao.set("Não se aplica" if sexo_cadastro in ("masculino", "homem", "male", "h") else "Não informado")
+        self.combo_dri_condicao.pack(side="left", padx=5)
         ctk.CTkLabel(frame_dri,
-                     text="DRI 2023 implementada para adultos ≥19 anos; não aplicar esta equação a gestação, lactação ou pediatria. O fator proteico é definido pelo profissional.",
+                     text="DRI 2023 implementada para adultos ≥19 anos. Em mulheres, o cálculo exige confirmar 'Não gestante/não lactante'; não usar a equação adulta em gestação, lactação ou pediatria. O fator proteico é definido pelo profissional.",
                      text_color="#687b6c", font=ctk.CTkFont(size=12), wraplength=780,
                      justify="left").pack(anchor="w", padx=8, pady=(0, 6))
         self.calcular_necessidades_dri(silencioso=True)
@@ -1811,6 +1821,11 @@ class AppClinica(ctk.CTk):
             idade = self._calcular_idade_por_nascimento(getattr(self, "paciente_atual_nasc", ""))
             if idade is None:
                 raise ambulatorial.ErroAmbulatorial("Data de nascimento ausente ou inválida no cadastro do paciente.")
+            condicao = self.combo_dri_condicao.get() if hasattr(self, "combo_dri_condicao") else "Não informado"
+            if condicao not in ("Não gestante/não lactante", "Não se aplica"):
+                raise ambulatorial.ErroAmbulatorial(
+                    "A DRI EER adulta só é calculada após confirmar que não há gestação ou lactação. "
+                    "Para gestantes/lactantes ou condição não informada, use avaliação específica.")
             pal = {"Inativo": "inativo", "Pouco ativo": "pouco_ativo",
                    "Ativo": "ativo", "Muito ativo": "muito_ativo"}.get(self.combo_dri_atividade.get(), "inativo")
             resumo = ambulatorial.calcular_resumo_nutricional(
