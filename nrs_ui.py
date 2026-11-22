@@ -52,7 +52,7 @@ class NRSUI:
         rows = self._pacientes()
         self.pacientes = {f"{r[0]} — {r[1]}": r for r in rows}
         lista += list(self.pacientes)
-        self.combo_paciente = ctk.CTkComboBox(paciente_card, values=lista, width=360, command=self._selecionar_paciente)
+        self.combo_paciente = ctk.CTkComboBox(paciente_card, values=lista, width=360, command=self._selecionar_paciente, state="readonly")
         self.combo_paciente.pack(anchor="w", padx=14, pady=(0, 8))
         self.combo_paciente.set(lista[0])
         self.entrada_idade = ctk.CTkEntry(paciente_card, width=140, placeholder_text="Idade (anos)")
@@ -67,7 +67,7 @@ class NRSUI:
             linha.pack(fill="x", padx=14, pady=4)
             ctk.CTkLabel(linha, text=pergunta, font=tema.fonte(13), text_color=tema.TEXTO,
                         anchor="w", width=320).pack(side="left")
-            combo = ctk.CTkComboBox(linha, values=["Selecione", "Não", "Sim"], width=130)
+            combo = ctk.CTkComboBox(linha, values=["Selecione", "Não", "Sim"], width=130, state="readonly")
             combo.set("Selecione")
             combo.pack(side="left")
             self.campos[chave] = combo
@@ -79,12 +79,12 @@ class NRSUI:
                      text_color=tema.VERDE).pack(anchor="w", padx=14, pady=(12, 4))
         ctk.CTkLabel(self.card_etapa2, text=nrs.ESTADO_DICA, font=tema.fonte(12), text_color=tema.TEXTO,
                      justify="left", anchor="w", wraplength=720).pack(fill="x", padx=14, pady=(0, 8))
-        self.combo_estado = ctk.CTkComboBox(self.card_etapa2, values=list(nrs.ESTADO.values()), width=300)
+        self.combo_estado = ctk.CTkComboBox(self.card_etapa2, values=list(nrs.ESTADO.values()), width=300, state="readonly")
         self.combo_estado.set("Selecione")
         self.combo_estado.pack(anchor="w", padx=14, pady=(0, 8))
         ctk.CTkLabel(self.card_etapa2, text=nrs.GRAVIDADE_DICA, font=tema.fonte(12), text_color=tema.TEXTO,
                      justify="left", anchor="w", wraplength=720).pack(fill="x", padx=14, pady=(0, 8))
-        self.combo_gravidade = ctk.CTkComboBox(self.card_etapa2, values=list(nrs.GRAVIDADE.values()), width=300)
+        self.combo_gravidade = ctk.CTkComboBox(self.card_etapa2, values=list(nrs.GRAVIDADE.values()), width=300, state="readonly")
         self.combo_gravidade.set("Selecione")
         self.combo_gravidade.pack(anchor="w", padx=14, pady=(0, 12))
         botoes = ctk.CTkFrame(corpo, fg_color="transparent")
