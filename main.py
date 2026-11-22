@@ -325,7 +325,14 @@ class AppClinica(ctk.CTk):
                 caminho_db = os.path.join(base_dados, "NutriLab", "mobile", "mobile.db")
             else:
                 caminho_db = os.path.join(os.path.dirname(caminho_servidor), "dados", "mobile.db")
-            modulo.preparar_banco(caminho_db, False)
+            senha_inicial = modulo.preparar_banco(caminho_db, False)
+            if senha_inicial:
+                messagebox.showinfo(
+                    "Acesso inicial ao NutriLab Mobile",
+                    "Foi criado o usuário administrador do servidor mobile.\n\n"
+                    f"Usuário: admin\nSenha inicial: {senha_inicial}\n\n"
+                    "Guarde essa senha em local seguro. Ela não será exibida novamente."
+                )
             servidor = modulo.criar_servidor(caminho_db, 8765, "0.0.0.0")
             thread = threading.Thread(target=servidor.serve_forever, name="NutriLabMobile", daemon=True)
             thread.start()
