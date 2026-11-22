@@ -36,7 +36,10 @@ class TestTelaInicialEmCamadas(unittest.TestCase):
         self.assertIn("ImageTk.PhotoImage", tela)
         self.assertIn('create_image(', tela)
         self.assertIn('tags=("folha-animada",)', tela)
-        self.assertIn('fg_color="transparent"', tela)
+        self.assertIn("def _desenhar_opcoes", tela)
+        self.assertIn("tag_bind(", tela)
+        self.assertNotIn("CTkButton(", tela)
+        self.assertNotIn("CTkFrame(self.frame", tela)
         self.assertIn("identidade_camadas", tela)
 
     def test_janela_abre_maximizada_sem_fullscreen_exclusivo(self):
