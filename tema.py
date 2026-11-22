@@ -7,6 +7,8 @@ existentes sem alterar o comportamento clínico ou os dados do aplicativo.
 from __future__ import annotations
 
 from datetime import datetime
+import json
+import os
 import tkinter as tk
 from tkinter import ttk
 
@@ -53,8 +55,17 @@ def aplicar_tema_ttk(root: tk.Misc) -> None:
               foreground=[("selected", VERDE_ESC)])
 
 def configurar_ctk() -> None:
-    """Configura o tema padrão para chamadas feitas antes da criação de widgets."""
-    ctk.set_appearance_mode("Light")
+    """Configura tema verde e recupera preferência de aparência do usuário."""
+    modo = "Light"
+    caminho = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
+    try:
+        with open(caminho, encoding="utf-8") as arquivo:
+            preferencias = json.load(arquivo)
+        if isinstance(preferencias, dict) and preferencias.get("aparencia") in ("Light", "Dark", "System"):
+            modo = preferencias["aparencia"]
+    except (OSError, ValueError, TypeError):
+        pass
+    ctk.set_appearance_mode(modo)
     ctk.set_default_color_theme("green")
 
 class CampoData(ctk.CTkEntry):
