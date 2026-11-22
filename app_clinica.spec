@@ -14,24 +14,36 @@ if not os.path.isfile(MODELO_BANCO):
 
 CUSTOMTKINTER_PATH = os.path.dirname(customtkinter.__file__)
 
+# Os PNG/ICO são gerados no CI. Na compilação local, podem não existir;
+# main.py já usa welcome_nutrilab.png como imagem de boas-vindas alternativa.
+ARQUIVOS_DATA = [
+    (CUSTOMTKINTER_PATH, 'customtkinter'),
+    ('welcome_nutrilab.png', '.'),
+    (os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab_identidade.png'), '.'),
+    (os.path.join(SPECPATH, 'mobile', 'servidor.py'), 'mobile'),
+    (os.path.join(SPECPATH, 'mobile', 'static'), 'mobile/static'),
+    (MODELO_BANCO, '.'),
+    ('regras_exames_complementares.json', '.'),
+    ('exames_internos', 'exames_internos'),
+    ('condutas_internas', 'condutas_internas'),
+    ('sintomas_internos', 'sintomas_internos'),
+    ('prescricoes_internas', 'prescricoes_internas'),
+    ('condutas_alta', 'condutas_alta'),
+]
+DATAS = [
+    (origem, destino)
+    for origem, destino in ARQUIVOS_DATA
+    if os.path.exists(os.path.join(SPECPATH, origem))
+]
+
+CAMINHO_ICONE = os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab.ico')
+ICONE = CAMINHO_ICONE if os.path.isfile(CAMINHO_ICONE) else None
+
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        (CUSTOMTKINTER_PATH, 'customtkinter'),
-        ('welcome_nutrilab.png', '.'),
-        (os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab_identidade.png'), '.'),
-        (os.path.join(SPECPATH, 'mobile', 'servidor.py'), 'mobile'),
-        (os.path.join(SPECPATH, 'mobile', 'static'), 'mobile/static'),
-        (MODELO_BANCO, '.'),
-        ('regras_exames_complementares.json', '.'),
-        ('exames_internos', 'exames_internos'),
-        ('condutas_internas', 'condutas_internas'),
-        ('sintomas_internos', 'sintomas_internos'),
-        ('prescricoes_internas', 'prescricoes_internas'),
-        ('condutas_alta', 'condutas_alta'),
-    ],
+    datas=DATAS,
     hiddenimports=[
         'mapa_export', 'mapa_graficos', 'graficos_ui', 'graficos_layout',
         'openpyxl', 'matplotlib.backends.backend_agg',
@@ -56,7 +68,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
-    icon=os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab.ico'),
+    icon=ICONE,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
