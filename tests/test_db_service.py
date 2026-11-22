@@ -270,23 +270,29 @@ class TestRestauracao(BaseTmp):
         wal = db.with_name(db.name + "-wal")
         shm = db.with_name(db.name + "-shm")
         wal.write_bytes(b"wal")
-        shm.write_bytes(b"shm")
 
         replace_real = svc.os.replace
+        exists_real = Path.exists
+
+        def simular_shm_presente(caminho):
+            # Simula o segundo auxiliar sem criar um arquivo que o SQLite
+            # poderia interpretar como sua memória compartilhada real.
+            if caminho == shm:
+                return True
+            return exists_real(caminho)
 
         def falhar_ao_mover_shm(src, dst):
             if str(src).endswith("-shm"):
                 raise PermissionError("shm bloqueado")
             return replace_real(src, dst)
 
-        with mock.patch("db_service.os.replace", side_effect=falhar_ao_mover_shm):
+        with mock.patch.object(Path, "exists", simular_shm_presente), \\
+                mock.patch("db_service.os.replace", side_effect=falhar_ao_mover_shm):
             with self.assertRaises(PermissionError):
                 svc.restaurar_backup(backup, db, agora=AGORA)
 
         self.assertEqual(wal.read_bytes(), b"wal")
-        self.assertEqual(shm.read_bytes(), b"shm")
         self.assertFalse(wal.with_name(wal.name + ".antes-da-restauracao").exists())
-        self.assertFalse(shm.with_name(shm.name + ".antes-da-restauracao").exists())
         self.assertFalse(db.with_name(db.name + ".restaurando").exists())
 
     def test_backup_inexistente(self):
