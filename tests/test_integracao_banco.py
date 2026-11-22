@@ -147,7 +147,8 @@ class TestCaminhoDoBanco(BaseApp):
 
 class TestConfigurarBancoDados(BaseApp):
     ESQUEMA = {"Consultas", "Exames_Solicitados", "Arquivos_Paciente", "Exames_Catalogo",
-               "Regras_Complementares", "Resultados_Exames"}
+               "Regras_Complementares", "Resultados_Exames", "Almox_Itens", "Almox_Historico_Preco",
+               "Almox_Movimentos", "Almox_Programacoes", "Almox_Programacao_Itens"}
 
     def test_banco_novo_cria_o_esquema_e_registra_a_baseline_sem_backup(self):
         caminho = self.usar_banco()
@@ -155,7 +156,8 @@ class TestConfigurarBancoDados(BaseApp):
         self.assertEqual(tabelas(caminho), self.ESQUEMA | {"schema_migrations"})
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo"), [(15,)])
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Regras_Complementares"), [(1,)])
-        self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations"), [(1, "banco-novo")])
+        self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations ORDER BY versao"),
+                         [(1, "banco-novo"), (2, "migracao")])
         self.assertFalse((self.tmp / "backups").exists())
 
     def test_executar_de_novo_nao_duplica_nada(self):
@@ -164,7 +166,7 @@ class TestConfigurarBancoDados(BaseApp):
             self.main.AppClinica.configurar_banco_dados(self.app)
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo"), [(15,)])
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Regras_Complementares"), [(1,)])
-        self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM schema_migrations"), [(1,)])
+        self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM schema_migrations"), [(2,)])
 
     def test_banco_legado_existente_adota_a_baseline_com_backup_e_sem_perder_dados(self):
         caminho = self.usar_banco()
@@ -176,10 +178,11 @@ class TestConfigurarBancoDados(BaseApp):
             c.execute("DROP TABLE schema_migrations")             # simula um banco criado ANTES da Fase 0
         antes = {t: consulta(caminho, f"SELECT * FROM {t}") for t in ("Pacientes", "Consultas", "Exames_Catalogo")}
         self.main.AppClinica.configurar_banco_dados(self.app)
-        self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations"), [(1, "adotada-legado")])
+        self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations ORDER BY versao"),
+                         [(1, "adotada-legado"), (2, "migracao")])
         depois = {t: consulta(caminho, f"SELECT * FROM {t}") for t in antes}
         self.assertEqual(depois, antes)
-        backups = list((self.tmp / "backups").glob("clinica.backup_*_pre-migracao-v1.db"))
+        backups = list((self.tmp / "backups").glob("clinica.backup_*_pre-migracao-v2.db"))
         self.assertEqual(len(backups), 1)
         self.assertEqual(consulta(backups[0], "SELECT nome FROM Pacientes"), [("Paciente Sintético 001",)])
 
@@ -198,7 +201,8 @@ class TestConfigurarBancoDados(BaseApp):
             self.main.AppClinica.configurar_banco_dados(self.app)
         aviso.assert_called_once()
         self.assertIn("falha simulada", aviso.call_args[0][1])
-        self.assertTrue(self.ESQUEMA <= tabelas(caminho))        # o esquema legado foi criado mesmo assim
+        legado = self.ESQUEMA - {"Almox_Itens", "Almox_Historico_Preco", "Almox_Movimentos", "Almox_Programacoes", "Almox_Programacao_Itens"}
+        self.assertTrue(legado <= tabelas(caminho))  # a migração do Almox falhou; o esquema legado permanece
 
 
 class TestBancoDividido(BaseApp):
