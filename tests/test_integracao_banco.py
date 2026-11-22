@@ -150,11 +150,18 @@ class TestConfigurarBancoDados(BaseApp):
     ESQUEMA = {"Consultas", "Exames_Solicitados", "Arquivos_Paciente", "Exames_Catalogo",
                "Regras_Complementares", "Resultados_Exames"}
     CONDUTAS_ALTA = {"Condutas_Alta_Docs", "Condutas_Alta_Itens"}      # migração 2
+    AMBULATORIAL = {
+        "Consulta_Dados_Estruturados", "Consulta_Medicamentos", "Consulta_Metas",
+        "Recomendacoes_Docs", "Consulta_Recomendacoes", "Exames_Associacoes", "Consulta_Triagens",
+    }                                                                    # migração 4
 
     def test_banco_novo_cria_o_esquema_e_registra_a_baseline_sem_backup(self):
         caminho = self.usar_banco()
         self.main.AppClinica.configurar_banco_dados(self.app)
-        self.assertEqual(tabelas(caminho), self.ESQUEMA | self.CONDUTAS_ALTA | {"schema_migrations"})
+        self.assertEqual(
+            tabelas(caminho),
+            self.ESQUEMA | self.CONDUTAS_ALTA | self.AMBULATORIAL | {"schema_migrations"},
+        )
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo"), [(15,)])
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Regras_Complementares"), [(1,)])
         self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations"),

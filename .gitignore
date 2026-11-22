@@ -6,6 +6,7 @@ dist/
 *.pdf
 # Protecao local AppClinica
 /arquivos_pacientes/
+/recomendacoes_clinicas/
 /clinica.db
 /clinica.db.*
 /clinica.db-*
