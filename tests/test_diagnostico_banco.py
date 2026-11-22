@@ -64,7 +64,7 @@ class TestInspecao(BaseTmp):
     def test_le_a_versao_do_esquema(self):
         db = self.banco("clinica.db")
         mig.aplicar_migracoes(db)
-        self.assertEqual(diag.inspecionar(db)["versao_esquema"], 1)
+        self.assertEqual(diag.inspecionar(db)["versao_esquema"], 2)
 
     def test_arquivo_corrompido_nao_derruba_o_diagnostico(self):
         ruim = self.raiz / "clinica.db"
