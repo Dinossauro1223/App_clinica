@@ -15,7 +15,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[(os.path.dirname(customtkinter.__file__), 'customtkinter'), ('welcome_nutrilab.png', '.'), (os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab_identidade.png'), '.'), (MODELO_BANCO, '.'), ('regras_exames_complementares.json', '.'), ('exames_internos', 'exames_internos'), ('condutas_internas', 'condutas_internas'), ('sintomas_internos', 'sintomas_internos'), ('prescricoes_internas', 'prescricoes_internas'), ('condutas_alta', 'condutas_alta')],
+    datas=[(os.path.dirname(customtkinter.__file__), 'customtkinter'), ('welcome_nutrilab.png', '.'), (os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab_identidade.png'), '.'), (os.path.join(SPECPATH, 'mobile', 'servidor.py'), 'mobile'), (os.path.join(SPECPATH, 'mobile', 'static'), 'mobile/static'), (MODELO_BANCO, '.'), ('regras_exames_complementares.json', '.'), ('exames_internos', 'exames_internos'), ('condutas_internas', 'condutas_internas'), ('sintomas_internos', 'sintomas_internos'), ('prescricoes_internas', 'prescricoes_internas'), ('condutas_alta', 'condutas_alta')],
     hiddenimports=['mapa_export', 'mapa_graficos', 'graficos_ui', 'graficos_layout', 'openpyxl', 'matplotlib.backends.backend_agg'],
     hookspath=[],
     hooksconfig={},
