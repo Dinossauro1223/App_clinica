@@ -4,6 +4,9 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import sqlite3
 import os
+import importlib.util
+import socket
+import threading
 import json
 import shutil
 import sys
@@ -292,9 +295,73 @@ class AppClinica(ctk.CTk):
         
         self.tela_inicial()
         self._iniciar_backups()
+        self._iniciar_servidor_mobile()
         # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
         self.after(1200, lambda: atualizador.iniciar_verificacao(self, self._resultado_atualizacao))
 
+
+    def _iniciar_servidor_mobile(self):
+        """Inicia o servidor local uma única vez; não assume propriedade de processo preexistente."""
+        self._servidor_mobile = None
+        try:
+            with socket.create_connection(("127.0.0.1", 8765), timeout=0.35):
+                # O BAT/manual ou outra instância já atende a porta: não iniciar nem encerrar esse processo.
+                return
+        except OSError:
+            pass
+
+        caminho_servidor = os.path.join(get_base_path(), "mobile", "servidor.py")
+        if not os.path.isfile(caminho_servidor):
+            caminho_servidor = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mobile", "servidor.py")
+        try:
+            spec = importlib.util.spec_from_file_location("nutrilab_servidor_mobile", caminho_servidor)
+            if spec is None or spec.loader is None:
+                raise RuntimeError("Não foi possível carregar mobile/servidor.py.")
+            modulo = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(modulo)
+
+            if getattr(sys, "frozen", False):
+                base_dados = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+                caminho_db = os.path.join(base_dados, "NutriLab", "mobile", "mobile.db")
+            else:
+                caminho_db = os.path.join(os.path.dirname(caminho_servidor), "dados", "mobile.db")
+            modulo.preparar_banco(caminho_db, False)
+            servidor = modulo.criar_servidor(caminho_db, 8765, "0.0.0.0")
+            thread = threading.Thread(target=servidor.serve_forever, name="NutriLabMobile", daemon=True)
+            thread.start()
+            self._servidor_mobile = servidor
+            self._thread_servidor_mobile = thread
+        except OSError as erro:
+            messagebox.showwarning(
+                "Servidor mobile indisponível",
+                "Não foi possível iniciar o servidor mobile na porta 8765. "
+                "Os módulos que não dependem dele continuarão disponíveis.\n\n"
+                f"Detalhe: {erro}"
+            )
+        except Exception as erro:
+            messagebox.showwarning(
+                "Servidor mobile indisponível",
+                "O NutriLab continuará funcionando, mas a integração mobile não foi iniciada.\n\n"
+                f"Detalhe: {erro}"
+            )
+
+    def _encerrar_servidor_mobile(self):
+        """Encerra somente o servidor criado por esta instância do desktop."""
+        servidor = getattr(self, "_servidor_mobile", None)
+        if servidor is not None:
+            try:
+                servidor.shutdown()
+            except Exception:
+                pass
+            try:
+                servidor.server_close()
+            except Exception:
+                pass
+            self._servidor_mobile = None
+
+    def _encerrar_e_destruir(self):
+        self._encerrar_servidor_mobile()
+        self.destroy()
 
     def _iniciar_backups(self):
         """Ativa snapshots periódicos e backup obrigatório no encerramento normal."""
@@ -316,9 +383,9 @@ class AppClinica(ctk.CTk):
         """Só encerra a interface depois de criar e validar o backup final."""
         gerenciador = getattr(self, "_gerenciador_backups", None)
         if gerenciador is None:
-            self.destroy()
+            self._encerrar_e_destruir()
             return
-        gerenciador.fechar(ao_concluir=self.destroy)
+        gerenciador.fechar(ao_concluir=self._encerrar_e_destruir)
 
     def _resultado_atualizacao(self, resultado):
         """Exibe comparação de versões sem executar alterações automáticas no banco de dados."""
