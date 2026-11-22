@@ -143,19 +143,26 @@ class TelaBoasVindas:
         self._imagem("facisa_ufrn", 108, 655, 403, 81)
         self._imagem("topo_temas", 1090, 20, 440, 80)
 
-        self._item_instrucao = self.canvas.create_text(
-            self._px(766), self._py(974), text="Clique em qualquer lugar para continuar",
-            fill="#287B58", font=("Segoe UI", max(10, int(15 * self._escala)), "bold"),
-            anchor="center"
-        )
+        if self._opcoes_visiveis:
+            self.canvas.create_text(
+                self._px(766), self._py(760), text="Escolha por onde deseja começar",
+                fill="#064D3C",
+                font=("Segoe UI", max(14, int(23 * self._escala)), "bold"),
+                anchor="center"
+            )
+            self._posicionar_opcoes()
+        else:
+            self._item_instrucao = self.canvas.create_text(
+                self._px(766), self._py(974), text="Clique em qualquer lugar para continuar",
+                fill="#287B58", font=("Segoe UI", max(10, int(15 * self._escala)), "bold"),
+                anchor="center"
+            )
         self.canvas.create_text(
             self._px(1500), self._py(1005),
             text="© 2026 Neis Bila de Alencar. Todos os direitos reservados.",
             fill="#52746A", font=("Segoe UI", max(8, int(10 * self._escala))),
             anchor="se"
         )
-        if self._opcoes_visiveis:
-            self._posicionar_opcoes()
 
     def _clicar(self, event=None):
         if not self._opcoes_visiveis:
