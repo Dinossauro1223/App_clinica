@@ -18,6 +18,8 @@ import db_migracoes
 import atalhos_edicao
 from mapa_ui import MapaUI
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
+import ambulatorial
+from ambulatorial_ui import PainelConsultaEstruturada, DialogoAssociacoesExames
 
 
 def get_base_path():
@@ -225,6 +227,8 @@ class AppClinica(ctk.CTk):
         
         self.tmb_atual = ""
         self.vet_atual = ""
+        self.calculos_ambulatoriais = {}
+        self.painel_consulta_estruturada = None
 
         # --- MENU LATERAL ---
         self.menu_lateral = ctk.CTkFrame(self, width=200, corner_radius=0, fg_color="#1b5e20")
@@ -910,6 +914,16 @@ class AppClinica(ctk.CTk):
         self.txt_anamnese = ctk.CTkTextbox(scroll_frame, width=600, height=100, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", border_width=1, border_color="#a5d6a7")
         self.txt_anamnese.pack(padx=20, pady=5)
 
+        # Campos guiados, medicamentos/metas separados, recordatório opcional e biblioteca DOCX.
+        self.painel_consulta_estruturada = PainelConsultaEstruturada(
+            scroll_frame, caminho_do_banco(), os.path.dirname(caminho_do_banco()))
+        self.painel_consulta_estruturada.pack(fill="x", padx=20, pady=8)
+        frame_softsus = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+        frame_softsus.pack(fill="x", padx=20, pady=4)
+        ctk.CTkButton(frame_softsus, text="Montar e copiar texto para SoftSus",
+                      fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff",
+                      command=self.copiar_anamnese_softsus).pack(side="left")
+
         ctk.CTkLabel(scroll_frame, text="Antropometria e Composição Corporal", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(anchor="w", padx=20, pady=(15, 0))
         frame_antro = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_antro.pack(fill="x", padx=20, pady=5)
@@ -941,6 +955,41 @@ class AppClinica(ctk.CTk):
         self.lbl_resultado_metabolismo = ctk.CTkLabel(frame_calculo, text="Insira os dados acima para calcular a Taxa Metabólica Basal e o VET.", font=ctk.CTkFont(size=17, weight="bold"), text_color="#1b5e20")
         self.lbl_resultado_metabolismo.pack(pady=10)
 
+        # Equações DRI 2023 (EER) e fórmula de bolso são exibidas lado a lado, sem substituir a TMB existente.
+        frame_dri = ctk.CTkFrame(frame_calculo, fg_color="#f5fbf5", corner_radius=8)
+        frame_dri.pack(fill="x", padx=10, pady=(4, 10))
+        ctk.CTkLabel(frame_dri, text="Necessidade energética — DRI 2023 e fórmula de bolso",
+                     text_color="#1b5e20", font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=8, pady=(8, 2))
+        linha_dri = ctk.CTkFrame(frame_dri, fg_color="transparent")
+        linha_dri.pack(fill="x", padx=8, pady=4)
+        ctk.CTkLabel(linha_dri, text="Atividade física:", text_color="#1b5e20").pack(side="left", padx=(0, 5))
+        self.combo_dri_atividade = ctk.CTkComboBox(
+            linha_dri, values=["Inativo", "Pouco ativo", "Ativo", "Muito ativo"], width=150,
+            command=self.calcular_necessidades_dri)
+        self.combo_dri_atividade.set("Inativo")
+        self.combo_dri_atividade.pack(side="left", padx=5)
+        ctk.CTkLabel(linha_dri, text="Fórmula de bolso:", text_color="#1b5e20").pack(side="left", padx=(12, 5))
+        self.combo_fator_bolso = ctk.CTkComboBox(
+            linha_dri, values=[str(v) for v in range(25, 36)], width=65,
+            command=self.calcular_necessidades_dri)
+        self.combo_fator_bolso.set("25")
+        self.combo_fator_bolso.pack(side="left", padx=5)
+        ctk.CTkLabel(linha_dri, text="kcal/kg/dia", text_color="#1b5e20").pack(side="left")
+        self.entry_fator_proteico = ctk.CTkEntry(
+            linha_dri, placeholder_text="Proteína g/kg", width=110, fg_color="#ffffff",
+            text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_fator_proteico.pack(side="left", padx=(12, 4))
+        self.entry_fator_proteico.bind("<KeyRelease>", self.calcular_necessidades_dri)
+        self.lbl_resultado_dri = ctk.CTkLabel(
+            frame_dri, text="Preencha peso, altura e atividade física para estimar as necessidades.",
+            text_color="#556b58", font=ctk.CTkFont(size=14), justify="left", wraplength=780)
+        self.lbl_resultado_dri.pack(anchor="w", padx=8, pady=(4, 8))
+        ctk.CTkLabel(frame_dri,
+                     text="DRI 2023 implementada para adultos ≥19 anos; não aplicar esta equação a gestação, lactação ou pediatria. O fator proteico é definido pelo profissional.",
+                     text_color="#687b6c", font=ctk.CTkFont(size=12), wraplength=780,
+                     justify="left").pack(anchor="w", padx=8, pady=(0, 6))
+        self.calcular_necessidades_dri(silencioso=True)
+
         frame_conduta = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_conduta.pack(fill="x", padx=20, pady=(15, 0))
         ctk.CTkLabel(frame_conduta, text="Conduta Dietoterápica", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(side="left")
@@ -954,6 +1003,11 @@ class AppClinica(ctk.CTk):
             scroll_frame, caminho_do_banco(), self.paciente_atual_id, self.paciente_atual_nome,
             pasta_saida=self.pasta_condutas_alta(), janela_pai=self)
         self.painel_condutas_alta.pack(fill="x", padx=20, pady=(10, 5))
+        ctk.CTkLabel(
+            scroll_frame,
+            text="Triagem NRS-2002: o banco e o serviço ambulatorial aceitam o resultado estruturado do módulo de triagem. O cálculo/classificação permanecem no módulo NRS-2002; a integração funcional depende da incorporação da outra branch.",
+            text_color="#556b58", font=ctk.CTkFont(size=12), wraplength=780, justify="left"
+        ).pack(anchor="w", padx=20, pady=(0, 6))
 
         ctk.CTkLabel(scroll_frame, text="Solicitação de Exames", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(anchor="w", padx=20, pady=(15, 0))
         frame_exames = ctk.CTkFrame(scroll_frame, fg_color="transparent")
@@ -978,6 +1032,10 @@ class AppClinica(ctk.CTk):
         self.btn_select_exame.grid(row=0, column=0, padx=(0, 10))
 
         ctk.CTkButton(frame_exames, text="Adicionar à Solicitação", command=self.adicionar_exame, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=15, weight="bold")).grid(row=0, column=1)
+        ctk.CTkButton(scroll_frame, text="Gerenciar associações: exames, diagnósticos clínicos e nutricionais",
+                      command=lambda: DialogoAssociacoesExames(self, caminho_do_banco()),
+                      fg_color="#607d8b", hover_color="#455a64", text_color="#ffffff",
+                      font=ctk.CTkFont(size=14)).pack(anchor="w", padx=20, pady=(2, 6))
 
         frame_analise_exames = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_analise_exames.pack(fill="x", padx=20, pady=(15, 0))
@@ -1654,9 +1712,42 @@ class AppClinica(ctk.CTk):
                           JOIN Exames_Catalogo E ON R.exame_sugerido = E.id_exame
                           WHERE R.exame_gatilho = ?''', (id_gatilho,))
         sugestoes = cursor.fetchall()
+        cursor.execute("SELECT id_exame, nome_amigavel FROM Exames_Catalogo")
+        nomes_exames = {r[0]: r[1] for r in cursor.fetchall()}
         conexao.close()
+        exibidos = set()
         for sug_id, sug_nome in sugestoes:
-            if sug_id not in self.exames_selecionados_lista: self.exibir_sugestao(sug_id, sug_nome)
+            if sug_id not in self.exames_selecionados_lista:
+                self.exibir_sugestao(sug_id, sug_nome)
+                exibidos.add(sug_id)
+        # Associações configuráveis: exame recomendado ou relação com diagnóstico.
+        try:
+            with sqlite3.connect(caminho_do_banco()) as conn:
+                associacoes = ambulatorial.associacoes_do_exame(conn, id_gatilho)
+            for item in associacoes:
+                tipo, valor = item["tipo_associacao"], item["valor_relacionado"]
+                if tipo == "exame_recomendado":
+                    nome = nomes_exames.get(valor, valor)
+                    if valor not in self.exames_selecionados_lista and valor not in exibidos:
+                        self.exibir_sugestao(valor, nome)
+                        exibidos.add(valor)
+                else:
+                    self.exibir_sugestao_diagnostico(item)
+        except sqlite3.Error as exc:
+            print(f"[AVISO] Não foi possível carregar as associações clínicas do exame: {exc}")
+
+    def exibir_sugestao_diagnostico(self, associacao):
+        self.frame_sugestoes.pack(fill="x", padx=20, pady=10)
+        tipo = {"diagnostico_clinico": "diagnóstico clínico",
+                "diagnostico_nutricional": "diagnóstico nutricional"}.get(
+                    associacao["tipo_associacao"], "diagnóstico")
+        container = ctk.CTkFrame(self.frame_sugestoes, fg_color="transparent")
+        container.pack(fill="x", padx=10, pady=5)
+        texto = f"Relação para revisão profissional — {tipo}: {associacao['valor_relacionado']}"
+        if associacao.get("justificativa"):
+            texto += f" | {associacao['justificativa']}"
+        ctk.CTkLabel(container, text=texto, text_color="#ffffff",
+                     font=ctk.CTkFont(size=13), wraplength=620, justify="left").pack(anchor="w")
 
     def exibir_sugestao(self, sug_id, sug_nome):
         self.frame_sugestoes.pack(fill="x", padx=20, pady=10)
@@ -1707,16 +1798,93 @@ class AppClinica(ctk.CTk):
             return "Obesidade grau II"
         return "Obesidade grau III"
 
+    def calcular_necessidades_dri(self, *args, silencioso=False):
+        """Atualiza EER, comparação kcal/kg e proteína quando os dados estão disponíveis."""
+        try:
+            peso, altura = self.entry_peso.get().strip(), self.entry_altura.get().strip()
+            if not peso or not altura:
+                self.calculos_ambulatoriais = {}
+                if hasattr(self, "lbl_resultado_dri"):
+                    self.lbl_resultado_dri.configure(
+                        text="Preencha peso e altura para estimar as necessidades.", text_color="#556b58")
+                return None
+            idade = self._calcular_idade_por_nascimento(getattr(self, "paciente_atual_nasc", ""))
+            if idade is None:
+                raise ambulatorial.ErroAmbulatorial("Data de nascimento ausente ou inválida no cadastro do paciente.")
+            pal = {"Inativo": "inativo", "Pouco ativo": "pouco_ativo",
+                   "Ativo": "ativo", "Muito ativo": "muito_ativo"}.get(self.combo_dri_atividade.get(), "inativo")
+            resumo = ambulatorial.calcular_resumo_nutricional(
+                peso, altura, idade, self.paciente_atual_sexo, pal,
+                self.combo_fator_bolso.get(), self.entry_fator_proteico.get().strip())
+            self.calculos_ambulatoriais = resumo
+            texto = (f"IMC: {resumo['imc_kg_m2']:.2f} kg/m²   |   "
+                     f"DRI 2023 (EER): {resumo['dri_2023_kcal_dia']:.0f} kcal/dia   |   "
+                     f"Bolso ({resumo['formula_bolso_fator_kcal_kg']} kcal/kg): "
+                     f"{resumo['formula_bolso_kcal_dia']:.0f} kcal/dia")
+            if resumo.get("proteina_g_dia") is not None:
+                texto += (f"   |   Proteína ({resumo['proteina_fator_g_kg']} g/kg): "
+                          f"{resumo['proteina_g_dia']:.1f} g/dia")
+            self.lbl_resultado_dri.configure(text=texto, text_color="#1b5e20")
+            return resumo
+        except ambulatorial.ErroAmbulatorial as exc:
+            self.calculos_ambulatoriais = {}
+            if hasattr(self, "lbl_resultado_dri"):
+                cor = "#8a6d3b" if "19 anos" in str(exc) else "#556b58"
+                self.lbl_resultado_dri.configure(text=str(exc), text_color=cor)
+            if not silencioso:
+                print(f"[AVISO] Cálculo DRI 2023 não realizado: {exc}")
+            return None
+
+    def _dados_anamnese_final(self):
+        painel = getattr(self, "painel_consulta_estruturada", None)
+        dados = painel.dados() if painel else {
+            "anamnese_guiada": {}, "recordatorio_24h": "", "medicamentos": [], "metas": [],
+            "recomendacoes_ids": [], "conduta_recomendacao": ""}
+        necessidades = self.calcular_necessidades_dri(silencioso=True)
+        antropometria = {}
+        peso = self.entry_peso.get().strip()
+        altura = self.entry_altura.get().strip()
+        gordura = self.entry_gordura.get().strip()
+        if peso: antropometria["peso_kg"] = peso
+        if altura: antropometria["altura_m"] = altura
+        if gordura: antropometria["gordura_percentual"] = gordura
+        if peso and altura:
+            try:
+                antropometria["imc_kg_m2"] = ambulatorial.calcular_imc(peso, altura)
+            except ambulatorial.ErroAmbulatorial:
+                pass
+        texto = ambulatorial.montar_texto_anamnese(
+            dados["anamnese_guiada"], dados["recordatorio_24h"], antropometria,
+            necessidades, dados["medicamentos"], dados["metas"])
+        complemento = self.txt_anamnese.get("1.0", "end-1c").strip()
+        if complemento:
+            texto += "\n\nANOTAÇÕES/COMPLEMENTO DA CONSULTA\n" + complemento
+        return texto, dados, antropometria, necessidades
+
+    def copiar_anamnese_softsus(self):
+        try:
+            texto, _, _, _ = self._dados_anamnese_final()
+            if not texto.strip():
+                messagebox.showwarning("Anamnese", "Preencha pelo menos um campo antes de copiar.", parent=self)
+                return
+            self.clipboard_clear()
+            self.clipboard_append(texto)
+            self.update()
+            messagebox.showinfo("SoftSus", "Texto da anamnese copiado para a área de transferência.", parent=self)
+        except Exception as exc:
+            messagebox.showerror("Copiar anamnese", str(exc), parent=self)
+
     def _calcular_imc_dinamico(self, *args):
-        """Gatilho <KeyRelease> dos entries de Peso/Altura: calcula IMC em tempo real."""
+        """Atualiza IMC e estimativas energéticas sempre que peso/altura mudam."""
         try:
             peso_str = self.entry_peso.get().strip().replace(',', '.')
             altura_str = self.entry_altura.get().strip().replace(',', '.')
             if not peso_str or not altura_str:
                 self.lbl_imc.configure(text="IMC: -- kg/m²", text_color="#556b58")
+                if hasattr(self, "lbl_resultado_dri"):
+                    self.calcular_necessidades_dri(silencioso=True)
                 return
-            peso = float(peso_str)
-            altura = float(altura_str)
+            peso, altura = float(peso_str), float(altura_str)
             if peso <= 0 or altura <= 0:
                 raise ZeroDivisionError("peso/altura devem ser maiores que zero")
             imc = peso / (altura ** 2)
@@ -1725,13 +1893,18 @@ class AppClinica(ctk.CTk):
             sufixo_idade = f" (≥60 anos - régua idoso)" if (idade is not None and idade >= 60) else ""
             self.lbl_imc.configure(
                 text=f"IMC: {imc:.1f} kg/m² — {classificacao}{sufixo_idade}",
-                text_color="#1b5e20"
-            )
+                text_color="#1b5e20")
+            if hasattr(self, "lbl_resultado_dri"):
+                self.calcular_necessidades_dri(silencioso=True)
         except (ValueError, ZeroDivisionError):
             self.lbl_imc.configure(text="IMC: -- kg/m²", text_color="#556b58")
+            if hasattr(self, "lbl_resultado_dri"):
+                self.calcular_necessidades_dri(silencioso=True)
         except Exception as e:
             print(f"[ERRO CRÍTICO IMC]: {e}")
             self.lbl_imc.configure(text="IMC: -- kg/m²", text_color="#556b58")
+            if hasattr(self, "lbl_resultado_dri"):
+                self.calcular_necessidades_dri(silencioso=True)
 
     def _calcular_indices_para_pdf(self, valores):
         """Recebe {NOME_EXAME: valor} e retorna as linhas de laudo dos pares clínicos.
@@ -1800,7 +1973,7 @@ class AppClinica(ctk.CTk):
 
     def salvar_consulta(self):
         if not self.paciente_atual_id: return
-        anamnese = self.txt_anamnese.get("1.0", "end-1c")
+        anamnese, dados_estruturados, antropometria, necessidades = self._dados_anamnese_final()
         peso = self.entry_peso.get()
         altura = self.entry_altura.get()
         gordura = self.entry_gordura.get()
@@ -1823,8 +1996,23 @@ class AppClinica(ctk.CTk):
         for id_exame, (valor, status) in self.resultados_lancados.items():
             cursor.execute(
                 'INSERT INTO Resultados_Exames (id_consulta, id_exame, valor, status) VALUES (?, ?, ?, ?)',
-                (id_consulta, id_exame, valor, status)
+                (id_consame, id_exame, valor, status)
             )
+
+        # Campos adicionais em tabelas próprias para manter compatibilidade com Consultas legadas.
+        dados_db = {
+            "anamnese_guiada": dados_estruturados["anamnese_guiada"],
+            "recordatorio_24h": dados_estruturados["recordatorio_24h"],
+            "antropometria": antropometria,
+            "necessidades": necessidades or {},
+            "medicamentos": dados_estruturados["medicamentos"],
+            "metas": dados_estruturados["metas"],
+        }
+        ambulatorial.salvar_dados_estruturados(conexao, id_consulta, dados_db)
+        ambulatorial.associar_recomendacoes(
+            conexao, id_consulta, self.paciente_atual_id,
+            dados_estruturados["recomendacoes_ids"],
+            dados_estruturados["conduta_recomendacao"])
 
         conexao.commit()
         conexao.close()
