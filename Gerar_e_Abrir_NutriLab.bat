@@ -3,10 +3,12 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 title NutriLab - inicializador e compilador
 
+rem O pacote valido e o diretório completo dist\NutriLab; nunca execute arquivos de build\.
 set "EXE="
-if exist "%~dp0NutriLab.exe" set "EXE=%~dp0NutriLab.exe"
-if not defined EXE if exist "%~dp0dist\NutriLab\NutriLab.exe" set "EXE=%~dp0dist\NutriLab\NutriLab.exe"
-if not defined EXE if exist "%~dp0dist\app_clinica\app_clinica.exe" set "EXE=%~dp0dist\app_clinica\app_clinica.exe"
+if exist "%~dp0dist\NutriLab\NutriLab.exe" if exist "%~dp0dist\NutriLab\_internal\python312.dll" set "EXE=%~dp0dist\NutriLab\NutriLab.exe"
+if not defined EXE if exist "%~dp0dist\app_clinica\app_clinica.exe" if exist "%~dp0dist\app_clinica\_internal\python312.dll" set "EXE=%~dp0dist\app_clinica\app_clinica.exe"
+rem Aceita pacote portátil na raiz somente quando a DLL acompanha o executável.
+if not defined EXE if exist "%~dp0NutriLab.exe" if exist "%~dp0_internal\python312.dll" set "EXE=%~dp0NutriLab.exe"
 
 rem Use /recompilar para ignorar um executavel existente e gerar uma nova versao.
 if /I "%~1"=="/recompilar" goto COMPILAR
@@ -16,9 +18,10 @@ if defined EXE goto INICIAR
 
 echo.
 echo ============================================================
-echo NutriLab - executavel nao encontrado
+echo NutriLab - pacote completo nao encontrado
 echo ============================================================
 echo O inicializador vai preparar e compilar o programa agora.
+echo A pasta build e temporaria; o programa sera aberto em dist\NutriLab.
 echo Nenhum ambiente virtual sera criado.
 echo.
 
@@ -79,11 +82,13 @@ call %PY_CMD% -m PyInstaller --clean --noconfirm app_clinica.spec >> "%LOG%" 2>&
 if errorlevel 1 goto ERRO_COMPILACAO
 
 if not exist "dist\NutriLab\NutriLab.exe" goto ERRO_EXE_AUSENTE
+if not exist "dist\NutriLab\_internal\python312.dll" goto ERRO_DLL_AUSENTE
 set "EXE=%~dp0dist\NutriLab\NutriLab.exe"
 
 echo.
 echo [4/4] Compilacao concluida.
 echo Executavel: %EXE%
+if not exist "assets\identidade\nutrilab.ico" echo AVISO: compilacao local sem nutrilab.ico; o executavel ficara sem icone.
 echo Registro: %LOG%
 goto INICIAR
 
@@ -137,6 +142,13 @@ exit /b 1
 :ERRO_EXE_AUSENTE
 echo ERRO: o PyInstaller terminou, mas dist\NutriLab\NutriLab.exe nao existe.
 echo Consulte o registro: "%LOG%"
+type "%LOG%"
+pause
+exit /b 1
+
+:ERRO_DLL_AUSENTE
+echo ERRO: pacote incompleto; dist\NutriLab\_internal\python312.dll nao foi encontrado.
+echo Nao abra o executavel da pasta build. Consulte o registro: "%LOG%"
 type "%LOG%"
 pause
 exit /b 1
