@@ -244,7 +244,7 @@ const repor=tenta(async()=>{
 const FRUTAS=[
  {id:'melao',nome:'Melão',k:173,f:1.22,carb:4.50,vit:'Vitamina C: 6,97 mg; B6: 0,02 mg'},
  {id:'melancia',nome:'Melancia',k:83.62,f:0.13,carb:6.40,vit:'Vitamina A (RAE): 30,5 µg; C: 4,94 mg'},
- {id:'banana',nome:'Banana-prata',k:357,f:1.95,carb:24.0,vit:'Vitamina B6: 0,10 mg; C: 21,6 mg; folato: 22,4 µg'},
+ {id:'banana',nome:'Banana-prata',k:357.68,f:1.95,carb:24.0,vit:'Vitamina B6: 0,10 mg; C: 21,6 mg; folato: 22,4 µg'},
  {id:'maca',nome:'Maçã Fuji c/ casca',k:74.71,f:1.35,carb:13.8,vit:'Vitamina C: 2,41 mg; B6: 0,03 mg; folato: 3,25 µg'},
  {id:'uva',nome:'Uva Rubi',k:150.67,f:0.89,carb:11.2,vit:'Vitamina E: 0,21 mg; C: 1,77 mg'},
  {id:'abacaxi',nome:'Abacaxi',k:137.51,f:1.12,carb:10.5,vit:'Vitamina C: 33,1 mg; B1: 0,17 mg; folato: 11,3 µg'},
@@ -274,14 +274,14 @@ async function vOrientacoes(){
   </div><div class=orientacao-nota><b>Atenção:</b> não há medida universal de pó para água ou suco. Nunca complete ou concentre uma preparação por estimativa.</div></div>${textoOrientacao(by.diluicao)}`;
  const cards=`<div class=cartao><h2 style="margin-top:0">Reconheça as frutas e seus nutrientes</h2><p class=mini>Valores de potássio, fibra e carboidrato disponível por 100 g. As vitaminas abaixo são destaques da composição, não uma lista de todas as vitaminas presentes.</p><div class=frutas-grade>${FRUTAS.map(f=>`
   <article class=fruta-card><div class=fruta-topo>${frutaFig(f)}<b>${esc(f.nome)}</b></div><div class=fruta-dados><b>Vitaminas:</b> ${esc(f.vit)}<br><b>Potássio:</b> ${f.k.toLocaleString('pt-BR',{maximumFractionDigits:2})} mg<br><b>Fibra:</b> ${f.f.toLocaleString('pt-BR',{maximumFractionDigits:2})} g<br><b>Carboidrato disponível:</b> ${f.carb.toLocaleString('pt-BR',{maximumFractionDigits:2})} g</div></article>`).join('')}</div><p class=orientacao-fonte>Fonte dos valores: TBCA/USP, alimentos in natura, parte comestível, por 100 g. <a href="https://www.tbca.net.br/base-dados/" target="_blank" rel="noopener">Consultar a TBCA</a>.</p></div>`;
- const ranks=escalaFrutas('f','desc','g','Fibra alimentar: maior → menor','Indicador de contribuição de fibras, não uma escala clínica de efeito laxativo.')+
+ const ranks=escalaFrutas('f','desc','g','Fibra alimentar: maior → menor','Indicador de contribuição de fibras, não uma escala clínica de efeito laxativo. O fim da lista reúne opções com menos fibra, mas isso não prova efeito constipante.')+
   escalaFrutas('k','asc','mg','Potássio: menor → maior','Útil apenas quando há orientação para controlar potássio. Menor valor por 100 g não significa liberação irrestrita.')+
   escalaFrutas('carb','asc','g','Carboidrato disponível: menor → maior','Comparação por peso igual. A porção e a distribuição ao longo do dia continuam sendo decisivas.');
  const editor=S.u.perfil==='admin'&&os.length?`<div class=cartao><h2 style="margin-top:0">Editor de orientações</h2><p class=mini>Edite os textos abaixo ou acrescente um tópico. As alterações ficam salvas para todos os celulares.</p>
   ${os.map(o=>`<div class=editor-orientacao data-oid=${o.id}><label class=f>Título<input type=text class=otitulo maxlength=120 value="${esc(o.titulo)}"></label><label class=f>Texto<textarea class=otexto maxlength=8000 rows=5>${esc(o.texto)}</textarea></label><button class="btn sec peq" onclick="salvaOrientacao(${o.id},this)">Salvar texto</button></div>`).join('')}
   <div class=editor-orientacao><h3>Novo tópico</h3><label class=f>Título<input id=novoOtitulo type=text maxlength=120></label><label class=f>Texto<textarea id=novoOtexto rows=5 maxlength=8000 placeholder="Digite a orientação adicional"></textarea></label><button class=btn onclick="novaOrientacao()">Adicionar tópico</button></div></div>`:'';
  $('#vista').innerHTML=editor+dil+'<h2>Frutas: intestino, potássio e diabetes</h2>'+textoOrientacao(by.intestino)+
-  '<div class=orientacao-nota><b>Sobre frutas constipantes:</b> a literatura não sustenta uma classificação universal das frutas desta lista como “constipantes”. Use a escala de fibras e a orientação clínica; a maturação, a casca, o preparo, a porção e a tolerância mudam o resultado.</div>'+
+  '<div class=orientacao-nota><b>Sobre frutas constipantes:</b> a literatura não sustenta uma classificação universal das frutas desta lista como “constipantes”. Use a escala de fibras e a orientação clínica; a maturação, a casca, o preparo, a porção e a tolerância mudam o resultado.<br><b>Menor teor de fibras:</b> melancia, uva Rubi, mamão Papaia, abacaxi e melão podem ser comparados em dietas de baixo resíduo quando prescritas, mas não são automaticamente constipantes.</div>'+
   cards+ranks+textoOrientacao(by.potassio)+textoOrientacao(by.diabetes)+os.filter(o=>o.slug.startsWith('extra-')).map(textoOrientacao).join('');
 }
 const salvaOrientacao=tenta(async(id,b)=>{
