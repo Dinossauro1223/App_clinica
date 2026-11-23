@@ -61,7 +61,7 @@ SUPLEMENTOS_COMPLEMENTARES = [
 # Três fórmulas permanecem sem composição; quatro têm os valores por 100 mL transcritos
 # das respectivas tabelas oficiais. Nenhum valor é estimado por produto semelhante.
 SUPLEMENTOS_ENTERAIS_COMPLEMENTARES = [
-    ("Nutrison Energy 1.5", "Fórmula enteral", 151, 6, 5.6, 19, 128,
+    ("Nutrison Energy 1.5", "Fórmula enteral", 149, 6, 5.8, 18, 134,
      "https://danonenutricia.com.br/produtos/details/nutrison-energy-1-5"),
     ("Nutrison Energy MF 1.5", "Fórmula enteral", None, None, None, None, None,
      "https://danonenutricia.com.br/produtos/details/nutrison_energry_mf_15"),
