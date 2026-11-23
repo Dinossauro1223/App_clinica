@@ -63,21 +63,28 @@ echo Compilacao local do NutriLab - %DATE% %TIME% >> "%LOG%"
 echo Diretorio: %CD% >> "%LOG%"
 echo. >> "%LOG%"
 
-echo [1/4] Verificando e instalando dependencias (se necessario)...
-echo [1/4] Dependencias >> "%LOG%"
+echo [1/5] Verificando e instalando dependencias (se necessario)...
+echo [1/5] Dependencias >> "%LOG%"
 call %PY_CMD% -m pip install -r requirements-build.txt >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_DEPENDENCIAS
 
 echo.
-echo [2/4] Gerando banco inicial do proprio codigo...
-echo [2/4] Banco inicial >> "%LOG%"
+echo [2/5] Gerando banco inicial do proprio codigo...
+echo [2/5] Banco inicial >> "%LOG%"
 call %PY_CMD% tools\gerar_banco_modelo.py --sobrescrever >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_BANCO
 if not exist "modelo_banco\clinica.db" goto ERRO_BANCO_AUSENTE
 
 echo.
-echo [3/4] Compilando NutriLab.exe...
-echo [3/4] PyInstaller >> "%LOG%"
+echo [3/5] Renderizando os componentes SVG transparentes...
+echo [3/5] Identidade visual SVG >> "%LOG%"
+call %PY_CMD% tools\gerar_identidade_visual.py >> "%LOG%" 2>&1
+if errorlevel 1 goto ERRO_IDENTIDADE
+if not exist "assets\identidade\renderizados\folhas.json" goto ERRO_IDENTIDADE
+
+echo.
+echo [4/5] Compilando NutriLab.exe...
+echo [4/5] PyInstaller >> "%LOG%"
 call %PY_CMD% -m PyInstaller --clean --noconfirm app_clinica.spec >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_COMPILACAO
 
@@ -86,7 +93,7 @@ if not exist "dist\NutriLab\_internal\python312.dll" goto ERRO_DLL_AUSENTE
 set "EXE=%~dp0dist\NutriLab\NutriLab.exe"
 
 echo.
-echo [4/4] Compilacao concluida.
+echo [5/5] Compilacao concluida.
 echo Executavel: %EXE%
 if not exist "assets\identidade\nutrilab.ico" echo AVISO: compilacao local sem nutrilab.ico; o executavel ficara sem icone.
 echo Registro: %LOG%
@@ -127,6 +134,14 @@ exit /b 1
 
 :ERRO_BANCO_AUSENTE
 echo ERRO: o gerador terminou, mas modelo_banco\clinica.db nao foi criado.
+echo Consulte o registro: "%LOG%"
+type "%LOG%"
+pause
+exit /b 1
+
+:ERRO_IDENTIDADE
+echo ERRO ao renderizar a identidade visual em SVG.
+echo Verifique CairoSVG e Pillow em requirements-build.txt.
 echo Consulte o registro: "%LOG%"
 type "%LOG%"
 pause

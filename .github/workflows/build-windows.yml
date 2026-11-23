@@ -42,6 +42,7 @@ jobs:
             assets/identidade/nutrilab_identidade.png
             assets/identidade/nutrilab_icone.png
             assets/identidade/nutrilab.ico
+            assets/identidade/renderizados/
           if-no-files-found: error
 
   build:
@@ -95,6 +96,10 @@ jobs:
           $icon = "assets/identidade/nutrilab.ico"
           if (!(Test-Path $dll)) {
             throw "DLL do Python não encontrada: $dll"
+          }
+          $camadas = "dist/NutriLab/_internal/identidade_camadas/folhas.json"
+          if (!(Test-Path $camadas)) {
+            throw "Camadas transparentes da tela inicial não foram empacotadas: $camadas"
           }
           if (!(Test-Path $icon)) {
             throw "Ícone original não foi gerado: $icon"
