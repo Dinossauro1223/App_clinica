@@ -189,7 +189,8 @@ class TestBanco(unittest.TestCase):
         self.assertIsNone(candidatos["Ensure Plus Advance"]["kcal_100"])
         self.assertIn("abbottbrasil.com.br", candidatos["Ensure Plus Advance"]["observacao"])
         self.assertIsNone(candidatos["Nutrison Energy MF 1.5"]["kcal_100"])
-        self.assertEqual(candidatos["Glucerna 1.5 kcal"]["modulo"], "Fórmula enteral e oral")
+        self.assertEqual(candidatos["Glucerna 1.5 kcal"]["modulo"], "Fórmula para diabetes")
+        self.assertEqual(candidatos["Glucerna SR"]["modulo"], "Fórmula enteral e oral")
         self.assertEqual(candidatos["Nutri R 2.0"]["modulo"], "Fórmula enteral e oral")
         self.assertEqual((candidatos["Nutri R 2.0"]["kcal_100"], candidatos["Nutri R 2.0"]["ptn_100"],
                           candidatos["Nutri R 2.0"]["lip_100"], candidatos["Nutri R 2.0"]["carb_100"],
