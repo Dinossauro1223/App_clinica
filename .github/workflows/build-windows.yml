@@ -115,7 +115,7 @@ jobs:
       - name: Remover banco gravável criado pelo smoke test
         shell: pwsh
         run: |
-          $modelo = "dist/NutriLab/_internal/clinica.db"
+          $modelo = "dist/NutriLab/_internal/modelo_banco/clinica.db"
           $bancoUsuario = "dist/NutriLab/clinica.db"
           if (!(Test-Path $modelo)) {
             throw "Banco-modelo interno ausente: $modelo"
