@@ -556,7 +556,11 @@ class FichaDialog:
         self.janela.grab_set()
         self.rows = []
         self.produtos = ga.listar_produtos_almox(tela.db)
-        self.tbca = ga.listar_alimentos(tela.db, limite=500)
+        self.tbca = ga.listar_alimentos(tela.db, limite=10000)
+        self._tbca_por_rotulo = {
+            f"{item['id_tbca']} | {item['alimento']}": item for item in self.tbca
+        }
+        self._opcoes_tbca = ["— selecionar alimento da TBCA —"] + list(self._tbca_por_rotulo)
         self._montar()
         self._preencher()
 
@@ -583,8 +587,10 @@ class FichaDialog:
         barra.pack(fill="x", padx=16, pady=(4, 2))
         ctk.CTkLabel(barra, text="Ingredientes", font=ctk.CTkFont(size=15, weight="bold"), text_color=VERDE_ESC).pack(side="left")
         _btn(barra, "＋ Adicionar ingrediente", self.adicionar_linha, 175).pack(side="right")
-        ctk.CTkLabel(area, text="Nome · qtd. per capita · unidade · FC · medida caseira · ID TBCA · NPU · densidade (g/ml) · produto do Almoxarifado",
-                     text_color="#546e7a", font=ctk.CTkFont(size=10)).pack(anchor="w", padx=17, pady=(0, 2))
+        ctk.CTkLabel(area, text="Ingrediente: pode selecionar diretamente um alimento importado da TBCA. O vínculo com o Almoxarifado é opcional e associa o ingrediente ao item do estoque.",
+                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1100).pack(anchor="w", padx=17, pady=(0, 2))
+        ctk.CTkLabel(area, text="Campos por ingrediente: nome · quantidade per capita · unidade · fator de correção · alimento TBCA · medida caseira · NPU · densidade · vínculo Almoxarifado.",
+                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1100).pack(anchor="w", padx=17, pady=(0, 2))
         self.scroll = ctk.CTkScrollableFrame(area, fg_color="#f4f7f5")
         self.scroll.pack(fill="both", expand=True, padx=15, pady=4)
         rodape = ctk.CTkFrame(area, fg_color="transparent")
@@ -623,13 +629,18 @@ class FichaDialog:
         fc.pack(side="left", padx=2, pady=6)
         medida = ctk.CTkEntry(linha, width=115, placeholder_text="Medida caseira")
         medida.pack(side="left", padx=2, pady=6)
-        tbca = ctk.CTkEntry(linha, width=78, placeholder_text="ID TBCA")
+        tbca = ctk.CTkComboBox(
+            linha, width=220, values=self._opcoes_tbca,
+            command=lambda valor: self._selecionar_tbca(registro, valor)
+        )
+        tbca.set("— selecionar alimento da TBCA —")
         tbca.pack(side="left", padx=2, pady=6)
         npu = ctk.CTkEntry(linha, width=55, placeholder_text="NPU")
         npu.pack(side="left", padx=2, pady=6)
         dens = ctk.CTkEntry(linha, width=65, placeholder_text="g/ml")
         dens.pack(side="left", padx=2, pady=6)
-        opcoes = ["— sem vínculo —"] + [f"{p['id_mobile']} | {p['nome']}" for p in self.produtos]
+        opcoes = ["— sem vínculo com Almoxarifado —"] + [f"{p['id_mobile']} | {p['nome']}" for p in self.produtos]
+        ctk.CTkLabel(linha, text="Almox.:", text_color="#455a64").pack(side="left", padx=(5, 0))
         produto = ctk.CTkComboBox(linha, width=225, values=opcoes)
         produto.set(opcoes[0])
         produto.pack(side="left", padx=2, pady=6)
@@ -645,7 +656,16 @@ class FichaDialog:
             unidade.set(item.get("unidade") or "g")
             fc.delete(0, "end"); fc.insert(0, str(item.get("fator_correcao") or 1))
             medida.insert(0, item.get("medida_caseira") or "")
-            tbca.insert(0, str(item.get("tbca_id") or ""))
+            if item.get("tbca_id"):
+                rotulo_tbca = next(
+                    (rotulo for rotulo, alimento in self._tbca_por_rotulo.items()
+                     if str(alimento["id_tbca"]) == str(item["tbca_id"])),
+                    None,
+                )
+                if rotulo_tbca:
+                    tbca.set(rotulo_tbca)
+            else:
+                tbca.set("— selecionar alimento da TBCA —")
             npu.insert(0, str(item.get("npu") if item.get("npu") is not None else ""))
             dens.insert(0, str(item.get("densidade_g_ml") or ""))
             if item.get("id_produto_mobile") is not None:
@@ -653,6 +673,24 @@ class FichaDialog:
                     if op.startswith(str(item["id_produto_mobile"]) + " |"):
                         produto.set(op)
                         break
+
+    def _selecionar_tbca(self, registro, valor):
+        """Vincula o nome escolhido ao ID TBCA e preenche referências da própria tabela."""
+        alimento = self._tbca_por_rotulo.get(valor)
+        if not alimento:
+            return
+        nome = registro["nome"]
+        nome.delete(0, "end")
+        nome.insert(0, alimento["alimento"])
+        if alimento.get("fc_referencia") not in (None, 0):
+            registro["fc"].delete(0, "end")
+            registro["fc"].insert(0, str(alimento["fc_referencia"]))
+        if alimento.get("medida_caseira"):
+            registro["medida"].delete(0, "end")
+            registro["medida"].insert(0, str(alimento["medida_caseira"]))
+        if alimento.get("npu") is not None:
+            registro["npu"].delete(0, "end")
+            registro["npu"].insert(0, str(alimento["npu"]))
 
     def _remover_linha(self, registro):
         registro["frame"].destroy()
@@ -664,7 +702,7 @@ class FichaDialog:
         for linha in self.rows:
             produto_txt = linha["produto"].get()
             id_produto = None
-            if produto_txt != "— sem vínculo —" and " | " in produto_txt:
+            if produto_txt != "— sem vínculo com Almoxarifado —" and " | " in produto_txt:
                 try:
                     id_produto = int(produto_txt.split(" | ", 1)[0])
                 except ValueError:
@@ -673,7 +711,10 @@ class FichaDialog:
                 "nome": linha["nome"].get().strip(), "qtd_per_capita": linha["qtd"].get(),
                 "unidade": linha["unidade"].get(), "fator_correcao": linha["fc"].get() or 1,
                 "medida_caseira": linha["medida"].get().strip() or None,
-                "tbca_id": linha["tbca"].get().strip() or None,
+                "tbca_id": (
+                    linha["tbca"].get().split(" | ", 1)[0].strip()
+                    if " | " in linha["tbca"].get() else None
+                ),
                 "npu": linha["npu"].get().strip() or None,
                 "densidade_g_ml": linha["dens"].get().strip() or None,
                 "id_produto_mobile": id_produto,
