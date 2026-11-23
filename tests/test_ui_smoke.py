@@ -474,7 +474,7 @@ class TestInterface(unittest.TestCase):
         self.assertTrue(all(s["modulo"] in ("Fórmula enteral", "Fórmula enteral e oral", "Módulo oral/enteral")
                             for s in form._catalogo_visivel))
         self.assertNotIn("Ensure Plus Advance", [s["nome"] for s in form._catalogo_visivel])
-        self.assertIn("Glucerna 1.5 kcal", [s["nome"] for s in form._catalogo_visivel])
+        self.assertIn("Glucerna SR", [s["nome"] for s in form._catalogo_visivel])
         self.assertIn("Nutri R 2.0", [s["nome"] for s in form._catalogo_visivel])
         form.cb_sup.set("Nutrison Energy 1.5")
         form.e_qtd.insert(0, "250")
@@ -501,6 +501,7 @@ class TestInterface(unittest.TestCase):
         self.assertEqual(form2._suplementos, [])
         self.assertNotIn("Nutrison Energy 1.5", [s["nome"] for s in form2._catalogo_visivel])
         self.assertIn("Glucerna 1.5 kcal", [s["nome"] for s in form2._catalogo_visivel])
+        self.assertIn("Glucerna SR", [s["nome"] for s in form2._catalogo_visivel])
         self.assertIn("Nutri R 2.0", [s["nome"] for s in form2._catalogo_visivel])
         self.assertIn("Ensure Plus Advance", [s["nome"] for s in form2._catalogo_visivel])
 
