@@ -19,13 +19,14 @@ import customtkinter as ctk
 
 import condutas_alta as ca
 import condutas_alta_export as ex
+import tema
 import mapa_db as mdb
 from mapa_ui import (VERDE_ESC, VERDE, VERDE_HOVER, FUNDO, CINZA_BTN, CINZA_HOVER, VERMELHO, LARANJA, _btn,
                      _set_entry, _tornar_modal)
 
-AZUL, AZUL_HOVER = "#1565c0", "#0d47a1"
-LARANJA_HOVER = "#e65100"
-COR_ESTADO = {"pendente": LARANJA, "confirmada": VERDE_ESC, "nao_se_aplica": "#607d8b"}
+AZUL, AZUL_HOVER = tema.AZUL, tema.AZUL_HOVER
+LARANJA_HOVER = tema.LARANJA
+COR_ESTADO = {"pendente": LARANJA, "confirmada": VERDE_ESC, "nao_se_aplica": tema.SUAVE}
 ROTULO_ESTADO = {"pendente": "PENDENTE", "confirmada": "CONFIRMADA", "nao_se_aplica": "NÃO SE APLICA"}
 
 
@@ -51,7 +52,7 @@ def texto_status(sessao):
     if sessao.sem_registro:      # sem registro o programa não sabe as doenças: "nenhuma sugerida" enganaria
         return ("Este paciente não tem registro no Mapa, então nenhuma conduta foi sugerida. Confira as doenças no "
                 "prontuário e adicione as condutas do catálogo que se aplicarem.", LARANJA)
-    return "Nenhuma conduta sugerida pelas doenças do Mapa. Você pode adicionar condutas do catálogo.", "#546e7a"
+    return "Nenhuma conduta sugerida pelas doenças do Mapa. Você pode adicionar condutas do catálogo.", tema.SUAVE
 
 
 def etiqueta_estado(c):
@@ -105,7 +106,7 @@ class PainelCondutasAlta(ctk.CTkFrame):
     """Lembrete permanente na consulta: situação das condutas de alta do paciente e botão para abri-las."""
 
     def __init__(self, master, db_path, id_paciente, nome_paciente="", pasta_saida=None, janela_pai=None):
-        super().__init__(master, fg_color="#fff8e1", border_width=1, border_color="#ffcc80", corner_radius=8)
+        super().__init__(master, fg_color=tema.LARANJA_CLARO, border_width=1, border_color=tema.LARANJA, corner_radius=8)
         self.db, self.id_paciente, self.nome = db_path, id_paciente, nome_paciente or ""
         self.pasta_saida, self.janela_pai = pasta_saida, janela_pai or master
         self.sessao = None
@@ -115,7 +116,7 @@ class PainelCondutasAlta(ctk.CTkFrame):
                      text_color=VERDE_ESC).pack(side="left")
         _btn(topo, "Abrir condutas de alta", self.abrir, 190, LARANJA, LARANJA_HOVER, 30).pack(side="right")
         self.lbl_doencas = ctk.CTkLabel(self, text="", anchor="w", justify="left", wraplength=760,
-                                        font=ctk.CTkFont(size=13), text_color="#37474f")
+                                        font=ctk.CTkFont(size=13), text_color=tema.TEXTO)
         self.lbl_doencas.pack(fill="x", padx=12, pady=(2, 0))
         self.lbl_status = ctk.CTkLabel(self, text="", anchor="w", justify="left", wraplength=760,
                                        font=ctk.CTkFont(size=14, weight="bold"))
@@ -232,13 +233,13 @@ class JanelaCondutasAlta(ctk.CTkFrame):
                      font=ctk.CTkFont(size=20, weight="bold"), text_color=VERDE_ESC, anchor="w"
                      ).pack(fill="x", padx=16, pady=(10, 0))
         self.lbl_doencas = ctk.CTkLabel(self, text="", anchor="w", justify="left", wraplength=940,
-                                        font=ctk.CTkFont(size=13), text_color="#37474f")
+                                        font=ctk.CTkFont(size=13), text_color=tema.TEXTO)
         self.lbl_doencas.pack(fill="x", padx=16, pady=(2, 0))
         self.lbl_status = ctk.CTkLabel(self, text="", anchor="w", justify="left", wraplength=940,
                                        font=ctk.CTkFont(size=14, weight="bold"))
         self.lbl_status.pack(fill="x", padx=16)
         self.lbl_paginas = ctk.CTkLabel(self, text="", anchor="w", justify="left", wraplength=940,
-                                        font=ctk.CTkFont(size=12), text_color="#546e7a")
+                                        font=ctk.CTkFont(size=12), text_color=tema.SUAVE)
         self.lbl_paginas.pack(fill="x", padx=16, pady=(0, 4))
         self.corpo = ctk.CTkScrollableFrame(self, fg_color=FUNDO)
         self.corpo.pack(fill="both", expand=True, padx=8, pady=(0, 4))
@@ -285,7 +286,7 @@ class JanelaCondutasAlta(ctk.CTkFrame):
                      text_color=COR_ESTADO[estado]).pack(side="right")
 
         # Texto técnico: fechado por padrão (a folha do paciente é curta; a visão integral fica a um clique).
-        det = ctk.CTkFrame(q, fg_color="#f1f8e9")
+        det = ctk.CTkFrame(q, fg_color=tema.FUNDO)
         ctk.CTkLabel(det, text=texto_tecnico(c), anchor="w", justify="left", wraplength=860,
                      font=ctk.CTkFont(size=12)).pack(fill="x", padx=10, pady=8)
         b_det = _btn(q, "", None, 260, CINZA_BTN, CINZA_HOVER, 26)
@@ -314,7 +315,7 @@ class JanelaCondutasAlta(ctk.CTkFrame):
 
         if estado == "nao_se_aplica":
             ctk.CTkLabel(q, text="Motivo: " + c["justificativa"], anchor="w", justify="left", wraplength=860,
-                         font=ctk.CTkFont(size=12), text_color="#455a64").pack(fill="x", padx=12, pady=(2, 2))
+                         font=ctk.CTkFont(size=12), text_color=tema.SUAVE).pack(fill="x", padx=12, pady=(2, 2))
         else:
             self._montar_texto_paciente(q, c)
         if editavel:
@@ -330,7 +331,7 @@ class JanelaCondutasAlta(ctk.CTkFrame):
         if lacunas:
             ctk.CTkLabel(q, text=f"{lacunas} {_plural(lacunas, 'campo em branco', 'campos em branco')} (____): preencha "
                                  "aqui ou deixe para escrever à mão na folha impressa.", anchor="w", justify="left",
-                         wraplength=860, font=ctk.CTkFont(size=12), text_color="#546e7a"
+                         wraplength=860, font=ctk.CTkFont(size=12), text_color=tema.SUAVE
                          ).pack(fill="x", padx=12, pady=(0, 0))
         linhas = sum(max(1, -(-len(ln) // 105)) for ln in texto.split("\n")) + 1
         t = ctk.CTkTextbox(q, width=860, height=min(380, max(84, 21 * linhas)), wrap="word")

@@ -21,24 +21,22 @@ import avaliacao_nutri as avaliacao
 import mapa_db as mdb
 import condutas_alta as ca
 import graficos_layout as gl
+import tema
 
-VERDE_ESC, VERDE, VERDE_HOVER, FUNDO = "#1b5e20", "#4caf50", "#388e3c", "#F0F7F4"
-CINZA_BTN, CINZA_HOVER = "#78909c", "#546e7a"
-VERMELHO, VERMELHO_HOVER, LARANJA = "#c62828", "#8e0000", "#ef6c00"
+VERDE_ESC, VERDE, VERDE_HOVER, FUNDO = tema.VERDE_ESC, tema.VERDE, tema.VERDE_HOVER, tema.FUNDO
+CINZA_BTN, CINZA_HOVER = tema.SUAVE, tema.SUAVE
+VERMELHO, VERMELHO_HOVER, LARANJA = tema.ERRO, tema.ERRO_HOVER, tema.LARANJA
 ESTILO_TREE = "Mapa.Treeview"
 
 
 def _estilo_tree():
     st = ttk.Style()
-    st.theme_use("default")
     st.configure(ESTILO_TREE, font=("Segoe UI", 10), rowheight=28)
-    st.configure(ESTILO_TREE + ".Heading", font=("Segoe UI", 10, "bold"), background=VERDE, foreground="white")
-    st.map(ESTILO_TREE, background=[("selected", "#2e7d32")], foreground=[("selected", "white")])
 
 
 def _btn(master, texto, comando, largura=140, cor=VERDE, hover=VERDE_HOVER, altura=32):
     return ctk.CTkButton(master, text=texto, command=comando, width=largura, height=altura, fg_color=cor,
-                         hover_color=hover, text_color="#ffffff", font=ctk.CTkFont(size=12, weight="bold"))
+                         hover_color=hover, text_color=tema.BRANCO, font=ctk.CTkFont(size=12, weight="bold"))
 
 
 def _titulo(master, texto):
@@ -140,11 +138,11 @@ class MapaUI:
         acoes.pack(fill="x", padx=20, pady=4)
         _btn(acoes, "Registrar / Editar", self._editar, 150).pack(side="left", padx=(0, 6))
         _btn(acoes, "Histórico", self._historico, 100, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(0, 6))
-        _btn(acoes, "Condutas de alta", self._condutas_alta, 140, LARANJA, "#e65100").pack(side="left", padx=(0, 6))
+        _btn(acoes, "Condutas de alta", self._condutas_alta, 140, LARANJA, tema.LARANJA).pack(side="left", padx=(0, 6))
         _btn(acoes, "Copiar último mapa", self._copiar_ultimo, 150, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(0, 6))
         _btn(acoes, "Remover do mapa", self._remover, 130, VERMELHO, VERMELHO_HOVER).pack(side="left", padx=(0, 6))
-        _btn(acoes, "Excel", self._exportar_excel, 80, "#1565c0", "#0d47a1").pack(side="right")
-        _btn(acoes, "PDF", self._exportar_pdf, 70, "#1565c0", "#0d47a1").pack(side="right", padx=6)
+        _btn(acoes, "Excel", self._exportar_excel, 80, tema.AZUL, tema.AZUL_HOVER).pack(side="right")
+        _btn(acoes, "PDF", self._exportar_pdf, 70, tema.AZUL, tema.AZUL_HOVER).pack(side="right", padx=6)
 
         self.lbl_aviso = ctk.CTkLabel(area, text="", text_color=LARANJA, font=ctk.CTkFont(size=12, weight="bold"))
         self.lbl_aviso.pack(fill="x", padx=22, pady=(2, 0), anchor="w")
@@ -164,8 +162,8 @@ class MapaUI:
         for chave, titulo, larg, anc in colunas:
             self.tree.heading(chave, text=titulo)
             self.tree.column(chave, width=larg, anchor=anc, stretch=chave in ("paciente", "supl"))
-        self.tree.tag_configure("vago", foreground="#9e9e9e")
-        self.tree.tag_configure("condpend", foreground="#e65100")
+        self.tree.tag_configure("vago", foreground=tema.cor_atual(tema.SUAVE))
+        self.tree.tag_configure("condpend", foreground=tema.LARANJA)
         rolagem = ttk.Scrollbar(quadro, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=rolagem.set)
         self.tree.pack(side="left", fill="both", expand=True, padx=(6, 0), pady=6)
@@ -177,7 +175,7 @@ class MapaUI:
         self.tree.bind("<Control-h>", self._atalho_historico)
         self.tree.bind("<Control-H>", self._atalho_historico)
 
-        self.lbl_resumo = ctk.CTkLabel(area, text="", font=ctk.CTkFont(size=12), text_color="#37474f")
+        self.lbl_resumo = ctk.CTkLabel(area, text="", font=ctk.CTkFont(size=12), text_color=tema.TEXTO)
         self.lbl_resumo.pack(fill="x", padx=22, pady=(0, 10), anchor="w")
         self._recarregar()
 
@@ -493,7 +491,7 @@ class MapaUI:
             cx = ctk.CTkFrame(self.quadro_kpi, fg_color="white", corner_radius=8)
             cx.pack(side="left", padx=4, ipadx=8, ipady=4)
             ctk.CTkLabel(cx, text=val, font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC).pack(padx=8)
-            ctk.CTkLabel(cx, text=rot, font=ctk.CTkFont(size=11), text_color="#546e7a").pack(padx=8)
+            ctk.CTkLabel(cx, text=rot, font=ctk.CTkFont(size=11), text_color=tema.SUAVE).pack(padx=8)
         self._grupos = self._mgr.especificar_por_grupo(self._agg)
         self._grupos_png = None
         self._montar_painel()
@@ -552,7 +550,7 @@ class MapaUI:
         area = self._preparar_area()
         _titulo(area, "Suplementos (ficha técnica)").pack(anchor="w", padx=20, pady=(15, 2))
         ctk.CTkLabel(area, text="Valores por 100 mL ou 100 g, conforme a ficha técnica. O módulo define o agrupamento "
-                                "da lista suspensa do mapa e dos gráficos.", text_color="#546e7a").pack(anchor="w", padx=22)
+                                "da lista suspensa do mapa e dos gráficos.", text_color=tema.SUAVE).pack(anchor="w", padx=22)
         barra = ctk.CTkFrame(area, fg_color="transparent")
         barra.pack(fill="x", padx=20, pady=8)
         _btn(barra, "Novo", self._novo_suplemento, 80).pack(side="left", padx=(0, 6))
@@ -573,7 +571,7 @@ class MapaUI:
         for chave, titulo, larg, anc in cols:
             self.tree_sup.heading(chave, text=titulo)
             self.tree_sup.column(chave, width=larg, anchor=anc, stretch=chave in ("nome", "modulo"))
-        self.tree_sup.tag_configure("inativo", foreground="#9e9e9e")
+        self.tree_sup.tag_configure("inativo", foreground=tema.SUAVE)
         rol = ttk.Scrollbar(quadro, orient="vertical", command=self.tree_sup.yview)
         self.tree_sup.configure(yscrollcommand=rol.set)
         self.tree_sup.pack(side="left", fill="both", expand=True, padx=(6, 0), pady=6)
@@ -692,7 +690,7 @@ class DialogConfig(_Janela):
         self.cb_alt.pack(padx=20)
         self.cb_alt.set(nc.METODOS_ALTURA_IDOSO.get(ui.metodo_altura_idoso, nc.METODOS_ALTURA_IDOSO["chumlea1985"]))
         ctk.CTkLabel(self, text="Vale para os próximos registros e cálculos. Registros antigos não mudam.",
-                     text_color="#546e7a").pack(anchor="w", padx=20, pady=(12, 0))
+                     text_color=tema.SUAVE).pack(anchor="w", padx=20, pady=(12, 0))
         ctk.CTkLabel(self, text="Gráficos do mês (os gráficos ficam agrupados por assunto):").pack(
             anchor="w", padx=20, pady=(16, 2))
         self.cb_graf = ctk.CTkComboBox(self, values=list(gl.ROTULOS_DISPOSICAO.values()), width=500, state="readonly")
@@ -741,7 +739,7 @@ class DialogLeitos(_Janela):
         self.tree.heading("situacao", text="Situação")
         self.tree.column("codigo", width=300, anchor="w")
         self.tree.column("situacao", width=120, anchor="center")
-        self.tree.tag_configure("inativo", foreground="#9e9e9e")
+        self.tree.tag_configure("inativo", foreground=tema.SUAVE)
         self.tree.pack(fill="both", expand=True, padx=6, pady=6)
 
         um = ctk.CTkFrame(self, fg_color="transparent")
@@ -951,7 +949,7 @@ class DialogHistorico(_Janela):
         ctk.CTkLabel(self, text=reg["nome_paciente"], font=ctk.CTkFont(size=18, weight="bold"),
                      text_color=VERDE_ESC).pack(anchor="w", padx=16, pady=(14, 0))
         ctk.CTkLabel(self, text="Duplo clique (ou o botão abaixo) abre o registro do dia, somente para consulta.",
-                     text_color="#546e7a").pack(anchor="w", padx=16)
+                     text_color=tema.SUAVE).pack(anchor="w", padx=16)
         quadro = ctk.CTkFrame(self, fg_color="white")
         quadro.pack(fill="both", expand=True, padx=16, pady=8)
         cols = [("data", "Data", 90), ("leito", "Leito", 60), ("peso", "Peso (kg)", 80), ("imc", "IMC", 150),
@@ -1085,9 +1083,9 @@ class FormRegistro(_Janela):
         ctk.CTkLabel(l, text="IMC (kg/m²):").pack(side="left")
         self.lbl_imc = ctk.CTkLabel(l, text="-", font=ctk.CTkFont(size=14, weight="bold"))
         self.lbl_imc.pack(side="left", padx=6)
-        self.lbl_class = ctk.CTkLabel(l, text="", text_color="#d50000", font=ctk.CTkFont(size=14, weight="bold"))
+        self.lbl_class = ctk.CTkLabel(l, text="", text_color=tema.ERRO, font=ctk.CTkFont(size=14, weight="bold"))
         self.lbl_class.pack(side="left")
-        self.lbl_info = ctk.CTkLabel(q, text="", text_color="#546e7a", wraplength=760, justify="left",
+        self.lbl_info = ctk.CTkLabel(q, text="", text_color=tema.SUAVE, wraplength=760, justify="left",
                                      font=ctk.CTkFont(size=11))
         self.lbl_info.pack(anchor="w", padx=12, pady=(0, 6))
 
@@ -1107,7 +1105,7 @@ class FormRegistro(_Janela):
         for codigo, nome in mdb.CONDICOES:
             self.var_cond[codigo] = tk.IntVar(value=0)
             self._reg(ctk.CTkCheckBox(l, text=nome, variable=self.var_cond[codigo], width=20)).pack(side="left", padx=6)
-        ctk.CTkLabel(l, text="(com as marcações acima, escolhem as condutas de alta)", text_color="#546e7a",
+        ctk.CTkLabel(l, text="(com as marcações acima, escolhem as condutas de alta)", text_color=tema.SUAVE,
                      font=ctk.CTkFont(size=11)).pack(side="left", padx=8)
         l = self._linha(q)
         self.seg_cons = self._seg(l, "Consistência", mdb.CONSISTENCIAS)
