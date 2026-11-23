@@ -163,7 +163,7 @@ class MapaUI:
             self.tree.heading(chave, text=titulo)
             self.tree.column(chave, width=larg, anchor=anc, stretch=chave in ("paciente", "supl"))
         self.tree.tag_configure("vago", foreground=tema.cor_atual(tema.SUAVE))
-        self.tree.tag_configure("condpend", foreground=tema.LARANJA)
+        self.tree.tag_configure("condpend", foreground=tema.cor_atual(tema.LARANJA))
         rolagem = ttk.Scrollbar(quadro, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=rolagem.set)
         self.tree.pack(side="left", fill="both", expand=True, padx=(6, 0), pady=6)
