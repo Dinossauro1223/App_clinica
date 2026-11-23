@@ -116,6 +116,9 @@ class MobileTest(unittest.TestCase):
                 self.assertEqual(sv.login(c, "127.0.0.1", {"login": "admin", "senha": "senha-personalizada"})["usuario"]["perfil"], "admin")
             finally:
                 c.close()
+            senha_redefinida = sv.preparar_banco(banco, redefinir=True)
+            self.assertTrue(senha_redefinida)
+            self.assertNotEqual(senha_redefinida, "123456789")
 
     def test_login_invalido(self):
         self.assertEqual(self.chamar(None, "POST", "/api/login", {"login": "admin", "senha": "errada"})[0], 401)
