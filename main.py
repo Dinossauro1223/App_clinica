@@ -1480,10 +1480,10 @@ class AppClinica(ctk.CTk):
         modal = ctk.CTkToplevel(self)
         modal.geometry("500x400")
         modal.attributes("-topmost", True)
-        tabview_modal = ctk.CTkTabview(modal, fg_color="#e8f5e9",
+        tabview_modal = _criar_tabview_compat(modal, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
+                                fg_color="#e8f5e9",
                                 segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
                                 segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                segmented_button_font=ctk.CTkFont(size=15, weight="bold"),
                                 text_color="#ffffff", text_color_disabled="#d5e8d7")
         tabview_modal.pack(padx=10, pady=10, fill="both", expand=True)
         if alvo == "conduta":
@@ -2394,10 +2394,10 @@ class AppClinica(ctk.CTk):
         titulo = ctk.CTkLabel(self.area_principal, text="Catálogo e Regras de Exames", font=ctk.CTkFont(size=24, weight="bold"), text_color="#1b5e20")
         titulo.pack(pady=(20, 10))
 
-        tabview_exames = ctk.CTkTabview(self.area_principal, fg_color="#e8f5e9",
+        tabview_exames = _criar_tabview_compat(self.area_principal, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
+                                        fg_color="#e8f5e9",
                                         segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
                                         segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                        segmented_button_font=ctk.CTkFont(size=15, weight="bold"),
                                         text_color="#ffffff", text_color_disabled="#d5e8d7")
         tabview_exames.pack(padx=20, pady=10, fill="both", expand=True)
 
