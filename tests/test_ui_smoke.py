@@ -453,6 +453,41 @@ class TestInterface(unittest.TestCase):
         self.assertIn("1 em dieta pastosa", self.ui.lbl_resumo.opts["text"])
         self.assertIn("1 com acompanhante", self.ui.lbl_resumo.opts["text"])
 
+    def test_troca_automatica_suplementacao_oral_para_dieta_enteral(self):
+        self.ui.mostrar_mapa()
+        form = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self._preencher_form(form)
+        form.seg_via.set("Oral")
+        form._via_mudou("Oral", preservar=True)
+        form.cb_mod.set("Módulo probiótico/simbiótico")
+        form._filtrar_sup()
+        form.cb_sup.set("Simbioflora")
+        form.e_qtd.insert(0, "1")
+        form._add_sup()
+        self.assertEqual(len(form._suplementos), 1)
+
+        # Selecionar via enteral substitui a suplementação oral e restringe a lista a fórmulas.
+        form.seg_via.click("Enteral")
+        self.assertEqual(form._suplementos, [])
+        self.assertEqual(form.cb_mod.get(), "Fórmulas enterais")
+        self.assertTrue(all(s["modulo"] in ("Fórmula completa", "Fórmula para diabetes")
+                            for s in form._catalogo_visivel))
+        form.cb_sup.set("Ensure Plus Advance")
+        form.e_qtd.insert(0, "250")
+        form._add_sup()
+        form.e_meta_kcal.insert(0, "1800")
+        form.e_meta_ptn.insert(0, "90")
+        form._salvar()
+
+        reg = mdb.obter_registro(self.db, self.ui.data.isoformat(), self._primeiro_leito()["leito"]["id_leito"])
+        self.assertEqual(reg["via"], "Enteral")
+        self.assertEqual([s["nome"] for s in reg["suplementos"]], ["Ensure Plus Advance"])
+        self.assertEqual((reg["meta_kcal"], reg["meta_proteina_g"]), (1800.0, 90.0))
+        self.assertIn("1 em dieta enteral", self.ui.lbl_resumo.opts["text"])
+        self.assertIn("0 com suplementação oral", self.ui.lbl_resumo.opts["text"])
+        linha = self.ui.tree.items[str(self._primeiro_leito()["leito"]["id_leito"])]
+        self.assertIn("Dieta enteral", linha[7])
+
     def test_reabrir_edita_e_vinculo_de_paciente(self):
         self.ui.mostrar_mapa()
         f1 = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
