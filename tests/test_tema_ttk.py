@@ -28,6 +28,16 @@ class RootFake:
 
 
 class TestTemaTreeview(unittest.TestCase):
+    def test_tema_aplica_paleta_a_treeviews_do_mapa_e_padrao(self):
+        raiz = RootFake([])
+        estilo = Mock()
+        with patch.object(tema.ttk, "Style", return_value=estilo):
+            tema.aplicar_tema_ttk(raiz)
+        configurados = [chamada.args[0] for chamada in estilo.configure.call_args_list]
+        self.assertIn("Treeview", configurados)
+        self.assertIn("Mapa.Treeview", configurados)
+        self.assertIn("Mapa.Treeview.Heading", configurados)
+
     def test_mudanca_de_aparencia_recolore_linhas_e_selecao(self):
         arvore = TreeFake()
         raiz = RootFake([arvore])
