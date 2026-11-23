@@ -174,7 +174,7 @@ class TestBanco(unittest.TestCase):
         self.assertIn("Nutrison Energy 1.5", candidatos)
         # As quatro composições preenchidas foram transcritas das respectivas fichas oficiais por 100 mL.
         fichas = {
-            "Nutrison Energy 1.5": (151, 6, 5.6, 19, 128),
+            "Nutrison Energy 1.5": (149, 6, 5.8, 18, 134),
             "Nutrison Protein Plus Energy": (150, 7.5, 5.8, 17, 100),
             "Nutrison advanced Diason": (102, 4.3, 4.2, 11, 100),
             "Nutrison advanced Cubison": (103, 5.5, 3.3, 13, 100),
