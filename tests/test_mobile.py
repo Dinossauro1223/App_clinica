@@ -103,7 +103,7 @@ class MobileTest(unittest.TestCase):
             self.assertIsNone(sv.preparar_banco(banco))
             c = sv.conectar(banco)
             try:
-                self.assertEqual(sv.login(c, "127.0.0.1", {"login": "admin", "senha": "senha-personalizada"})["usuario"]["login"], "admin")
+                self.assertEqual(sv.login(c, "127.0.0.1", {"login": "admin", "senha": "senha-personalizada"})["usuario"]["perfil"], "admin")
             finally:
                 c.close()
 
