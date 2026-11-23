@@ -3,6 +3,7 @@
 import os
 import sqlite3
 import subprocess
+from contextlib import closing
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
@@ -154,7 +155,7 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
             widget.destroy()
         self.vars_docs = {}
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn:
                 docs = amb.listar_recomendacoes(conn)
         except sqlite3.Error as exc:
             ctk.CTkLabel(self.lista_docs, text=f"Erro ao carregar recomendações: {exc}").pack(anchor="w")
@@ -174,47 +175,63 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
                           command=lambda d=doc: self._abrir_docx(d)).pack(side="right", padx=6, pady=4)
 
     def _novo_docx(self):
-        janela = ctk.CTkToplevel(self)
-        janela.title("Cadastrar recomendação DOCX")
-        janela.geometry("550x355")
-        janela.transient(self.winfo_toplevel())
-        janela.grab_set()
+        app = self.winfo_toplevel()
+        painel_externo = hasattr(app, "abrir_painel_lateral")
+        if painel_externo:
+            container = app.abrir_painel_lateral("Cadastrar recomendação DOCX", lambda: None)
+        else:
+            container = self
+        painel = ctk.CTkFrame(container, fg_color="transparent")
+        painel.pack(fill="both", expand=True)
+        cabecalho = ctk.CTkFrame(painel, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=14, pady=(10, 4))
+        ctk.CTkLabel(cabecalho, text="Cadastrar recomendação DOCX",
+                     font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE).pack(side="left")
+
+        def fechar():
+            if painel_externo:
+                app.fechar_painel_lateral(container)
+            else:
+                painel.destroy()
+
+        ctk.CTkButton(cabecalho, text="Fechar guia", width=100, command=fechar).pack(side="right")
         entradas = {}
         for chave, rotulo, dica in (("titulo", "Título", "Ex.: Orientações nutricionais"),
                                      ("caso", "Caso clínico/situação de uso", "Ex.: Diabetes tipo 2"),
                                      ("tags", "Palavras-chave (opcional)", "Ex.: DM; educação alimentar")):
-            ctk.CTkLabel(janela, text=rotulo, text_color=VERDE).pack(anchor="w", padx=14, pady=(10, 2))
-            campo = ctk.CTkEntry(janela, width=510, placeholder_text=dica,
+            ctk.CTkLabel(painel, text=rotulo, text_color=VERDE).pack(anchor="w", padx=14, pady=(10, 2))
+            campo = ctk.CTkEntry(painel, width=510, placeholder_text=dica,
                                  fg_color=BRANCO, border_color=BORDA, text_color="#263238")
             campo.pack(padx=14)
             entradas[chave] = campo
         arquivo = {"path": ""}
-        rotulo = ctk.CTkLabel(janela, text="Nenhum arquivo selecionado", wraplength=500)
+        rotulo = ctk.CTkLabel(painel, text="Nenhum arquivo selecionado", wraplength=500)
         rotulo.pack(pady=8)
 
         def escolher():
-            path = filedialog.askopenfilename(parent=janela, title="Selecione o DOCX",
+            path = filedialog.askopenfilename(parent=painel, title="Selecione o DOCX",
                                               filetypes=[("Documento Word", "*.docx")])
             if path:
                 arquivo["path"] = path
                 rotulo.configure(text=os.path.basename(path))
 
-        ctk.CTkButton(janela, text="Selecionar .docx", command=escolher).pack()
+        ctk.CTkButton(painel, text="Selecionar .docx", command=escolher).pack()
 
         def salvar():
             try:
                 if not arquivo["path"]:
                     raise amb.ErroAmbulatorial("Selecione o documento DOCX.")
-                with sqlite3.connect(self.db_path) as conn:
-                    amb.cadastrar_recomendacao_docx(conn, arquivo["path"], self.pasta_dados,
-                        entradas["titulo"].get(), entradas["caso"].get(), entradas["tags"].get())
-                janela.destroy()
+                with closing(sqlite3.connect(self.db_path)) as conn:
+                    with conn:
+                        amb.cadastrar_recomendacao_docx(conn, arquivo["path"], self.pasta_dados,
+                            entradas["titulo"].get(), entradas["caso"].get(), entradas["tags"].get())
+                fechar()
                 self._listar_docs()
                 messagebox.showinfo("Biblioteca", "Recomendação cadastrada.", parent=self)
             except (amb.ErroAmbulatorial, sqlite3.Error, OSError) as exc:
-                messagebox.showerror("Não foi possível cadastrar", str(exc), parent=janela)
+                messagebox.showerror("Não foi possível cadastrar", str(exc), parent=painel)
 
-        ctk.CTkButton(janela, text="Salvar na biblioteca", command=salvar,
+        ctk.CTkButton(painel, text="Salvar na biblioteca", command=salvar,
                       fg_color=BOTAO, hover_color=HOVER).pack(pady=12)
 
     def _abrir_docx(self, doc):
@@ -240,16 +257,31 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
         }
 
 
-class DialogoAssociacoesExames(ctk.CTkToplevel):
-    """Gerencia exames complementares e relações com diagnósticos clínicos/nutricionais."""
+class DialogoAssociacoesExames(ctk.CTkFrame):
+    """Gerencia exames complementares em uma guia lateral, sem abrir Toplevel."""
     def __init__(self, master, db_path):
-        super().__init__(master)
-        self.title("Associações de exames")
-        self.geometry("740x540")
+        try:
+            app = master.winfo_toplevel()
+        except Exception:
+            app = master
+        self.app = app
+        self._painel_externo = bool(app and hasattr(app, "abrir_painel_lateral"))
+        if self._painel_externo:
+            self._painel_frame = app.abrir_painel_lateral("Associações de exames", lambda: None)
+            pai = self._painel_frame
+        else:
+            self._painel_frame = None
+            pai = getattr(master, "area_principal", master)
+        super().__init__(pai, fg_color="transparent")
+        self.pack(fill="both", expand=True)
         self.db_path = db_path
-        self.transient(master)
-        self.grab_set()
-        with sqlite3.connect(db_path) as conn:
+        cabecalho = ctk.CTkFrame(self, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=14, pady=(12, 6))
+        ctk.CTkLabel(cabecalho, text="Associações de exames",
+                     font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE).pack(side="left")
+        ctk.CTkButton(cabecalho, text="Fechar guia", width=90,
+                      command=self.destroy, fg_color=BOTAO, hover_color=HOVER).pack(side="right")
+        with closing(sqlite3.connect(db_path)) as conn:
             rows = conn.execute("SELECT id_exame, nome_amigavel FROM Exames_Catalogo ORDER BY nome_amigavel").fetchall()
         self.exames = {f"{nome} ({codigo})": codigo for codigo, nome in rows}
         if not self.exames:
@@ -284,7 +316,7 @@ class DialogoAssociacoesExames(ctk.CTkToplevel):
         if not hasattr(self, "lista"):
             return
         codigo = self.exames.get(self.combo_exame.get())
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
             itens = amb.associacoes_do_exame(conn, codigo)
             nomes = {r[0]: r[1] for r in conn.execute("SELECT id_exame,nome_amigavel FROM Exames_Catalogo")}
         self.lista.delete("1.0", "end")
@@ -305,11 +337,26 @@ class DialogoAssociacoesExames(ctk.CTkToplevel):
         tipo = {"Exame recomendado": "exame_recomendado", "Diagnóstico clínico": "diagnostico_clinico",
                 "Diagnóstico nutricional": "diagnostico_nutricional"}.get(self.combo_tipo.get())
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                amb.salvar_associacao_exame(conn, self.exames.get(self.combo_exame.get()), tipo,
-                    self.valor.get(), self.justificativa.get(), self.fonte.get())
+            with closing(sqlite3.connect(self.db_path)) as conn:
+                with conn:
+                    amb.salvar_associacao_exame(conn, self.exames.get(self.combo_exame.get()), tipo,
+                        self.valor.get(), self.justificativa.get(), self.fonte.get())
             for campo in (self.valor, self.justificativa, self.fonte):
                 campo.delete(0, "end")
             self.atualizar()
         except (amb.ErroAmbulatorial, sqlite3.Error) as exc:
             messagebox.showerror("Associação não salva", str(exc), parent=self)
+
+    def destroy(self):
+        if getattr(self, "_destroy_em_progresso", False):
+            return super().destroy()
+        if self._painel_externo and self._painel_frame is not None:
+            try:
+                if getattr(self._painel_frame, "_fechando_painel", False):
+                    return super().destroy()
+                self._destroy_em_progresso = True
+                self.app.fechar_painel_lateral(self._painel_frame)
+                return
+            except Exception:
+                pass
+        return super().destroy()

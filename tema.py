@@ -77,6 +77,24 @@ def aplicar_tema_ttk(root: tk.Misc) -> None:
     style.map("TCombobox", fieldbackground=[("readonly", branco)],
               foreground=[("readonly", texto)])
 
+    def atualizar_tags(widget):
+        try:
+            if widget.winfo_class() == "Treeview":
+                for tag in ("linha_par", "tbca_par"):
+                    widget.tag_configure(tag, background=fundo, foreground=texto)
+                for tag in ("linha_impar", "tbca_impar"):
+                    widget.tag_configure(tag, background=branco, foreground=texto)
+        except (tk.TclError, AttributeError):
+            pass
+        try:
+            filhos = widget.winfo_children()
+        except (tk.TclError, AttributeError):
+            return
+        for filho in filhos:
+            atualizar_tags(filho)
+
+    atualizar_tags(root)
+
 def configurar_ctk() -> None:
     """Configura tema verde e recupera preferência de aparência do usuário."""
     modo = "Light"
