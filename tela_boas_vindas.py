@@ -226,12 +226,12 @@ class TelaBoasVindas:
         )
         if self._escala != 1:
             imagem = imagem.resize(
-                (max(1, int(imagem.width*self._escala)), max(1, int(imagem.height*self._escala))),
+                (max(1, int(imagem.width*.475*self._escala)), max(1, int(imagem.height*.475*self._escala))),
                 Image.Resampling.LANCZOS
             )
         foto = ImageTk.PhotoImage(imagem)
-        x = self._px(folha["base_x"] - folha["pivo"][0]/2)
-        y = self._py(folha["base_y"] - folha["pivo"][1]/2)
+        x = self._px(folha["base_x"] - folha["pivo"][0]*.475)
+        y = self._py(folha["base_y"] - folha["pivo"][1]*.475)
         return foto, x, y
 
     def _criar_particula(self):
