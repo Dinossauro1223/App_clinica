@@ -87,6 +87,7 @@ SUPLEMENTOS_DUAS_VIAS_COMPLEMENTARES = [
      "https://danonenutricia.com.br/produtos/details/nutri-fiber"),
     ("NUTRI HWHEY X", "Módulo oral/enteral", None, None, None, None, None,
      "https://danonenutricia.com.br/produtos/adultos/alimentacao-por-sonda"),
+]
 SUPLEMENTOS_INICIAIS = [
     ("Fresubin", "Fórmula completa"),
     ("Thopic Soya 1,5 kcal/ml", "Fórmula completa"),
