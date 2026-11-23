@@ -94,6 +94,9 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertIn("AES/GCM/NoPadding", java)
         self.assertIn("AndroidKeyStore", java)
         self.assertIn(r"..\static\index.html", bat)
+        self.assertIn("--release 8", bat)
+        self.assertIn('-classpath "%AJAR%"', bat)
+        self.assertNotIn("-bootclasspath", bat)
         asset = ROOT / "mobile" / "apk" / "app" / "assets" / "index.html"
         self.assertTrue(asset.exists())
         self.assertEqual(asset.read_bytes(), HTML.read_bytes())

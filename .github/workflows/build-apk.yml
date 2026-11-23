@@ -1,0 +1,173 @@
+name: Build and smoke-test NutriLab Android APK
+
+on:
+  push:
+    branches: [main, "fix/**", "feat/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build, validate and launch Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK 34
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0 emulator'
+
+      - name: Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Node 22 (offline WebView tests)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build signed APK and validate archive, manifest, assets and signature
+        run: |
+          python tools/build_apk_ci.py --output build/NutriLab-Mobile.apk --keystore build/nutrilab-ci.keystore
+
+      - name: Test JavaScript offline queue and APK source contract
+        run: python -m unittest discover -s tests -p "test_mobile_offline.py" -v
+
+      - name: End-to-end HTTP transfer — phone/server to desktop clinical database
+        run: python -m unittest discover -s tests -p "test_mobile_http_e2e.py" -v
+
+      - name: Publish APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NutriLab-Mobile-APK-${{ github.run_number }}
+          path: build/NutriLab-Mobile.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Install Android 34 Google APIs system image (retry transient SDK download errors)
+        run: |
+          for attempt in 1 2 3; do
+            if sdkmanager --install "system-images;android-34;google_apis;x86_64"; then
+              exit 0
+            fi
+            rm -rf "$ANDROID_HOME/system-images/android-34/google_apis/x86_64"
+            sleep 10
+          done
+          exit 1
+
+      - name: Create and boot Android 34 emulator, install and launch APK
+        run: |
+          # setup-android installs emulator under ANDROID_HOME/emulator, which is
+          # not guaranteed to be on PATH on hosted runners.
+          export PATH="$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          EMULATOR="$ANDROID_HOME/emulator/emulator"
+          ADB="$ANDROID_HOME/platform-tools/adb"
+          if [ ! -x "$EMULATOR" ]; then
+            echo "Android emulator binary not found at $EMULATOR"
+            find "$ANDROID_HOME" -maxdepth 4 -type f -name emulator -print
+            exit 1
+          fi
+          if [ ! -x "$ADB" ]; then
+            echo "adb binary not found at $ADB"
+            find "$ANDROID_HOME" -maxdepth 4 -type f -name adb -print
+            exit 1
+          fi
+          mkdir -p "$HOME/.android/avd/nutrilab-ci.avd"
+          cat > "$HOME/.android/avd/nutrilab-ci.avd/config.ini" <<EOF
+          AvdId=nutrilab-ci
+          avd.ini.displayname=NutriLab CI API 34
+          abi.type=x86_64
+          hw.cpu.arch=x86_64
+          image.sysdir.1=system-images/android-34/google_apis/x86_64/
+          tag.id=google_apis
+          tag.display=Google APIs
+          target=android-34
+          hw.cpu.ncore=2
+          hw.ramSize=2048
+          hw.heapSize=256
+          hw.lcd.width=1080
+          hw.lcd.height=1920
+          hw.lcd.density=420
+          hw.keyboard=yes
+          hw.gpu.enabled=yes
+          hw.gpu.mode=swiftshader_indirect
+          hw.audioInput=no
+          hw.camera.back=none
+          hw.camera.front=none
+          hw.sensors.orientation=yes
+          hw.sensors.proximity=yes
+          disk.dataPartition.size=2G
+          fastboot.forceColdBoot=yes
+          EOF
+          cat > "$HOME/.android/avd/nutrilab-ci.ini" <<EOF
+          avd.ini.encoding=UTF-8
+          path=$HOME/.android/avd/nutrilab-ci.avd
+          path.rel=avd/nutrilab-ci.avd
+          target=android-34
+          EOF
+          # GitHub-hosted Linux runners may expose /dev/kvm with group-only access.
+          # The emulator process must be able to open it for x86_64 acceleration.
+          if [ -e /dev/kvm ]; then
+            echo "KVM device detected; granting the runner user access for this job."
+            sudo chmod 666 /dev/kvm
+            ls -l /dev/kvm
+          else
+            echo "KVM device is unavailable on this runner; x86_64 emulator cannot boot."
+            exit 1
+          fi
+          echo "Installed system image metadata:"
+          cat "$ANDROID_HOME/system-images/android-34/google_apis/x86_64/source.properties"
+          echo "Generated AVD CPU configuration:"
+          grep -E "^(abi.type|hw.cpu.arch|image.sysdir.1|target)=" "$HOME/.android/avd/nutrilab-ci.avd/config.ini"
+          "$EMULATOR" -list-avds
+          command -v "$EMULATOR"
+          command -v "$ADB"
+          "$EMULATOR" -avd nutrilab-ci -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none > "$RUNNER_TEMP/nutrilab-emulator.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/nutrilab-emulator.pid"
+          sleep 10
+          if ! kill -0 "$(cat "$RUNNER_TEMP/nutrilab-emulator.pid")" 2>/dev/null; then
+            cat "$RUNNER_TEMP/nutrilab-emulator.log"
+            exit 1
+          fi
+          if ! timeout 180 "$ADB" wait-for-device; then
+            cat "$RUNNER_TEMP/nutrilab-emulator.log"
+            exit 1
+          fi
+          BOOTED=0
+          for attempt in $(seq 1 120); do
+            BOOTED="$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
+            if [ "$BOOTED" = "1" ]; then break; fi
+            sleep 5
+          done
+          if [ "$BOOTED" != "1" ]; then
+            cat "$RUNNER_TEMP/nutrilab-emulator.log"
+            exit 1
+          fi
+          "$ADB" shell settings put global window_animation_scale 0
+          "$ADB" shell settings put global transition_animation_scale 0
+          "$ADB" shell settings put global animator_duration_scale 0
+          "$ADB" install -r build/NutriLab-Mobile.apk
+          "$ADB" shell am start -n br.nutrilab.mobile/.MainActivity
+          sleep 8
+          "$ADB" shell dumpsys activity activities | grep -E "ResumedActivity.*br.nutrilab.mobile|topResumedActivity.*br.nutrilab.mobile"
+          if "$ADB" logcat -d | grep -q "FATAL EXCEPTION"; then
+            "$ADB" logcat -d -s AndroidRuntime:E
+            exit 1
+          fi
+          "$ADB" emu kill
