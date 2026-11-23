@@ -5,10 +5,11 @@ from datetime import date, timedelta
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 import almox_db as adb
+import tema
 
-FUNDO="#F0F7F4"
-VERDE="#2e7d32"
-CINZA="#607d8b"
+FUNDO=tema.FUNDO
+VERDE=tema.VERDE
+CINZA=tema.SUAVE
 
 def _br(v):
     try:return f"R$ {float(v or 0):,.2f}".replace(",","X").replace(".",",").replace("X",".")
@@ -34,7 +35,7 @@ class AlmoxUI:
         nav=ctk.CTkFrame(area,fg_color="transparent");nav.pack(fill="x",padx=18,pady=4)
         self.conteudo=ctk.CTkFrame(area,fg_color="transparent");self.conteudo.pack(fill="both",expand=True,padx=16,pady=8)
         for p in ("Resumo e custos","Itens","Movimentações","Programação"):
-            ctk.CTkButton(nav,text=p,width=150,command=lambda x=p:self.ir(x),fg_color=VERDE if p==self.pagina else "#607d8b").pack(side="left",padx=3)
+            ctk.CTkButton(nav,text=p,width=150,command=lambda x=p:self.ir(x),fg_color=VERDE if p==self.pagina else tema.SUAVE).pack(side="left",padx=3)
         self.ir(self.pagina)
     def ir(self,p):
         self.pagina=p
@@ -137,7 +138,7 @@ class AlmoxUI:
         ctk.CTkButton(g,text="Registrar movimento",command=self._registrar).pack(side="left",padx=3)
         self.t_mov=self._tree(self.conteudo,("Data","Item","Tipo","Quantidade","Preço unitário","Total","Refeição"),(110,180,100,100,120,120,150),12)
         bar=ctk.CTkFrame(self.conteudo,fg_color="transparent");bar.pack(fill="x")
-        ctk.CTkButton(bar,text="Estornar movimento selecionado",command=self._estornar,fg_color="#a33").pack(side="left",padx=4)
+        ctk.CTkButton(bar,text="Estornar movimento selecionado",command=self._estornar,fg_color=tema.ERRO).pack(side="left",padx=4)
         self._carregar_movimentos()
     def _registrar(self):
         try:

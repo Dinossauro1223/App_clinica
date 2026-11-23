@@ -14,9 +14,12 @@ import customtkinter as ctk
 import integracao_mobile as im
 import mapa_db as mdb
 import ui_workers
+import tema
 
-VERDE_ESC, VERDE, VERDE_HOVER = "#1b5e20", "#4caf50", "#388e3c"
-CINZA, CINZA_HOVER, AZUL, AZUL_HOVER, LARANJA, LARANJA_HOVER = "#78909c", "#546e7a", "#1565c0", "#0d47a1", "#ef6c00", "#e65100"
+VERDE_ESC, VERDE, VERDE_HOVER = tema.VERDE_ESC, tema.VERDE, tema.VERDE_HOVER
+CINZA, CINZA_HOVER, AZUL, AZUL_HOVER, LARANJA, LARANJA_HOVER = (
+    tema.SUAVE, tema.SUAVE, tema.AZUL, tema.AZUL_HOVER, tema.LARANJA, tema.LARANJA
+)
 TIPOS = {"novo": "Novo paciente", "alterado": "Alterado", "troca": "Troca de paciente", "liberar": "Leito liberado"}
 ROTULOS = {"nome_paciente": "nome", "idade_anos": "idade", "idade_meses": "meses", "acompanhante": "acompanhante",
            "obs_sim": "gosta", "obs_nao": "não aceita", "consistencia": "consistência", "via": "via"}
@@ -75,7 +78,7 @@ class MobileUI:
         ctk.CTkLabel(topo, text="Mobile (copa)", font=ctk.CTkFont(size=24, weight="bold"), text_color=VERDE_ESC).pack(side="left")
         _btn(topo, "Abrir painel web", self._abrir_painel, 140, CINZA, CINZA_HOVER).pack(side="right")
         _btn(topo, "Trocar banco", self._trocar_banco, 120, CINZA, CINZA_HOVER).pack(side="right", padx=6)
-        self.lbl_banco = ctk.CTkLabel(area, text="", font=ctk.CTkFont(size=12), text_color="#546e7a", anchor="w", justify="left")
+        self.lbl_banco = ctk.CTkLabel(area, text="", font=ctk.CTkFont(size=12), text_color=tema.SUAVE, anchor="w", justify="left")
         self.lbl_banco.pack(fill="x", padx=22)
 
         barra = ctk.CTkFrame(area, fg_color="transparent")
@@ -118,7 +121,7 @@ class MobileUI:
         _btn(dec, "Aplicar marcados", self._aplicar, 170).pack(side="left")
         _btn(dec, "Ignorar marcados", self._ignorar, 170, LARANJA, LARANJA_HOVER).pack(side="left", padx=8)
         ctk.CTkLabel(dec, text="Marque com Ctrl/Shift. Trocar de paciente zera os dados clínicos do leito; ignorar uma "
-                               "correção da copa a recusa no mobile.", font=ctk.CTkFont(size=12), text_color="#546e7a",
+                               "correção da copa a recusa no mobile.", font=ctk.CTkFont(size=12), text_color=tema.SUAVE,
                      wraplength=520, justify="left").pack(side="left", padx=10)
         self.txt = ctk.CTkTextbox(area, height=130, font=ctk.CTkFont(size=12))
         self.txt.pack(fill="x", padx=20, pady=(4, 12))
