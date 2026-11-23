@@ -248,10 +248,11 @@ def inicializar(db_path):
                                   kcal_100=151 AND ptn_100=6 AND lip_100=5.6 AND carb_100=19 AND sod_100=128""").fetchone()
             if antiga:
                 c.execute("""UPDATE Mapa_Suplementos SET kcal_100=149, ptn_100=6, lip_100=5.8,
-                             carb_100=18, sod_100=134,
-                             observacao=REPLACE(observacao, 'Composição por 100 mL transcrita',
-                                                'Composição por 100 mL transcrita da ficha vigente')
-                             WHERE id_suplemento=?""", (antiga["id_suplemento"],))
+                             carb_100=18, sod_100=134, observacao=?
+                             WHERE id_suplemento=?""",
+                          ("Fonte oficial do fabricante. Composição por 100 mL atualizada conforme ficha vigente. "
+                           "https://danonenutricia.com.br/produtos/details/nutrison-energy-15",
+                           antiga["id_suplemento"]))
             c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos_catalogo_v3', '1')")
         c.commit()
 
