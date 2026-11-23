@@ -79,7 +79,7 @@ jobs:
           adb wait-for-device
           BOOTED=0
           for attempt in $(seq 1 120); do
-            BOOTED="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r')"
+            BOOTED="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
             if [ "$BOOTED" = "1" ]; then break; fi
             sleep 5
           done
