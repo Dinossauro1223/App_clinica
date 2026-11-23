@@ -166,14 +166,21 @@ class TestBanco(unittest.TestCase):
     def test_seed_e_idempotencia(self):
         mdb.inicializar(self.db)  # chamar de novo não duplica
         self.assertEqual(len(mdb.listar_suplementos(self.db)),
-                         len(mdb.SUPLEMENTOS_INICIAIS) + len(mdb.SUPLEMENTOS_COMPLEMENTARES))
+                         len(mdb.SUPLEMENTOS_INICIAIS) + len(mdb.SUPLEMENTOS_COMPLEMENTARES) + len(mdb.SUPLEMENTOS_ENTERAIS_COMPLEMENTARES))
         self.assertEqual(len(mdb.listar_modulos(self.db)), len(mdb.MODULOS_PADRAO))
         candidatos = {s["nome"]: s for s in mdb.listar_suplementos(self.db)}
         self.assertIn("Ensure Plus Advance", candidatos)
         self.assertIn("Glucerna 1.5 kcal", candidatos)
-        # O seed não inventa composição: fichas específicas precisam ser cadastradas.
+        self.assertIn("Nutrison Energy 1.5", candidatos)
+        # O único candidato com composição preenchida tem valores transcritos da ficha oficial.
+        nutrison = candidatos["Nutrison Energy 1.5"]
+        self.assertEqual((nutrison["kcal_100"], nutrison["ptn_100"], nutrison["lip_100"],
+                          nutrison["carb_100"], nutrison["sod_100"]), (151, 6, 5.6, 19, 128))
+        self.assertIn("danonenutricia.com.br", nutrison["observacao"])
+        # Os demais candidatos não recebem valores inferidos.
         self.assertIsNone(candidatos["Ensure Plus Advance"]["kcal_100"])
         self.assertIn("abbottbrasil.com.br", candidatos["Ensure Plus Advance"]["observacao"])
+        self.assertEqual(candidatos["Nutrison Energy 1.5"]["modulo"], "Fórmula enteral")
         nomes = {s["nome"]: s["modulo"] for s in mdb.listar_suplementos(self.db)}
         self.assertEqual(nomes["Simbioflora"], "Módulo probiótico/simbiótico")
         self.assertEqual(nomes["Glutamina"], "Módulo de aminoácidos")
