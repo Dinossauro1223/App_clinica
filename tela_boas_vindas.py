@@ -7,6 +7,7 @@ wordmark, assinatura institucional, opções e créditos em camadas próprias.
 import json
 import math
 import os
+import random
 import tkinter as tk
 
 import customtkinter as ctk
@@ -33,6 +34,7 @@ class TelaBoasVindas:
         self.imagens = {}
         self.folhas = []
         self.itens_folhas = []
+        self.particulas = []
         self._fotos = []
         self._opcoes_visiveis = False
         self._ativo = True
@@ -55,7 +57,7 @@ class TelaBoasVindas:
     def _carregar_imagens(self):
         nomes = (
             "decoracao_inferior", "arco", "haste_folhas", "maca", "dna",
-            "frasco", "wordmark", "assinatura", "facisa_ufrn",
+            "frasco", "wordmark", "assinatura", "facisa_ufrn", "folha_marca",
             "topo_temas", "boas_vindas",
         )
         for nome in nomes:
@@ -70,15 +72,21 @@ class TelaBoasVindas:
                 caminho = os.path.join(self.pasta, item["arquivo"])
                 if os.path.isfile(caminho):
                     imagem = Image.open(caminho).convert("RGBA")
+                    # Cada folha permanece presa à haste pelo ponto de inserção do SVG.
+                    pivos = ((180, 205), (205, 143), (222, 220), (155, 285), (230, 290))
+                    px_svg, py_svg = pivos[len(self.folhas)]
+                    bx, by = item["bbox"][0], item["bbox"][1]
+                    margem = max(12, int(max(imagem.size) * .16))
+                    base = Image.new("RGBA", (imagem.width + 2*margem, imagem.height + 2*margem), (0,0,0,0))
+                    base.alpha_composite(imagem, (margem, margem))
+                    pivo = (margem + (px_svg-bx)*2, margem + (py_svg-by)*2)
                     self.folhas.append({
-                        "imagem": imagem,
-                        "x": 815 + item["bbox"][0] * .95,
-                        "y": 120 + item["bbox"][1] * .95,
-                        "largura": imagem.width * .475,
-                        "altura": imagem.height * .475,
-                        "fase": len(self.folhas) * 1.7,
-                        "velocidade": .55 + len(self.folhas) * .13,
-                        "item": None,
+                        "imagem": imagem, "base": base, "pivo": pivo,
+                        "base_x": 815 + px_svg * .95, "base_y": 120 + py_svg * .95,
+                        "fase": len(self.folhas) * 1.25 + random.random(),
+                        "velocidade": random.uniform(.018, .032),
+                        "amplitude": random.uniform(2.2, 4.2),
+                        "item": None, "foto": None,
                     })
 
     def _foto(self, imagem, largura, altura):
@@ -121,17 +129,11 @@ class TelaBoasVindas:
         self._imagem("arco", 815, 120, 570, 570)
         self._imagem("haste_folhas", 815, 120, 399, 380)
 
-        # Folhas em imagens RGBA independentes, inseridas antes dos elementos de marca.
+        # Folhas maiores oscilam em torno do ponto de ligação; não atravessam a cena.
         for folha in self.folhas:
-            foto = self._foto(
-                folha["imagem"],
-                folha["largura"] * self._escala,
-                folha["altura"] * self._escala,
-            )
-            folha["item"] = self.canvas.create_image(
-                self._px(folha["x"]), self._py(folha["y"]),
-                image=foto, anchor="nw", tags=("folha-animada",)
-            )
+            foto, x, y = self._folha_frame(folha, 0)
+            folha["foto"] = foto
+            folha["item"] = self.canvas.create_image(x, y, image=foto, anchor="nw", tags=("folha-animada",))
             self.itens_folhas.append(folha["item"])
 
         # Primeiro plano: maçã, wordmark, assinatura e marcas institucionais.
@@ -218,19 +220,65 @@ class TelaBoasVindas:
                 self.ao_entrar(destino)
         return executar
 
+    def _folha_frame(self, folha, angulo):
+        imagem = folha["base"].rotate(
+            angulo, resample=Image.Resampling.BICUBIC, expand=False, center=folha["pivo"]
+        )
+        if self._escala != 1:
+            imagem = imagem.resize(
+                (max(1, int(imagem.width*self._escala)), max(1, int(imagem.height*self._escala))),
+                Image.Resampling.LANCZOS
+            )
+        foto = ImageTk.PhotoImage(imagem)
+        x = self._px(folha["base_x"] - folha["pivo"][0]/2)
+        y = self._py(folha["base_y"] - folha["pivo"][1]/2)
+        return foto, x, y
+
+    def _criar_particula(self):
+        origem = self.imagens.get("folha_marca")
+        if origem is None:
+            return
+        tamanho = random.randint(7, 15)
+        imagem = origem.resize((tamanho, tamanho), Image.Resampling.LANCZOS)
+        self.particulas.append({
+            "imagem": imagem, "x": random.uniform(615, 650), "y": random.uniform(385, 465),
+            "vx": random.uniform(1.0, 2.2), "vy": random.uniform(-1.15, 1.15),
+            "vida": random.randint(35, 75), "idade": 0, "item": None, "foto": None,
+        })
+
+    def _atualizar_particulas(self):
+        if random.random() < .22 and len(self.particulas) < 16:
+            self._criar_particula()
+        for p in self.particulas[:]:
+            p["idade"] += 1
+            p["x"] += p["vx"]
+            p["y"] += p["vy"]
+            progresso = p["idade"] / p["vida"]
+            opacidade = max(0.0, 1.0 - max(0.0, (progresso - .35) / .65))
+            frame = p["imagem"].copy()
+            frame.putalpha(frame.getchannel("A").point(lambda valor: int(valor*opacidade)))
+            p["foto"] = ImageTk.PhotoImage(frame)
+            if p["item"] is None:
+                p["item"] = self.canvas.create_image(self._px(p["x"]), self._py(p["y"]), image=p["foto"], anchor="center")
+            else:
+                self.canvas.itemconfig(p["item"], image=p["foto"])
+                self.canvas.coords(p["item"], self._px(p["x"]), self._py(p["y"]))
+            if p["idade"] >= p["vida"] or p["x"] >= 850:
+                self.canvas.delete(p["item"])
+                self.particulas.remove(p)
+
     def _animar(self):
         if not self._ativo:
             return
         for folha in self.folhas:
-            folha["fase"] += .055
-            folha["x"] += folha["velocidade"]
-            if folha["x"] > 1533:
-                folha["x"] = -folha["largura"]
-            y = folha["y"] + math.sin(folha["fase"]) * 7
+            folha["fase"] += folha["velocidade"]
+            angulo = math.sin(folha["fase"]) * folha["amplitude"]
+            foto, x, y = self._folha_frame(folha, angulo)
+            folha["foto"] = foto
             if folha["item"] is not None:
-                self.canvas.coords(
-                    folha["item"], self._px(folha["x"]), self._py(y)
-                )
+                self.canvas.itemconfig(folha["item"], image=foto)
+                self.canvas.coords(folha["item"], x, y)
+        self._atualizar_particulas()
         self._timer = self.frame.after(70, self._animar)
 
     def parar(self):
