@@ -1,0 +1,19 @@
+name: Teste temporario do launcher
+
+on:
+  push:
+    branches:
+      - feat/launcher-bootstrap-python-2026-11-23
+  pull_request:
+    branches: [main]
+
+jobs:
+  contrato-launcher:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Testes específicos do launcher
+        run: python -m unittest tests.test_launcher_bootstrap tests.test_runtime_update_hook tests.test_launcher_porta_entrada -v
