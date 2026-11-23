@@ -2,10 +2,7 @@ name: Build and publish NutriLab Android APK
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "mobile/**"
-      - ".github/workflows/release.yml"
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
