@@ -264,6 +264,7 @@ class AppClinica(ctk.CTk):
             self._servidor_mobile = None
 
     def _encerrar_e_destruir(self):
+        self._encerrando_app = True
         self._encerrar_servidor_mobile()
         self.destroy()
 
@@ -363,7 +364,7 @@ class AppClinica(ctk.CTk):
     def fechar_painel_lateral(self, frame):
         """Fecha uma guia específica e restaura a página que ficou ativa."""
         self.area_principal = self._pilha_abas_laterais.fechar(frame)
-        if self._pilha_abas_laterais.quantidade == 0:
+        if self._pilha_abas_laterais.quantidade == 0 and not getattr(self, "_encerrando_app", False):
             self.tela_inicial()
         return self.area_principal
 
@@ -380,7 +381,7 @@ class AppClinica(ctk.CTk):
         if self._pilha_abas_laterais.quantidade == 0:
             return None
         self.area_principal = self._pilha_abas_laterais.fechar_ultima()
-        if self._pilha_abas_laterais.quantidade == 0:
+        if self._pilha_abas_laterais.quantidade == 0 and not getattr(self, "_encerrando_app", False):
             self.tela_inicial()
         return "break"
 
