@@ -896,7 +896,11 @@ class PreparacoesDiaDialog:
         for iid in self.tree.get_children():self.tree.delete(iid)
         for i,r in enumerate(self.rows):
             ficha_nome=next((x["nome"] for x in self.fichas if x["id_ficha"]==r.get("id_ficha")),"—")
-            self.tree.insert("", "end", iid=str(i), values=(r["nome"],_fmt_num(r.get("porcoes_previstas")),ficha_nome))
+            self.tree.insert(
+                "", "end", iid=str(i),
+                values=(r["nome"], _fmt_num(r.get("porcoes_previstas")), ficha_nome),
+                tags=("linha_par" if i % 2 == 0 else "linha_impar",)
+            )
 
     def _remover(self):
         sel=self.tree.selection()
@@ -1007,7 +1011,11 @@ class AlocarRetiradaDialog:
             unit=self.mov["unidade"]
             preco=self.mov.get("preco_unitario_snapshot")
             custo=float(r["quantidade"])*float(preco) if preco is not None else None
-            self.tree.insert("", "end", iid=str(i), values=(tipo,_fmt_num(r["quantidade"]),unit,_fmt_brl(custo)))
+            self.tree.insert(
+                "", "end", iid=str(i),
+                values=(tipo, _fmt_num(r["quantidade"]), unit, _fmt_brl(custo)),
+                tags=("linha_par" if i % 2 == 0 else "linha_impar",)
+            )
         pend=max(0,float(self.mov["qtd"])-total)
         self.lbl_pendente.configure(text=f"Retirada: {_fmt_num(self.mov['qtd'])} {self.mov['unidade']} · Destinado: {_fmt_num(total)} · Sem destino: {_fmt_num(pend)} {self.mov['unidade']}")
         if total>float(self.mov["qtd"])+1e-8:
