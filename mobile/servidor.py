@@ -221,7 +221,10 @@ def preparar_banco(db, redefinir=False):
             criar_usuario(c, "admin", "Administrador", "admin", None, SENHA_ADMIN_INICIAL)
             adm = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()
             senha = SENHA_ADMIN_INICIAL
-        elif redefinir or inicializada is None:
+        elif redefinir:
+            senha = secrets.token_urlsafe(8)
+            definir_senha(c, adm["id"], senha)
+        elif inicializada is None:
             definir_senha(c, adm["id"], SENHA_ADMIN_INICIAL)
             senha = SENHA_ADMIN_INICIAL
         c.execute(
