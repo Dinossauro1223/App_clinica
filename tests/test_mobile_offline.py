@@ -104,6 +104,7 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertIn("setup-android@v4", release)
         self.assertIn("--release 8 -classpath", release)
         self.assertNotIn("-bootclasspath", release)
+        self.assertIn('tags: ["v*"]', release)
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("apk-java:", workflow)
         self.assertIn("android-34", workflow)
