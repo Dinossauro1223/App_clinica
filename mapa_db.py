@@ -560,7 +560,7 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
             valores_ficha = [s[campo] if campo in s else (ficha[campo] if ficha else None)
                              for campo in campos_ficha]
             observacao_ficha = s.get("ficha_observacao") if "ficha_observacao" in s else (ficha["observacao"] if ficha else None)
-            snapshot_em = s.get("ficha_snapshot_em") or _agora()
+            snapshot_em = s.get("ficha_snapshot_em") or (_agora() if any(v is not None for v in valores_ficha) else None)
             c.execute("""INSERT INTO Mapa_Registro_Suplementos
                          (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade, ml_oferta, agua_ml,
                           refeicoes_json, batido_fruta, kcal_100, ptn_100, lip_100, carb_100, sod_100,
