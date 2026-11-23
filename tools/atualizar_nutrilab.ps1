@@ -101,7 +101,7 @@ try {
     if (Test-Path $mobileBackup) {
         $dest = Join-Path $Root "mobiledados"
         New-Item -ItemType Directory -Force -Path $dest | Out-Null
-        Copy-Item -LiteralPath (Join-Path $mobileBackup "*") -Destination $dest -Recurse -Force
+        Copy-Item -Path (Join-Path $mobileBackup "*") -Destination $dest -Recurse -Force
     }
 
     Write-Host "[7/7] Atualização concluída. Abrindo o NutriLab..."
