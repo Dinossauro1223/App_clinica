@@ -17,6 +17,7 @@ Descrição completa: docs/mobile/INTEGRACAO_DESKTOP.md
 import hashlib
 import json
 import os
+import sys
 from contextlib import closing
 from datetime import datetime
 
@@ -63,8 +64,14 @@ def garantir_tabelas(db):
 
 
 def caminho_mobile_db(db, base_dir):
-    padrao = os.path.join(base_dir, "mobile", "dados", "mobile.db")
-    return mdb.obter_config(db, "mobile_db", padrao) or padrao
+    # No executável, _MEIPASS é temporário e não pode guardar o banco gravável.
+    if getattr(sys, "frozen", False):
+        raiz = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        padrao = os.path.join(raiz, "NutriLab", "mobile", "mobile.db")
+    else:
+        padrao = os.path.join(base_dir, "mobile", "dados", "mobile.db")
+    configurado = mdb.obter_config(db, "mobile_db", padrao)
+    return configurado or padrao
 
 
 # ---------------------------------------------------------------- servidor mobile
