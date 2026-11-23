@@ -135,7 +135,7 @@ A tabela `Mapa_Suplementos` e o formulário `DialogSuplemento` já preveem:
 - Lipídios (`lip_100`), carboidratos (`carb_100`) e sódio (`sod_100`) por 100 mL/g.
 - Observação e estado ativo/inativo.
 
-**Os seis itens legados e os oito candidatos adicionais são criados sem preços, volumes de embalagem ou valores nutricionais.** Não há base para afirmar que a ficha técnica esteja preenchida ou validada. Os valores devem ser transcritos da ficha/rótulo da apresentação efetivamente usada, sem copiar dados de variantes semelhantes.
+**Os seis itens legados e os oito candidatos Abbott são criados sem preços, volumes de embalagem ou valores nutricionais.** Entre as sete fórmulas enterais adicionais, Nutrison Energy 1.5 tem composição por 100 mL transcrita da ficha oficial; as outras seis permanecem sem valores nutricionais e sem dados de embalagem/preço. Não há base para afirmar que as demais fichas estejam preenchidas ou validadas. Os valores devem ser transcritos da ficha/rótulo da apresentação efetivamente usada, sem copiar dados de variantes semelhantes.
 
 ### 3.3 Módulos disponíveis no código
 
