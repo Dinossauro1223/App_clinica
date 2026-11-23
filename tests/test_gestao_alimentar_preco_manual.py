@@ -15,6 +15,19 @@ class TestPrecoManualFicha(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_formulario_exibe_preco_em_linha_propria_e_vinculo_separado(self):
+        from pathlib import Path
+        fonte = (Path(__file__).resolve().parents[1] / "gestao_alimentar_ui.py").read_text(encoding="utf-8")
+        inicio = fonte.index("    def adicionar_linha(self, item=None):")
+        fim = fonte.index("    def _selecionar_tbca(self, registro, valor):", inicio)
+        metodo = fonte[inicio:fim]
+        self.assertIn("linha_estoque", metodo)
+        self.assertIn('text="Almoxarifado:"', metodo)
+        self.assertIn('text="Preço manual (R$/unid.):"', metodo)
+        self.assertIn('placeholder_text="0,00"', metodo)
+        self.assertIn('"preco": preco', metodo)
+        self.assertIn('"tbca": tbca', metodo)
+
     def test_preco_manual_calcula_custo_sem_vinculo_ao_almoxarifado(self):
         ficha = ga.salvar_ficha(self.db, "Arroz", "Acompanhamento", 1, [{
             "nome": "Arroz", "unidade": "g", "qtd_per_capita": 100,

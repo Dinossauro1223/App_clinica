@@ -682,42 +682,65 @@ class FichaDialog:
             self.adicionar_linha()
 
     def adicionar_linha(self, item=None):
+        # Cada ingrediente ocupa um cartão com linhas próprias para identificação,
+        # referência TBCA, parâmetros nutricionais e vínculo/custo do Almoxarifado.
         linha = ctk.CTkFrame(self.scroll, fg_color="white", corner_radius=6)
-        linha.pack(fill="x", padx=2, pady=3)
-        campos = {}
-        nome = ctk.CTkEntry(linha, width=185, placeholder_text="Ingrediente *")
-        nome.pack(side="left", padx=(5, 2), pady=6)
-        qtd = ctk.CTkEntry(linha, width=75, placeholder_text="Qtd *")
-        qtd.pack(side="left", padx=2, pady=6)
-        unidade = ctk.CTkComboBox(linha, width=65, values=UNIDADES)
+        linha.pack(fill="x", padx=2, pady=4)
+
+        linha_identificacao = ctk.CTkFrame(linha, fg_color="transparent")
+        linha_identificacao.pack(fill="x", padx=6, pady=(6, 2))
+        nome = ctk.CTkEntry(linha_identificacao, width=210, placeholder_text="Ingrediente *")
+        nome.pack(side="left", padx=(0, 4), pady=3)
+        qtd = ctk.CTkEntry(linha_identificacao, width=75, placeholder_text="Qtd *")
+        qtd.pack(side="left", padx=3, pady=3)
+        unidade = ctk.CTkComboBox(linha_identificacao, width=72, values=UNIDADES)
         unidade.set("g")
-        unidade.pack(side="left", padx=2, pady=6)
-        fc = ctk.CTkEntry(linha, width=60, placeholder_text="FC")
+        unidade.pack(side="left", padx=3, pady=3)
+        fc = ctk.CTkEntry(linha_identificacao, width=65, placeholder_text="FC")
         fc.insert(0, "1")
-        fc.pack(side="left", padx=2, pady=6)
-        medida = ctk.CTkEntry(linha, width=115, placeholder_text="Medida caseira")
-        medida.pack(side="left", padx=2, pady=6)
+        fc.pack(side="left", padx=3, pady=3)
+
+        linha_tbca = ctk.CTkFrame(linha, fg_color="transparent")
+        linha_tbca.pack(fill="x", padx=6, pady=2)
+        ctk.CTkLabel(linha_tbca, text="TBCA:", text_color="#455a64").pack(side="left", padx=(0, 4))
         tbca = ctk.CTkComboBox(
-            linha, width=220, values=self._opcoes_tbca,
+            linha_tbca, width=235, values=self._opcoes_tbca,
             command=lambda valor: self._selecionar_tbca(registro, valor)
         )
         tbca.set("— selecionar alimento da TBCA —")
-        tbca.pack(side="left", padx=2, pady=6)
-        npu = ctk.CTkEntry(linha, width=55, placeholder_text="NPU")
-        npu.pack(side="left", padx=2, pady=6)
-        dens = ctk.CTkEntry(linha, width=65, placeholder_text="g/ml")
-        dens.pack(side="left", padx=2, pady=6)
+        tbca.pack(side="left", padx=3, pady=3)
+        ctk.CTkLabel(linha_tbca, text="Medida caseira:", text_color="#455a64").pack(side="left", padx=(8, 4))
+        medida = ctk.CTkEntry(linha_tbca, width=135, placeholder_text="Ex.: 1 colher")
+        medida.pack(side="left", padx=3, pady=3)
+
+        linha_referencias = ctk.CTkFrame(linha, fg_color="transparent")
+        linha_referencias.pack(fill="x", padx=6, pady=2)
+        ctk.CTkLabel(linha_referencias, text="NPU:", text_color="#455a64").pack(side="left", padx=(0, 4))
+        npu = ctk.CTkEntry(linha_referencias, width=75, placeholder_text="NPU")
+        npu.pack(side="left", padx=3, pady=3)
+        ctk.CTkLabel(linha_referencias, text="Densidade (g/mL):", text_color="#455a64").pack(side="left", padx=(8, 4))
+        dens = ctk.CTkEntry(linha_referencias, width=95, placeholder_text="g/mL")
+        dens.pack(side="left", padx=3, pady=3)
+
+        linha_estoque = ctk.CTkFrame(linha, fg_color="transparent")
+        linha_estoque.pack(fill="x", padx=6, pady=(2, 6))
         opcoes = ["— sem vínculo com Almoxarifado —"] + [f"{p['id_mobile']} | {p['nome']}" for p in self.produtos]
-        ctk.CTkLabel(linha, text="Almox.:", text_color="#455a64").pack(side="left", padx=(5, 0))
-        produto = ctk.CTkComboBox(linha, width=225, values=opcoes)
+        ctk.CTkLabel(linha_estoque, text="Almoxarifado:", text_color="#455a64").pack(side="left", padx=(0, 4))
+        produto = ctk.CTkComboBox(linha_estoque, width=185, values=opcoes)
         produto.set(opcoes[0])
-        produto.pack(side="left", padx=2, pady=6)
-        ctk.CTkLabel(linha, text="Preço:").pack(side="left", padx=(5, 0))
-        preco = ctk.CTkEntry(linha, width=90, placeholder_text="R$/unid.")
-        preco.pack(side="left", padx=2, pady=6)
-        remover = ctk.CTkButton(linha, text="×", width=28, height=28, fg_color="#b71c1c", hover_color="#8e0000",
-                                command=lambda: self._remover_linha(registro))
+        produto.pack(side="left", padx=3, pady=3)
+        ctk.CTkLabel(linha_estoque, text="Preço manual (R$/unid.):", text_color="#455a64").pack(
+            side="left", padx=(10, 4)
+        )
+        preco = ctk.CTkEntry(linha_estoque, width=100, placeholder_text="0,00")
+        preco.pack(side="left", padx=3, pady=3)
+        remover = ctk.CTkButton(
+            linha_identificacao, text="×", width=28, height=28,
+            fg_color="#b71c1c", hover_color="#8e0000",
+            command=lambda: self._remover_linha(registro)
+        )
         remover.pack(side="left", padx=4)
+
         registro = {"frame": linha, "nome": nome, "qtd": qtd, "unidade": unidade, "fc": fc,
                     "medida": medida, "tbca": tbca, "npu": npu, "dens": dens,
                     "produto": produto, "preco": preco}
