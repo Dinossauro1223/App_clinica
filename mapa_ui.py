@@ -211,7 +211,7 @@ class MapaUI:
         self.linhas = mdb.mapa_do_dia(self.db, self.data.isoformat(), self.id_setor)
         resumo = self._resumo_condutas()
         self.tree.delete(*self.tree.get_children())
-        ocupados = past = acomp = sup_oral = enteral = com_pendencia = 0
+        ocupados = past = acomp = sup_oral = oral_sem = enteral = com_pendencia = 0
         for it in self.linhas:
             l, r = it["leito"], it["registro"]
             if r is None:
@@ -223,14 +223,19 @@ class MapaUI:
                 acomp += bool(r.get("acompanhante"))
                 if r.get("via") == "Enteral":
                     enteral += 1
-                else:
-                    sup_oral += bool(r.get("suplementos"))
+                elif r.get("via") == "Oral":
+                    if r.get("suplementos"):
+                        sup_oral += 1
+                    else:
+                        oral_sem += 1
                 imc = f"{_fmt(r.get('imc'))} ({r['imc_class']})" if r.get("imc") and r.get("imc_class") else _fmt(r.get("imc"))
                 cond = resumo.get(r.get("id_paciente"), {})
                 itens_terapia = ", ".join(s["nome"] + (" (batido com fruta)" if s.get("batido_fruta") else "")
                                            for s in r["suplementos"])
                 if r.get("via") == "Enteral":
                     itens_terapia = "Dieta enteral" + (": " + itens_terapia if itens_terapia else " (fórmula não informada)")
+                elif r.get("via") == "Zero":
+                    itens_terapia = "Via zero"
                 elif itens_terapia:
                     itens_terapia = "Suplementação oral: " + itens_terapia
                 vals = (l["codigo"], "Sim" if r.get("acompanhante") else "Não", r["nome_paciente"],
@@ -1445,18 +1450,27 @@ class FormRegistro(_Janela):
         if not hasattr(self, "cb_sup"):
             return
         enteral = via == "Enteral"
-        nova_via = "Enteral" if enteral else "Oral"
+        zero = via == "Zero"
+        nova_via = "Enteral" if enteral else "Zero" if zero else "Oral"
         if self._via_anterior != nova_via and not preservar:
             self._suplementos = []
         self._via_anterior = nova_via
         if enteral:
+            # Registros antigos podem conter fórmulas cadastradas antes da classificação enteral.
+            # Preservá-las ao abrir evita perda de histórico; novas escolhas vêm apenas do módulo enteral.
             self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") == "Fórmula enteral"]
-            self._suplementos = [s for s in self._suplementos if s.get("modulo") == "Fórmula enteral"]
             self.lbl_sup_tipo.configure(
                 text="DIETA ENTERAL: selecione uma fórmula identificada pelo fabricante para administração por sonda. "
                      "A suplementação oral anterior é substituída; fórmulas apenas orais não aparecem nesta lista.")
             self.cb_mod.configure(values=["Fórmulas enterais"])
             self.cb_mod.set("Fórmulas enterais")
+        elif zero:
+            self._catalogo_visivel = []
+            self._suplementos = []
+            self.lbl_sup_tipo.configure(text="VIA ZERO: não registre suplementação oral nem dieta enteral enquanto "
+                                             "a via estiver marcada como zero.")
+            self.cb_mod.configure(values=["—"])
+            self.cb_mod.set("—")
         else:
             self._catalogo_visivel = list(self._catalogo)
             self.lbl_sup_tipo.configure(
