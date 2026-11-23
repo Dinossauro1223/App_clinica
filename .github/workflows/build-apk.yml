@@ -1,0 +1,83 @@
+name: Build and smoke-test NutriLab Android APK
+
+on:
+  push:
+    branches: [main, "fix/**", "feat/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build, validate and launch Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK 34
+        uses: android-actions/setup-android@v4
+        with:
+          packages: |
+            platforms;android-34
+            build-tools;34.0.0
+            emulator
+            system-images;android-34;google_apis;x86_64
+
+      - name: Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Node 22 (offline WebView tests)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build signed APK and validate archive, manifest, assets and signature
+        run: |
+          python tools/build_apk_ci.py --output build/NutriLab-Mobile.apk --keystore build/nutrilab-ci.keystore
+
+      - name: Test JavaScript offline queue and APK source contract
+        run: python -m unittest discover -s tests -p "test_mobile_offline.py" -v
+
+      - name: End-to-end HTTP transfer — phone/server to desktop clinical database
+        run: python -m unittest discover -s tests -p "test_mobile_http_e2e.py" -v
+
+      - name: Install and launch APK in Android 34 emulator
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            adb install -r build/NutriLab-Mobile.apk
+            adb shell am start -n br.nutrilab.mobile/.MainActivity
+            sleep 8
+            adb shell dumpsys activity activities | grep -E "mResumedActivity.*br.nutrilab.mobile"
+            if adb logcat -d | grep -q "FATAL EXCEPTION"; then
+              adb logcat -d -s AndroidRuntime:E
+              exit 1
+            fi
+
+      - name: Publish APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NutriLab-Mobile-APK-${{ github.run_number }}
+          path: build/NutriLab-Mobile.apk
+          if-no-files-found: error
+          retention-days: 14
