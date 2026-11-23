@@ -92,18 +92,21 @@ assert pilha.quantidade == 1
 mapa_dialogo.destroy()
 assert pilha.quantidade == 0
 # DialogoAssociacoesExames também deve ser uma guia lateral.
+import os
 import sqlite3
 import tempfile
-from pathlib import Path
 from ambulatorial_ui import DialogoAssociacoesExames
-with tempfile.TemporaryDirectory() as pasta:
-    caminho_db = str(Path(pasta) / "associacoes.db")
+fd, caminho_db = tempfile.mkstemp(suffix=".db")
+os.close(fd)
+try:
     with sqlite3.connect(caminho_db) as conn:
         conn.execute("CREATE TABLE Exames_Catalogo (id_exame TEXT, nome_amigavel TEXT)")
     dialogo_exames = DialogoAssociacoesExames(app, caminho_db)
     assert pilha.quantidade == 1
     dialogo_exames.destroy()
     assert pilha.quantidade == 0
+finally:
+    os.remove(caminho_db)
 
 root.destroy()
 """
