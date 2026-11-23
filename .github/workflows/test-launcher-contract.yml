@@ -3,7 +3,7 @@ name: Teste temporario do launcher
 on:
   push:
     branches:
-      - feat/launcher-bootstrap-python-2026-11-23
+      - feat/launcher-universal-atualizacao-2026-11-23
   pull_request:
     branches: [main]
 
