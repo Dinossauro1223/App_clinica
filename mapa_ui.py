@@ -1148,7 +1148,10 @@ class FormRegistro(_Janela):
             self.tree_sup.column(c, width=w, anchor="w")
         self.tree_sup.pack(fill="x", padx=10, pady=(2, 2))
         self._reg(_btn(q, "Remover selecionado", self._rem_sup, 160, VERMELHO, VERMELHO_HOVER, 26)).pack(
-            anchor="w", padx=10, pady=(0, 8))
+            anchor="w", padx=10, pady=(0, 4))
+        self.lbl_oferta = ctk.CTkLabel(q, text="Aporte calculado: informe dose e metas.",
+                                       text_color=tema.TEXTO, wraplength=760, justify="left")
+        self.lbl_oferta.pack(anchor="w", padx=12, pady=(0, 8))
 
         q = self._secao("Observações")
         for attr, rot in (("t_sim", "Sim: (alimentos que consome)"), ("t_nao", "Não: (alimentos que não consome)")):
@@ -1435,15 +1438,46 @@ class FormRegistro(_Janela):
         self._recalcular()
 
     # --------------------------------------------------------------- suplementos
+    def _via_mudou(self, via, preservar=False):
+        """Separa suplemento oral de fórmula enteral; não mantém os dois tratamentos misturados."""
+        if not hasattr(self, "cb_sup"):
+            return
+        enteral = via == "Enteral"
+        nova_via = "Enteral" if enteral else "Oral"
+        if self._via_anterior != nova_via and not preservar:
+            self._suplementos = []
+        self._via_anterior = nova_via
+        if enteral:
+            modulos = ("Fórmula completa", "Fórmula para diabetes")
+            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") in modulos]
+            self._suplementos = [s for s in self._suplementos if s.get("modulo") in modulos]
+            self.lbl_sup_tipo.configure(
+                text="DIETA ENTERAL: selecione a fórmula administrada pela sonda. A suplementação oral anterior "
+                     "é substituída para evitar classificar o mesmo leito nas duas categorias.")
+            self.cb_mod.configure(values=["Fórmulas enterais"])
+            self.cb_mod.set("Fórmulas enterais")
+        else:
+            self._catalogo_visivel = list(self._catalogo)
+            self.lbl_sup_tipo.configure(
+                text="SUPLEMENTAÇÃO ORAL: complemento da alimentação pela boca; o paciente continua classificado "
+                     "como via oral, mesmo quando recebe suplemento.")
+            self.cb_mod.configure(values=["Todos os módulos"] + mdb.listar_modulos(self.ui.db))
+            self.cb_mod.set("Todos os módulos")
+        self._filtrar_sup()
+        self._atualizar_sup()
+        self._recalcular_oferta()
+
     def _filtrar_sup(self):
         modulo = self.cb_mod.get()
-        nomes = [s["nome"] for s in self._catalogo if modulo == "Todos os módulos" or s["modulo"] == modulo]
+        catalogo = self._catalogo_visivel
+        nomes = [s["nome"] for s in catalogo
+                 if self.seg_via.get() == "Enteral" or modulo == "Todos os módulos" or s["modulo"] == modulo]
         self.cb_sup.configure(values=nomes)
         self.cb_sup.set(nomes[0] if len(nomes) == 1 else "")
 
     def _add_sup(self):
         nome = self.cb_sup.get()
-        s = next((x for x in self._catalogo if x["nome"] == nome), None)
+        s = next((x for x in self._catalogo_visivel if x["nome"] == nome), None)
         if not s:
             messagebox.showinfo("Suplementos", "Escolha o suplemento na lista.", parent=self)
             return
@@ -1459,18 +1493,52 @@ class FormRegistro(_Janela):
                                   "qtd_dia": qtd, "unidade": s["emb_un"]})
         _set_entry(self.e_qtd, "")
         self._atualizar_sup()
+        self._recalcular_oferta()
 
     def _rem_sup(self):
         sel = self.tree_sup.selection()
         if sel:
             del self._suplementos[int(sel[0])]
             self._atualizar_sup()
+            self._recalcular_oferta()
 
     def _atualizar_sup(self):
         self.tree_sup.delete(*self.tree_sup.get_children())
         for i, s in enumerate(self._suplementos):
             qtd = f"{_fmt(s.get('qtd_dia')).replace(',0', '')} {s.get('unidade') or ''}".strip() if s.get("qtd_dia") else ""
             self.tree_sup.insert("", "end", iid=str(i), values=(s.get("modulo") or "", s["nome"], qtd))
+
+    def _recalcular_oferta(self):
+        if not hasattr(self, "lbl_oferta"):
+            return
+        por_id = {s["id_suplemento"]: s for s in self._catalogo}
+        itens = [{**por_id.get(item.get("id_suplemento"), {}), **item} for item in self._suplementos]
+        resultado = sc.calcular_oferta(
+            itens, peso_kg=nc.parse_num(self.e_peso.get()),
+            meta_kcal=nc.parse_num(self.e_meta_kcal.get()),
+            meta_proteina_g=nc.parse_num(self.e_meta_ptn.get()))
+        t = resultado["totais"]
+        partes = []
+        if t["kcal_100"] is not None:
+            partes.append(f"{t['kcal_100']:.1f} kcal/dia")
+            if resultado["percentual_meta_kcal"] is not None:
+                partes.append(f"{resultado['percentual_meta_kcal']:.1f}% da meta energética")
+        else:
+            partes.append("energia: ficha/dose pendente")
+        if t["ptn_100"] is not None:
+            partes.append(f"{t['ptn_100']:.1f} g proteína/dia")
+            if resultado["percentual_meta_proteina"] is not None:
+                partes.append(f"{resultado['percentual_meta_proteina']:.1f}% da meta proteica")
+            if resultado["proteina_g_kg"] is not None:
+                partes.append(f"{resultado['proteina_g_kg']:.2f} g/kg")
+        else:
+            partes.append("proteína: ficha/dose pendente")
+        pend = len(resultado["pendencias"])
+        if pend:
+            partes.append(f"{pend} item(ns) com dados incompletos")
+        elif not itens:
+            partes = ["Adicione itens com dose diária e informe as metas para calcular a participação."]
+        self.lbl_oferta.configure(text="Aporte calculado: " + " · ".join(partes))
 
     # ----------------------------------------------------------------- paciente
     def _buscar_paciente(self):
