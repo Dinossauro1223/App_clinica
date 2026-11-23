@@ -78,7 +78,7 @@ def caminho_do_banco():
     """
     destino = db_service.caminho_banco()
     if db_service.esta_empacotado() and not destino.exists():
-        embutido = os.path.join(get_base_path(), destino.name)
+        embutido = os.path.join(get_base_path(), "modelo_banco", destino.name)
         if os.path.exists(embutido):
             try:
                 shutil.copy2(embutido, destino)

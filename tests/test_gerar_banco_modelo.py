@@ -78,7 +78,7 @@ class TestBancoModelo(unittest.TestCase):
         spec = (RAIZ / "app_clinica.spec").read_text(encoding="utf-8")
         self.assertNotIn("D:/app_clinica/venv", spec)
         self.assertIn("customtkinter.__file__", spec)
-        self.assertIn("(MODELO_BANCO, '.')", spec)
+        self.assertIn("(MODELO_BANCO, 'modelo_banco')", spec)
         self.assertNotIn("('clinica.db', '.')", spec)
 
     def test_launcher_procura_exe_antes_de_compilar_e_gera_banco_sem_origem(self):
