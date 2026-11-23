@@ -55,7 +55,7 @@ class TestTelaInicialEmCamadas(unittest.TestCase):
         self.assertIn('test_svg_pipeline.py', launcher)
         self.assertLess(
             launcher.index('test_svg_pipeline.py'),
-            launcher.index('gerar_banco_modelo.py')
+            launcher.index('call %PY_CMD% tools\\gerar_banco_modelo.py')
         )
         self.assertLess(
             launcher.index('test_svg_pipeline.py'),
