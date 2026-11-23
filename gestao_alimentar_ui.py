@@ -42,26 +42,16 @@ def _btn(master, texto, comando, largura=145, cor=VERDE, hover=VERDE_HOVER):
 def _tree(master, definicoes, altura=12):
     cols = [x[0] for x in definicoes]
     frame = ctk.CTkFrame(master, fg_color="transparent")
-    estilo = ttk.Style(frame)
-    estilo.configure(
-        "Nutri.Treeview", rowheight=30, background="#FFFFFF",
-        fieldbackground="#FFFFFF", foreground="#20372B",
-        borderwidth=1, relief="solid"
-    )
-    estilo.configure(
-        "Nutri.Treeview.Heading", background="#DCE9DF",
-        foreground="#20372B", relief="solid", borderwidth=1,
-        padding=(6, 6), font=("Segoe UI", 10, "bold")
-    )
-    estilo.map(
-        "Nutri.Treeview",
-        background=[("selected", "#BFD9C7")],
-        foreground=[("selected", "#173A27")]
-    )
+    try:
+        tema.aplicar_tema_ttk(frame.winfo_toplevel())
+    except Exception:
+        pass
     tree = ttk.Treeview(frame, columns=cols, show="headings", height=altura,
-                        selectmode="browse", style="Nutri.Treeview")
-    tree.tag_configure("linha_par", background="#EDF4EF", foreground="#20372B")
-    tree.tag_configure("linha_impar", background="#FFFFFF", foreground="#20372B")
+                        selectmode="browse", style="Treeview")
+    tree.tag_configure("linha_par", background=tema.cor_atual(tema.FUNDO),
+                       foreground=tema.cor_atual(tema.TEXTO))
+    tree.tag_configure("linha_impar", background=tema.cor_atual(tema.BRANCO),
+                       foreground=tema.cor_atual(tema.TEXTO))
     for key, titulo, largura, ancora in definicoes:
         tree.heading(key, text=titulo)
         tree.column(key, width=largura, minwidth=max(48, min(largura, 72)), anchor=ancora, stretch=True)
@@ -239,8 +229,10 @@ class GestaoAlimentarUI:
             ("kcal", "kcal/100g", 90, "e"), ("proteina", "Proteína/100g", 110, "e"),
             ("carbo", "Carboidrato/100g", 120, "e"), ("lipidio", "Lipídio/100g", 100, "e")], altura=18)
         self.tbca_tree.configure(selectmode="extended")
-        self.tbca_tree.tag_configure("tbca_par", background="#EDF4EF", foreground="#20372B")
-        self.tbca_tree.tag_configure("tbca_impar", background="#FFFFFF", foreground="#20372B")
+        self.tbca_tree.tag_configure("tbca_par", background=tema.cor_atual(tema.FUNDO),
+                                     foreground=tema.cor_atual(tema.TEXTO))
+        self.tbca_tree.tag_configure("tbca_impar", background=tema.cor_atual(tema.BRANCO),
+                                     foreground=tema.cor_atual(tema.TEXTO))
         frame.pack(fill="both", expand=True, padx=8, pady=(4, 8))
         self.buscar_tbca()
 
