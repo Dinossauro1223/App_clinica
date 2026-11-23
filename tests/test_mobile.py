@@ -92,9 +92,19 @@ class MobileTest(unittest.TestCase):
                 self.assertEqual(sv.login(c, "127.0.0.1", {"login": "admin", "senha": "123456789"})["usuario"]["perfil"], "admin")
             finally:
                 c.close()
-            # A senha escolhida depois pelo administrador não pode ser sobrescrita em cada inicialização.
+            # Simula banco legado: administrador existia com senha aleatória, mas sem marcador da migração.
             c = sv.conectar(banco)
             try:
+                uid = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()["id"]
+                c.execute("DELETE FROM sistema_config WHERE chave='senha_admin_inicial_aplicada'")
+                sv.definir_senha(c, uid, "senha-legada-aleatoria")
+                c.commit()
+            finally:
+                c.close()
+            self.assertEqual(sv.preparar_banco(banco), "123456789")
+            c = sv.conectar(banco)
+            try:
+                self.assertEqual(sv.login(c, "127.0.0.1", {"login": "admin", "senha": "123456789"})["usuario"]["perfil"], "admin")
                 uid = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()["id"]
                 sv.definir_senha(c, uid, "senha-personalizada")
                 c.commit()
