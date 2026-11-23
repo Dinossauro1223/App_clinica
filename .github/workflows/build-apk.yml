@@ -30,7 +30,7 @@ jobs:
       - name: Android SDK 34
         uses: android-actions/setup-android@v4
         with:
-          packages: 'platforms;android-34 build-tools;34.0.0 emulator system-images;android-34;google_apis;x86_64'
+          packages: 'platforms;android-34 build-tools;34.0.0 emulator'
 
       - name: Python 3.12
         uses: actions/setup-python@v6
@@ -60,20 +60,42 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Install and launch APK in Android 34 emulator
-        uses: ReactiveCircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          disable-animations: true
-          script: |
-            adb install -r build/NutriLab-Mobile.apk
-            adb shell am start -n br.nutrilab.mobile/.MainActivity
-            sleep 8
-            adb shell dumpsys activity activities | grep -E "mResumedActivity.*br.nutrilab.mobile"
-            if adb logcat -d | grep -q "FATAL EXCEPTION"; then
-              adb logcat -d -s AndroidRuntime:E
-              exit 1
+      - name: Install Android 34 Google APIs system image (retry transient SDK download errors)
+        run: |
+          for attempt in 1 2 3; do
+            if sdkmanager --install "system-images;android-34;google_apis;x86_64"; then
+              exit 0
             fi
+            rm -rf "$ANDROID_HOME/system-images/android-34/google_apis/x86_64"
+            sleep 10
+          done
+          exit 1
+
+      - name: Create and boot Android 34 emulator, install and launch APK
+        run: |
+          echo "no" | avdmanager create avd --force -n nutrilab-ci -k "system-images;android-34;google_apis;x86_64" -d pixel_2
+          emulator -avd nutrilab-ci -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none > "$RUNNER_TEMP/nutrilab-emulator.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/nutrilab-emulator.pid"
+          adb wait-for-device
+          BOOTED=0
+          for attempt in $(seq 1 120); do
+            BOOTED="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r')"
+            if [ "$BOOTED" = "1" ]; then break; fi
+            sleep 5
+          done
+          if [ "$BOOTED" != "1" ]; then
+            cat "$RUNNER_TEMP/nutrilab-emulator.log"
+            exit 1
+          fi
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb install -r build/NutriLab-Mobile.apk
+          adb shell am start -n br.nutrilab.mobile/.MainActivity
+          sleep 8
+          adb shell dumpsys activity activities | grep -E "ResumedActivity.*br.nutrilab.mobile|topResumedActivity.*br.nutrilab.mobile"
+          if adb logcat -d | grep -q "FATAL EXCEPTION"; then
+            adb logcat -d -s AndroidRuntime:E
+            exit 1
+          fi
+          adb emu kill
