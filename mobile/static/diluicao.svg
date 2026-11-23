@@ -1,30 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 280" role="img" aria-label="Etapas ilustrativas de medição, dosagem e mistura">
-<defs>
- <linearGradient id="water" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c6e8f2"/><stop offset="1" stop-color="#4fa5c2"/></linearGradient>
- <linearGradient id="powder" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5e8c9"/><stop offset="1" stop-color="#d2a967"/></linearGradient>
-</defs>
-<rect width="900" height="280" rx="28" fill="#f5f8f5"/>
-<g transform="translate(65 20)">
- <path d="M34 25h150l-18 190H52z" fill="#fff" stroke="#4b7380" stroke-width="8" stroke-linejoin="round"/>
- <path d="M49 125h119l-11 78H59z" fill="url(#water)"/>
- <path d="M52 105h36M52 85h25M52 65h36" stroke="#4b7380" stroke-width="6" stroke-linecap="round"/>
- <path d="M189 75h24M189 112h24M189 149h24" stroke="#4b7380" stroke-width="5" stroke-linecap="round"/>
- <path d="M106 235h16" stroke="#4b7380" stroke-width="7" stroke-linecap="round"/>
-</g>
-<path d="M295 136h70m-18-18 18 18-18 18" stroke="#78928a" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-<g transform="translate(400 20)">
- <path d="M35 150c30-65 95-65 130 0" fill="none" stroke="#a57b43" stroke-width="15" stroke-linecap="round"/>
- <path d="M31 152h142l-16 62H47z" fill="url(#powder)" stroke="#8b6b3d" stroke-width="7" stroke-linejoin="round"/>
- <path d="M71 70h85l-20 50H91z" fill="#fff" stroke="#8b6b3d" stroke-width="7" stroke-linejoin="round"/>
- <path d="M89 70V48h47v22" fill="none" stroke="#8b6b3d" stroke-width="7" stroke-linecap="round"/>
- <circle cx="93" cy="150" r="6" fill="#a57b43"/><circle cx="120" cy="142" r="7" fill="#a57b43"/><circle cx="143" cy="155" r="5" fill="#a57b43"/>
-</g>
-<path d="M605 136h70m-18-18 18 18-18 18" stroke="#78928a" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-<g transform="translate(720 20)">
- <path d="M26 40h150l-18 175H44z" fill="#fff" stroke="#4b7380" stroke-width="8" stroke-linejoin="round"/>
- <path d="M41 130h120l-11 72H52z" fill="url(#water)"/>
- <path d="M80 111c-14-20 9-29 3-47M119 109c-14-20 9-29 3-47" stroke="#4b7380" stroke-width="7" fill="none" stroke-linecap="round"/>
- <path d="M82 102l54-40" stroke="#a57b43" stroke-width="9" stroke-linecap="round"/>
- <path d="M35 226h142" stroke="#4b7380" stroke-width="7" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" role="img" aria-label="Passo a passo: medir o líquido no copo dosador, pesar o pó na balança e misturar; o volume aumenta">
+<rect width="960" height="300" rx="24" fill="#f4f8f5"/>
+<g font-family="Arial,sans-serif" fill="#173c3a" text-anchor="middle">
+ <g transform="translate(40 18)">
+  <rect x="0" y="0" width="250" height="264" rx="18" fill="#fff" stroke="#d2dfd8" stroke-width="3"/>
+  <text x="125" y="34" font-size="20" font-weight="700">1. MEDIR O LÍQUIDO</text>
+  <path d="M82 76h92l-9 143H91z" fill="#fff" stroke="#347b83" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M91 146h75l-5 64H96z" fill="#82c6dd"/>
+  <path d="M174 95h26v92h-26" fill="none" stroke="#347b83" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M100 110h28m-28 18h18m-18 18h28m-28 18h18m-18 18h28" stroke="#347b83" stroke-width="4" stroke-linecap="round"/>
+  <text x="133" y="242" font-size="18" font-weight="700">COPO DOSADOR • mL</text>
+  <text x="125" y="263" font-size="13">Leia a marca na altura dos olhos</text>
+ </g>
+ <path d="M304 148h32m-12-12 12 12-12 12" fill="none" stroke="#7b9690" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+ <g transform="translate(355 18)">
+  <rect x="0" y="0" width="250" height="264" rx="18" fill="#fff" stroke="#d2dfd8" stroke-width="3"/>
+  <text x="125" y="34" font-size="20" font-weight="700">2. PESAR O PÓ</text>
+  <rect x="57" y="158" width="136" height="54" rx="10" fill="#dce8e3" stroke="#347b83" stroke-width="6"/>
+  <rect x="91" y="171" width="68" height="25" rx="5" fill="#fff" stroke="#347b83" stroke-width="3"/>
+  <text x="125" y="190" font-size="17" font-weight="700">g</text>
+  <path d="M82 110h86l-9 31H91z" fill="#f1e4c8" stroke="#9c7946" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M93 110q32-26 64 0" fill="#e8d3aa" stroke="#9c7946" stroke-width="4"/>
+  <circle cx="105" cy="103" r="4" fill="#c19b5e"/><circle cx="125" cy="98" r="5" fill="#c19b5e"/><circle cx="145" cy="104" r="4" fill="#c19b5e"/>
+  <path d="M125 144v12" stroke="#347b83" stroke-width="5"/>
+  <text x="125" y="242" font-size="18" font-weight="700">BALANÇA • gramas (g)</text>
+  <text x="125" y="263" font-size="13">Zere a balança antes de pesar</text>
+ </g>
+ <path d="M619 148h32m-12-12 12 12-12 12" fill="none" stroke="#7b9690" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+ <g transform="translate(670 18)">
+  <rect x="0" y="0" width="250" height="264" rx="18" fill="#fff" stroke="#d2dfd8" stroke-width="3"/>
+  <text x="125" y="34" font-size="20" font-weight="700">3. MISTURAR</text>
+  <path d="M66 83h118l-12 128H78z" fill="#fff" stroke="#347b83" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M76 123h98l-8 87H84z" fill="#69b8d0"/>
+  <path d="M87 123q39-12 78 0" fill="none" stroke="#2d8da8" stroke-width="4"/>
+  <path d="M140 65l-22 93" stroke="#9c7946" stroke-width="8" stroke-linecap="round"/>
+  <path d="M111 157q24 15 48-2" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+  <path d="M62 111h-12m0 0 7-7m-7 7 7 7" stroke="#347b83" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <text x="125" y="242" font-size="18" font-weight="700">VOLUME MAIOR</text>
+  <text x="125" y="263" font-size="13">O pó acrescentado pode elevar o nível</text>
+ </g>
 </g>
 </svg>
