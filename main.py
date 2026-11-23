@@ -107,6 +107,17 @@ def banco_interno_com_dados(destino):
         return None
 
 
+def _criar_tabview_compat(master, fonte_abas=None, **kwargs):
+    """Cria CTkTabview sem depender de argumentos exclusivos do CustomTkinter 6.x."""
+    tab = ctk.CTkTabview(master, **kwargs)
+    if fonte_abas is not None:
+        try:
+            tab._segmented_button.configure(font=fonte_abas)
+        except (AttributeError, tk.TclError):
+            pass
+    return tab
+
+
 class AppClinica(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -158,9 +169,6 @@ class AppClinica(ctk.CTk):
 
         self.btn_pacientes = ctk.CTkButton(self.menu_lateral, text="Pacientes", command=self.tela_pacientes, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
         self.btn_pacientes.grid(row=1, column=0, padx=20, pady=10, columnspan=2)
-
-        self.btn_consultas = ctk.CTkButton(self.menu_lateral, text="Nova Consulta", command=self.tela_consultas, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_consultas.grid(row=2, column=0, padx=20, pady=10, columnspan=2)
 
         self.btn_exames = ctk.CTkButton(self.menu_lateral, text="Catálogo de Exames", command=self.tela_exames, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
         self.btn_exames.grid(row=3, column=0, padx=20, pady=10, columnspan=2)
@@ -371,7 +379,7 @@ class AppClinica(ctk.CTk):
         if compacto:
             self.label_menu.grid_remove()
             self.label_copyright.grid_remove()
-            for botao, rotulo in ((self.btn_pacientes, "👥"), (self.btn_consultas, "📝"), (self.btn_exames, "🧪")):
+            for botao, rotulo in ((self.btn_pacientes, "👥"), (self.btn_exames, "🧪")):
                 try:
                     largura_botao = int(botao.cget("width"))
                 except (TypeError, ValueError, AttributeError):
@@ -394,7 +402,7 @@ class AppClinica(ctk.CTk):
         else:
             self.label_menu.grid()
             self.label_copyright.grid()
-            for botao, rotulo in ((self.btn_pacientes, "Pacientes"), (self.btn_consultas, "Nova Consulta"),
+            for botao, rotulo in ((self.btn_pacientes, "Pacientes"),
                                   (self.btn_exames, "Catálogo de Exames")):
                 try:
                     largura_botao = int(botao.cget("width"))
@@ -605,10 +613,10 @@ class AppClinica(ctk.CTk):
         self.limpar_area_principal()
 
         ctk.CTkLabel(self.area_principal, text="Gestão de Pacientes", font=ctk.CTkFont(size=24, weight="bold"), text_color="#1b5e20").pack(pady=(20, 10))
-        self.tabview = ctk.CTkTabview(self.area_principal, fg_color="#e8f5e9",
+        self.tabview = _criar_tabview_compat(self.area_principal, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
+                                      fg_color="#e8f5e9",
                                       segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
                                       segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                      segmented_button_font=ctk.CTkFont(size=15, weight="bold"),
                                       text_color="#ffffff", text_color_disabled="#d5e8d7")
         self.tabview.pack(padx=20, pady=10, fill="both", expand=True)
         aba_cadastro = self.tabview.add("Novo Cadastro")
@@ -623,7 +631,19 @@ class AppClinica(ctk.CTk):
         self.combo_sexo = ctk.CTkComboBox(aba_cadastro, values=["Feminino", "Masculino"], width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", button_color="#4caf50", button_hover_color="#388e3c", dropdown_fg_color="#ffffff", dropdown_hover_color="#c8e6c9", dropdown_text_color="#1b5e20")
         self.combo_sexo.set("Feminino")
         self.combo_sexo.pack(pady=10)
-        ctk.CTkButton(aba_cadastro, text="Salvar Cadastro", command=self.salvar_paciente, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=20)
+        botoes_cadastro = ctk.CTkFrame(aba_cadastro, fg_color="transparent")
+        botoes_cadastro.pack(pady=18)
+        ctk.CTkButton(
+            botoes_cadastro, text="Salvar Cadastro", command=self.salvar_paciente,
+            fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff",
+            font=ctk.CTkFont(size=15, weight="bold")
+        ).pack(side="left", padx=5)
+        ctk.CTkButton(
+            botoes_cadastro, text="Salvar e iniciar consulta",
+            command=lambda: self.salvar_paciente(iniciar_consulta=True),
+            fg_color="#1e7a4f", hover_color="#17633f", text_color="#ffffff",
+            font=ctk.CTkFont(size=15, weight="bold")
+        ).pack(side="left", padx=5)
         self.lbl_mensagem = ctk.CTkLabel(aba_cadastro, text="", text_color="#2e7d32", font=ctk.CTkFont(size=15))
         self.lbl_mensagem.pack()
 
@@ -634,6 +654,21 @@ class AppClinica(ctk.CTk):
         style.configure("Treeview.Heading", background="#4caf50", foreground="#ffffff", relief="flat", font=("Segoe UI", 14, "bold"))
         style.map("Treeview.Heading", background=[('active', '#388e3c')])
         
+        barra_lista = ctk.CTkFrame(aba_lista, fg_color="transparent")
+        barra_lista.pack(fill="x", padx=10, pady=(8, 2))
+        self.btn_consulta_paciente = ctk.CTkButton(
+            barra_lista, text="Nova consulta do paciente selecionado",
+            command=self.iniciar_consulta_paciente, state="disabled",
+            fg_color="#1e7a4f", hover_color="#17633f", text_color="#ffffff",
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        self.btn_consulta_paciente.pack(side="left")
+        self.lbl_paciente_selecionado = ctk.CTkLabel(
+            barra_lista, text="Selecione um paciente para iniciar uma consulta.",
+            text_color="#52645a", font=ctk.CTkFont(size=12)
+        )
+        self.lbl_paciente_selecionado.pack(side="left", padx=12)
+
         tree_frame = ctk.CTkFrame(aba_lista, fg_color="#e8f5e9")
         tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -652,7 +687,16 @@ class AppClinica(ctk.CTk):
         self.tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.tree.bind("<Double-1>", self.abrir_perfil_paciente)
+        self.tree.bind("<<TreeviewSelect>>", self._atualizar_acao_consulta_paciente)
         self.carregar_tabela_pacientes()
+
+        self.fab_paciente = ctk.CTkButton(
+            self.area_principal, text="+ Adicionar paciente",
+            command=self._abrir_cadastro_paciente, width=190, height=44,
+            corner_radius=22, fg_color="#F08A24", hover_color="#D97706",
+            text_color="#ffffff", font=ctk.CTkFont(size=14, weight="bold")
+        )
+        self.fab_paciente.place(relx=0.98, rely=0.98, anchor="se")
 
         # Botão de exclusão debajo de la tabla (acción destructiva em vermelho)
         ctk.CTkButton(
@@ -665,7 +709,32 @@ class AppClinica(ctk.CTk):
             command=self.eliminar_paciente,
         ).pack(fill="x", padx=10, pady=10)
 
-    def salvar_paciente(self):
+    def _abrir_cadastro_paciente(self):
+        """Abre a aba de cadastro pelo botão flutuante."""
+        self.tabview.set("Novo Cadastro")
+        self.entry_nome.focus_set()
+
+    def _atualizar_acao_consulta_paciente(self, _evento=None):
+        selecionados = self.tree.selection()
+        habilitado = bool(selecionados)
+        self.btn_consulta_paciente.configure(state="normal" if habilitado else "disabled")
+        if habilitado:
+            valores = self.tree.item(selecionados[0], "values")
+            self.lbl_paciente_selecionado.configure(text=f"Paciente: {valores[1]}")
+        else:
+            self.lbl_paciente_selecionado.configure(text="Selecione um paciente para iniciar uma consulta.")
+
+    def iniciar_consulta_paciente(self):
+        """Inicia consulta somente a partir de um paciente explicitamente selecionado."""
+        selecionados = self.tree.selection()
+        if not selecionados:
+            messagebox.showinfo("Nova consulta", "Selecione um paciente na lista.")
+            return
+        valores = self.tree.item(selecionados[0], "values")
+        self.paciente_atual_id, self.paciente_atual_nome, self.paciente_atual_nasc, self.paciente_atual_sexo = valores
+        self.tela_consultas()
+
+    def salvar_paciente(self, iniciar_consulta=False):
         nome = self.entry_nome.get()
         nasc = self.entry_nasc.get()
         sexo = self.combo_sexo.get()
@@ -678,12 +747,19 @@ class AppClinica(ctk.CTk):
         conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute('INSERT INTO Pacientes (nome, data_nascimento, sexo) VALUES (?, ?, ?)', (nome, nasc, sexo))
+        id_novo = cursor.lastrowid
         conexao.commit()
         conexao.close()
         self.entry_nome.delete(0, 'end')
         self.entry_nasc.delete(0, 'end')
         self.carregar_tabela_pacientes()
         self.tabview.set("Pacientes Cadastrados")
+        if iniciar_consulta:
+            self.paciente_atual_id = id_novo
+            self.paciente_atual_nome = nome
+            self.paciente_atual_nasc = nasc
+            self.paciente_atual_sexo = sexo
+            self.tela_consultas()
 
     def carregar_tabela_pacientes(self):
         for item in self.tree.get_children():
@@ -744,7 +820,7 @@ class AppClinica(ctk.CTk):
         self.carregar_tabela_pacientes()
 
     # --- PERFIL DO PACIENTE ---
-    def abrir_perfil_paciente(self, event):
+    def abrir_perfil_paciente(self, event=None):
         selecao = self.tree.selection()
         if not selecao: return
         valores = self.tree.item(selecao[0])['values']
@@ -757,10 +833,10 @@ class AppClinica(ctk.CTk):
         ctk.CTkLabel(self.area_principal, text=f"Perfil Clínico: {self.paciente_atual_nome}", font=ctk.CTkFont(size=26, weight="bold"), text_color="#1b5e20").pack(pady=(0, 5))
         ctk.CTkLabel(self.area_principal, text=f"ID: {self.paciente_atual_id}  |  Nascimento: {nasc}  |  Sexo: {sexo}", font=ctk.CTkFont(size=17), text_color="#2f3e33").pack(pady=5)
 
-        tabview_perfil = ctk.CTkTabview(self.area_principal, fg_color="#e8f5e9",
+        tabview_perfil = _criar_tabview_compat(self.area_principal, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
+                                        fg_color="#e8f5e9",
                                         segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
                                         segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                        segmented_button_font=ctk.CTkFont(size=15, weight="bold"),
                                         text_color="#ffffff", text_color_disabled="#d5e8d7")
         tabview_perfil.pack(padx=20, pady=10, fill="both", expand=True)
         
