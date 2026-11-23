@@ -43,6 +43,19 @@ MODULOS_PADRAO = [
     "Outro",
 ]
 NOTA_SEED = "Classificação inicial sugerida; confirmar com a ficha técnica."
+# Candidatos adicionais confirmados no catálogo oficial da Abbott Brasil. São criados sem
+# composição numérica: a ficha técnica específica da apresentação deve ser cadastrada antes
+# de qualquer cálculo. Fonte: https://www.abbottbrasil.com.br/produtos/para-profissionais/nutricao.html
+SUPLEMENTOS_COMPLEMENTARES = [
+    ("Ensure", "Fórmula completa"),
+    ("Ensure Protein", "Fórmula completa"),
+    ("Ensure Plus Advance", "Fórmula completa"),
+    ("Ensure Advance", "Fórmula completa"),
+    ("Glucerna", "Fórmula para diabetes"),
+    ("Glucerna SR", "Fórmula para diabetes"),
+    ("Glucerna 1.5 kcal", "Fórmula para diabetes"),
+    ("PediaSure Complete", "Fórmula completa"),
+]
 SUPLEMENTOS_INICIAIS = [
     ("Fresubin", "Fórmula completa"),
     ("Thopic Soya 1,5 kcal/ml", "Fórmula completa"),
@@ -72,7 +85,7 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
     aj_cm REAL, pp_cm REAL, pb_cm REAL,
     altura_cm REAL, altura_origem TEXT, altura_metodo TEXT,
     peso_kg REAL, peso_origem TEXT, peso_metodo TEXT,
-    imc REAL, imc_class TEXT, data_reavaliacao TEXT, via TEXT,
+    imc REAL, imc_class TEXT, data_reavaliacao TEXT, via TEXT, meta_kcal REAL, meta_proteina_g REAL,
     dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
     constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, condicoes TEXT, consistencia TEXT,
     obs_sim TEXT, obs_nao TEXT, fi_estado TEXT, fi_freq REAL, fi_dias_ausente INTEGER,
@@ -91,7 +104,7 @@ CREATE INDEX IF NOT EXISTS ix_mapa_regsup_reg ON Mapa_Registro_Suplementos(id_re
 _CAMPOS_REG = [
     "id_paciente", "nome_paciente", "acompanhante", "sexo", "cor", "idade_anos", "idade_meses",
     "aj_cm", "pp_cm", "pb_cm", "altura_cm", "altura_origem", "altura_metodo",
-    "peso_kg", "peso_origem", "peso_metodo", "imc", "imc_class", "data_reavaliacao", "via",
+    "peso_kg", "peso_origem", "peso_metodo", "imc", "imc_class", "data_reavaliacao", "via", "meta_kcal", "meta_proteina_g",
     "dm", "has", "laxativa", "constipante", "drc", "condicoes", "consistencia", "obs_sim", "obs_nao",
     "fi_estado", "fi_freq", "fi_dias_ausente",
     "nrs2002_json", "nrs2002_classificacao", "avaliacao_json", "avaliacao_classificacao",
@@ -147,6 +160,9 @@ def inicializar(db_path):
         ):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
+        for nome, tipo in (("meta_kcal", "REAL"), ("meta_proteina_g", "REAL")):
+            if nome not in colunas:
+                c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
         colunas_sup = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
         for nome, tipo in (("ml_oferta", "REAL"), ("agua_ml", "REAL"),
                            ("refeicoes_json", "TEXT DEFAULT '[]'"), ("batido_fruta", "INTEGER DEFAULT 0")):
@@ -169,6 +185,18 @@ def inicializar(db_path):
                         "INSERT INTO Mapa_Suplementos (nome, modulo, observacao) VALUES (?, ?, ?)",
                         (nome, modulo, NOTA_SEED))
             c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos', '1')")
+        # Seed aditivo e idempotente: não sobrescreve fichas já cadastradas pelo serviço.
+        versao = c.execute("SELECT valor FROM Mapa_Config WHERE chave='seed_suplementos_catalogo_v2'").fetchone()
+        if not versao:
+            fonte = ("Produto identificado no catálogo oficial Abbott Brasil. Ficha técnica da apresentação "
+                     "não cadastrada; preencher composição e porção a partir do rótulo/ficha vigente antes "
+                     "de calcular. https://www.abbottbrasil.com.br/produtos/para-profissionais/nutricao.html")
+            for nome, modulo in SUPLEMENTOS_COMPLEMENTARES:
+                existe = c.execute("SELECT 1 FROM Mapa_Suplementos WHERE LOWER(nome)=LOWER(?)", (nome,)).fetchone()
+                if not existe:
+                    c.execute("INSERT INTO Mapa_Suplementos (nome, modulo, observacao) VALUES (?,?,?)",
+                              (nome, modulo, fonte))
+            c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos_catalogo_v2', '1')")
         c.commit()
 
 
@@ -425,6 +453,10 @@ def validar_registro(reg):
             erros.append(f"Origem inválida para {rot}.")
     if reg.get("via") not in (None, "") + tuple(VIAS):
         erros.append("Via de administração inválida.")
+    for campo, rotulo in (("meta_kcal", "Meta energética"), ("meta_proteina_g", "Meta proteica")):
+        valor = reg.get(campo)
+        if valor is not None and (not isinstance(valor, (int, float)) or valor <= 0):
+            erros.append(f"{rotulo} deve ser maior que zero.")
     if reg.get("consistencia") not in (None, "") + tuple(CONSISTENCIAS):
         erros.append("Consistência inválida.")
     desconhecidas = [c for c in codigos_condicoes(reg.get("condicoes")) if c not in dict(CONDICOES)]
