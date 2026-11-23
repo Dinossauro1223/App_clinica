@@ -73,7 +73,39 @@ jobs:
 
       - name: Create and boot Android 34 emulator, install and launch APK
         run: |
-          echo "no" | avdmanager create avd --force -n nutrilab-ci -k "system-images;android-34;google_apis;x86_64"
+          mkdir -p "$HOME/.android/avd/nutrilab-ci.avd"
+          cat > "$HOME/.android/avd/nutrilab-ci.avd/config.ini" <<EOF
+          AvdId=nutrilab-ci
+          avd.ini.displayname=NutriLab CI API 34
+          abi.type=x86_64
+          image.sysdir.1=system-images/android-34/google_apis/x86_64/
+          tag.id=google_apis
+          tag.display=Google APIs
+          target=android-34
+          hw.cpu.ncore=2
+          hw.ramSize=2048
+          hw.heapSize=256
+          hw.lcd.width=1080
+          hw.lcd.height=1920
+          hw.lcd.density=420
+          hw.keyboard=yes
+          hw.gpu.enabled=yes
+          hw.gpu.mode=swiftshader_indirect
+          hw.audioInput=no
+          hw.camera.back=none
+          hw.camera.front=none
+          hw.sensors.orientation=yes
+          hw.sensors.proximity=yes
+          disk.dataPartition.size=2G
+          fastboot.forceColdBoot=yes
+          EOF
+          cat > "$HOME/.android/avd/nutrilab-ci.ini" <<EOF
+          avd.ini.encoding=UTF-8
+          path=$HOME/.android/avd/nutrilab-ci.avd
+          path.rel=avd/nutrilab-ci.avd
+          target=android-34
+          EOF
+          emulator -list-avds
           command -v emulator
           command -v adb
           emulator -avd nutrilab-ci -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none > "$RUNNER_TEMP/nutrilab-emulator.log" 2>&1 &
