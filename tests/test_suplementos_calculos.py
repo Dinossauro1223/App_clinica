@@ -34,6 +34,22 @@ class TestCalculoOfertaSuplementos(unittest.TestCase):
         self.assertEqual(r["percentual_meta_proteina"], 16.67)
         self.assertTrue(r["completo"])
 
+    def test_fichas_oficiais_de_outras_formulas_enterais(self):
+        r = sc.calcular_oferta([
+            {"nome": "Nutrison Protein Plus Energy", "qtd_dia": 100, "unidade": "ml",
+             "kcal_100": 150, "ptn_100": 7.5, "lip_100": 5.8, "carb_100": 17, "sod_100": 100},
+            {"nome": "Nutrison advanced Diason", "qtd_dia": 100, "unidade": "ml",
+             "kcal_100": 102, "ptn_100": 4.3, "lip_100": 4.2, "carb_100": 11, "sod_100": 100},
+            {"nome": "Nutrison advanced Cubison", "qtd_dia": 100, "unidade": "ml",
+             "kcal_100": 103, "ptn_100": 5.5, "lip_100": 3.3, "carb_100": 13, "sod_100": 100},
+        ], peso_kg=60, meta_kcal=1800, meta_proteina_g=90)
+        self.assertEqual(r["totais"], {
+            "kcal_100": 355, "ptn_100": 17.3, "lip_100": 13.3, "carb_100": 41, "sod_100": 300
+        })
+        self.assertEqual(r["percentual_meta_kcal"], 19.72)
+        self.assertEqual(r["percentual_meta_proteina"], 19.22)
+        self.assertTrue(r["completo"])
+
     def test_modulo_em_gramas_e_soma_de_itens(self):
         r = sc.calcular_oferta([
             {"nome": "Fórmula", "qtd_dia": 200, "unidade": "ml", "kcal_100": 100, "ptn_100": 4,
