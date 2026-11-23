@@ -121,6 +121,16 @@ jobs:
           path.rel=avd/nutrilab-ci.avd
           target=android-34
           EOF
+          # GitHub-hosted Linux runners may expose /dev/kvm with group-only access.
+          # The emulator process must be able to open it for x86_64 acceleration.
+          if [ -e /dev/kvm ]; then
+            echo "KVM device detected; granting the runner user access for this job."
+            sudo chmod 666 /dev/kvm
+            ls -l /dev/kvm
+          else
+            echo "KVM device is unavailable on this runner; x86_64 emulator cannot boot."
+            exit 1
+          fi
           echo "Installed system image metadata:"
           cat "$ANDROID_HOME/system-images/android-34/google_apis/x86_64/source.properties"
           echo "Generated AVD CPU configuration:"
