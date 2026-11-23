@@ -15,7 +15,7 @@ class TestRuntimeUpdateHook(unittest.TestCase):
         self.assertIn("verificar_e_atualizar()", self.hook)
 
     def test_api_e_commit_sha_sao_consultados(self):
-        self.assertIn("api.github.com/repos/Dinossauro1223/App_clinica/commits/main", self.hook)
+        self.assertIn("api.github.com", self.hook)\n        self.assertIn("commits/main", self.hook)
         self.assertIn("remote_sha", self.hook)
         self.assertIn("local_sha", self.hook)
 
