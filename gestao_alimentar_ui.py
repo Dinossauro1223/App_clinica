@@ -42,7 +42,26 @@ def _btn(master, texto, comando, largura=145, cor=VERDE, hover=VERDE_HOVER):
 def _tree(master, definicoes, altura=12):
     cols = [x[0] for x in definicoes]
     frame = ctk.CTkFrame(master, fg_color="transparent")
-    tree = ttk.Treeview(frame, columns=cols, show="headings", height=altura, selectmode="browse")
+    estilo = ttk.Style(frame)
+    estilo.configure(
+        "Nutri.Treeview", rowheight=30, background="#FFFFFF",
+        fieldbackground="#FFFFFF", foreground="#20372B",
+        borderwidth=1, relief="solid"
+    )
+    estilo.configure(
+        "Nutri.Treeview.Heading", background="#DCE9DF",
+        foreground="#20372B", relief="solid", borderwidth=1,
+        padding=(6, 6), font=("Segoe UI", 10, "bold")
+    )
+    estilo.map(
+        "Nutri.Treeview",
+        background=[("selected", "#BFD9C7")],
+        foreground=[("selected", "#173A27")]
+    )
+    tree = ttk.Treeview(frame, columns=cols, show="headings", height=altura,
+                        selectmode="browse", style="Nutri.Treeview")
+    tree.tag_configure("linha_par", background="#EDF4EF", foreground="#20372B")
+    tree.tag_configure("linha_impar", background="#FFFFFF", foreground="#20372B")
     for key, titulo, largura, ancora in definicoes:
         tree.heading(key, text=titulo)
         tree.column(key, width=largura, minwidth=max(48, min(largura, 72)), anchor=ancora, stretch=True)
@@ -190,9 +209,12 @@ class GestaoAlimentarUI:
     def carregar_fichas(self):
         for iid in self.fichas_tree.get_children():
             self.fichas_tree.delete(iid)
-        for ficha in ga.listar_fichas(self.db):
+        for indice, ficha in enumerate(ga.listar_fichas(self.db)):
             iid = str(ficha["id_ficha"])
-            self.fichas_tree.insert("", "end", iid=iid, values=(ficha["nome"], _fmt_num(ficha["porcoes"], 0)))
+            self.fichas_tree.insert(
+                "", "end", iid=iid, values=(ficha["nome"], _fmt_num(ficha["porcoes"], 0)),
+                tags=("linha_par" if indice % 2 == 0 else "linha_impar",)
+            )
         if self.fichas_tree.get_children() and not self.fichas_tree.selection():
             primeiro = self.fichas_tree.get_children()[0]
             self.fichas_tree.selection_set(primeiro)
@@ -237,7 +259,7 @@ class GestaoAlimentarUI:
         self.lbl_resumo.configure(text=texto)
         for iid in self.ingredientes_tree.get_children():
             self.ingredientes_tree.delete(iid)
-        for item in resultado["linhas"]:
+        for indice, item in enumerate(resultado["linhas"]):
             status = "Sem vínculo"
             if item.get("id_produto_mobile") is not None:
                 status = "Cadastro incompleto" if item.get("estoque_suficiente") is None else status
@@ -248,7 +270,8 @@ class GestaoAlimentarUI:
             self.ingredientes_tree.insert("", "end", values=(
                 item["nome"], f"{_fmt_num(item['qtd_per_capita'])} {item['unidade']}",
                 _fmt_num(item["fator_correcao"], 3), f"{_fmt_num(item['qtd_bruta_total'])} {item['unidade']}",
-                _fmt_brl(item["custo_total"]), status))
+                _fmt_brl(item["custo_total"]), status),
+                tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
         n = resultado["nutrientes_per_capita"]
         falt = resultado["nutrientes_faltantes"]
         resumo_n = ("Por porção — "
@@ -329,13 +352,14 @@ class GestaoAlimentarUI:
             return
         for iid in self.produtos_tree.get_children():
             self.produtos_tree.delete(iid)
-        for item in ga.listar_produtos_almox(self.db):
+        for indice, item in enumerate(ga.listar_produtos_almox(self.db)):
             conteudo = "—"
             if item.get("embalagem_qtd") is not None and item.get("embalagem_un"):
                 conteudo = f"{_fmt_num(item['embalagem_qtd'])} {item['embalagem_un']}"
             self.produtos_tree.insert("", "end", values=(item["nome"], item.get("unidade_estoque") or "—",
                 _fmt_brl(item.get("preco_unitario")), conteudo,
-                _fmt_num(item.get("estoque_qtd")), item.get("estoque_data") or "—"))
+                _fmt_num(item.get("estoque_qtd")), item.get("estoque_data") or "—"),
+                tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
 
 
     # ------------------------------------------------------ consumo observado
@@ -444,25 +468,28 @@ class GestaoAlimentarUI:
             for tree in (self.tree_movimentos,self.tree_medias_consumo,self.tree_preparacoes_consumo):
                 for iid in tree.get_children():
                     tree.delete(iid)
-            for m in movimentos:
+            for indice, m in enumerate(movimentos):
                 fonte = {"historico":"Histórico","atual_estimado":"Atual*","pendente":"Sem preço"}.get(m.get("origem_preco"),"—")
                 self.tree_movimentos.insert("", "end", iid=f"{m['data']}|{m['id_mobile']}",
                     values=(m["data"],m["hora"],m["item"],
                             _fmt_num(m["qtd"]),_fmt_num(m["qtd_alocada"]),
                             _fmt_num(m["qtd_disponivel_para_alocar"]),
                             _fmt_brl(m.get("preco_unitario_snapshot")),
-                            _fmt_brl(m.get("custo_retirada")),fonte))
-            for item in resumo["itens"]:
+                            _fmt_brl(m.get("custo_retirada")),fonte),
+                    tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
+            for indice, item in enumerate(resumo["itens"]):
                 intervalo = "—" if item["intervalo_medio_dias"] is None else _fmt_num(item["intervalo_medio_dias"],1)+" d"
                 self.tree_medias_consumo.insert("", "end",
                     values=(item["item"],_fmt_num(item["total_retirado"]),_fmt_num(item["media_diaria_periodo"]),
                             intervalo,_fmt_num(item["total_alocado"]),_fmt_num(item["total_pendente"]),
-                            _fmt_brl(item.get("custo_total"))))
-            for p in resumo["por_preparacao"]:
+                            _fmt_brl(item.get("custo_total"))),
+                    tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
+            for indice, p in enumerate(resumo["por_preparacao"]):
                 refeicao = p["refeicao"] or "—"
                 self.tree_preparacoes_consumo.insert("", "end",
                     values=(refeicao,p["preparacao"],p["item"],_fmt_num(p["media_por_execucao"]),
-                            _fmt_num(p["media_por_porcao_prevista"]),p["execucoes"],_fmt_brl(p.get("custo_total"))))
+                            _fmt_num(p["media_por_porcao_prevista"]),p["execucoes"],_fmt_brl(p.get("custo_total"))),
+                    tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
             pendentes = resumo["movimentos_pendentes"]
             self.lbl_consumo_status.configure(
                 text=f"{resumo['movimentos']} retirada(s) no período · {pendentes} com quantidade ainda sem destinação. *Preço atual é apenas estimativa para movimentos antigos sem snapshot histórico."
@@ -787,7 +814,8 @@ class PreparacoesDiaDialog:
             for iid in self.tree.get_children():self.tree.delete(iid)
             for i,r in enumerate(self.rows):
                 nome_ficha=r.get("nome_ficha") or "—"
-                self.tree.insert("", "end", iid=str(i), values=(r["nome"],_fmt_num(r.get("porcoes_previstas")),nome_ficha))
+                self.tree.insert("", "end", iid=str(i), values=(r["nome"],_fmt_num(r.get("porcoes_previstas")),nome_ficha),
+                                 tags=("linha_par" if i % 2 == 0 else "linha_impar",))
         except Exception as exc:
             messagebox.showerror("Preparações esperadas",str(exc),parent=self.janela)
 
