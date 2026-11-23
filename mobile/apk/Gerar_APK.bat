@@ -5,7 +5,8 @@ cd /d "%~dp0"
 
 rem ======================================================================
 rem  NutriLab - Gerar_APK.bat  (criado em 12/11/2026, revisado em 23/11/2026)
-rem  Gera o aplicativo Android que abre o NutriLab Mobile no celular.\nrem  23/11/2026: javac usa --release 8 + android.jar no classpath; não ocultar java.lang.invoke.
+rem  Gera o aplicativo Android que abre o NutriLab Mobile no celular.
+rem  23/11/2026: javac usa --release 8 + android.jar no classpath; não ocultar java.lang.invoke.
 rem  Primeira vez: baixa o JDK 17 e as ferramentas do Android, cerca de 600 MB
 rem  e 10 a 20 minutos. Depois: cerca de 1 minuto.
 rem  Saida: saida\NutriLab-Mobile.apk
