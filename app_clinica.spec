@@ -59,7 +59,7 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=['runtime_update_check.py'],
     excludes=[],
     noarchive=False,
     optimize=0,
