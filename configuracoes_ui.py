@@ -56,7 +56,7 @@ class ConfiguracoesUI:
             selected_color=tema.VERDE, selected_hover_color=tema.VERDE_HOVER,
             unselected_color=tema.BRANCO, unselected_hover_color=tema.BORDA,
             text_color=tema.TEXTO, text_color_disabled=tema.SUAVE,
-            corner_radius=8, border_width=1, border_color=tema.BORDA
+            corner_radius=8, border_width=1
         )
         seletor.set(escolha)
         seletor.pack(anchor="w", padx=18, pady=(0, 16))
