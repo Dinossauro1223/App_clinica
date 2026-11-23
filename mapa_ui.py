@@ -571,7 +571,7 @@ class MapaUI:
         for chave, titulo, larg, anc in cols:
             self.tree_sup.heading(chave, text=titulo)
             self.tree_sup.column(chave, width=larg, anchor=anc, stretch=chave in ("nome", "modulo"))
-        self.tree_sup.tag_configure("inativo", foreground=tema.SUAVE)
+        self.tree_sup.tag_configure("inativo", foreground=tema.cor_atual(tema.SUAVE))
         rol = ttk.Scrollbar(quadro, orient="vertical", command=self.tree_sup.yview)
         self.tree_sup.configure(yscrollcommand=rol.set)
         self.tree_sup.pack(side="left", fill="both", expand=True, padx=(6, 0), pady=6)
