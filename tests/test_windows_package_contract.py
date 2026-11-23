@@ -50,7 +50,8 @@ class TestWindowsPackageContract(unittest.TestCase):
     def test_workflow_limpa_o_banco_antes_de_compactar_e_valida_o_zip(self):
         workflow = (ROOT / ".github" / "workflows" / "build-windows.yml").read_text(encoding="utf-8")
         self.assertIn("Remover banco gravável criado pelo smoke test", workflow)
-        self.assertIn("Remove-Item -LiteralPath $bancoUsuario -Force", workflow)
+        self.assertIn("$bancoUsuario-wal", workflow)
+        self.assertIn("$bancoUsuario-shm", workflow)
         self.assertIn("tools/verificar_pacote_windows.py", workflow)
 
 
