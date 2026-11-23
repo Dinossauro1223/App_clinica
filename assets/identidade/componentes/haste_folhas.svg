@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 400"><path d="M200 300C200 245 202 190 210 130" fill="none" stroke="#B8E7D0" stroke-width="12" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 400">
+<g fill="none" stroke="#B8E7D0" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+<path d="M200 300 C188 272 205 245 200 220 C194 190 210 165 205 143"/>
+<path d="M200 225 Q190 215 180 205"/>
+<path d="M200 238 Q214 230 222 220"/>
+<path d="M200 285 Q175 280 155 285"/>
+<path d="M200 285 Q218 285 230 290"/>
+</g></svg>
