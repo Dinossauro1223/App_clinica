@@ -133,7 +133,9 @@ class TestCaminhoDoBanco(BaseApp):
         exe = self.tmp / "app" / "app_clinica.exe"
         interna = exe.parent / "_internal"
         interna.mkdir(parents=True)
-        with sqlite3.connect(str(interna / "clinica.db")) as c:
+        modelo = interna / "modelo_banco" / "clinica.db"
+        modelo.parent.mkdir(parents=True)
+        with sqlite3.connect(str(modelo)) as c:
             c.execute("CREATE TABLE Modelo (x TEXT)")
             c.execute("INSERT INTO Modelo VALUES ('do-modelo')")
         with mock.patch.object(sys, "frozen", True, create=True), \
