@@ -65,16 +65,17 @@ def aplicar_tema_ttk(root: tk.Misc) -> None:
     style.configure("NutriLab.TFrame", background=fundo)
     style.configure("NutriLab.TLabel", background=fundo, foreground=texto)
     style.configure("NutriLab.TButton", padding=(10, 6))
-    for nome in ("Treeview", "NutriLab.Treeview"):
+    for nome in ("Treeview", "NutriLab.Treeview", "Mapa.Treeview"):
         style.configure(nome, rowheight=30, background=branco, fieldbackground=branco,
                         foreground=texto, bordercolor=borda, lightcolor=borda, darkcolor=borda,
                         borderwidth=1, relief="solid")
         style.map(nome, background=[("selected", selecionado)],
                   foreground=[("selected", texto_sel)])
-    style.configure("Treeview.Heading", background=fundo, foreground=texto,
-                    relief="solid", bordercolor=borda)
-    style.map("Treeview.Heading", background=[("active", selecionado)],
-              foreground=[("active", texto)])
+    for nome in ("Treeview.Heading", "NutriLab.Treeview.Heading", "Mapa.Treeview.Heading"):
+        style.configure(nome, background=fundo, foreground=texto,
+                        relief="solid", bordercolor=borda)
+        style.map(nome, background=[("active", selecionado)],
+                  foreground=[("active", texto)])
     style.configure("TEntry", fieldbackground=branco, foreground=texto)
     style.configure("TCombobox", fieldbackground=branco, foreground=texto,
                     background=fundo, arrowcolor=texto)
