@@ -4,7 +4,7 @@ import io
 import json
 import xml.etree.ElementTree as ET
 
-import cairosvg
+import resvg_py
 from PIL import Image
 
 
@@ -31,12 +31,13 @@ def renderizar_svg(origem, destino, escala=2):
     if not viewbox:
         raise SystemExit(f"SVG sem viewBox explícito: {origem}")
     _, _, largura, altura = map(float, viewbox.replace(",", " ").split())
-    cairosvg.svg2png(
-        url=str(origem),
-        write_to=str(destino),
-        output_width=round(largura * escala),
-        output_height=round(altura * escala),
+    png = resvg_py.svg_to_bytes(
+        svg_path=str(origem),
+        width=round(largura * escala),
+        height=round(altura * escala),
     )
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_bytes(png)
 
 
 def renderizar_folhas_individuais():
@@ -61,7 +62,11 @@ def renderizar_folhas_individuais():
         grupo_unico = ET.SubElement(svg, ns + "g", {"fill": "url(#f)"})
         grupo_unico.append(elemento)
         dados = ET.tostring(svg, encoding="utf-8", xml_declaration=True)
-        raster = cairosvg.svg2png(bytestring=dados, output_width=840, output_height=800)
+        raster = resvg_py.svg_to_bytes(
+            svg_string=dados.decode("utf-8"),
+            width=840,
+            height=800,
+        )
         imagem = Image.open(io.BytesIO(raster)).convert("RGBA")
         bbox = imagem.getchannel("A").getbbox()
         if not bbox:
@@ -94,8 +99,8 @@ def main():
         raise SystemExit(f"SVG de identidade não encontrado: {SVG}")
     if not ICON_SVG.is_file():
         raise SystemExit(f"SVG do ícone não encontrado: {ICON_SVG}")
-    cairosvg.svg2png(url=str(SVG), write_to=str(PNG), output_width=1533, output_height=1026)
-    cairosvg.svg2png(url=str(ICON_SVG), write_to=str(ICON_PNG), output_width=512, output_height=512)
+    PNG.write_bytes(resvg_py.svg_to_bytes(svg_path=str(SVG), width=1533, height=1026))
+    ICON_PNG.write_bytes(resvg_py.svg_to_bytes(svg_path=str(ICON_SVG), width=512, height=512))
     with Image.open(ICON_PNG) as imagem:
         imagem.convert("RGBA").save(
             ICO, format="ICO",
