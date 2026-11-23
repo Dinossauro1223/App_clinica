@@ -24,7 +24,7 @@ class TestPipelineSVG(unittest.TestCase):
             "</svg>"
         )
         png = resvg_py.svg_to_bytes(svg_string=svg)
-        self.assertTrue(png.startswith(b"\\x89PNG\\r\\n\\x1a\\n"))
+        self.assertTrue(png.startswith(b"\x89PNG\r\n\x1a\n"))
         with Image.open(io.BytesIO(png)) as imagem:
             imagem.load()
             self.assertEqual(imagem.size, (24, 16))
