@@ -1,7 +1,7 @@
 """Validates the distributable Windows ZIP before publishing it.
 
 The only database allowed in the archive is the clean PyInstaller template at
-_internal/clinica.db. The writable clinica.db created when smoke-testing NutriLab.exe
+_internal/modelo_banco/clinica.db. The writable clinica.db created when smoke-testing NutriLab.exe
 must never be shipped, because extracting an update could overwrite user data.
 """
 from __future__ import annotations
