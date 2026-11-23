@@ -22,6 +22,7 @@ class TestBuscaPrefixadaTBCA(unittest.TestCase):
                     ("C001", "Feijão carioca", "2026-11-22"),
                 ],
             )
+        conn.close()
 
     def tearDown(self):
         self.tmp.cleanup()
