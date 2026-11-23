@@ -52,6 +52,14 @@ jobs:
       - name: End-to-end HTTP transfer — phone/server to desktop clinical database
         run: python -m unittest discover -s tests -p "test_mobile_http_e2e.py" -v
 
+      - name: Publish APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NutriLab-Mobile-APK-${{ github.run_number }}
+          path: build/NutriLab-Mobile.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Install and launch APK in Android 34 emulator
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
@@ -69,11 +77,3 @@ jobs:
               adb logcat -d -s AndroidRuntime:E
               exit 1
             fi
-
-      - name: Publish APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NutriLab-Mobile-APK-${{ github.run_number }}
-          path: build/NutriLab-Mobile.apk
-          if-no-files-found: error
-          retention-days: 14
