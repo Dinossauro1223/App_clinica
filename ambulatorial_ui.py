@@ -155,7 +155,7 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
             widget.destroy()
         self.vars_docs = {}
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn:
                 docs = amb.listar_recomendacoes(conn)
         except sqlite3.Error as exc:
             ctk.CTkLabel(self.lista_docs, text=f"Erro ao carregar recomendações: {exc}").pack(anchor="w")
@@ -221,9 +221,10 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
             try:
                 if not arquivo["path"]:
                     raise amb.ErroAmbulatorial("Selecione o documento DOCX.")
-                with sqlite3.connect(self.db_path) as conn:
-                    amb.cadastrar_recomendacao_docx(conn, arquivo["path"], self.pasta_dados,
-                        entradas["titulo"].get(), entradas["caso"].get(), entradas["tags"].get())
+                with closing(sqlite3.connect(self.db_path)) as conn:
+                    with conn:
+                        amb.cadastrar_recomendacao_docx(conn, arquivo["path"], self.pasta_dados,
+                            entradas["titulo"].get(), entradas["caso"].get(), entradas["tags"].get())
                 fechar()
                 self._listar_docs()
                 messagebox.showinfo("Biblioteca", "Recomendação cadastrada.", parent=self)
@@ -315,7 +316,7 @@ class DialogoAssociacoesExames(ctk.CTkFrame):
         if not hasattr(self, "lista"):
             return
         codigo = self.exames.get(self.combo_exame.get())
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
             itens = amb.associacoes_do_exame(conn, codigo)
             nomes = {r[0]: r[1] for r in conn.execute("SELECT id_exame,nome_amigavel FROM Exames_Catalogo")}
         self.lista.delete("1.0", "end")
@@ -336,9 +337,10 @@ class DialogoAssociacoesExames(ctk.CTkFrame):
         tipo = {"Exame recomendado": "exame_recomendado", "Diagnóstico clínico": "diagnostico_clinico",
                 "Diagnóstico nutricional": "diagnostico_nutricional"}.get(self.combo_tipo.get())
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                amb.salvar_associacao_exame(conn, self.exames.get(self.combo_exame.get()), tipo,
-                    self.valor.get(), self.justificativa.get(), self.fonte.get())
+            with closing(sqlite3.connect(self.db_path)) as conn:
+                with conn:
+                    amb.salvar_associacao_exame(conn, self.exames.get(self.combo_exame.get()), tipo,
+                        self.valor.get(), self.justificativa.get(), self.fonte.get())
             for campo in (self.valor, self.justificativa, self.fonte):
                 campo.delete(0, "end")
             self.atualizar()
