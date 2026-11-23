@@ -36,6 +36,17 @@ class TestWindowsPackageContract(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "somente o modelo"):
                 verificar_pacote(pacote)
 
+    def test_rejeita_sidecar_sqlite_na_raiz(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            pacote = Path(pasta) / "sidecar.zip"
+            self.criar_zip(pacote, [
+                ("_internal/clinica.db", b"modelo"),
+                ("clinica.db-wal", b"wal"),
+                ("_internal/mobile/static/index.html", b"html"),
+            ])
+            with self.assertRaisesRegex(ValueError, "Arquivos SQLite graváveis"):
+                verificar_pacote(pacote)
+
     def test_rejeita_mais_de_uma_fonte_html(self):
         with tempfile.TemporaryDirectory() as pasta:
             pacote = Path(pasta) / "html-duplicado.zip"
