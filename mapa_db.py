@@ -239,6 +239,20 @@ def inicializar(db_path):
                                  VALUES (?,?,?,?,?,?,?,?)""",
                               (nome, modulo, kcal, ptn, lip, carb, sod, observacao))
             c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos_catalogo_v2', '1')")
+        # Corrige apenas a composição antiga conhecida da ficha Nutrison Energy 1.5.
+        # Se o profissional já cadastrou outros valores, eles são preservados.
+        versao_v3 = c.execute("SELECT valor FROM Mapa_Config WHERE chave='seed_suplementos_catalogo_v3'").fetchone()
+        if not versao_v3:
+            antiga = c.execute("""SELECT id_suplemento FROM Mapa_Suplementos
+                                  WHERE nome='Nutrison Energy 1.5' AND
+                                  kcal_100=151 AND ptn_100=6 AND lip_100=5.6 AND carb_100=19 AND sod_100=128""").fetchone()
+            if antiga:
+                c.execute("""UPDATE Mapa_Suplementos SET kcal_100=149, ptn_100=6, lip_100=5.8,
+                             carb_100=18, sod_100=134,
+                             observacao=REPLACE(observacao, 'Composição por 100 mL transcrita',
+                                                'Composição por 100 mL transcrita da ficha vigente')
+                             WHERE id_suplemento=?""", (antiga["id_suplemento"],))
+            c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos_catalogo_v3', '1')")
         c.commit()
 
 
