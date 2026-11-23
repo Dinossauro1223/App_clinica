@@ -7,6 +7,7 @@ mapa_export e mapa_graficos; aqui só há interface. mapa_export e mapa_graficos
 importados na hora de usar (openpyxl, fpdf e matplotlib não atrasam a abertura do programa).
 """
 import os
+import json
 import sqlite3
 from datetime import date, datetime, timedelta
 import tkinter as tk
@@ -15,6 +16,8 @@ from tkinter import ttk, messagebox, filedialog
 import customtkinter as ctk
 
 import nutri_calculos as nc
+import nrs2002 as nrs
+import avaliacao_nutri as avaliacao
 import mapa_db as mdb
 import condutas_alta as ca
 import graficos_layout as gl
@@ -957,6 +960,8 @@ class FormRegistro(ctk.CTkToplevel):
         self._peso_metodo = self.reg.get("peso_metodo")
         self._suplementos = [dict(s) for s in self.reg.get("suplementos", [])]
         self._catalogo = mdb.listar_suplementos(ui.db)
+        self._resultado_nrs = {}
+        self._resultado_avaliacao = {}
         self._montar()
         self.bind("<Control-s>", self._atalho_salvar)
         self.bind("<Control-S>", self._atalho_salvar)
@@ -1101,6 +1106,65 @@ class FormRegistro(ctk.CTkToplevel):
         self.e_fi_dias.pack(side="left", padx=(0, 4))
         ctk.CTkLabel(l, text="dias sem evacuar (se ausente)").pack(side="left")
 
+        # Triagem NRS-2002 integrada ao mapa; o algoritmo oficial permanece em nrs2002.py.
+        q = self._secao("Triagem nutricional — NRS-2002")
+        self.nrs_respostas = {}
+        for codigo, pergunta in nrs.PERGUNTAS:
+            l = self._linha(q)
+            ctk.CTkLabel(l, text=pergunta, width=340, anchor="w").pack(side="left")
+            cb = self._reg(ctk.CTkComboBox(l, values=["—", "Não", "Sim"], width=150, state="readonly",
+                                           command=lambda _v: self._recalcular_nrs()))
+            cb.set("—")
+            cb.pack(side="left")
+            self.nrs_respostas[codigo] = cb
+        l = self._linha(q)
+        ctk.CTkLabel(l, text="Estado nutricional").pack(side="left", padx=(0, 6))
+        self.cb_nrs_estado = self._reg(ctk.CTkComboBox(
+            l, values=["—"] + [nrs.ESTADO[i] for i in range(4)], width=180, state="readonly",
+            command=lambda _v: self._recalcular_nrs()))
+        self.cb_nrs_estado.set("—")
+        self.cb_nrs_estado.pack(side="left", padx=(0, 14))
+        ctk.CTkLabel(l, text="Gravidade da doença").pack(side="left", padx=(0, 6))
+        self.cb_nrs_gravidade = self._reg(ctk.CTkComboBox(
+            l, values=["—"] + [nrs.GRAVIDADE[i] for i in range(4)], width=180, state="readonly",
+            command=lambda _v: self._recalcular_nrs()))
+        self.cb_nrs_gravidade.set("—")
+        self.cb_nrs_gravidade.pack(side="left")
+        self.lbl_nrs_classificacao = ctk.CTkLabel(
+            q, text="Classificação NRS-2002: não preenchida", font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=VERDE_ESC, anchor="w")
+        self.lbl_nrs_classificacao.pack(anchor="w", padx=12, pady=(2, 10))
+
+        # Avaliação nutricional: reaproveita o núcleo validado e exibe apenas a classificação final.
+        q = self._secao("Avaliação nutricional")
+        l = self._linha(q)
+        ctk.CTkLabel(l, text="Edema").pack(side="left", padx=(0, 4))
+        self.cb_av_edema = self._reg(ctk.CTkComboBox(
+            l, values=list(avaliacao.EDEMA), width=190, state="readonly",
+            command=lambda _v: self._recalcular_avaliacao()))
+        self.cb_av_edema.set("Ausente")
+        self.cb_av_edema.pack(side="left", padx=(0, 12))
+        ctk.CTkLabel(l, text="Ascite").pack(side="left", padx=(0, 4))
+        self.cb_av_ascite = self._reg(ctk.CTkComboBox(
+            l, values=list(avaliacao.ASCITE), width=180, state="readonly",
+            command=lambda _v: self._recalcular_avaliacao()))
+        self.cb_av_ascite.set("Ausente")
+        self.cb_av_ascite.pack(side="left")
+        l = self._linha(q)
+        self.av_amputacoes = {}
+        for nivel in avaliacao.AMPUTACOES:
+            ctk.CTkLabel(l, text=nivel, width=145, anchor="w").pack(side="left", padx=(0, 3))
+            cb = self._reg(ctk.CTkComboBox(
+                l, values=["0", "1", "2"], width=55, state="readonly",
+                command=lambda _v: self._recalcular_avaliacao()))
+            cb.set("0")
+            cb.pack(side="left", padx=(0, 8))
+            self.av_amputacoes[nivel] = cb
+        self.lbl_avaliacao_classificacao = ctk.CTkLabel(
+            q, text="Classificação da avaliação: informe os dados antropométricos.",
+            font=ctk.CTkFont(size=13, weight="bold"), text_color=VERDE_ESC, anchor="w")
+        self.lbl_avaliacao_classificacao.pack(anchor="w", padx=12, pady=(2, 10))
+
         rodape = ctk.CTkFrame(self, fg_color="transparent")
         rodape.pack(fill="x", padx=10, pady=8)
         self.b_salvar = _btn(rodape, "Salvar", self._salvar, 130)
@@ -1146,6 +1210,25 @@ class FormRegistro(ctk.CTkToplevel):
         _set_entry(self.e_fi_freq, _fmt(r.get("fi_freq")).replace(",0", "") if r.get("fi_freq") else "")
         _set_entry(self.e_fi_dias, r.get("fi_dias_ausente"))
         self._atualizar_sup()
+        try:
+            salvo_nrs = json.loads(r.get("nrs2002_json") or "{}")
+            for codigo, valor in (salvo_nrs.get("respostas") or {}).items():
+                if codigo in self.nrs_respostas:
+                    self.nrs_respostas[codigo].set("—" if valor is None else "Sim" if valor else "Não")
+            if salvo_nrs.get("estado") is not None:
+                self.cb_nrs_estado.set(nrs.ESTADO[int(salvo_nrs["estado"])])
+            if salvo_nrs.get("gravidade") is not None:
+                self.cb_nrs_gravidade.set(nrs.GRAVIDADE[int(salvo_nrs["gravidade"])])
+            salvo_av = json.loads(r.get("avaliacao_json") or "{}")
+            dados_av = salvo_av.get("dados") or {}
+            if dados_av.get("edema") in avaliacao.EDEMA:
+                self.cb_av_edema.set(dados_av["edema"])
+            if dados_av.get("ascite") in avaliacao.ASCITE:
+                self.cb_av_ascite.set(dados_av["ascite"])
+            for nivel, cb in self.av_amputacoes.items():
+                cb.set(str((dados_av.get("amputacoes") or {}).get(nivel, 0)))
+        except (TypeError, ValueError, KeyError):
+            pass
 
     def _fi_mudou(self, valor):
         if valor == "Presente" and not self.e_fi_freq.get().strip():
@@ -1189,6 +1272,10 @@ class FormRegistro(ctk.CTkToplevel):
             "fi_estado": fi, "fi_freq": n(self.e_fi_freq) if fi == "P" else None,
             "fi_dias_ausente": int(dias) if (fi == "A" and dias is not None) else None,
             "suplementos": list(self._suplementos),
+            "nrs2002_json": json.dumps(self._resultado_nrs, ensure_ascii=False),
+            "nrs2002_classificacao": self._resultado_nrs.get("rotulo", ""),
+            "avaliacao_json": json.dumps(self._resultado_avaliacao, ensure_ascii=False),
+            "avaliacao_classificacao": self._resultado_avaliacao.get("classe", ""),
         }
 
     # ---------------------------------------------------------------- cálculos
@@ -1199,15 +1286,60 @@ class FormRegistro(ctk.CTkToplevel):
         if imc is None:
             self.lbl_imc.configure(text="-")
             self.lbl_class.configure(text="")
+            self._recalcular_nrs()
+            self._recalcular_avaliacao()
             return
         self.lbl_imc.configure(text=nc.fmt_num(imc, 1))
         if idade is None:
             self.lbl_class.configure(text="(informe a idade para classificar)")
+            self._recalcular_nrs()
+            self._recalcular_avaliacao()
             return
         cl = nc.classificar_imc(imc, int(idade), {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get()),
                                 int(nc.parse_num(self.e_meses.get()) or 0), self.ui.criterio_idoso, self.ui.lms)
         txt = nc.texto_classificacao(cl)
         self.lbl_class.configure(text=f"({txt})" if txt else "")
+        self._recalcular_nrs()
+        self._recalcular_avaliacao()
+
+    def _recalcular_nrs(self):
+        respostas = {codigo: (None if cb.get() == "—" else cb.get() == "Sim")
+                     for codigo, cb in self.nrs_respostas.items()}
+        estado_txt, gravidade_txt = self.cb_nrs_estado.get(), self.cb_nrs_gravidade.get()
+        estado = int(estado_txt[0]) if estado_txt != "—" else None
+        gravidade = int(gravidade_txt[0]) if gravidade_txt != "—" else None
+        idade = nc.parse_num(self.e_idade.get())
+        try:
+            resultado = nrs.classificar(respostas, estado, gravidade, idade)
+        except ValueError as exc:
+            resultado = {"completo": False, "rotulo": str(exc), "grau": None, "escore": None}
+        self._resultado_nrs = {
+            "respostas": respostas, "estado": estado, "gravidade": gravidade,
+            "idade": idade, **resultado,
+        }
+        self.lbl_nrs_classificacao.configure(
+            text=f"Classificação NRS-2002: {resultado.get('rotulo') or 'Não preenchida'}")
+
+    def _recalcular_avaliacao(self):
+        dados = {
+            "sexo": self.seg_sexo.get(), "cor": self.seg_cor.get(),
+            "idade": self.e_idade.get(), "peso": self.e_peso.get(),
+            "altura": self.e_altura.get(), "aj": self.e_aj.get(), "pb": self.e_pb.get(),
+            "edema": self.cb_av_edema.get(), "ascite": self.cb_av_ascite.get(),
+            "amputacoes": {nivel: int(cb.get() or 0) for nivel, cb in self.av_amputacoes.items()},
+        }
+        try:
+            resultado = avaliacao.calcular(dados, self.ui.lms, self.ui.criterio_idoso)
+            classe = resultado.get("classe") or ""
+            rotulo = classe if classe else "Dados insuficientes para classificar"
+            self._resultado_avaliacao = {
+                "dados": dados, "classe": classe, "imc": resultado.get("imc"),
+                "peso_ajustado": resultado.get("ajustado"), "avisos": resultado.get("avisos", []),
+            }
+        except (ValueError, TypeError) as exc:
+            rotulo = f"Não foi possível classificar: {exc}"
+            self._resultado_avaliacao = {"dados": dados, "classe": "", "erro": str(exc)}
+        self.lbl_avaliacao_classificacao.configure(text=f"Classificação da avaliação: {rotulo}")
 
     def _estimar_altura(self):
         try:

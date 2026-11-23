@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
     dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
     constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, condicoes TEXT, consistencia TEXT,
     obs_sim TEXT, obs_nao TEXT, fi_estado TEXT, fi_freq REAL, fi_dias_ausente INTEGER,
+    nrs2002_json TEXT, nrs2002_classificacao TEXT,
+    avaliacao_json TEXT, avaliacao_classificacao TEXT,
     criado_em TEXT, atualizado_em TEXT, UNIQUE(data, id_leito));
 CREATE TABLE IF NOT EXISTS Mapa_Registro_Suplementos (
     id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL, id_suplemento INTEGER,
@@ -92,6 +94,7 @@ _CAMPOS_REG = [
     "peso_kg", "peso_origem", "peso_metodo", "imc", "imc_class", "data_reavaliacao", "via",
     "dm", "has", "laxativa", "constipante", "drc", "condicoes", "consistencia", "obs_sim", "obs_nao",
     "fi_estado", "fi_freq", "fi_dias_ausente",
+    "nrs2002_json", "nrs2002_classificacao", "avaliacao_json", "avaliacao_classificacao",
 ]
 
 # --------------------------------------------------------------------- utilidades
@@ -138,6 +141,12 @@ def inicializar(db_path):
         colunas = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
         if "condicoes" not in colunas:
             c.execute("ALTER TABLE Mapa_Registros ADD COLUMN condicoes TEXT")
+        for nome, tipo in (
+            ("nrs2002_json", "TEXT"), ("nrs2002_classificacao", "TEXT"),
+            ("avaliacao_json", "TEXT"), ("avaliacao_classificacao", "TEXT"),
+        ):
+            if nome not in colunas:
+                c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
         colunas_sup = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
         for nome, tipo in (("ml_oferta", "REAL"), ("agua_ml", "REAL"),
                            ("refeicoes_json", "TEXT DEFAULT '[]'"), ("batido_fruta", "INTEGER DEFAULT 0")):
