@@ -9,7 +9,13 @@ import io
 import json
 import unittest
 
-import resvg_py
+try:
+    import resvg_py
+except ModuleNotFoundError as exc:
+    raise unittest.SkipTest(
+        "resvg_py é dependência de build; os testes dedicados instalam requirements-build.txt"
+    ) from exc
+
 from PIL import Image
 
 from tools import gerar_identidade_visual as pipeline
