@@ -491,8 +491,9 @@ def validar_registro(reg):
     if reg.get("via") not in (None, "") + tuple(VIAS):
         erros.append("Via de administração inválida.")
     for campo, rotulo in (("meta_kcal", "Meta energética"), ("meta_proteina_g", "Meta proteica")):
-        valor = reg.get(campo)
-        if valor is not None and (not isinstance(valor, (int, float)) or valor <= 0):
+        bruto = reg.get(campo)
+        valor = nc.parse_num(bruto)
+        if bruto not in (None, "") and (valor is None or valor <= 0):
             erros.append(f"{rotulo} deve ser maior que zero.")
     if reg.get("consistencia") not in (None, "") + tuple(CONSISTENCIAS):
         erros.append("Consistência inválida.")
