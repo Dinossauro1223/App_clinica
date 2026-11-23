@@ -419,6 +419,10 @@ Entrega parcial da Fase 4, pedida em 14/11/2026: **condutas de alta na consulta*
 
 **Objetivo:** transformar a lista inicial e as planilhas de cálculo manual em catálogo técnico confiável, vinculado ao paciente e à meta nutricional.
 
+> **Entrega parcial em branch (23/11/2026):** o seed ganhou oito candidatos adicionais do catálogo oficial Abbott Brasil, todos com composição/preço em branco e fonte registrada até que a ficha da apresentação seja cadastrada; o novo motor `suplementos_calculos.py` calcula aporte por dose, percentual de metas informadas e g/kg, com pendências explícitas; a tela do Mapa distingue suplementação oral mista de dieta enteral e, ao mudar para via enteral, remove os itens de suplementação oral e restringe a seleção a fórmulas completas/para diabetes. Metas energética e proteica passaram a ser registradas por leito/dia. Testes específicos foram adicionados para fórmulas líquidas, módulos em gramas, composição incompleta, dose/unidade ausente, metas inválidas e troca automática de via.
+
+> **Ainda não concluído:** ficha técnica completa e versionada de cada apresentação; snapshot imutável da composição no uso; importação/normalização das variantes das planilhas; cálculo de custo/embalagens/água/osmolaridade; conferência de resultados com casos reais anonimizados e homologação clínica. A lista de candidatos não significa que todos estejam validados ou prontos para cálculo.
+
 **Agentes:** `supplement-stock-engineer` (líder), `clinical-evidence-researcher`, `database-backend-engineer`, `desktop-clinical-ui-engineer`, `qa-security-reviewer`.
 
 ### Atividades obrigatórias
