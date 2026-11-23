@@ -131,8 +131,6 @@ exit /b 0
 
 :REGISTRAR_VERSAO
 set "SHA="
-if exist "%RAIZ%.nutrilab-version" set /p SHA=<"%RAIZ%.nutrilab-version"
-if defined SHA exit /b 0
 where git >nul 2>&1
 if not errorlevel 1 (
     for /f "delims=" %%S in ('git -C "%RAIZ%" rev-parse HEAD 2^>nul') do set "SHA=%%S"
