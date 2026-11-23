@@ -447,13 +447,13 @@ class AppClinica(ctk.CTk):
             self._timer_areas_iniciais = None
         self.label_instrucao_inicial.place_forget()
         painel = ctk.CTkFrame(
-            self._tela_boas_vindas, fg_color="#F8FCF5",
-            border_color="#B8DCC8", border_width=1, corner_radius=18
+            self._tela_boas_vindas, fg_color=tema.FUNDO,
+            border_color=tema.BORDA, border_width=1, corner_radius=18
         )
         painel.place(relx=0.5, rely=0.82, relwidth=0.78, anchor="center")
         ctk.CTkLabel(
             painel, text="Escolha por onde deseja começar",
-            text_color="#064D3C", font=ctk.CTkFont(size=23, weight="bold")
+            text_color=tema.VERDE_ESC, font=ctk.CTkFont(size=23, weight="bold")
         ).pack(pady=(14, 10))
         opcoes = (
             ("Gestão Clínica", "Pacientes, consultas, exames e avaliações", self.tela_pacientes),
@@ -463,15 +463,15 @@ class AppClinica(ctk.CTk):
         linha = ctk.CTkFrame(painel, fg_color="transparent")
         linha.pack(fill="x", padx=14, pady=(0, 14))
         for titulo, descricao, comando in opcoes:
-            cartao = ctk.CTkFrame(linha, fg_color="#FFFFFF", border_color="#C9E5D3",
+            cartao = ctk.CTkFrame(linha, fg_color=tema.BRANCO, border_color=tema.BORDA,
                                   border_width=1, corner_radius=12)
             cartao.pack(side="left", fill="both", expand=True, padx=7)
-            ctk.CTkLabel(cartao, text=titulo, text_color="#08764B",
+            ctk.CTkLabel(cartao, text=titulo, text_color=tema.VERDE,
                          font=ctk.CTkFont(size=17, weight="bold")).pack(padx=12, pady=(14, 5))
-            ctk.CTkLabel(cartao, text=descricao, text_color="#536968",
+            ctk.CTkLabel(cartao, text=descricao, text_color=tema.SUAVE,
                          font=ctk.CTkFont(size=12), wraplength=220).pack(padx=12, pady=(0, 12))
             ctk.CTkButton(
-                cartao, text="Entrar", fg_color="#218C55", hover_color="#176D42",
+                cartao, text="Entrar", fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER,
                 command=lambda fn=comando: self._entrar_na_area_inicial(fn)
             ).pack(fill="x", padx=12, pady=(0, 14))
 
@@ -515,64 +515,59 @@ class AppClinica(ctk.CTk):
     def tela_pacientes(self):
         self.limpar_area_principal()
 
-        ctk.CTkLabel(self.area_principal, text="Gestão de Pacientes", font=ctk.CTkFont(size=24, weight="bold"), text_color="#1b5e20").pack(pady=(20, 10))
+        ctk.CTkLabel(self.area_principal, text="Gestão de Pacientes", font=ctk.CTkFont(size=24, weight="bold"), text_color=tema.TEXTO).pack(pady=(20, 10))
         self.tabview = _criar_tabview_compat(self.area_principal, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
-                                      fg_color="#e8f5e9",
-                                      segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
-                                      segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                      text_color="#ffffff", text_color_disabled="#d5e8d7")
+                                      fg_color=tema.FUNDO,
+                                      segmented_button_selected_color=tema.VERDE, segmented_button_selected_hover_color=tema.TEXTO,
+                                      segmented_button_unselected_color=tema.VERDE, segmented_button_unselected_hover_color=tema.VERDE_HOVER,
+                                      text_color=tema.BRANCO, text_color_disabled=tema.BORDA)
         self.tabview.pack(padx=20, pady=10, fill="both", expand=True)
         aba_cadastro = self.tabview.add("Novo Cadastro")
         aba_lista = self.tabview.add("Pacientes Cadastrados")
 
-        self.entry_nome = ctk.CTkEntry(aba_cadastro, placeholder_text="Nome Completo", width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_nome = ctk.CTkEntry(aba_cadastro, placeholder_text="Nome Completo", width=300, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_nome.pack(pady=10)
         self.entry_nasc = tema.CampoData(aba_cadastro, placeholder_text="Data de Nascimento (DD/MM/AAAA)", width=300,
                                          font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.VERDE_ESC,
                                          placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_nasc.pack(pady=10)
-        self.combo_sexo = ctk.CTkComboBox(aba_cadastro, values=["Feminino", "Masculino"], width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", button_color="#4caf50", button_hover_color="#388e3c", dropdown_fg_color="#ffffff", dropdown_hover_color="#c8e6c9", dropdown_text_color="#1b5e20")
+        self.combo_sexo = ctk.CTkComboBox(aba_cadastro, values=["Feminino", "Masculino"], width=300, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, button_color=tema.VERDE, button_hover_color=tema.VERDE_HOVER, dropdown_fg_color=tema.BRANCO, dropdown_hover_color=tema.VERDE_CLARO, dropdown_text_color=tema.TEXTO)
         self.combo_sexo.set("Feminino")
         self.combo_sexo.pack(pady=10)
         botoes_cadastro = ctk.CTkFrame(aba_cadastro, fg_color="transparent")
         botoes_cadastro.pack(pady=18)
         ctk.CTkButton(
             botoes_cadastro, text="Salvar Cadastro", command=self.salvar_paciente,
-            fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff",
+            fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO,
             font=ctk.CTkFont(size=15, weight="bold")
         ).pack(side="left", padx=5)
         ctk.CTkButton(
             botoes_cadastro, text="Salvar e iniciar consulta",
             command=lambda: self.salvar_paciente(iniciar_consulta=True),
-            fg_color="#1e7a4f", hover_color="#17633f", text_color="#ffffff",
+            fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO,
             font=ctk.CTkFont(size=15, weight="bold")
         ).pack(side="left", padx=5)
-        self.lbl_mensagem = ctk.CTkLabel(aba_cadastro, text="", text_color="#2e7d32", font=ctk.CTkFont(size=15))
+        self.lbl_mensagem = ctk.CTkLabel(aba_cadastro, text="", text_color=tema.VERDE, font=ctk.CTkFont(size=15))
         self.lbl_mensagem.pack()
 
-        style = ttk.Style()
-        style.theme_use("default")
-        style.configure("Treeview", background="#ffffff", foreground="#1b5e20", rowheight=34, fieldbackground="#ffffff", borderwidth=0, font=("Segoe UI", 14))
-        style.map('Treeview', background=[('selected', '#4caf50')], foreground=[('selected', '#ffffff')])
-        style.configure("Treeview.Heading", background="#4caf50", foreground="#ffffff", relief="flat", font=("Segoe UI", 14, "bold"))
-        style.map("Treeview.Heading", background=[('active', '#388e3c')])
-        
+        tema.aplicar_tema_ttk(self)
+
         barra_lista = ctk.CTkFrame(aba_lista, fg_color="transparent")
         barra_lista.pack(fill="x", padx=10, pady=(8, 2))
         self.btn_consulta_paciente = ctk.CTkButton(
             barra_lista, text="Nova consulta do paciente selecionado",
             command=self.iniciar_consulta_paciente, state="disabled",
-            fg_color="#1e7a4f", hover_color="#17633f", text_color="#ffffff",
+            fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO,
             font=ctk.CTkFont(size=13, weight="bold")
         )
         self.btn_consulta_paciente.pack(side="left")
         self.lbl_paciente_selecionado = ctk.CTkLabel(
             barra_lista, text="Selecione um paciente para iniciar uma consulta.",
-            text_color="#52645a", font=ctk.CTkFont(size=12)
+            text_color=tema.SUAVE, font=ctk.CTkFont(size=12)
         )
         self.lbl_paciente_selecionado.pack(side="left", padx=12)
 
-        tree_frame = ctk.CTkFrame(aba_lista, fg_color="#e8f5e9")
+        tree_frame = ctk.CTkFrame(aba_lista, fg_color=tema.FUNDO)
         tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         self.tree = ttk.Treeview(tree_frame, columns=("ID", "Nome", "Nascimento", "Sexo"), show="headings", style="Treeview")
@@ -596,8 +591,8 @@ class AppClinica(ctk.CTk):
         self.fab_paciente = ctk.CTkButton(
             self.area_principal, text="+ Adicionar paciente",
             command=self._abrir_cadastro_paciente, width=190, height=44,
-            corner_radius=22, fg_color="#F08A24", hover_color="#D97706",
-            text_color="#ffffff", font=ctk.CTkFont(size=14, weight="bold")
+            corner_radius=22, fg_color=tema.LARANJA, hover_color=tema.LARANJA_TEXTO,
+            text_color=tema.BRANCO, font=ctk.CTkFont(size=14, weight="bold")
         )
         self.fab_paciente.place(relx=0.98, rely=0.98, anchor="se")
 
@@ -605,9 +600,9 @@ class AppClinica(ctk.CTk):
         ctk.CTkButton(
             aba_lista,
             text="🗑️ Excluir Paciente",
-            fg_color="#c62828",
-            hover_color="#b71c1c",
-            text_color="#ffffff",
+            fg_color=tema.ERRO,
+            hover_color=tema.ERRO_HOVER,
+            text_color=tema.BRANCO,
             font=ctk.CTkFont(size=15, weight="bold"),
             command=self.eliminar_paciente,
         ).pack(fill="x", padx=10, pady=10)
@@ -642,10 +637,10 @@ class AppClinica(ctk.CTk):
         nasc = self.entry_nasc.get()
         sexo = self.combo_sexo.get()
         if nome.strip() == "":
-            self.lbl_mensagem.configure(text="Erro: O nome é obrigatório.", text_color="#c62828")
+            self.lbl_mensagem.configure(text="Erro: O nome é obrigatório.", text_color=tema.ERRO)
             return
         if nasc.strip() and not tema.data_valida(nasc):
-            self.lbl_mensagem.configure(text="Erro: informe uma data de nascimento válida (DD/MM/AAAA).", text_color="#c62828")
+            self.lbl_mensagem.configure(text="Erro: informe uma data de nascimento válida (DD/MM/AAAA).", text_color=tema.ERRO)
             return
         conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
@@ -738,21 +733,21 @@ class AppClinica(ctk.CTk):
         self.paciente_atual_sexo = sexo
         
         self.limpar_area_principal()
-        ctk.CTkButton(self.area_principal, text="← Voltar", width=80, fg_color="#c8e6c9", hover_color="#a5d6a7", text_color="#1b5e20", border_width=1, border_color="#4caf50", font=ctk.CTkFont(size=15), command=self._fechar_ultima_aba_lateral).pack(anchor="nw", pady=10, padx=10)
-        ctk.CTkLabel(self.area_principal, text=f"Perfil Clínico: {self.paciente_atual_nome}", font=ctk.CTkFont(size=26, weight="bold"), text_color="#1b5e20").pack(pady=(0, 5))
-        ctk.CTkLabel(self.area_principal, text=f"ID: {self.paciente_atual_id}  |  Nascimento: {nasc}  |  Sexo: {sexo}", font=ctk.CTkFont(size=17), text_color="#2f3e33").pack(pady=5)
+        ctk.CTkButton(self.area_principal, text="← Voltar", width=80, fg_color=tema.VERDE_CLARO, hover_color=tema.BORDA, text_color=tema.TEXTO, border_width=1, border_color=tema.VERDE, font=ctk.CTkFont(size=15), command=self._fechar_ultima_aba_lateral).pack(anchor="nw", pady=10, padx=10)
+        ctk.CTkLabel(self.area_principal, text=f"Perfil Clínico: {self.paciente_atual_nome}", font=ctk.CTkFont(size=26, weight="bold"), text_color=tema.TEXTO).pack(pady=(0, 5))
+        ctk.CTkLabel(self.area_principal, text=f"ID: {self.paciente_atual_id}  |  Nascimento: {nasc}  |  Sexo: {sexo}", font=ctk.CTkFont(size=17), text_color=tema.TEXTO).pack(pady=5)
 
         tabview_perfil = _criar_tabview_compat(self.area_principal, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
-                                        fg_color="#e8f5e9",
-                                        segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
-                                        segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                        text_color="#ffffff", text_color_disabled="#d5e8d7")
+                                        fg_color=tema.FUNDO,
+                                        segmented_button_selected_color=tema.VERDE, segmented_button_selected_hover_color=tema.TEXTO,
+                                        segmented_button_unselected_color=tema.VERDE, segmented_button_unselected_hover_color=tema.VERDE_HOVER,
+                                        text_color=tema.BRANCO, text_color_disabled=tema.BORDA)
         tabview_perfil.pack(padx=20, pady=10, fill="both", expand=True)
         
         aba_hist = tabview_perfil.add("Histórico de Consultas")
         aba_exm = tabview_perfil.add("Exames e Arquivos")
         
-        ctk.CTkButton(aba_hist, text="Iniciar Nova Consulta", command=lambda: self.abrir_painel_lateral("Nova consulta", self.tela_consultas), fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
+        ctk.CTkButton(aba_hist, text="Iniciar Nova Consulta", command=lambda: self.abrir_painel_lateral("Nova consulta", self.tela_consultas), fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
 
         scroll_hist = ctk.CTkScrollableFrame(aba_hist, fg_color="transparent")
         scroll_hist.pack(fill="both", expand=True, padx=10, pady=10)
@@ -768,15 +763,15 @@ class AppClinica(ctk.CTk):
         consultas = cursor.fetchall()
 
         if not consultas:
-            ctk.CTkLabel(scroll_hist, text="Nenhuma consulta registada ainda.", text_color="#556b58", font=ctk.CTkFont(size=15)).pack(pady=20)
+            ctk.CTkLabel(scroll_hist, text="Nenhuma consulta registada ainda.", text_color=tema.SUAVE, font=ctk.CTkFont(size=15)).pack(pady=20)
         else:
             for consulta in consultas:
                 id_cons, data_cons, anamnese, peso, altura, gordura, conduta, tmb, vet, naf, metodo, analise_exames = consulta
 
-                card = ctk.CTkFrame(scroll_hist, corner_radius=8, fg_color="#ffffff", border_width=1, border_color="#c8e6c9")
+                card = ctk.CTkFrame(scroll_hist, corner_radius=8, fg_color=tema.BRANCO, border_width=1, border_color=tema.VERDE_CLARO)
                 card.pack(fill="x", pady=10, ipady=10)
 
-                ctk.CTkLabel(card, text=f"📅 Data: {data_cons}", font=ctk.CTkFont(weight="bold", size=19), text_color="#1b5e20").pack(anchor="w", padx=15, pady=(10, 5))
+                ctk.CTkLabel(card, text=f"📅 Data: {data_cons}", font=ctk.CTkFont(weight="bold", size=19), text_color=tema.TEXTO).pack(anchor="w", padx=15, pady=(10, 5))
 
                 if anamnese:
                     ctk.CTkLabel(card, text=f"Anamnese: {anamnese}", justify="left", wraplength=700, font=ctk.CTkFont(size=15)).pack(anchor="w", padx=15, pady=2)
@@ -808,14 +803,14 @@ class AppClinica(ctk.CTk):
 
                 exames_str = ""
                 if exames:
-                    ctk.CTkLabel(card, text="Exames Solicitados:", font=ctk.CTkFont(weight="bold", size=16), text_color="#1b5e20").pack(anchor="w", padx=15, pady=(5,0))
+                    ctk.CTkLabel(card, text="Exames Solicitados:", font=ctk.CTkFont(weight="bold", size=16), text_color=tema.TEXTO).pack(anchor="w", padx=15, pady=(5,0))
                     exames_str = ", ".join([ex[0] for ex in exames])
-                    ctk.CTkLabel(card, text=exames_str, justify="left", wraplength=700, text_color="#00695c", font=ctk.CTkFont(size=15)).pack(anchor="w", padx=15, pady=(0, 10))
+                    ctk.CTkLabel(card, text=exames_str, justify="left", wraplength=700, text_color=tema.VERDE, font=ctk.CTkFont(size=15)).pack(anchor="w", padx=15, pady=(0, 10))
                 
-                ctk.CTkButton(card, text="Gerar PDF", width=120, fg_color="#558b2f", hover_color="#33691e", text_color="#ffffff", font=ctk.CTkFont(size=15, weight="bold"), 
+                ctk.CTkButton(card, text="Gerar PDF", width=120, fg_color=tema.VERDE, hover_color=tema.VERDE, text_color=tema.BRANCO, font=ctk.CTkFont(size=15, weight="bold"), 
                               command=lambda c=consulta, e=exames_str: self.gerar_pdf_evolucao(c, e)).pack(anchor="e", padx=15, pady=10)
 
-        ctk.CTkButton(aba_exm, text="Anexar Documento / Imagem", command=self.anexar_arquivo_paciente, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=15, weight="bold")).pack(pady=10)
+        ctk.CTkButton(aba_exm, text="Anexar Documento / Imagem", command=self.anexar_arquivo_paciente, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=15, weight="bold")).pack(pady=10)
         self.scroll_arquivos = ctk.CTkScrollableFrame(aba_exm, fg_color="transparent")
         self.scroll_arquivos.pack(fill="both", expand=True, padx=10, pady=10)
         self.carregar_lista_arquivos()
@@ -1120,10 +1115,10 @@ class AppClinica(ctk.CTk):
         arquivos = cursor.fetchall()
         conexao.close()
         for nome, caminho, data in arquivos:
-            card = ctk.CTkFrame(self.scroll_arquivos, corner_radius=8, fg_color="#ffffff", border_width=1, border_color="#c8e6c9")
+            card = ctk.CTkFrame(self.scroll_arquivos, corner_radius=8, fg_color=tema.BRANCO, border_width=1, border_color=tema.VERDE_CLARO)
             card.pack(fill="x", pady=5, ipady=5)
             ctk.CTkLabel(card, text=f"📄 {nome}", font=ctk.CTkFont(size=15)).pack(side="left", padx=(15, 5))
-            ctk.CTkButton(card, text="Abrir", width=60, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=14), command=lambda c=caminho: self.abrir_arquivo_externo(c)).pack(side="right", padx=15)
+            ctk.CTkButton(card, text="Abrir", width=60, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=14), command=lambda c=caminho: self.abrir_arquivo_externo(c)).pack(side="right", padx=15)
 
     def abrir_arquivo_externo(self, caminho):
         try:
@@ -1161,17 +1156,17 @@ class AppClinica(ctk.CTk):
         except Exception as e:
             print(f"[AVISO] Não foi possível carregar nascimento do paciente: {e}")
 
-        scroll_frame = ctk.CTkScrollableFrame(self.area_principal, corner_radius=10, fg_color="#f1f8ea")
+        scroll_frame = ctk.CTkScrollableFrame(self.area_principal, corner_radius=10, fg_color=tema.FUNDO)
         scroll_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        ctk.CTkLabel(scroll_frame, text=f"Atendimento: {self.paciente_atual_nome}", font=ctk.CTkFont(size=26, weight="bold"), text_color="#1b5e20").pack(pady=10)
+        ctk.CTkLabel(scroll_frame, text=f"Atendimento: {self.paciente_atual_nome}", font=ctk.CTkFont(size=26, weight="bold"), text_color=tema.TEXTO).pack(pady=10)
 
         frame_anamnese = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_anamnese.pack(fill="x", padx=20, pady=(10, 0))
-        ctk.CTkLabel(frame_anamnese, text="Anamnese e Evolução", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(side="left")
+        ctk.CTkLabel(frame_anamnese, text="Anamnese e Evolução", font=ctk.CTkFont(weight="bold", size=17), text_color=tema.TEXTO).pack(side="left")
         if not getattr(sys, 'frozen', False):
-            ctk.CTkButton(frame_anamnese, text="Importar Sintomas", width=120, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=14, weight="bold"), command=lambda: self.abrir_modal_padroes("anamnese")).pack(side="right")
-        self.txt_anamnese = ctk.CTkTextbox(scroll_frame, width=600, height=100, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", border_width=1, border_color="#a5d6a7")
+            ctk.CTkButton(frame_anamnese, text="Importar Sintomas", width=120, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=14, weight="bold"), command=lambda: self.abrir_modal_padroes("anamnese")).pack(side="right")
+        self.txt_anamnese = ctk.CTkTextbox(scroll_frame, width=600, height=100, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, border_width=1, border_color=tema.BORDA)
         self.txt_anamnese.pack(padx=20, pady=5)
 
         # Campos guiados, medicamentos/metas separados, recordatório opcional e biblioteca DOCX.
@@ -1181,72 +1176,72 @@ class AppClinica(ctk.CTk):
         frame_softsus = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_softsus.pack(fill="x", padx=20, pady=4)
         ctk.CTkButton(frame_softsus, text="Montar e copiar texto para SoftSus",
-                      fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff",
+                      fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO,
                       command=self.copiar_anamnese_softsus).pack(side="left")
 
-        ctk.CTkLabel(scroll_frame, text="Antropometria e Composição Corporal", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(anchor="w", padx=20, pady=(15, 0))
+        ctk.CTkLabel(scroll_frame, text="Antropometria e Composição Corporal", font=ctk.CTkFont(weight="bold", size=17), text_color=tema.TEXTO).pack(anchor="w", padx=20, pady=(15, 0))
         frame_antro = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_antro.pack(fill="x", padx=20, pady=5)
-        self.entry_peso = ctk.CTkEntry(frame_antro, placeholder_text="Peso (kg)", width=150, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_peso = ctk.CTkEntry(frame_antro, placeholder_text="Peso (kg)", width=150, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_peso.grid(row=0, column=0, padx=(0, 10))
-        self.entry_altura = ctk.CTkEntry(frame_antro, placeholder_text="Altura (m)", width=150, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_altura = ctk.CTkEntry(frame_antro, placeholder_text="Altura (m)", width=150, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_altura.grid(row=0, column=1, padx=10)
-        self.entry_gordura = ctk.CTkEntry(frame_antro, placeholder_text="% Gordura", width=150, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_gordura = ctk.CTkEntry(frame_antro, placeholder_text="% Gordura", width=150, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_gordura.grid(row=0, column=2, padx=10)
         self.entry_peso.bind('<KeyRelease>', self._calcular_imc_dinamico)
         self.entry_altura.bind('<KeyRelease>', self._calcular_imc_dinamico)
-        self.lbl_imc = ctk.CTkLabel(frame_antro, text="IMC: -- kg/m²", font=ctk.CTkFont(size=15, weight="bold"), text_color="#556b58")
+        self.lbl_imc = ctk.CTkLabel(frame_antro, text="IMC: -- kg/m²", font=ctk.CTkFont(size=15, weight="bold"), text_color=tema.SUAVE)
         self.lbl_imc.grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
 
-        frame_calculo = ctk.CTkFrame(scroll_frame, fg_color="#eaf8ec", corner_radius=8, border_width=1, border_color="#a5d6a7")
+        frame_calculo = ctk.CTkFrame(scroll_frame, fg_color=tema.VERDE_CLARO, corner_radius=8, border_width=1, border_color=tema.BORDA)
         frame_calculo.pack(fill="x", padx=20, pady=10, ipady=5)
         linha_metodos = ctk.CTkFrame(frame_calculo, fg_color="transparent")
         linha_metodos.pack(fill="x", padx=10, pady=10)
-        ctk.CTkLabel(linha_metodos, text="Metodologia TMB:", font=ctk.CTkFont(size=15), text_color="#1b5e20").pack(side="left", padx=(0, 10))
-        self.combo_metodo_tmb = ctk.CTkComboBox(linha_metodos, values=["Harris-Benedict (1919)", "Mifflin-St Jeor (1990)", "Cunningham (1980)"], width=200, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", button_color="#4caf50", button_hover_color="#388e3c", dropdown_fg_color="#ffffff", dropdown_hover_color="#c8e6c9", dropdown_text_color="#1b5e20", command=self.atualizar_justificativa_metodologica)
+        ctk.CTkLabel(linha_metodos, text="Metodologia TMB:", font=ctk.CTkFont(size=15), text_color=tema.TEXTO).pack(side="left", padx=(0, 10))
+        self.combo_metodo_tmb = ctk.CTkComboBox(linha_metodos, values=["Harris-Benedict (1919)", "Mifflin-St Jeor (1990)", "Cunningham (1980)"], width=200, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, button_color=tema.VERDE, button_hover_color=tema.VERDE_HOVER, dropdown_fg_color=tema.BRANCO, dropdown_hover_color=tema.VERDE_CLARO, dropdown_text_color=tema.TEXTO, command=self.atualizar_justificativa_metodologica)
         self.combo_metodo_tmb.set("Mifflin-St Jeor (1990)")
         self.combo_metodo_tmb.pack(side="left", padx=10)
-        self.entry_naf = ctk.CTkEntry(linha_metodos, placeholder_text="Fator NAF (ex: 1.55)", width=130, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_naf = ctk.CTkEntry(linha_metodos, placeholder_text="Fator NAF (ex: 1.55)", width=130, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_naf.pack(side="left", padx=10)
-        ctk.CTkButton(linha_metodos, text="Calcular", width=100, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=15, weight="bold"), command=self.calcular_metabolismo).pack(side="right")
+        ctk.CTkButton(linha_metodos, text="Calcular", width=100, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=15, weight="bold"), command=self.calcular_metabolismo).pack(side="right")
 
-        self.lbl_justificativa = ctk.CTkLabel(frame_calculo, text="Justificativa: Mifflin; St Jeor (1990) apresenta maior precisão para adultos saudáveis contemporâneos com sobrepeso ou obesidade, baseando-se no peso total.", text_color="#556b58", font=ctk.CTkFont(size=15), justify="left", wraplength=600)
+        self.lbl_justificativa = ctk.CTkLabel(frame_calculo, text="Justificativa: Mifflin; St Jeor (1990) apresenta maior precisão para adultos saudáveis contemporâneos com sobrepeso ou obesidade, baseando-se no peso total.", text_color=tema.SUAVE, font=ctk.CTkFont(size=15), justify="left", wraplength=600)
         self.lbl_justificativa.pack(anchor="w", padx=10, pady=5)
-        self.lbl_resultado_metabolismo = ctk.CTkLabel(frame_calculo, text="Insira os dados acima para calcular a Taxa Metabólica Basal e o VET.", font=ctk.CTkFont(size=17, weight="bold"), text_color="#1b5e20")
+        self.lbl_resultado_metabolismo = ctk.CTkLabel(frame_calculo, text="Insira os dados acima para calcular a Taxa Metabólica Basal e o VET.", font=ctk.CTkFont(size=17, weight="bold"), text_color=tema.TEXTO)
         self.lbl_resultado_metabolismo.pack(pady=10)
 
         # Equações DRI 2023 (EER) e fórmula de bolso são exibidas lado a lado, sem substituir a TMB existente.
-        frame_dri = ctk.CTkFrame(frame_calculo, fg_color="#f5fbf5", corner_radius=8)
+        frame_dri = ctk.CTkFrame(frame_calculo, fg_color=tema.FUNDO, corner_radius=8)
         frame_dri.pack(fill="x", padx=10, pady=(4, 10))
         ctk.CTkLabel(frame_dri, text="Necessidade energética — DRI 2023 e fórmula de bolso",
-                     text_color="#1b5e20", font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=8, pady=(8, 2))
+                     text_color=tema.TEXTO, font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=8, pady=(8, 2))
         linha_dri = ctk.CTkFrame(frame_dri, fg_color="transparent")
         linha_dri.pack(fill="x", padx=8, pady=4)
-        ctk.CTkLabel(linha_dri, text="Atividade física:", text_color="#1b5e20").pack(side="left", padx=(0, 5))
+        ctk.CTkLabel(linha_dri, text="Atividade física:", text_color=tema.TEXTO).pack(side="left", padx=(0, 5))
         self.combo_dri_atividade = ctk.CTkComboBox(
             linha_dri, values=["Inativo", "Pouco ativo", "Ativo", "Muito ativo"], width=150,
             command=self.calcular_necessidades_dri)
         self.combo_dri_atividade.set("Inativo")
         self.combo_dri_atividade.pack(side="left", padx=5)
-        ctk.CTkLabel(linha_dri, text="Fórmula de bolso:", text_color="#1b5e20").pack(side="left", padx=(12, 5))
+        ctk.CTkLabel(linha_dri, text="Fórmula de bolso:", text_color=tema.TEXTO).pack(side="left", padx=(12, 5))
         self.combo_fator_bolso = ctk.CTkComboBox(
             linha_dri, values=[str(v) for v in range(25, 36)], width=65,
             command=self.calcular_necessidades_dri)
         self.combo_fator_bolso.set("25")
         self.combo_fator_bolso.pack(side="left", padx=5)
-        ctk.CTkLabel(linha_dri, text="kcal/kg/dia", text_color="#1b5e20").pack(side="left")
+        ctk.CTkLabel(linha_dri, text="kcal/kg/dia", text_color=tema.TEXTO).pack(side="left")
         self.entry_fator_proteico = ctk.CTkEntry(
-            linha_dri, placeholder_text="Proteína g/kg", width=110, fg_color="#ffffff",
-            text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+            linha_dri, placeholder_text="Proteína g/kg", width=110, fg_color=tema.BRANCO,
+            text_color=tema.TEXTO, placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_fator_proteico.pack(side="left", padx=(12, 4))
         self.entry_fator_proteico.bind("<KeyRelease>", self.calcular_necessidades_dri)
         self.lbl_resultado_dri = ctk.CTkLabel(
             frame_dri, text="Preencha peso, altura e atividade física para estimar as necessidades.",
-            text_color="#556b58", font=ctk.CTkFont(size=14), justify="left", wraplength=780)
+            text_color=tema.SUAVE, font=ctk.CTkFont(size=14), justify="left", wraplength=780)
         self.lbl_resultado_dri.pack(anchor="w", padx=8, pady=(4, 8))
         linha_condicao = ctk.CTkFrame(frame_dri, fg_color="transparent")
         linha_condicao.pack(fill="x", padx=8, pady=(2, 4))
-        ctk.CTkLabel(linha_condicao, text="Condição reprodutiva:", text_color="#1b5e20").pack(side="left", padx=(0, 6))
+        ctk.CTkLabel(linha_condicao, text="Condição reprodutiva:", text_color=tema.TEXTO).pack(side="left", padx=(0, 6))
         self.combo_dri_condicao = ctk.CTkComboBox(
             linha_condicao,
             values=["Não informado", "Não gestante/não lactante", "Gestante", "Lactante", "Não se aplica"],
@@ -1256,16 +1251,16 @@ class AppClinica(ctk.CTk):
         self.combo_dri_condicao.pack(side="left", padx=5)
         ctk.CTkLabel(frame_dri,
                      text="DRI 2023 implementada para adultos ≥19 anos. Em mulheres, o cálculo exige confirmar 'Não gestante/não lactante'; não usar a equação adulta em gestação, lactação ou pediatria. O fator proteico é definido pelo profissional.",
-                     text_color="#687b6c", font=ctk.CTkFont(size=12), wraplength=780,
+                     text_color=tema.SUAVE, font=ctk.CTkFont(size=12), wraplength=780,
                      justify="left").pack(anchor="w", padx=8, pady=(0, 6))
         self.calcular_necessidades_dri(silencioso=True)
 
         frame_conduta = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_conduta.pack(fill="x", padx=20, pady=(15, 0))
-        ctk.CTkLabel(frame_conduta, text="Conduta Dietoterápica", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(side="left")
+        ctk.CTkLabel(frame_conduta, text="Conduta Dietoterápica", font=ctk.CTkFont(weight="bold", size=17), text_color=tema.TEXTO).pack(side="left")
         if not getattr(sys, 'frozen', False):
-            ctk.CTkButton(frame_conduta, text="Importar Padrão", width=120, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=14, weight="bold"), command=lambda: self.abrir_modal_padroes("conduta")).pack(side="right")
-        self.txt_conduta = ctk.CTkTextbox(scroll_frame, width=600, height=100, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", border_width=1, border_color="#a5d6a7")
+            ctk.CTkButton(frame_conduta, text="Importar Padrão", width=120, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=14, weight="bold"), command=lambda: self.abrir_modal_padroes("conduta")).pack(side="right")
+        self.txt_conduta = ctk.CTkTextbox(scroll_frame, width=600, height=100, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, border_width=1, border_color=tema.BORDA)
         self.txt_conduta.pack(padx=20, pady=5)
 
         # Condutas de alta: sugeridas pelas doenças relatadas no Mapa; só valem depois de confirmadas pela nutricionista.
@@ -1276,10 +1271,10 @@ class AppClinica(ctk.CTk):
         ctk.CTkLabel(
             scroll_frame,
             text="Triagem NRS-2002: o banco e o serviço ambulatorial aceitam o resultado estruturado do módulo de triagem. O cálculo/classificação permanecem no módulo NRS-2002; a integração funcional depende da incorporação da outra branch.",
-            text_color="#556b58", font=ctk.CTkFont(size=12), wraplength=780, justify="left"
+            text_color=tema.SUAVE, font=ctk.CTkFont(size=12), wraplength=780, justify="left"
         ).pack(anchor="w", padx=20, pady=(0, 6))
 
-        ctk.CTkLabel(scroll_frame, text="Solicitação de Exames", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(anchor="w", padx=20, pady=(15, 0))
+        ctk.CTkLabel(scroll_frame, text="Solicitação de Exames", font=ctk.CTkFont(weight="bold", size=17), text_color=tema.TEXTO).pack(anchor="w", padx=20, pady=(15, 0))
         frame_exames = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_exames.pack(fill="x", padx=20, pady=5)
 
@@ -1296,39 +1291,39 @@ class AppClinica(ctk.CTk):
             frame_exames,
             text="Seleccionar exame...  ▼",
             width=400,
-            fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff",
+            fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO,
             font=ctk.CTkFont(size=15, weight="bold"),
             command=self._abrir_select_exame)
         self.btn_select_exame.grid(row=0, column=0, padx=(0, 10))
 
-        ctk.CTkButton(frame_exames, text="Adicionar à Solicitação", command=self.adicionar_exame, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=15, weight="bold")).grid(row=0, column=1)
+        ctk.CTkButton(frame_exames, text="Adicionar à Solicitação", command=self.adicionar_exame, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=15, weight="bold")).grid(row=0, column=1)
         ctk.CTkButton(scroll_frame, text="Gerenciar associações: exames, diagnósticos clínicos e nutricionais",
                       command=lambda: DialogoAssociacoesExames(self, caminho_do_banco()),
-                      fg_color="#607d8b", hover_color="#455a64", text_color="#ffffff",
+                      fg_color=tema.SUAVE, hover_color=tema.SUAVE, text_color=tema.BRANCO,
                       font=ctk.CTkFont(size=14)).pack(anchor="w", padx=20, pady=(2, 6))
 
         frame_analise_exames = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_analise_exames.pack(fill="x", padx=20, pady=(15, 0))
-        ctk.CTkLabel(frame_analise_exames, text="Análise e Valores de Referência", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(side="left")
+        ctk.CTkLabel(frame_analise_exames, text="Análise e Valores de Referência", font=ctk.CTkFont(weight="bold", size=17), text_color=tema.TEXTO).pack(side="left")
         if not getattr(sys, 'frozen', False):
-            ctk.CTkButton(frame_analise_exames, text="Importar Referências", width=160, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=14, weight="bold"), command=lambda: self.abrir_modal_padroes("exames")).pack(side="right")
-        self.txt_analise_exames = ctk.CTkTextbox(scroll_frame, width=600, height=100, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", border_width=1, border_color="#a5d6a7")
+            ctk.CTkButton(frame_analise_exames, text="Importar Referências", width=160, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=14, weight="bold"), command=lambda: self.abrir_modal_padroes("exames")).pack(side="right")
+        self.txt_analise_exames = ctk.CTkTextbox(scroll_frame, width=600, height=100, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, border_width=1, border_color=tema.BORDA)
         self.txt_analise_exames.pack(padx=20, pady=5)
 
-        self.frame_lista_exames = ctk.CTkFrame(scroll_frame, fg_color="#ffffff", border_width=1, border_color="#c8e6c9")
+        self.frame_lista_exames = ctk.CTkFrame(scroll_frame, fg_color=tema.BRANCO, border_width=1, border_color=tema.VERDE_CLARO)
         self.frame_lista_exames.pack(fill="x", padx=20, pady=10)
 
-        ctk.CTkButton(scroll_frame, text="Lançar Resultados", fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"),
+        ctk.CTkButton(scroll_frame, text="Lançar Resultados", fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=16, weight="bold"),
                       command=self.abrir_modal_resultados).pack(pady=(0, 10))
         
-        self.frame_sugestoes = ctk.CTkFrame(scroll_frame, fg_color="#2e7d32", border_width=1, border_color="#4caf50")
+        self.frame_sugestoes = ctk.CTkFrame(scroll_frame, fg_color=tema.VERDE, border_width=1, border_color=tema.VERDE)
         self.frame_sugestoes.pack(fill="x", padx=20, pady=10)
         self.frame_sugestoes.pack_forget()
 
-        self.btn_salvar_evolucao = ctk.CTkButton(scroll_frame, text="Salvar Evolução", fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=18, weight="bold"), height=44, command=self.salvar_consulta)
+        self.btn_salvar_evolucao = ctk.CTkButton(scroll_frame, text="Salvar Evolução", fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=18, weight="bold"), height=44, command=self.salvar_consulta)
         self.btn_salvar_evolucao.pack(pady=(30, 10))
         
-        self.lbl_msg_consulta = ctk.CTkLabel(scroll_frame, text="", text_color="#2e7d32", font=ctk.CTkFont(size=16, weight="bold"))
+        self.lbl_msg_consulta = ctk.CTkLabel(scroll_frame, text="", text_color=tema.VERDE, font=ctk.CTkFont(size=16, weight="bold"))
         self.lbl_msg_consulta.pack(pady=5)
 
     def atualizar_justificativa_metodologica(self, escolha):
@@ -1345,7 +1340,7 @@ class AppClinica(ctk.CTk):
             peso_str = self.entry_peso.get().replace(',', '.')
             altura_str = self.entry_altura.get().replace(',', '.')
             if not peso_str or not altura_str:
-                self.lbl_resultado_metabolismo.configure(text="Erro: Preencha Peso e Altura primeiro.", text_color="#c62828")
+                self.lbl_resultado_metabolismo.configure(text="Erro: Preencha Peso e Altura primeiro.", text_color=tema.ERRO)
                 return
             peso = float(peso_str)
             altura_cm = float(altura_str) * 100.0
@@ -1365,7 +1360,7 @@ class AppClinica(ctk.CTk):
             elif metodo == "Cunningham (1980)":
                 gordura_str = self.entry_gordura.get().replace(',', '.')
                 if not gordura_str:
-                    self.lbl_resultado_metabolismo.configure(text="Erro: O método de Cunningham exige o % de Gordura.", text_color="#c62828")
+                    self.lbl_resultado_metabolismo.configure(text="Erro: O método de Cunningham exige o % de Gordura.", text_color=tema.ERRO)
                     return
                 gordura = float(gordura_str)
                 massa_livre_gordura = peso * (1.0 - (gordura / 100.0))
@@ -1376,14 +1371,14 @@ class AppClinica(ctk.CTk):
             if naf_str:
                 vet = tmb * float(naf_str)
                 self.vet_atual = str(vet)
-                self.lbl_resultado_metabolismo.configure(text=f"TMB: {tmb:.2f} kcal  |  VET: {vet:.2f} kcal", text_color="#00a859")
+                self.lbl_resultado_metabolismo.configure(text=f"TMB: {tmb:.2f} kcal  |  VET: {vet:.2f} kcal", text_color=tema.VERDE)
             else:
                 self.vet_atual = ""
-                self.lbl_resultado_metabolismo.configure(text=f"TMB: {tmb:.2f} kcal  |  (Insira o NAF para calcular VET)", text_color="#2e7d32")
+                self.lbl_resultado_metabolismo.configure(text=f"TMB: {tmb:.2f} kcal  |  (Insira o NAF para calcular VET)", text_color=tema.VERDE)
         except ValueError:
-            self.lbl_resultado_metabolismo.configure(text="Erro de formatação: Insira apenas números válidos.", text_color="#c62828")
+            self.lbl_resultado_metabolismo.configure(text="Erro de formatação: Insira apenas números válidos.", text_color=tema.ERRO)
         except Exception:
-            self.lbl_resultado_metabolismo.configure(text=f"Erro no cálculo.", text_color="#c62828")
+            self.lbl_resultado_metabolismo.configure(text=f"Erro no cálculo.", text_color=tema.ERRO)
 
     def abrir_modal_padroes(self, alvo):
         """Abre a biblioteca de padrões em uma guia lateral, preservando a consulta anterior."""
@@ -1628,12 +1623,12 @@ class AppClinica(ctk.CTk):
         """Escolhe a cor da label conforme o rótulo clínico do laudo."""
         s = (status or "").lower()
         if "sem referência" in s:
-            return "#556b58"
+            return tema.SUAVE
         if any(k in s for k in ("normal", "desejável", "desejav", "adequado", "ótimo", "otimo", "protetor", "proteção")):
-            return "#2e7d32"
+            return tema.VERDE
         if any(k in s for k in ("limítrofe", "limitrofe", "risco", "pré-diabetes", "pré-diabete", "indica")):
-            return "#ef6c00"
-        return "#c62828"
+            return tema.LARANJA
+        return tema.ERRO
 
     def _avaliar_entry_resultado(self, entry, lbl_status, id_exame):
         """Callback do <KeyRelease>: lê o valor, classifica e atualiza a label."""
@@ -1644,7 +1639,7 @@ class AppClinica(ctk.CTk):
         try:
             valor = float(texto)
         except ValueError:
-            lbl_status.configure(text="Valor inválido", text_color="#ef6c00")
+            lbl_status.configure(text="Valor inválido", text_color=tema.LARANJA)
             return
         ref_min, ref_max = self._carregar_refs_exame(id_exame)
         bandas = self._carregar_bandas_exame(id_exame)
@@ -1754,7 +1749,7 @@ class AppClinica(ctk.CTk):
         label = self._labels_calculo.get(chave)
         if label is None:
             label = ctk.CTkLabel(self._frame_indices, text=texto, font=ctk.CTkFont(size=14, weight="bold"),
-                                 text_color="#1565c0", justify="left")
+                                 text_color=tema.AZUL, justify="left")
             label.pack(anchor="w", pady=(6, 2))
             self._labels_calculo[chave] = label
         else:
@@ -1800,7 +1795,7 @@ class AppClinica(ctk.CTk):
             ctk.CTkLabel(self.area_principal, text="")  # noop (mantém referência)
             # Mensagem simples via lbl_msg_consulta se existir
             if hasattr(self, 'lbl_msg_consulta') and self.lbl_msg_consulta.winfo_exists():
-                self.lbl_msg_consulta.configure(text="Adicione exames à solicitação antes de lançar resultados.", text_color="#ef6c00")
+                self.lbl_msg_consulta.configure(text="Adicione exames à solicitação antes de lançar resultados.", text_color=tema.LARANJA)
             return
 
         modal = self.abrir_painel_lateral("Lançar Resultados Laboratoriais", lambda: None)
@@ -1829,13 +1824,13 @@ class AppClinica(ctk.CTk):
         self._entries_resultados = {}
 
         for id_exame in self.exames_selecionados_lista:
-            linha = ctk.CTkFrame(scroll, fg_color="#ffffff", corner_radius=6, border_width=1, border_color="#c8e6c9")
+            linha = ctk.CTkFrame(scroll, fg_color=tema.BRANCO, corner_radius=6, border_width=1, border_color=tema.VERDE_CLARO)
             linha.pack(fill="x", pady=4, padx=4, ipady=4)
 
             nome = mapa_nomes.get(id_exame, id_exame)
             ctk.CTkLabel(linha, text=nome, width=200, anchor="w", font=ctk.CTkFont(size=15)).pack(side="left", padx=(10, 5), pady=6)
 
-            entry = ctk.CTkEntry(linha, placeholder_text="Resultado", width=140, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+            entry = ctk.CTkEntry(linha, placeholder_text="Resultado", width=140, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
             entry.pack(side="left", padx=5, pady=6)
 
             lbl_status = ctk.CTkLabel(linha, text="", width=120, anchor="w", font=ctk.CTkFont(size=15))
@@ -1856,9 +1851,9 @@ class AppClinica(ctk.CTk):
         ctk.CTkButton(
             scroll,
             text="Calcular Índices Clínicos",
-            fg_color="#1565c0",
-            hover_color="#0d47a9",
-            text_color="#ffffff",
+            fg_color=tema.AZUL,
+            hover_color=tema.AZUL_HOVER,
+            text_color=tema.BRANCO,
             font=ctk.CTkFont(size=15, weight="bold"),
             command=self._recalcular_indices_dinamicos
         ).pack(pady=(8, 4), fill="x")
@@ -1884,7 +1879,7 @@ class AppClinica(ctk.CTk):
             self._labels_calculo = {}
             self.fechar_painel_lateral(modal)
 
-        ctk.CTkButton(modal, text="Salvar", fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"), command=salvar_e_fechar).pack(pady=(0, 10))
+        ctk.CTkButton(modal, text="Salvar", fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=16, weight="bold"), command=salvar_e_fechar).pack(pady=(0, 10))
 
     def listar_arquivos_diretorio(self, diretorio, frame_aba, caixa_texto):
         scroll = ctk.CTkScrollableFrame(frame_aba, fg_color="transparent")
@@ -1901,7 +1896,7 @@ class AppClinica(ctk.CTk):
         for caminho_completo in arquivos_encontrados:
             nome_arquivo = os.path.basename(caminho_completo)
             nome_amigavel = nome_arquivo.replace('.jsonux', '').replace('.json', '').replace('_', ' ')
-            btn = ctk.CTkButton(scroll, text=nome_amigavel, anchor="w", fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=14), command=lambda c=caminho_completo, t=caixa_texto: self.inserir_texto_padrao(c, t))
+            btn = ctk.CTkButton(scroll, text=nome_amigavel, anchor="w", fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=14), command=lambda c=caminho_completo, t=caixa_texto: self.inserir_texto_padrao(c, t))
             btn.pack(fill="x", pady=2, padx=5)
 
     def inserir_texto_padrao(self, caminho_completo, caixa_texto):
@@ -1961,10 +1956,10 @@ class AppClinica(ctk.CTk):
         texto = self.entry_filtro_exames.get().strip().lower()
         opciones = [o for o in self.opcoes_exames if texto in o.lower()] if texto else self.opcoes_exames
         if not opciones:
-            ctk.CTkLabel(self.scroll_lista_exames, text="Nenhum exame encontrado.", font=ctk.CTkFont(size=14), text_color="#556b58").pack(pady=20)
+            ctk.CTkLabel(self.scroll_lista_exames, text="Nenhum exame encontrado.", font=ctk.CTkFont(size=14), text_color=tema.SUAVE).pack(pady=20)
             return
         for opcion in opciones:
-            ctk.CTkButton(self.scroll_lista_exames, text=opcion, anchor="w", fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=14), command=lambda o=opcion: self._seleccionar_exame(o)).pack(fill="x", padx=5, pady=2)
+            ctk.CTkButton(self.scroll_lista_exames, text=opcion, anchor="w", fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=14), command=lambda o=opcion: self._seleccionar_exame(o)).pack(fill="x", padx=5, pady=2)
 
     def _seleccionar_exame(self, opcion):
         """Guarda a escolha e fecha somente a guia do seletor de exames."""
@@ -1987,7 +1982,7 @@ class AppClinica(ctk.CTk):
             nome_amigavel = escolha.split(" (")[0]
         if id_exame in self.exames_selecionados_lista: return
         self.exames_selecionados_lista.append(id_exame)
-        ctk.CTkLabel(self.frame_lista_exames, text=f"• {nome_amigavel}", font=ctk.CTkFont(size=15), text_color="#1b5e20").pack(anchor="w", padx=10, pady=2)
+        ctk.CTkLabel(self.frame_lista_exames, text=f"• {nome_amigavel}", font=ctk.CTkFont(size=15), text_color=tema.TEXTO).pack(anchor="w", padx=10, pady=2)
         self.exame_escolhido = None
         self.btn_select_exame.configure(text="Seleccionar exame...  ▼")
         self.verificar_regras_inteligentes(id_exame)
@@ -2033,15 +2028,15 @@ class AppClinica(ctk.CTk):
         texto = f"Relação para revisão profissional — {tipo}: {associacao['valor_relacionado']}"
         if associacao.get("justificativa"):
             texto += f" | {associacao['justificativa']}"
-        ctk.CTkLabel(container, text=texto, text_color="#ffffff",
+        ctk.CTkLabel(container, text=texto, text_color=tema.BRANCO,
                      font=ctk.CTkFont(size=13), wraplength=620, justify="left").pack(anchor="w")
 
     def exibir_sugestao(self, sug_id, sug_nome):
         self.frame_sugestoes.pack(fill="x", padx=20, pady=10)
         container = ctk.CTkFrame(self.frame_sugestoes, fg_color="transparent")
         container.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(container, text=f"💡 Sugestão: O exame '{sug_nome}' é complementar à sua solicitação.", text_color="#ffffff", font=ctk.CTkFont(size=15, weight="bold")).pack(side="left")
-        ctk.CTkButton(container, text="Adicionar", width=80, fg_color="#a5d6a7", hover_color="#81c784", text_color="#1b5e20", font=ctk.CTkFont(size=14, weight="bold"), command=lambda: [self.adicionar_exame(sug_id, sug_nome), container.destroy()]).pack(side="right")
+        ctk.CTkLabel(container, text=f"💡 Sugestão: O exame '{sug_nome}' é complementar à sua solicitação.", text_color=tema.BRANCO, font=ctk.CTkFont(size=15, weight="bold")).pack(side="left")
+        ctk.CTkButton(container, text="Adicionar", width=80, fg_color=tema.BORDA, hover_color=tema.BORDA, text_color=tema.TEXTO, font=ctk.CTkFont(size=14, weight="bold"), command=lambda: [self.adicionar_exame(sug_id, sug_nome), container.destroy()]).pack(side="right")
 
     def _calcular_idade_por_nascimento(self, data_nasc):
         """Calcula a idade exata (anos completos) a partir da data de nascimento."""
@@ -2093,7 +2088,7 @@ class AppClinica(ctk.CTk):
                 self.calculos_ambulatoriais = {}
                 if hasattr(self, "lbl_resultado_dri"):
                     self.lbl_resultado_dri.configure(
-                        text="Preencha peso e altura para estimar as necessidades.", text_color="#556b58")
+                        text="Preencha peso e altura para estimar as necessidades.", text_color=tema.SUAVE)
                 return None
             idade = self._calcular_idade_por_nascimento(getattr(self, "paciente_atual_nasc", ""))
             if idade is None:
@@ -2116,12 +2111,12 @@ class AppClinica(ctk.CTk):
             if resumo.get("proteina_g_dia") is not None:
                 texto += (f"   |   Proteína ({resumo['proteina_fator_g_kg']} g/kg): "
                           f"{resumo['proteina_g_dia']:.1f} g/dia")
-            self.lbl_resultado_dri.configure(text=texto, text_color="#1b5e20")
+            self.lbl_resultado_dri.configure(text=texto, text_color=tema.TEXTO)
             return resumo
         except ambulatorial.ErroAmbulatorial as exc:
             self.calculos_ambulatoriais = {}
             if hasattr(self, "lbl_resultado_dri"):
-                cor = "#8a6d3b" if "19 anos" in str(exc) else "#556b58"
+                cor = tema.LARANJA_TEXTO if "19 anos" in str(exc) else tema.SUAVE
                 self.lbl_resultado_dri.configure(text=str(exc), text_color=cor)
             if not silencioso:
                 print(f"[AVISO] Cálculo DRI 2023 não realizado: {exc}")
@@ -2172,7 +2167,7 @@ class AppClinica(ctk.CTk):
             peso_str = self.entry_peso.get().strip().replace(',', '.')
             altura_str = self.entry_altura.get().strip().replace(',', '.')
             if not peso_str or not altura_str:
-                self.lbl_imc.configure(text="IMC: -- kg/m²", text_color="#556b58")
+                self.lbl_imc.configure(text="IMC: -- kg/m²", text_color=tema.SUAVE)
                 if hasattr(self, "lbl_resultado_dri"):
                     self.calcular_necessidades_dri(silencioso=True)
                 return
@@ -2185,16 +2180,16 @@ class AppClinica(ctk.CTk):
             sufixo_idade = f" (≥60 anos - régua idoso)" if (idade is not None and idade >= 60) else ""
             self.lbl_imc.configure(
                 text=f"IMC: {imc:.1f} kg/m² — {classificacao}{sufixo_idade}",
-                text_color="#1b5e20")
+                text_color=tema.TEXTO)
             if hasattr(self, "lbl_resultado_dri"):
                 self.calcular_necessidades_dri(silencioso=True)
         except (ValueError, ZeroDivisionError):
-            self.lbl_imc.configure(text="IMC: -- kg/m²", text_color="#556b58")
+            self.lbl_imc.configure(text="IMC: -- kg/m²", text_color=tema.SUAVE)
             if hasattr(self, "lbl_resultado_dri"):
                 self.calcular_necessidades_dri(silencioso=True)
         except Exception as e:
             print(f"[ERRO CRÍTICO IMC]: {e}")
-            self.lbl_imc.configure(text="IMC: -- kg/m²", text_color="#556b58")
+            self.lbl_imc.configure(text="IMC: -- kg/m²", text_color=tema.SUAVE)
             if hasattr(self, "lbl_resultado_dri"):
                 self.calcular_necessidades_dri(silencioso=True)
 
@@ -2317,14 +2312,14 @@ class AppClinica(ctk.CTk):
     def tela_exames(self):
         self.limpar_area_principal()
         
-        titulo = ctk.CTkLabel(self.area_principal, text="Catálogo e Regras de Exames", font=ctk.CTkFont(size=24, weight="bold"), text_color="#1b5e20")
+        titulo = ctk.CTkLabel(self.area_principal, text="Catálogo e Regras de Exames", font=ctk.CTkFont(size=24, weight="bold"), text_color=tema.TEXTO)
         titulo.pack(pady=(20, 10))
 
         tabview_exames = _criar_tabview_compat(self.area_principal, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
-                                        fg_color="#e8f5e9",
-                                        segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
-                                        segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                        text_color="#ffffff", text_color_disabled="#d5e8d7")
+                                        fg_color=tema.FUNDO,
+                                        segmented_button_selected_color=tema.VERDE, segmented_button_selected_hover_color=tema.TEXTO,
+                                        segmented_button_unselected_color=tema.VERDE, segmented_button_unselected_hover_color=tema.VERDE_HOVER,
+                                        text_color=tema.BRANCO, text_color_disabled=tema.BORDA)
         tabview_exames.pack(padx=20, pady=10, fill="both", expand=True)
 
         aba_lista = tabview_exames.add("Lista de Exames")
@@ -2334,23 +2329,20 @@ class AppClinica(ctk.CTk):
         frame_add = ctk.CTkFrame(aba_lista, fg_color="transparent")
         frame_add.pack(fill="x", pady=10)
         
-        self.entry_id_exame = ctk.CTkEntry(frame_add, placeholder_text="ID (ex: EXM-FERRO)", width=200, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_id_exame = ctk.CTkEntry(frame_add, placeholder_text="ID (ex: EXM-FERRO)", width=200, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_id_exame.pack(side="left", padx=5)
         
-        self.entry_nome_exame = ctk.CTkEntry(frame_add, placeholder_text="Nome do Exame (ex: FERRO SÉRICO)", width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_nome_exame = ctk.CTkEntry(frame_add, placeholder_text="Nome do Exame (ex: FERRO SÉRICO)", width=300, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_nome_exame.pack(side="left", padx=5)
         
-        ctk.CTkButton(frame_add, text="Adicionar", width=100, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=15, weight="bold"), command=self.salvar_novo_exame).pack(side="left", padx=10)
+        ctk.CTkButton(frame_add, text="Adicionar", width=100, fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=15, weight="bold"), command=self.salvar_novo_exame).pack(side="left", padx=10)
         
-        self.lbl_msg_exame = ctk.CTkLabel(aba_lista, text="", text_color="#2e7d32", font=ctk.CTkFont(size=15))
+        self.lbl_msg_exame = ctk.CTkLabel(aba_lista, text="", text_color=tema.VERDE, font=ctk.CTkFont(size=15))
         self.lbl_msg_exame.pack()
 
-        style = ttk.Style()
-        style.configure("Treeview", background="#ffffff", foreground="#1b5e20", rowheight=34, fieldbackground="#ffffff", borderwidth=0, font=("Segoe UI", 14))
-        style.map('Treeview', background=[('selected', '#4caf50')], foreground=[('selected', '#ffffff')])
-        style.map("Treeview.Heading", background=[('active', '#388e3c')])
-        
-        tree_frame = ctk.CTkFrame(aba_lista, fg_color="#e8f5e9")
+        tema.aplicar_tema_ttk(self)
+
+        tree_frame = ctk.CTkFrame(aba_lista, fg_color=tema.FUNDO)
         tree_frame.pack(fill="both", expand=True, pady=10)
 
         self.tree_exames = ttk.Treeview(tree_frame, columns=("ID", "Nome"), show="headings", style="Treeview")
@@ -2367,7 +2359,7 @@ class AppClinica(ctk.CTk):
         self.carregar_tabela_exames()
 
         # --- ABA 2: REGRAS INTELIGENTES ---
-        ctk.CTkLabel(aba_regras, text="Selecione um exame GATILHO que, quando solicitado, sugerirá o exame COMPLEMENTAR automaticamente.", wraplength=600, font=ctk.CTkFont(size=15), text_color="#2f3e33").pack(pady=10)
+        ctk.CTkLabel(aba_regras, text="Selecione um exame GATILHO que, quando solicitado, sugerirá o exame COMPLEMENTAR automaticamente.", wraplength=600, font=ctk.CTkFont(size=15), text_color=tema.TEXTO).pack(pady=10)
         
         frame_regras = ctk.CTkFrame(aba_regras, fg_color="transparent")
         frame_regras.pack(pady=20)
@@ -2382,17 +2374,17 @@ class AppClinica(ctk.CTk):
         if not self.lista_exames_regras:
             self.lista_exames_regras = ["Nenhum exame cadastrado"]
         
-        ctk.CTkLabel(frame_regras, text="Quando solicitar:", font=ctk.CTkFont(size=15), text_color="#1b5e20").grid(row=0, column=0, padx=10, pady=5, sticky="e")
-        self.combo_gatilho = ctk.CTkComboBox(frame_regras, values=self.lista_exames_regras, width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", button_color="#4caf50", button_hover_color="#388e3c", dropdown_fg_color="#ffffff", dropdown_hover_color="#c8e6c9", dropdown_text_color="#1b5e20")
+        ctk.CTkLabel(frame_regras, text="Quando solicitar:", font=ctk.CTkFont(size=15), text_color=tema.TEXTO).grid(row=0, column=0, padx=10, pady=5, sticky="e")
+        self.combo_gatilho = ctk.CTkComboBox(frame_regras, values=self.lista_exames_regras, width=300, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, button_color=tema.VERDE, button_hover_color=tema.VERDE_HOVER, dropdown_fg_color=tema.BRANCO, dropdown_hover_color=tema.VERDE_CLARO, dropdown_text_color=tema.TEXTO)
         self.combo_gatilho.grid(row=0, column=1, padx=10, pady=5)
         
-        ctk.CTkLabel(frame_regras, text="Sugerir também:", font=ctk.CTkFont(size=15), text_color="#1b5e20").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        self.combo_sugerido = ctk.CTkComboBox(frame_regras, values=self.lista_exames_regras, width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", button_color="#4caf50", button_hover_color="#388e3c", dropdown_fg_color="#ffffff", dropdown_hover_color="#c8e6c9", dropdown_text_color="#1b5e20")
+        ctk.CTkLabel(frame_regras, text="Sugerir também:", font=ctk.CTkFont(size=15), text_color=tema.TEXTO).grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        self.combo_sugerido = ctk.CTkComboBox(frame_regras, values=self.lista_exames_regras, width=300, font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.TEXTO, button_color=tema.VERDE, button_hover_color=tema.VERDE_HOVER, dropdown_fg_color=tema.BRANCO, dropdown_hover_color=tema.VERDE_CLARO, dropdown_text_color=tema.TEXTO)
         self.combo_sugerido.grid(row=1, column=1, padx=10, pady=5)
         
-        ctk.CTkButton(frame_regras, text="Criar Regra de Sugestão", fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=15, weight="bold"), command=self.salvar_nova_regra).grid(row=2, column=0, columnspan=2, pady=20)
+        ctk.CTkButton(frame_regras, text="Criar Regra de Sugestão", fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=15, weight="bold"), command=self.salvar_nova_regra).grid(row=2, column=0, columnspan=2, pady=20)
         
-        self.lbl_msg_regra = ctk.CTkLabel(aba_regras, text="", text_color="#2e7d32", font=ctk.CTkFont(size=15))
+        self.lbl_msg_regra = ctk.CTkLabel(aba_regras, text="", text_color=tema.VERDE, font=ctk.CTkFont(size=15))
         self.lbl_msg_regra.pack()
 
     def carregar_tabela_exames(self):
@@ -2411,7 +2403,7 @@ class AppClinica(ctk.CTk):
         nome = self.entry_nome_exame.get().strip().upper()
         
         if not id_exame or not nome:
-            self.lbl_msg_exame.configure(text="Preencha o ID e o Nome.", text_color="#c62828")
+            self.lbl_msg_exame.configure(text="Preencha o ID e o Nome.", text_color=tema.ERRO)
             return
             
         try:
@@ -2423,10 +2415,10 @@ class AppClinica(ctk.CTk):
             
             self.entry_id_exame.delete(0, 'end')
             self.entry_nome_exame.delete(0, 'end')
-            self.lbl_msg_exame.configure(text="Exame adicionado com sucesso!", text_color="#2e7d32")
+            self.lbl_msg_exame.configure(text="Exame adicionado com sucesso!", text_color=tema.VERDE)
             self.carregar_tabela_exames()
         except sqlite3.IntegrityError:
-            self.lbl_msg_exame.configure(text="Erro: Este ID já existe no banco de dados.", text_color="#c62828")
+            self.lbl_msg_exame.configure(text="Erro: Este ID já existe no banco de dados.", text_color=tema.ERRO)
 
     def salvar_nova_regra(self):
         gatilho_full = self.combo_gatilho.get()
@@ -2440,7 +2432,7 @@ class AppClinica(ctk.CTk):
         id_sugerido = sugerido_full.split("(")[-1].replace(")", "").strip()
         
         if id_gatilho == id_sugerido:
-            self.lbl_msg_regra.configure(text="Erro: O gatilho e a sugestão não podem ser o mesmo exame.", text_color="#c62828")
+            self.lbl_msg_regra.configure(text="Erro: O gatilho e a sugestão não podem ser o mesmo exame.", text_color=tema.ERRO)
             return
             
         conexao = sqlite3.connect(caminho_do_banco())
@@ -2449,7 +2441,7 @@ class AppClinica(ctk.CTk):
         # Verifica se a regra já existe
         cursor.execute("SELECT 1 FROM Regras_Complementares WHERE exame_gatilho = ? AND exame_sugerido = ?", (id_gatilho, id_sugerido))
         if cursor.fetchone():
-            self.lbl_msg_regra.configure(text="Esta regra já existe no sistema.", text_color="#ef6c00")
+            self.lbl_msg_regra.configure(text="Esta regra já existe no sistema.", text_color=tema.LARANJA)
             conexao.close()
             return
             
@@ -2457,7 +2449,7 @@ class AppClinica(ctk.CTk):
         conexao.commit()
         conexao.close()
         
-        self.lbl_msg_regra.configure(text="Regra criada com sucesso! O alerta já está ativo nas consultas.", text_color="#2e7d32")
+        self.lbl_msg_regra.configure(text="Regra criada com sucesso! O alerta já está ativo nas consultas.", text_color=tema.VERDE)
 
 if __name__ == "__main__":
     app = AppClinica()

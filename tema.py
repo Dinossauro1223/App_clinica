@@ -27,6 +27,10 @@ LARANJA_CLARO = ("#FFF1E0", "#3B2D1E")
 LARANJA_TEXTO = ("#9A4F00", "#F6BD79")
 TEXTO = ("#1B2B24", "#E5EEE8")
 SUAVE = ("#5F7368", "#A9B9AF")
+ERRO = ("#B3261E", "#F28B82")
+ERRO_HOVER = ("#8E0000", "#CF6679")
+AZUL = ("#1565C0", "#82B1FF")
+AZUL_HOVER = ("#0D47A1", "#5C8FE6")
 
 
 def cor_atual(paleta, modo=None):
