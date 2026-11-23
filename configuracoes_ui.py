@@ -46,7 +46,7 @@ class ConfiguracoesUI:
         card.pack(fill="x", padx=24, pady=12)
         ctk.CTkLabel(card, text="Aparência do aplicativo", font=tema.fonte(16, "bold"),
                      text_color=tema.TEXTO).pack(anchor="w", padx=18, pady=(18, 6))
-        ctk.CTkLabel(card, text="Escolha como o NutriLab será exibido. Algumas telas antigas ainda usam cores fixas e não acompanham completamente o modo escuro.",
+        ctk.CTkLabel(card, text="Escolha como o NutriLab será exibido. As telas e tabelas acompanham a paleta selecionada; o modo Sistema segue a aparência do sistema operacional.",
                      font=tema.fonte(13), text_color=tema.SUAVE).pack(anchor="w", padx=18, pady=(0, 10))
         dados = _ler()
         atual = dados.get("aparencia", "Light")

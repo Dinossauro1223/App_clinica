@@ -11,9 +11,10 @@ import tkinter as tk
 
 import customtkinter as ctk
 from PIL import Image, ImageTk
+import tema
 
 
-FUNDO = "#F8FCF5"
+FUNDO = tema.FUNDO
 LARGURA_BASE = 1533
 ALTURA_BASE = 1026
 
@@ -23,7 +24,7 @@ class TelaBoasVindas:
         self.master = master
         self.ao_entrar = ao_entrar
         self.frame = ctk.CTkFrame(master, fg_color=FUNDO, corner_radius=0)
-        self.canvas = tk.Canvas(self.frame, bg=FUNDO, highlightthickness=0, bd=0)
+        self.canvas = tk.Canvas(self.frame, bg=tema.cor_atual(FUNDO), highlightthickness=0, bd=0)
         self.canvas.pack(fill="both", expand=True)
         base = self._base_path()
         self.pasta = os.path.join(base, "identidade_camadas")
@@ -146,7 +147,7 @@ class TelaBoasVindas:
         if self._opcoes_visiveis:
             self.canvas.create_text(
                 self._px(766), self._py(760), text="Escolha por onde deseja começar",
-                fill="#064D3C",
+                fill=tema.cor_atual(tema.VERDE_ESC),
                 font=("Segoe UI", max(14, int(23 * self._escala)), "bold"),
                 anchor="center"
             )
@@ -154,13 +155,13 @@ class TelaBoasVindas:
         else:
             self._item_instrucao = self.canvas.create_text(
                 self._px(766), self._py(974), text="Clique em qualquer lugar para continuar",
-                fill="#287B58", font=("Segoe UI", max(10, int(15 * self._escala)), "bold"),
+                fill=tema.cor_atual(tema.VERDE), font=("Segoe UI", max(10, int(15 * self._escala)), "bold"),
                 anchor="center"
             )
         self.canvas.create_text(
             self._px(500), self._py(1005),
             text="© 2026 Neis Bila de Alencar. Todos os direitos reservados.",
-            fill="#52746A", font=("Segoe UI", max(8, int(10 * self._escala))),
+            fill=tema.cor_atual(tema.SUAVE), font=("Segoe UI", max(8, int(10 * self._escala))),
             anchor="center"
         )
 
@@ -187,19 +188,19 @@ class TelaBoasVindas:
             tag = "opcao-" + chave
             self.canvas.create_text(
                 self._px(centro), self._py(804), text=titulo,
-                fill="#08764B",
+                fill=tema.cor_atual(tema.VERDE),
                 font=("Segoe UI", max(13, int(18 * self._escala)), "bold"),
                 anchor="center", tags=(tag,)
             )
             self.canvas.create_text(
                 self._px(centro), self._py(846), text=descricao,
-                fill="#536968",
+                fill=tema.cor_atual(tema.SUAVE),
                 font=("Segoe UI", max(10, int(12 * self._escala))),
                 anchor="center", justify="center", tags=(tag,)
             )
             self.canvas.create_text(
                 self._px(centro), self._py(892), text="ENTRAR  ›",
-                fill="#176D42",
+                fill=tema.cor_atual(tema.VERDE_HOVER),
                 font=("Segoe UI", max(10, int(12 * self._escala)), "bold"),
                 anchor="center", tags=(tag,)
             )

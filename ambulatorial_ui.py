@@ -8,12 +8,13 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
 import ambulatorial as amb
+import tema
 
-VERDE = "#1b5e20"
-BOTAO = "#4caf50"
-HOVER = "#388e3c"
-BORDA = "#a5d6a7"
-BRANCO = "#ffffff"
+VERDE = tema.VERDE
+BOTAO = tema.VERDE
+HOVER = tema.VERDE_HOVER
+BORDA = tema.BORDA
+BRANCO = tema.BRANCO
 
 CAMPOS = {
     "História e objetivos": [
@@ -42,12 +43,12 @@ CAMPOS = {
 
 class PainelConsultaEstruturada(ctk.CTkFrame):
     def __init__(self, master, db_path, pasta_dados, **kwargs):
-        super().__init__(master, fg_color="#e8f5e9", corner_radius=8, **kwargs)
+        super().__init__(master, fg_color=tema.FUNDO, corner_radius=8, **kwargs)
         self.db_path, self.pasta_dados = db_path, pasta_dados
         self.campos, self.medicamentos, self.metas, self.vars_docs = {}, [], [], {}
         ctk.CTkLabel(self, text="Anamnese guiada e plano de cuidado", text_color=VERDE,
                      font=ctk.CTkFont(size=17, weight="bold")).pack(anchor="w", padx=12, pady=(10, 3))
-        self.tabs = ctk.CTkTabview(self, fg_color="#f1f8ea")
+        self.tabs = ctk.CTkTabview(self, fg_color=tema.FUNDO)
         self.tabs.pack(fill="both", expand=True, padx=8, pady=8)
         abas = {nome: self.tabs.add(nome) for nome in
                 ("Anamnese", "Medicamentos", "Metas", "Recordatório 24 h", "Recomendações DOCX")}
@@ -58,7 +59,7 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
         self._documentos(abas["Recomendações DOCX"])
 
     def _anamnese(self, master):
-        tabs = ctk.CTkTabview(master, fg_color="#e8f5e9")
+        tabs = ctk.CTkTabview(master, fg_color=tema.FUNDO)
         tabs.pack(fill="both", expand=True, padx=4, pady=4)
         for secao, campos in CAMPOS.items():
             aba = tabs.add(secao)
@@ -70,13 +71,13 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
                 ctk.CTkLabel(bloco, text=rotulo, text_color=VERDE,
                              font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w")
                 campo = ctk.CTkTextbox(bloco, height=altura * 28, fg_color=BRANCO,
-                                       border_width=1, border_color=BORDA, text_color="#263238")
+                                       border_width=1, border_color=BORDA, text_color=tema.TEXTO)
                 campo.pack(fill="x")
                 self.campos[chave] = campo
 
     def _medicamentos(self, master):
         ctk.CTkLabel(master, text="Cada medicamento tem campos próprios. Registre o relato e confira com a prescrição.",
-                     text_color="#455a64", wraplength=720).pack(anchor="w", padx=8, pady=8)
+                     text_color=tema.SUAVE, wraplength=720).pack(anchor="w", padx=8, pady=8)
         self.box_med = ctk.CTkScrollableFrame(master, fg_color="transparent", height=235)
         self.box_med.pack(fill="both", expand=True, padx=6)
         ctk.CTkButton(master, text="+ Adicionar medicamento", command=self.adicionar_medicamento,
@@ -91,16 +92,16 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
                  ("frequencia", "Frequência/horário", 125), ("indicacao", "Indicação", 125))
         for col, (chave, hint, largura) in enumerate(specs):
             campo = ctk.CTkEntry(linha, width=largura, placeholder_text=hint,
-                                 fg_color=BRANCO, border_color=BORDA, text_color="#263238")
+                                 fg_color=BRANCO, border_color=BORDA, text_color=tema.TEXTO)
             campo.grid(row=0, column=col, padx=3, pady=6)
             campos[chave] = campo
-        ctk.CTkButton(linha, text="×", width=30, fg_color="#c62828",
+        ctk.CTkButton(linha, text="×", width=30, fg_color=tema.ERRO,
                       command=lambda f=linha: self._remover(self.medicamentos, f)).grid(row=0, column=5, padx=3)
         self.medicamentos.append((linha, campos))
 
     def _metas(self, master):
         ctk.CTkLabel(master, text="Metas são registradas separadamente e definidas pelo profissional.",
-                     text_color="#455a64").pack(anchor="w", padx=8, pady=8)
+                     text_color=tema.SUAVE).pack(anchor="w", padx=8, pady=8)
         self.box_metas = ctk.CTkScrollableFrame(master, fg_color="transparent", height=235)
         self.box_metas.pack(fill="both", expand=True, padx=6)
         ctk.CTkButton(master, text="+ Adicionar meta", command=self.adicionar_meta,
@@ -115,10 +116,10 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
                  ("prazo", "Prazo", 105), ("status", "Situação", 105))
         for col, (chave, hint, largura) in enumerate(specs):
             campo = ctk.CTkEntry(linha, width=largura, placeholder_text=hint,
-                                 fg_color=BRANCO, border_color=BORDA, text_color="#263238")
+                                 fg_color=BRANCO, border_color=BORDA, text_color=tema.TEXTO)
             campo.grid(row=0, column=col, padx=3, pady=6)
             campos[chave] = campo
-        ctk.CTkButton(linha, text="×", width=30, fg_color="#c62828",
+        ctk.CTkButton(linha, text="×", width=30, fg_color=tema.ERRO,
                       command=lambda f=linha: self._remover(self.metas, f)).grid(row=0, column=4, padx=3)
         self.metas.append((linha, campos))
 
@@ -129,22 +130,22 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
 
     def _recordatorio(self, master):
         ctk.CTkLabel(master, text="Opcional: horário/refeição, alimentos e bebidas, quantidades, preparo e local de consumo.",
-                     text_color="#455a64", wraplength=720).pack(anchor="w", padx=8, pady=8)
+                     text_color=tema.SUAVE, wraplength=720).pack(anchor="w", padx=8, pady=8)
         self.recordatorio = ctk.CTkTextbox(master, height=250, fg_color=BRANCO,
-                                           border_width=1, border_color=BORDA, text_color="#263238")
+                                           border_width=1, border_color=BORDA, text_color=tema.TEXTO)
         self.recordatorio.pack(fill="both", expand=True, padx=8, pady=8)
 
     def _documentos(self, master):
         ctk.CTkLabel(master, text="Cadastre documentos Word reutilizáveis e selecione os que serão associados a este paciente/consulta.",
-                     text_color="#455a64", wraplength=720).pack(anchor="w", padx=8, pady=(8, 4))
+                     text_color=tema.SUAVE, wraplength=720).pack(anchor="w", padx=8, pady=(8, 4))
         barra = ctk.CTkFrame(master, fg_color="transparent")
         barra.pack(fill="x", padx=8, pady=4)
         ctk.CTkButton(barra, text="Cadastrar novo DOCX", command=self._novo_docx,
                       fg_color=BOTAO, hover_color=HOVER).pack(side="left", padx=(0, 6))
         ctk.CTkButton(barra, text="Atualizar lista", command=self._listar_docs,
-                      fg_color="#607d8b").pack(side="left")
+                      fg_color=tema.SUAVE).pack(side="left")
         self.conduta_doc = ctk.CTkEntry(master, placeholder_text="Conduta/plano relacionado aos documentos (opcional)",
-                                        fg_color=BRANCO, border_color=BORDA, text_color="#263238")
+                                        fg_color=BRANCO, border_color=BORDA, text_color=tema.TEXTO)
         self.conduta_doc.pack(fill="x", padx=8, pady=4)
         self.lista_docs = ctk.CTkScrollableFrame(master, fg_color="transparent", height=190)
         self.lista_docs.pack(fill="both", expand=True, padx=6, pady=4)
@@ -162,7 +163,7 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
             return
         if not docs:
             ctk.CTkLabel(self.lista_docs, text="Biblioteca vazia. Cadastre um DOCX para começar.",
-                         text_color="#455a64").pack(anchor="w", pady=8)
+                         text_color=tema.SUAVE).pack(anchor="w", pady=8)
             return
         for doc in docs:
             var = tk.BooleanVar(value=False)
@@ -170,8 +171,8 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
             linha = ctk.CTkFrame(self.lista_docs, fg_color=BRANCO)
             linha.pack(fill="x", pady=3)
             ctk.CTkCheckBox(linha, text=f'{doc["titulo"]} — {doc["caso_clinico"]}',
-                            variable=var, text_color="#263238").pack(side="left", padx=8, pady=6)
-            ctk.CTkButton(linha, text="Abrir", width=55, fg_color="#607d8b",
+                            variable=var, text_color=tema.TEXTO).pack(side="left", padx=8, pady=6)
+            ctk.CTkButton(linha, text="Abrir", width=55, fg_color=tema.SUAVE,
                           command=lambda d=doc: self._abrir_docx(d)).pack(side="right", padx=6, pady=4)
 
     def _novo_docx(self):
@@ -201,7 +202,7 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
                                      ("tags", "Palavras-chave (opcional)", "Ex.: DM; educação alimentar")):
             ctk.CTkLabel(painel, text=rotulo, text_color=VERDE).pack(anchor="w", padx=14, pady=(10, 2))
             campo = ctk.CTkEntry(painel, width=510, placeholder_text=dica,
-                                 fg_color=BRANCO, border_color=BORDA, text_color="#263238")
+                                 fg_color=BRANCO, border_color=BORDA, text_color=tema.TEXTO)
             campo.pack(padx=14)
             entradas[chave] = campo
         arquivo = {"path": ""}
@@ -298,17 +299,17 @@ class DialogoAssociacoesExames(ctk.CTkFrame):
         self.combo_tipo.pack(anchor="w", padx=14)
         self.combo_tipo.set("Exame recomendado")
         self.valor = ctk.CTkEntry(self, width=520, placeholder_text="ID do exame sugerido ou nome do diagnóstico",
-                                  fg_color=BRANCO, border_color=BORDA, text_color="#263238")
+                                  fg_color=BRANCO, border_color=BORDA, text_color=tema.TEXTO)
         self.valor.pack(anchor="w", padx=14, pady=6)
         self.justificativa = ctk.CTkEntry(self, width=680, placeholder_text="Justificativa da associação (opcional)",
-                                          fg_color=BRANCO, border_color=BORDA, text_color="#263238")
+                                          fg_color=BRANCO, border_color=BORDA, text_color=tema.TEXTO)
         self.justificativa.pack(anchor="w", padx=14, pady=4)
         self.fonte = ctk.CTkEntry(self, width=680, placeholder_text="Fonte/referência (opcional)",
-                                  fg_color=BRANCO, border_color=BORDA, text_color="#263238")
+                                  fg_color=BRANCO, border_color=BORDA, text_color=tema.TEXTO)
         self.fonte.pack(anchor="w", padx=14, pady=4)
         ctk.CTkButton(self, text="Adicionar associação", command=self.salvar,
                       fg_color=BOTAO, hover_color=HOVER).pack(anchor="w", padx=14, pady=8)
-        self.lista = ctk.CTkTextbox(self, height=220, fg_color=BRANCO, text_color="#263238")
+        self.lista = ctk.CTkTextbox(self, height=220, fg_color=BRANCO, text_color=tema.TEXTO)
         self.lista.pack(fill="both", expand=True, padx=14, pady=10)
         self.atualizar()
 

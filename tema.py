@@ -27,6 +27,10 @@ LARANJA_CLARO = ("#FFF1E0", "#3B2D1E")
 LARANJA_TEXTO = ("#9A4F00", "#F6BD79")
 TEXTO = ("#1B2B24", "#E5EEE8")
 SUAVE = ("#5F7368", "#A9B9AF")
+ERRO = ("#B3261E", "#F28B82")
+ERRO_HOVER = ("#8E0000", "#CF6679")
+AZUL = ("#1565C0", "#82B1FF")
+AZUL_HOVER = ("#0D47A1", "#5C8FE6")
 
 
 def cor_atual(paleta, modo=None):
@@ -61,16 +65,17 @@ def aplicar_tema_ttk(root: tk.Misc) -> None:
     style.configure("NutriLab.TFrame", background=fundo)
     style.configure("NutriLab.TLabel", background=fundo, foreground=texto)
     style.configure("NutriLab.TButton", padding=(10, 6))
-    for nome in ("Treeview", "NutriLab.Treeview"):
+    for nome in ("Treeview", "NutriLab.Treeview", "Mapa.Treeview"):
         style.configure(nome, rowheight=30, background=branco, fieldbackground=branco,
                         foreground=texto, bordercolor=borda, lightcolor=borda, darkcolor=borda,
                         borderwidth=1, relief="solid")
         style.map(nome, background=[("selected", selecionado)],
                   foreground=[("selected", texto_sel)])
-    style.configure("Treeview.Heading", background=fundo, foreground=texto,
-                    relief="solid", bordercolor=borda)
-    style.map("Treeview.Heading", background=[("active", selecionado)],
-              foreground=[("active", texto)])
+    for nome in ("Treeview.Heading", "NutriLab.Treeview.Heading", "Mapa.Treeview.Heading"):
+        style.configure(nome, background=fundo, foreground=texto,
+                        relief="solid", bordercolor=borda)
+        style.map(nome, background=[("active", selecionado)],
+                  foreground=[("active", texto)])
     style.configure("TEntry", fieldbackground=branco, foreground=texto)
     style.configure("TCombobox", fieldbackground=branco, foreground=texto,
                     background=fundo, arrowcolor=texto)
@@ -84,6 +89,9 @@ def aplicar_tema_ttk(root: tk.Misc) -> None:
                     widget.tag_configure(tag, background=fundo, foreground=texto)
                 for tag in ("linha_impar", "tbca_impar"):
                     widget.tag_configure(tag, background=branco, foreground=texto)
+                for tag in ("vago", "inativo"):
+                    widget.tag_configure(tag, foreground=suave)
+                widget.tag_configure("condpend", foreground=cor_atual(LARANJA))
         except (tk.TclError, AttributeError):
             pass
         try:

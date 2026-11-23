@@ -11,12 +11,13 @@ import customtkinter as ctk
 import gestao_alimentar_db as ga
 import integracao_mobile as im
 import ui_workers
+import tema
 
-VERDE_ESC = "#0F3D2E"
-VERDE = "#1E7A4F"
-VERDE_HOVER = "#17633F"
-LARANJA = "#ef6c00"
-CINZA = "#607d8b"
+VERDE_ESC = tema.VERDE_ESC
+VERDE = tema.VERDE
+VERDE_HOVER = tema.VERDE_HOVER
+LARANJA = tema.LARANJA
+CINZA = tema.SUAVE
 UNIDADES = ["g", "kg", "mg", "ml", "L", "un"]
 CATEGORIAS = ["Salada", "Acompanhamento", "Prato principal", "Guarnição", "Sobremesa", "Suco", "Preparação", "Outra"]
 
@@ -132,15 +133,15 @@ class GestaoAlimentarUI:
         topo.pack(fill="x", padx=18, pady=(12, 2))
         ctk.CTkLabel(topo, text="Gestão alimentar — Fichas técnicas", font=ctk.CTkFont(size=23, weight="bold"),
                      text_color=VERDE_ESC).pack(side="left")
-        _btn(topo, "Sincronizar Almoxarifado", self.sincronizar, 190, cor=CINZA, hover="#455a64").pack(side="right")
+        _btn(topo, "Sincronizar Almoxarifado", self.sincronizar, 190, cor=CINZA, hover=tema.SUAVE).pack(side="right")
         self.lbl_status = ctk.CTkLabel(area, text="Produtos do Almoxarifado ainda não sincronizados nesta sessão.",
-                                       text_color="#52645a", font=ctk.CTkFont(size=11), anchor="w")
+                                       text_color=tema.SUAVE, font=ctk.CTkFont(size=11), anchor="w")
         self.lbl_status.pack(fill="x", padx=20, pady=(0, 5))
 
         self.tabs = ctk.CTkTabview(area, segmented_button_selected_color=VERDE,
                                   segmented_button_selected_hover_color=VERDE_HOVER,
-                                  segmented_button_unselected_color="#9eada4",
-                                  segmented_button_unselected_hover_color="#71857a")
+                                  segmented_button_unselected_color=tema.SUAVE,
+                                  segmented_button_unselected_hover_color=tema.SUAVE)
         self.tabs.pack(fill="both", expand=True, padx=14, pady=(2, 12))
         self.tab_fichas = self.tabs.add("Fichas técnicas")
         self.tab_almox = self.tabs.add("Almoxarifado")
@@ -160,10 +161,10 @@ class GestaoAlimentarUI:
         barra = ctk.CTkFrame(self.tab_fichas, fg_color="transparent")
         barra.pack(fill="x", padx=8, pady=(6, 4))
         _btn(barra, "＋ Nova ficha", self.nova_ficha, 125).pack(side="left")
-        _btn(barra, "Editar selecionada", self.editar_ficha, 150, cor=CINZA, hover="#455a64").pack(side="left", padx=6)
-        _btn(barra, "Inativar", self.inativar_ficha, 95, cor=LARANJA, hover="#e65100").pack(side="left")
+        _btn(barra, "Editar selecionada", self.editar_ficha, 150, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=6)
+        _btn(barra, "Inativar", self.inativar_ficha, 95, cor=LARANJA, hover=tema.LARANJA).pack(side="left")
         ctk.CTkLabel(barra, text="Selecione uma ficha para ver cálculo, custo e estoque.",
-                     font=ctk.CTkFont(size=11), text_color="#546e7a").pack(side="left", padx=12)
+                     font=ctk.CTkFont(size=11), text_color=tema.SUAVE).pack(side="left", padx=12)
 
         corpo = ctk.CTkFrame(self.tab_fichas, fg_color="transparent")
         corpo.pack(fill="both", expand=True, padx=7, pady=(3, 6))
@@ -183,7 +184,7 @@ class GestaoAlimentarUI:
         ctk.CTkLabel(direita, text="Composição e resultado", font=ctk.CTkFont(size=14, weight="bold"),
                      text_color=VERDE_ESC).pack(anchor="w", padx=10, pady=(9, 2))
         self.lbl_resumo = ctk.CTkLabel(direita, text="Nenhuma ficha selecionada.", anchor="w", justify="left",
-                                       wraplength=720, font=ctk.CTkFont(size=12), text_color="#31443a")
+                                       wraplength=720, font=ctk.CTkFont(size=12), text_color=tema.TEXTO)
         self.lbl_resumo.pack(fill="x", padx=10, pady=(2, 8))
         frame, self.ingredientes_tree = _tree(direita, [
             ("nome", "Ingrediente", 185, "w"), ("qtd", "Per capita", 95, "e"),
@@ -191,7 +192,7 @@ class GestaoAlimentarUI:
             ("custo", "Custo total", 100, "e"), ("estoque", "Estoque", 100, "center")], altura=13)
         frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         self.lbl_nutrientes = ctk.CTkLabel(direita, text="", anchor="w", justify="left", wraplength=720,
-                                          font=ctk.CTkFont(size=11), text_color="#455a64")
+                                          font=ctk.CTkFont(size=11), text_color=tema.SUAVE)
         self.lbl_nutrientes.pack(fill="x", padx=10, pady=(0, 10))
 
     def _montar_tab_almox(self):
@@ -199,10 +200,10 @@ class GestaoAlimentarUI:
         topo.pack(fill="x", padx=8, pady=(8, 4))
         ctk.CTkLabel(topo, text="Itens recebidos do estoque Almoxarifado no mobile",
                      font=ctk.CTkFont(size=14, weight="bold"), text_color=VERDE_ESC).pack(side="left")
-        _btn(topo, "Atualizar agora", self.sincronizar, 125, cor=CINZA, hover="#455a64").pack(side="right")
+        _btn(topo, "Atualizar agora", self.sincronizar, 125, cor=CINZA, hover=tema.SUAVE).pack(side="right")
         ctk.CTkLabel(self.tab_almox,
                      text="O saldo é lido do mobile. Preço unitário refere-se à unidade de estoque cadastrada; conteúdo da embalagem informa quantos g/ml/un essa unidade contém.",
-                     font=ctk.CTkFont(size=11), text_color="#546e7a", anchor="w", justify="left", wraplength=900).pack(fill="x", padx=10, pady=4)
+                     font=ctk.CTkFont(size=11), text_color=tema.SUAVE, anchor="w", justify="left", wraplength=900).pack(fill="x", padx=10, pady=4)
         frame, self.produtos_tree = _tree(self.tab_almox, [
             ("nome", "Produto", 220, "w"), ("un", "Un. estoque", 95, "center"),
             ("preco", "Preço unitário", 110, "e"), ("emb", "Conteúdo/unidade", 125, "e"),
@@ -220,10 +221,10 @@ class GestaoAlimentarUI:
         busca.pack(side="right", padx=(4, 0))
         busca.bind("<Return>", lambda _e: self.buscar_tbca())
         busca.bind("<KeyRelease>", lambda _e: self.buscar_tbca())
-        _btn(topo, "Buscar", self.buscar_tbca, 85, cor=CINZA, hover="#455a64").pack(side="right")
+        _btn(topo, "Buscar", self.buscar_tbca, 85, cor=CINZA, hover=tema.SUAVE).pack(side="right")
         ctk.CTkLabel(self.tab_tbca,
                      text="Importa a aba ‘TBCA (2024)’ do arquivo de referência. As demais abas de fórmulas da planilha não são executadas pelo aplicativo; a ficha aplica seus próprios cálculos validados.",
-                     font=ctk.CTkFont(size=11), text_color="#546e7a", anchor="w", justify="left", wraplength=930).pack(fill="x", padx=10, pady=3)
+                     font=ctk.CTkFont(size=11), text_color=tema.SUAVE, anchor="w", justify="left", wraplength=930).pack(fill="x", padx=10, pady=3)
         frame, self.tbca_tree = _tree(self.tab_tbca, [
             ("id", "ID", 90, "center"), ("alimento", "Alimento", 330, "w"),
             ("kcal", "kcal/100g", 90, "e"), ("proteina", "Proteína/100g", 110, "e"),
@@ -406,17 +407,17 @@ class GestaoAlimentarUI:
         self.e_consumo_fim.pack(side="left", padx=3)
         self.e_consumo_fim.insert(0, hoje.isoformat())
         _btn(topo, "Importar retiradas mobile", self.importar_retiradas, 170, cor=VERDE).pack(side="left", padx=4)
-        _btn(topo, "Atualizar relatório", self.carregar_consumo, 135, cor=CINZA, hover="#455a64").pack(side="left", padx=4)
-        _btn(topo, "Preparações esperadas", self.abrir_preparacoes, 165, cor=CINZA, hover="#455a64").pack(side="left", padx=4)
+        _btn(topo, "Atualizar relatório", self.carregar_consumo, 135, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
+        _btn(topo, "Preparações esperadas", self.abrir_preparacoes, 165, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
         self.lbl_consumo_status = ctk.CTkLabel(self.tab_consumo,
             text="Importe o histórico de retiradas Almoxarifado → Cozinha. Movimentos Cozinha → Copa não entram como novo consumo.",
-            anchor="w", justify="left", text_color="#52645a", font=ctk.CTkFont(size=11))
+            anchor="w", justify="left", text_color=tema.SUAVE, font=ctk.CTkFont(size=11))
         self.lbl_consumo_status.pack(fill="x", padx=12, pady=(0, 5))
 
         sub = ctk.CTkTabview(self.tab_consumo, segmented_button_selected_color=VERDE,
                             segmented_button_selected_hover_color=VERDE_HOVER,
-                            segmented_button_unselected_color="#9eada4",
-                            segmented_button_unselected_hover_color="#71857a")
+                            segmented_button_unselected_color=tema.SUAVE,
+                            segmented_button_unselected_hover_color=tema.SUAVE)
         sub.pack(fill="both", expand=True, padx=6, pady=(0, 6))
         tab_mov = sub.add("Retiradas e destinações")
         tab_med = sub.add("Média por ingrediente")
@@ -438,7 +439,7 @@ class GestaoAlimentarUI:
             ("custo","Custo retirado",105,"e")],altura=16)
         frame.pack(fill="both",expand=True,padx=6,pady=6)
         ctk.CTkLabel(tab_med,text="A média diária divide o total retirado pelos dias do período. O intervalo médio considera apenas datas em que houve retirada; nenhum desses indicadores equivale sozinho ao consumo efetivo.",
-                     text_color="#546e7a",font=ctk.CTkFont(size=10),wraplength=850,justify="left").pack(anchor="w",padx=9,pady=(0,8))
+                     text_color=tema.SUAVE,font=ctk.CTkFont(size=10),wraplength=850,justify="left").pack(anchor="w",padx=9,pady=(0,8))
         frame,self.tree_preparacoes_consumo = _tree(tab_prep,[
             ("refeicao","Refeição",90,"center"),("preparacao","Preparação",180,"w"),
             ("item","Ingrediente",175,"w"),("media","Média/execução",110,"e"),
@@ -446,7 +447,7 @@ class GestaoAlimentarUI:
             ("custo","Custo observado",110,"e")],altura=16)
         frame.pack(fill="both",expand=True,padx=6,pady=6)
         ctk.CTkLabel(tab_prep,text="As quantidades associadas são observacionais. Porção média só aparece quando as porções previstas foram informadas em todas as execuções contabilizadas.",
-                     text_color="#546e7a",font=ctk.CTkFont(size=10),wraplength=850,justify="left").pack(anchor="w",padx=9,pady=(0,8))
+                     text_color=tema.SUAVE,font=ctk.CTkFont(size=10),wraplength=850,justify="left").pack(anchor="w",padx=9,pady=(0,8))
 
     def _periodo_consumo(self):
         ini, fim = self.e_consumo_inicio.get().strip(), self.e_consumo_fim.get().strip()
@@ -654,18 +655,18 @@ class FichaDialog:
         ctk.CTkLabel(barra, text="Ingredientes", font=ctk.CTkFont(size=15, weight="bold"), text_color=VERDE_ESC).pack(side="left")
         _btn(barra, "＋ Adicionar ingrediente", self.adicionar_linha, 175).pack(side="right")
         ctk.CTkLabel(area, text="Selecione o alimento da TBCA para preencher nome e referência nutricional. O vínculo com o Almoxarifado é separado e opcional: associa o ingrediente ao item do estoque e usa seu preço/estoque sincronizados.",
-                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1250).pack(anchor="w", padx=17, pady=(0, 2))
+                     text_color=tema.SUAVE, font=ctk.CTkFont(size=10), wraplength=1250).pack(anchor="w", padx=17, pady=(0, 2))
         ctk.CTkLabel(area, text="Preço manual: R$ por unidade da medida escolhida (g, kg, ml, L ou un). Quando preenchido, prevalece sobre o preço do Almoxarifado.",
-                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1250).pack(anchor="w", padx=17, pady=(0, 2))
+                     text_color=tema.SUAVE, font=ctk.CTkFont(size=10), wraplength=1250).pack(anchor="w", padx=17, pady=(0, 2))
         ctk.CTkLabel(area, text="Campos por ingrediente: nome · quantidade per capita · unidade · fator de correção · alimento TBCA · medida caseira · NPU · densidade · vínculo Almoxarifado.",
-                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1100).pack(anchor="w", padx=17, pady=(0, 2))
-        self.scroll = ctk.CTkScrollableFrame(area, fg_color="#f4f7f5")
+                     text_color=tema.SUAVE, font=ctk.CTkFont(size=10), wraplength=1100).pack(anchor="w", padx=17, pady=(0, 2))
+        self.scroll = ctk.CTkScrollableFrame(area, fg_color=tema.FUNDO)
         self.scroll.pack(fill="both", expand=True, padx=15, pady=4)
         rodape = ctk.CTkFrame(area, fg_color="transparent")
         rodape.pack(fill="x", padx=15, pady=(4, 12))
         ctk.CTkLabel(rodape, text="* Campos obrigatórios. Volume só será convertido em gramas para os nutrientes com densidade informada.",
-                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=700).pack(side="left")
-        _btn(rodape, "Cancelar", self.janela.destroy, 100, cor=CINZA, hover="#455a64").pack(side="right", padx=(5, 0))
+                     text_color=tema.SUAVE, font=ctk.CTkFont(size=10), wraplength=700).pack(side="left")
+        _btn(rodape, "Cancelar", self.janela.destroy, 100, cor=CINZA, hover=tema.SUAVE).pack(side="right", padx=(5, 0))
         _btn(rodape, "Salvar ficha", self.salvar, 120).pack(side="right")
 
     def _preencher(self):
@@ -702,40 +703,40 @@ class FichaDialog:
 
         linha_tbca = ctk.CTkFrame(linha, fg_color="transparent")
         linha_tbca.pack(fill="x", padx=6, pady=2)
-        ctk.CTkLabel(linha_tbca, text="TBCA:", text_color="#455a64").pack(side="left", padx=(0, 4))
+        ctk.CTkLabel(linha_tbca, text="TBCA:", text_color=tema.SUAVE).pack(side="left", padx=(0, 4))
         tbca = ctk.CTkComboBox(
             linha_tbca, width=210, values=self._opcoes_tbca,
             command=lambda valor: self._selecionar_tbca(registro, valor)
         )
         tbca.set("— selecionar alimento da TBCA —")
         tbca.pack(side="left", padx=3, pady=3)
-        ctk.CTkLabel(linha_tbca, text="Medida caseira:", text_color="#455a64").pack(side="left", padx=(8, 4))
+        ctk.CTkLabel(linha_tbca, text="Medida caseira:", text_color=tema.SUAVE).pack(side="left", padx=(8, 4))
         medida = ctk.CTkEntry(linha_tbca, width=120, placeholder_text="Ex.: 1 colher")
         medida.pack(side="left", padx=3, pady=3)
 
         linha_referencias = ctk.CTkFrame(linha, fg_color="transparent")
         linha_referencias.pack(fill="x", padx=6, pady=2)
-        ctk.CTkLabel(linha_referencias, text="NPU:", text_color="#455a64").pack(side="left", padx=(0, 4))
+        ctk.CTkLabel(linha_referencias, text="NPU:", text_color=tema.SUAVE).pack(side="left", padx=(0, 4))
         npu = ctk.CTkEntry(linha_referencias, width=75, placeholder_text="NPU")
         npu.pack(side="left", padx=3, pady=3)
-        ctk.CTkLabel(linha_referencias, text="Densidade (g/mL):", text_color="#455a64").pack(side="left", padx=(8, 4))
+        ctk.CTkLabel(linha_referencias, text="Densidade (g/mL):", text_color=tema.SUAVE).pack(side="left", padx=(8, 4))
         dens = ctk.CTkEntry(linha_referencias, width=95, placeholder_text="g/mL")
         dens.pack(side="left", padx=3, pady=3)
 
         linha_estoque = ctk.CTkFrame(linha, fg_color="transparent")
         linha_estoque.pack(fill="x", padx=6, pady=(2, 6))
         opcoes = ["— sem vínculo com Almoxarifado —"] + [f"{p['id_mobile']} | {p['nome']}" for p in self.produtos]
-        ctk.CTkLabel(linha_estoque, text="Almoxarifado:", text_color="#455a64").pack(side="left", padx=(0, 4))
+        ctk.CTkLabel(linha_estoque, text="Almoxarifado:", text_color=tema.SUAVE).pack(side="left", padx=(0, 4))
         produto = ctk.CTkComboBox(linha_estoque, width=170, values=opcoes)
         produto.set(opcoes[0])
         produto.pack(side="left", padx=3, pady=3)
         ctk.CTkLabel(linha_estoque, text="Preço manual (R$/unid.):", width=130,
-                     font=ctk.CTkFont(size=11), text_color="#455a64").pack(side="left", padx=(8, 3))
+                     font=ctk.CTkFont(size=11), text_color=tema.SUAVE).pack(side="left", padx=(8, 3))
         preco = ctk.CTkEntry(linha_estoque, width=90, placeholder_text="0,00")
         preco.pack(side="left", padx=3, pady=3)
         remover = ctk.CTkButton(
             linha_identificacao, text="×", width=28, height=28,
-            fg_color="#b71c1c", hover_color="#8e0000",
+            fg_color=tema.ERRO_HOVER, hover_color=tema.ERRO_HOVER,
             command=lambda: self._remover_linha(registro)
         )
         remover.pack(side="left", padx=4)
@@ -845,7 +846,7 @@ class PreparacoesDiaDialog:
         ctk.CTkLabel(topo,text="Refeição").pack(side="left",padx=(12,3))
         self.cb_ref=ctk.CTkComboBox(topo,width=150,values=["desjejum","colacao","almoco","lanche","jantar","ceia"])
         self.cb_ref.set("almoco");self.cb_ref.pack(side="left")
-        _btn(topo,"Carregar",self._carregar,100,cor=CINZA,hover="#455a64").pack(side="left",padx=6)
+        _btn(topo,"Carregar",self._carregar,100,cor=CINZA,hover=tema.SUAVE).pack(side="left",padx=6)
         bloco=ctk.CTkFrame(area);bloco.pack(fill="x",padx=14,pady=5)
         self.e_nome=ctk.CTkEntry(bloco,width=230,placeholder_text="Nome da preparação esperada")
         self.e_nome.pack(side="left",padx=6,pady=8)
@@ -858,7 +859,7 @@ class PreparacoesDiaDialog:
         frame,self.tree=_tree(area,[("nome","Preparação",260,"w"),("porcoes","Porções previstas",115,"e"),("ficha","Ficha vinculada",250,"w")],altura=12)
         frame.pack(fill="both",expand=True,padx=14,pady=5)
         rod=ctk.CTkFrame(area,fg_color="transparent");rod.pack(fill="x",padx=14,pady=(4,12))
-        _btn(rod,"Remover selecionada",self._remover,155,cor=LARANJA,hover="#e65100").pack(side="left")
+        _btn(rod,"Remover selecionada",self._remover,155,cor=LARANJA,hover=tema.LARANJA).pack(side="left")
         _btn(rod,"Salvar cardápio esperado",self._salvar,190).pack(side="right")
 
     def _carregar(self):
@@ -943,7 +944,7 @@ class AlocarRetiradaDialog:
         self.e_data_prep=ctk.CTkEntry(filt,width=112);self.e_data_prep.pack(side="left",padx=4);self.e_data_prep.insert(0,m["data"])
         self.cb_ref=ctk.CTkComboBox(filt,width=130,values=["todas","desjejum","colacao","almoco","lanche","jantar","ceia"])
         self.cb_ref.set("todas");self.cb_ref.pack(side="left",padx=4)
-        _btn(filt,"Carregar preparações",self._carregar_preps,145,cor=CINZA,hover="#455a64").pack(side="left",padx=4)
+        _btn(filt,"Carregar preparações",self._carregar_preps,145,cor=CINZA,hover=tema.SUAVE).pack(side="left",padx=4)
         area=ctk.CTkFrame(self.janela);area.pack(fill="x",padx=14,pady=6)
         self.cb_tipo=ctk.CTkComboBox(area,width=200,values=list(self.TIPOS))
         self.cb_tipo.set("Preparação");self.cb_tipo.pack(side="left",padx=5,pady=8)
@@ -959,7 +960,7 @@ class AlocarRetiradaDialog:
         self.lbl_pendente=ctk.CTkLabel(self.janela,text="",anchor="w")
         self.lbl_pendente.pack(fill="x",padx=16,pady=(0,5))
         rod=ctk.CTkFrame(self.janela,fg_color="transparent");rod.pack(fill="x",padx=14,pady=(4,12))
-        _btn(rod,"Remover destino",self._remover,135,cor=LARANJA,hover="#e65100").pack(side="left")
+        _btn(rod,"Remover destino",self._remover,135,cor=LARANJA,hover=tema.LARANJA).pack(side="left")
         _btn(rod,"Salvar destinações",self._salvar,155).pack(side="right")
 
     def _carregar_preps(self):
@@ -1010,9 +1011,9 @@ class AlocarRetiradaDialog:
         pend=max(0,float(self.mov["qtd"])-total)
         self.lbl_pendente.configure(text=f"Retirada: {_fmt_num(self.mov['qtd'])} {self.mov['unidade']} · Destinado: {_fmt_num(total)} · Sem destino: {_fmt_num(pend)} {self.mov['unidade']}")
         if total>float(self.mov["qtd"])+1e-8:
-            self.lbl_pendente.configure(text=self.lbl_pendente.cget("text")+" — a soma ultrapassa a retirada; corrija antes de salvar.",text_color="#b3261e")
+            self.lbl_pendente.configure(text=self.lbl_pendente.cget("text")+" — a soma ultrapassa a retirada; corrija antes de salvar.",text_color=tema.ERRO)
         else:
-            self.lbl_pendente.configure(text_color="#34443b")
+            self.lbl_pendente.configure(text_color=tema.TEXTO)
 
     def _remover(self):
         sel=self.tree.selection()
