@@ -4,8 +4,8 @@ title NutriLab - gerar o APK do celular
 cd /d "%~dp0"
 
 rem ======================================================================
-rem  NutriLab - Gerar_APK.bat  (criado em 12/11/2026, revisado em 14/11/2026)
-rem  Gera o aplicativo Android que abre o NutriLab Mobile no celular.
+rem  NutriLab - Gerar_APK.bat  (criado em 12/11/2026, revisado em 23/11/2026)
+rem  Gera o aplicativo Android que abre o NutriLab Mobile no celular.\nrem  23/11/2026: javac usa --release 8 + android.jar no classpath; não ocultar java.lang.invoke.
 rem  Primeira vez: baixa o JDK 17 e as ferramentas do Android, cerca de 600 MB
 rem  e 10 a 20 minutos. Depois: cerca de 1 minuto.
 rem  Saida: saida\NutriLab-Mobile.apk
@@ -140,7 +140,7 @@ set "PASSO=aapt2 link - manifesto e paginas"
 "%BT%\aapt2.exe" link -o "%OBJ%\base.apk" -I "%AJAR%" --manifest "%APP%\AndroidManifest.xml" -A "%APP%\assets" --min-sdk-version 26 --target-sdk-version 34 --version-code %VCODE% --version-name 1.0 "%OBJ%\res.zip" >>"%LOG%" 2>&1
 if errorlevel 1 goto :falha_build
 set "PASSO=javac - codigo Java"
-"%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 -source 8 -target 8 -bootclasspath "%AJAR%" -d "%OBJ%\classes" "%APP%\src\br\nutrilab\mobile\MainActivity.java" >>"%LOG%" 2>&1
+"%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 --release 8 -classpath "%AJAR%" -d "%OBJ%\classes" "%APP%\src\br\nutrilab\mobile\MainActivity.java" >>"%LOG%" 2>&1
 if errorlevel 1 goto :falha_build
 set "PASSO=jar - empacotar as classes"
 "%JAVA_HOME%\bin\jar.exe" cf "%OBJ%\classes.jar" -C "%OBJ%\classes" . >>"%LOG%" 2>&1
