@@ -72,6 +72,45 @@ def _tree(master, definicoes, altura=12):
     return frame, tree
 
 
+class _PainelJanela(ctk.CTkFrame):
+    """Container compatível com diálogos antigos, agora hospedado em uma guia lateral."""
+
+    def __init__(self, app, titulo):
+        self.app = app
+        self._painel_externo = bool(app and hasattr(app, "abrir_painel_lateral"))
+        if self._painel_externo:
+            self._painel_frame = app.abrir_painel_lateral(titulo, lambda: None)
+            pai = self._painel_frame
+        else:
+            self._painel_frame = None
+            pai = getattr(app, "area_principal", app)
+        super().__init__(pai, fg_color="transparent")
+        self.pack(fill="both", expand=True)
+
+    def title(self, *_args): return None
+    def geometry(self, *_args): return None
+    def minsize(self, *_args): return None
+    def transient(self, *_args): return None
+    def grab_set(self): return None
+    def protocol(self, *_args): return None
+    def resizable(self, *_args): return None
+    def attributes(self, *_args, **_kwargs): return None
+
+    def destroy(self):
+        if getattr(self, "_destroy_em_progresso", False):
+            return super().destroy()
+        if self._painel_externo and self._painel_frame is not None:
+            try:
+                if getattr(self._painel_frame, "_fechando_painel", False):
+                    return super().destroy()
+                self._destroy_em_progresso = True
+                self.app.fechar_painel_lateral(self._painel_frame)
+                return
+            except (tk.TclError, AttributeError):
+                pass
+        return super().destroy()
+
+
 class GestaoAlimentarUI:
     """Tela principal da função de fichas técnicas."""
 
@@ -583,7 +622,7 @@ class FichaDialog:
 
     def __init__(self, tela: GestaoAlimentarUI, ficha, ao_salvar):
         self.tela, self.ao_salvar, self.ficha = tela, ao_salvar, ficha
-        self.janela = ctk.CTkToplevel(tela.app)
+        self.janela = _PainelJanela(tela.app, "Editar ficha técnica" if ficha else "Nova ficha técnica")
         self.janela.title("Editar ficha técnica" if ficha else "Nova ficha técnica")
         self.janela.geometry("1320x720")
         self.janela.minsize(1080, 620)
@@ -681,6 +720,7 @@ class FichaDialog:
         produto = ctk.CTkComboBox(linha, width=225, values=opcoes)
         produto.set(opcoes[0])
         produto.pack(side="left", padx=2, pady=6)
+        ctk.CTkLabel(linha, text="Preço:").pack(side="left", padx=(5, 0))
         preco = ctk.CTkEntry(linha, width=90, placeholder_text="R$/unid.")
         preco.pack(side="left", padx=2, pady=6)
         remover = ctk.CTkButton(linha, text="×", width=28, height=28, fg_color="#b71c1c", hover_color="#8e0000",
@@ -774,7 +814,7 @@ class PreparacoesDiaDialog:
 
     def __init__(self, app, db_path, data, ao_salvar):
         self.app,self.db,self.data,self.ao_salvar=app,db_path,data,ao_salvar
-        self.janela=ctk.CTkToplevel(app)
+        self.janela=_PainelJanela(app, "Preparações esperadas — " + str(data))
         self.janela.title("Preparações esperadas — "+data)
         self.janela.geometry("820x570")
         self.janela.transient(app);self.janela.grab_set()
@@ -868,7 +908,7 @@ class AlocarRetiradaDialog:
 
     def __init__(self,app,db_path,movimento,ao_salvar):
         self.app,self.db,self.mov,self.ao_salvar=app,db_path,movimento,ao_salvar
-        self.janela=ctk.CTkToplevel(app)
+        self.janela=_PainelJanela(app, "Destinar retirada — " + str(movimento["item"]))
         self.janela.title("Destinar retirada — "+str(movimento["item"]))
         self.janela.geometry("920x620")
         self.janela.transient(app);self.janela.grab_set()

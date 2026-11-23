@@ -24,11 +24,12 @@ from db_esquema_legado import garantir_esquema_legado
 import atalhos_edicao
 import tema
 from mapa_ui import MapaUI
+from tela_boas_vindas import TelaBoasVindas
+from navegacao_ui import BarraLateral, PilhaAbasLaterais
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
 import ambulatorial
 import atualizador
 import ui_motion
-from tela_boas_vindas import TelaBoasVindas
 from backup_manager import BackupManager
 from ambulatorial_ui import PainelConsultaEstruturada, DialogoAssociacoesExames
 
@@ -128,10 +129,13 @@ class AppClinica(ctk.CTk):
         # Vale para todos os campos e tabelas de todas as janelas; a lista aparece com F1 (docs/desenvolvimento/ATALHOS_DE_TECLADO.md).
         atalhos_edicao.instalar(self)
 
-        self.title("NutriLab — Sistema de Gestão Clínica")
-        self.geometry("1280x800")
-        # Maximizada, mas sem modo fullscreen exclusivo: mantém a barra do Windows.
-        self.after(0, self._maximizar_janela)
+        self.title("Sistema de Gestão Clínica")
+        self.geometry("950x750")
+        try:
+            self.state("zoomed")
+        except tk.TclError:
+            self.geometry("1280x800")
+        self.attributes("-fullscreen", False)
         self.protocol("WM_DELETE_WINDOW", self._ao_fechar)
 
         self.grid_rowconfigure(0, weight=1)
@@ -157,77 +161,41 @@ class AppClinica(ctk.CTk):
         self.calculos_ambulatoriais = {}
         self.painel_consulta_estruturada = None
 
-        # --- MENU LATERAL ---
-        self.menu_lateral = ctk.CTkFrame(self, width=200, corner_radius=0, fg_color=tema.VERDE_ESC)
-        self.menu_lateral.grid(row=0, column=0, sticky="nsew")
-        self.menu_lateral.grid_rowconfigure(4, weight=1)
+        # --- NAVEGAÇÃO V4 + PILHA DE ABAS LATERAIS ---
+        self.area_principal_host = ctk.CTkFrame(self, corner_radius=10, fg_color=tema.FUNDO)
+        self.area_principal_host.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
+        self._pilha_abas_laterais = PilhaAbasLaterais(self.area_principal_host)
+        self._pilha_abas_laterais.pack(fill="both", expand=True)
+        self.area_principal = self._pilha_abas_laterais.pagina_atual
 
-        self.btn_menu_toggle = ctk.CTkButton(self.menu_lateral, text="☰", width=40, height=36,
-            fg_color="transparent", hover_color=tema.VERDE_HOVER, text_color="#ffffff",
-            font=ctk.CTkFont(size=18, weight="bold"), command=self.alternar_menu)
-        self.btn_menu_toggle.grid(row=0, column=0, padx=8, pady=(12, 8))
-        self.label_menu = ctk.CTkLabel(self.menu_lateral, text="Menu", font=ctk.CTkFont(size=24, weight="bold"), text_color="#ffffff")
-        self.label_menu.grid(row=0, column=1, padx=8, pady=(12, 8), sticky="w")
-
-        self.btn_pacientes = ctk.CTkButton(self.menu_lateral, text="Pacientes", command=self.tela_pacientes, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_pacientes.grid(row=1, column=0, padx=20, pady=10, columnspan=2)
-
-        self.btn_exames = ctk.CTkButton(self.menu_lateral, text="Catálogo de Exames", command=self.tela_exames, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_exames.grid(row=3, column=0, padx=20, pady=10, columnspan=2)
-
-        # --- Mapa Nutricional ---
-        self.menu_mapa = ctk.CTkFrame(self.menu_lateral, fg_color="transparent")
-        self.menu_mapa.grid(row=4, column=0, columnspan=2, sticky="new")
-        self.menu_mapa_botoes = []
-        for texto, comando in (("Mapa Nutricional", self.tela_mapa),
-                               ("Gráficos do Mês", self.tela_mapa_graficos),
-                               ("Suplementos", self.tela_suplementos),
-                               ("Almoxarifado", self.tela_almoxarifado),
-                               ("Mobile (copa)", self.tela_mobile),
-                               ("Triagem NRS-2002", self.tela_nrs),
-                               ("Avaliação nutricional", self.tela_avaliacao),
-                               ("Configurações", self.tela_configuracoes),
-                               ("Fichas e consumo da cozinha", self.tela_gestao_alimentar_fichas)):
-            botao = ctk.CTkButton(self.menu_mapa, text=texto, command=comando, fg_color=tema.VERDE,
-                          hover_color=tema.VERDE_HOVER, text_color="#ffffff", width=160,
-                          font=ctk.CTkFont(size=14, weight="bold"))
-            botao.pack(padx=20, pady=10)
-            self.menu_mapa_botoes.append((botao, texto))
-
-        # Rodapé fixado na parte inferior do menu lateral
-        self.label_copyright = ctk.CTkLabel(
-            self.menu_lateral,
-            text="© 2026 Neis Bila de Alencar. Todos os direitos reservados.",
-            font=ctk.CTkFont(size=10),
-            text_color="#ffffff",
-            justify="left",
-            wraplength=170,
+        secoes_menu = [
+            ("CLÍNICA", [
+                ("👥", "Pacientes", lambda: self.abrir_painel_lateral("Pacientes", self.tela_pacientes)),
+                ("🧪", "Catálogo de Exames", lambda: self.abrir_painel_lateral("Catálogo de Exames", self.tela_exames)),
+            ]),
+            ("MAPA NUTRICIONAL", [
+                ("🗺️", "Mapa Nutricional", lambda: self.abrir_painel_lateral("Mapa Nutricional", self.tela_mapa)),
+                ("📊", "Gráficos do Mês", lambda: self.abrir_painel_lateral("Gráficos do Mês", self.tela_mapa_graficos)),
+                ("🥣", "Suplementos", lambda: self.abrir_painel_lateral("Suplementos", self.tela_suplementos)),
+                ("📦", "Almoxarifado", lambda: self.abrir_painel_lateral("Almoxarifado", self.tela_almoxarifado)),
+                ("📱", "Mobile (copa)", lambda: self.abrir_painel_lateral("Mobile (copa)", self.tela_mobile)),
+            ]),
+            ("GESTÃO", [
+                ("🍲", "Fichas e consumo da cozinha", lambda: self.abrir_painel_lateral("Fichas e consumo", self.tela_gestao_alimentar_fichas)),
+            ]),
+        ]
+        self.menu_lateral = BarraLateral(
+            self, secoes=secoes_menu,
+            config=("⚙️", "Configurações", lambda: self.abrir_painel_lateral("Configurações", self.tela_configuracoes)),
+            rodape="© 2026 Neis Bila de Alencar. Todos os direitos reservados."
         )
-        self.label_copyright.grid(row=5, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="sw")
-
-        # --- ÁREA PRINCIPAL ---
-        self.area_principal = ctk.CTkFrame(self, corner_radius=10, fg_color=tema.FUNDO)
-        self.area_principal.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
-        
+        self.bind("<Escape>", self._fechar_ultima_aba_lateral, add="+")
         self.tela_inicial()
         self._iniciar_backups()
         self._iniciar_servidor_mobile()
         # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
         self.after(1200, lambda: atualizador.iniciar_verificacao(self, self._resultado_atualizacao))
 
-
-    def _maximizar_janela(self):
-        """Maximiza no Windows e ocupa a área disponível nos demais sistemas."""
-        try:
-            if sys.platform.startswith("win"):
-                self.state("zoomed")
-            else:
-                self.update_idletasks()
-                largura = self.winfo_screenwidth()
-                altura = self.winfo_screenheight()
-                self.geometry(f"{largura}x{altura}+0+0")
-        except Exception:
-            self.geometry("1280x800")
 
     def _iniciar_servidor_mobile(self):
         """Inicia o servidor local uma única vez; não assume propriedade de processo preexistente."""
@@ -378,62 +346,38 @@ class AppClinica(ctk.CTk):
         AvaliacaoUI(self, self.mapa.db).mostrar()
 
     def alternar_menu(self):
-        """Alterna entre o menu lateral compacto e o menu com rótulos."""
-        self.menu_compacto = not getattr(self, "menu_compacto", False)
-        compacto = self.menu_compacto
-        largura = 58 if compacto else 200
+        """Fixa ou solta a barra lateral v4."""
+        return self.menu_lateral.alternar()
+
+    def abrir_painel_lateral(self, titulo, comando):
+        """Abre uma nova guia lateral sem destruir as anteriores."""
+        frame = self._pilha_abas_laterais.abrir(titulo)
+        self.area_principal = frame
         try:
-            largura_atual = int(self.menu_lateral.cget("width"))
-        except (TypeError, ValueError, AttributeError):
-            largura_atual = 200 if compacto else 58
-        self.menu_lateral.grid_propagate(False)
-        ui_motion.animar_largura(
-            self.menu_lateral, largura_atual, largura, duracao_ms=190, passos=10,
-            ao_atualizar=lambda valor: self.grid_columnconfigure(0, minsize=valor))
-        self.grid_columnconfigure(1, weight=1)
-        if compacto:
-            self.label_menu.grid_remove()
-            self.label_copyright.grid_remove()
-            for botao, rotulo in ((self.btn_pacientes, "👥"), (self.btn_exames, "🧪")):
-                try:
-                    largura_botao = int(botao.cget("width"))
-                except (TypeError, ValueError, AttributeError):
-                    largura_botao = 160
-                botao.configure(text=rotulo, font=ctk.CTkFont(size=17, weight="bold"))
-                ui_motion.animar_largura(botao, largura_botao, 40, duracao_ms=160, passos=8)
-                botao.grid_configure(padx=8, pady=6)
-            icones = {"Mapa Nutricional": "🗺️", "Gráficos do Mês": "📊", "Suplementos": "🥣",
-                      "Almoxarifado": "📦", "Mobile (copa)": "📱", "Triagem NRS-2002": "🩺",
-                      "Avaliação nutricional": "🧮", "Configurações": "⚙️",
-                      "Fichas e consumo da cozinha": "🍲"}
-            for botao, rotulo in self.menu_mapa_botoes:
-                try:
-                    largura_botao = int(botao.cget("width"))
-                except (TypeError, ValueError, AttributeError):
-                    largura_botao = 160
-                botao.configure(text=icones.get(rotulo, "•"), font=ctk.CTkFont(size=17, weight="bold"))
-                ui_motion.animar_largura(botao, largura_botao, 40, duracao_ms=160, passos=8)
-                botao.pack_configure(padx=8, pady=6)
-        else:
-            self.label_menu.grid()
-            self.label_copyright.grid()
-            for botao, rotulo in ((self.btn_pacientes, "Pacientes"),
-                                  (self.btn_exames, "Catálogo de Exames")):
-                try:
-                    largura_botao = int(botao.cget("width"))
-                except (TypeError, ValueError, AttributeError):
-                    largura_botao = 40
-                botao.configure(text=rotulo, font=ctk.CTkFont(size=14, weight="bold"))
-                ui_motion.animar_largura(botao, largura_botao, 160, duracao_ms=160, passos=8)
-                botao.grid_configure(padx=20, pady=10)
-            for botao, rotulo in self.menu_mapa_botoes:
-                try:
-                    largura_botao = int(botao.cget("width"))
-                except (TypeError, ValueError, AttributeError):
-                    largura_botao = 40
-                botao.configure(text=rotulo, font=ctk.CTkFont(size=14, weight="bold"))
-                ui_motion.animar_largura(botao, largura_botao, 160, duracao_ms=160, passos=8)
-                botao.pack_configure(padx=20, pady=10)
+            comando()
+        except Exception:
+            self.area_principal = self._pilha_abas_laterais.fechar_ultima()
+            raise
+        return frame
+
+    def fechar_painel_lateral(self, frame):
+        """Fecha uma guia específica e restaura a página que ficou ativa."""
+        self.area_principal = self._pilha_abas_laterais.fechar(frame)
+        return self.area_principal
+
+    def _fechar_ultima_aba_lateral(self, event=None):
+        """ESC fecha somente a última guia lateral aberta e restaura a anterior."""
+        if getattr(self, "_tela_inicial_ativa", False):
+            return None
+        try:
+            foco = self.focus_get()
+            if foco is not None and foco.winfo_toplevel() is not self:
+                return None  # um diálogo modal tem prioridade sobre a pilha de páginas
+        except (tk.TclError, AttributeError):
+            pass
+        if self._pilha_abas_laterais.quantidade == 0:
+            return None
+        self.area_principal = self._pilha_abas_laterais.fechar_ultima()
         return "break"
 
     def configurar_banco_dados(self):
@@ -466,28 +410,25 @@ class AppClinica(ctk.CTk):
             widget.destroy()
 
     def tela_inicial(self):
-        """Apresentação vetorial em camadas transparentes e animação independente."""
+        """Apresentação inicial em camadas; a navegação é exibida após a escolha da área."""
+        self._pilha_abas_laterais.limpar()
+        self.area_principal = self._pilha_abas_laterais.pagina_atual
+        self._pilha_abas_laterais.pack_forget()
         self.limpar_area_principal()
         self._tela_inicial_ativa = True
-        self._areas_iniciais_visiveis = False
         self._timer_areas_iniciais = None
-        self.menu_lateral.grid_remove()
-        self.area_principal.grid_configure(row=0, column=0, padx=0, pady=0, sticky="nsew")
-        self.area_principal.configure(corner_radius=0)
+        self.menu_lateral.place_forget()
+        self.area_principal_host.grid_configure(row=0, column=0, padx=0, pady=0, sticky="nsew")
+        self.area_principal_host.configure(corner_radius=0)
         self.grid_columnconfigure(0, weight=1, minsize=0)
         self.grid_columnconfigure(1, weight=0, minsize=0)
-
-        self._tela_visual = TelaBoasVindas(
-            self.area_principal, self._entrar_na_area_inicial
+        self._tela_boas_vindas = TelaBoasVindas(
+            self.area_principal_host, self._entrar_na_area_inicial
         )
-        self._tela_boas_vindas = self._tela_visual.frame
-        self._tela_boas_vindas.pack(fill="both", expand=True)
-        self.bind("<Escape>", self._confirmar_saida_inicial)
-        self._timer_areas_iniciais = self.after(3500, self._mostrar_areas_iniciais)
-
-    def _revelar_areas_iniciais(self, event=None):
-        if getattr(self, "_tela_inicial_ativa", False):
-            self._mostrar_areas_iniciais()
+        self._tela_boas_vindas.frame.pack(fill="both", expand=True)
+        self._binding_esc_inicial = self.bind(
+            "<Escape>", self._confirmar_saida_inicial, add="+"
+        )
 
     def _mostrar_areas_iniciais(self):
         if not getattr(self, "_tela_inicial_ativa", False) or self._areas_iniciais_visiveis:
@@ -499,36 +440,65 @@ class AppClinica(ctk.CTk):
             except Exception:
                 pass
             self._timer_areas_iniciais = None
-        self._tela_visual.mostrar_opcoes()
+        self.label_instrucao_inicial.place_forget()
+        painel = ctk.CTkFrame(
+            self._tela_boas_vindas, fg_color="#F8FCF5",
+            border_color="#B8DCC8", border_width=1, corner_radius=18
+        )
+        painel.place(relx=0.5, rely=0.82, relwidth=0.78, anchor="center")
+        ctk.CTkLabel(
+            painel, text="Escolha por onde deseja começar",
+            text_color="#064D3C", font=ctk.CTkFont(size=23, weight="bold")
+        ).pack(pady=(14, 10))
+        opcoes = (
+            ("Gestão Clínica", "Pacientes, consultas, exames e avaliações", self.tela_pacientes),
+            ("Nutrição", "Mapa nutricional, gráficos e suplementos", self.tela_mapa),
+            ("Gestão Alimentar", "Almoxarifado, copa e fichas de consumo", self.tela_almoxarifado),
+        )
+        linha = ctk.CTkFrame(painel, fg_color="transparent")
+        linha.pack(fill="x", padx=14, pady=(0, 14))
+        for titulo, descricao, comando in opcoes:
+            cartao = ctk.CTkFrame(linha, fg_color="#FFFFFF", border_color="#C9E5D3",
+                                  border_width=1, corner_radius=12)
+            cartao.pack(side="left", fill="both", expand=True, padx=7)
+            ctk.CTkLabel(cartao, text=titulo, text_color="#08764B",
+                         font=ctk.CTkFont(size=17, weight="bold")).pack(padx=12, pady=(14, 5))
+            ctk.CTkLabel(cartao, text=descricao, text_color="#536968",
+                         font=ctk.CTkFont(size=12), wraplength=220).pack(padx=12, pady=(0, 12))
+            ctk.CTkButton(
+                cartao, text="Entrar", fg_color="#218C55", hover_color="#176D42",
+                command=lambda fn=comando: self._entrar_na_area_inicial(fn)
+            ).pack(fill="x", padx=12, pady=(0, 14))
 
     def _entrar_na_area_inicial(self, destino):
         if not getattr(self, "_tela_inicial_ativa", False):
             return
-        comandos = {
-            "clinica": self.tela_pacientes,
-            "nutricao": self.tela_mapa,
-            "alimentar": self.tela_almoxarifado,
-        }
-        comando = comandos.get(destino)
-        if comando is None:
-            return
         self._tela_inicial_ativa = False
-        if self._timer_areas_iniciais:
-            try:
-                self.after_cancel(self._timer_areas_iniciais)
-            except Exception:
-                pass
-            self._timer_areas_iniciais = None
-        if getattr(self, "_tela_visual", None):
-            self._tela_visual.parar()
-        self.unbind("<Escape>")
-        self._tela_boas_vindas.destroy()
-        self.menu_lateral.grid()
-        self.area_principal.grid_configure(row=0, column=1, padx=20, pady=20, sticky="nsew")
-        self.area_principal.configure(corner_radius=10)
-        self.grid_columnconfigure(0, weight=0, minsize=200)
+        if getattr(self, "_binding_esc_inicial", None):
+            self.unbind("<Escape>", self._binding_esc_inicial)
+            self._binding_esc_inicial = None
+        if getattr(self, "_tela_boas_vindas", None):
+            self._tela_boas_vindas.parar()
+            self._tela_boas_vindas.frame.destroy()
+            self._tela_boas_vindas = None
+
+        self.menu_lateral.place(x=0, y=0, relheight=1.0)
+        self.area_principal_host.grid_configure(row=0, column=1, padx=20, pady=20, sticky="nsew")
+        self.area_principal_host.configure(corner_radius=10)
+        self.grid_columnconfigure(
+            0, weight=0,
+            minsize=self.menu_lateral.EXPANDIDA if self.menu_lateral.fixa else self.menu_lateral.RECOLHIDA
+        )
         self.grid_columnconfigure(1, weight=1, minsize=0)
-        comando()
+        self._pilha_abas_laterais.pack(fill="both", expand=True)
+
+        destinos = {
+            "clinica": ("Pacientes", self.tela_pacientes),
+            "nutricao": ("Mapa Nutricional", self.tela_mapa),
+            "alimentar": ("Almoxarifado", self.tela_almoxarifado),
+        }
+        titulo, comando = destinos.get(destino, destinos["clinica"])
+        self.abrir_painel_lateral(titulo, comando)
 
     def _confirmar_saida_inicial(self, event=None):
         if getattr(self, "_tela_inicial_ativa", False):
@@ -660,7 +630,7 @@ class AppClinica(ctk.CTk):
             return
         valores = self.tree.item(selecionados[0], "values")
         self.paciente_atual_id, self.paciente_atual_nome, self.paciente_atual_nasc, self.paciente_atual_sexo = valores
-        self.tela_consultas()
+        self.abrir_painel_lateral("Nova consulta", self.tela_consultas)
 
     def salvar_paciente(self, iniciar_consulta=False):
         nome = self.entry_nome.get()
@@ -687,7 +657,7 @@ class AppClinica(ctk.CTk):
             self.paciente_atual_nome = nome
             self.paciente_atual_nasc = nasc
             self.paciente_atual_sexo = sexo
-            self.tela_consultas()
+            self.abrir_painel_lateral("Nova consulta", self.tela_consultas)
 
     def carregar_tabela_pacientes(self):
         for item in self.tree.get_children():
@@ -748,7 +718,13 @@ class AppClinica(ctk.CTk):
         self.carregar_tabela_pacientes()
 
     # --- PERFIL DO PACIENTE ---
-    def abrir_perfil_paciente(self, event=None):
+    def abrir_perfil_paciente(self, event=None, _painel_aberto=False):
+        if not _painel_aberto:
+            self.abrir_painel_lateral(
+                "Perfil do paciente",
+                lambda: self.abrir_perfil_paciente(event, _painel_aberto=True)
+            )
+            return
         selecao = self.tree.selection()
         if not selecao: return
         valores = self.tree.item(selecao[0])['values']
@@ -757,7 +733,7 @@ class AppClinica(ctk.CTk):
         self.paciente_atual_sexo = sexo
         
         self.limpar_area_principal()
-        ctk.CTkButton(self.area_principal, text="← Voltar", width=80, fg_color="#c8e6c9", hover_color="#a5d6a7", text_color="#1b5e20", border_width=1, border_color="#4caf50", font=ctk.CTkFont(size=15), command=self.tela_pacientes).pack(anchor="nw", pady=10, padx=10)
+        ctk.CTkButton(self.area_principal, text="← Voltar", width=80, fg_color="#c8e6c9", hover_color="#a5d6a7", text_color="#1b5e20", border_width=1, border_color="#4caf50", font=ctk.CTkFont(size=15), command=self._fechar_ultima_aba_lateral).pack(anchor="nw", pady=10, padx=10)
         ctk.CTkLabel(self.area_principal, text=f"Perfil Clínico: {self.paciente_atual_nome}", font=ctk.CTkFont(size=26, weight="bold"), text_color="#1b5e20").pack(pady=(0, 5))
         ctk.CTkLabel(self.area_principal, text=f"ID: {self.paciente_atual_id}  |  Nascimento: {nasc}  |  Sexo: {sexo}", font=ctk.CTkFont(size=17), text_color="#2f3e33").pack(pady=5)
 
@@ -771,7 +747,7 @@ class AppClinica(ctk.CTk):
         aba_hist = tabview_perfil.add("Histórico de Consultas")
         aba_exm = tabview_perfil.add("Exames e Arquivos")
         
-        ctk.CTkButton(aba_hist, text="Iniciar Nova Consulta", command=self.tela_consultas, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
+        ctk.CTkButton(aba_hist, text="Iniciar Nova Consulta", command=lambda: self.abrir_painel_lateral("Nova consulta", self.tela_consultas), fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
 
         scroll_hist = ctk.CTkScrollableFrame(aba_hist, fg_color="transparent")
         scroll_hist.pack(fill="both", expand=True, padx=10, pady=10)

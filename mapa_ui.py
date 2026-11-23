@@ -625,14 +625,58 @@ class MapaUI:
 
 
 # =============================================================================== DIÁLOGOS
-class _Janela(ctk.CTkToplevel):
+class _Janela(ctk.CTkFrame):
+    """Conteúdo de uma guia lateral; não cria janela Toplevel nem captura o foco."""
+
     def __init__(self, ui, titulo, geometria):
-        super().__init__(ui.app)
         self.ui = ui
-        self.title(titulo)
-        self.geometry(geometria)
-        self.attributes("-topmost", True)
-        self.after(200, lambda: _tornar_modal(self))
+        self.app = getattr(ui, "app", None)
+        if self.app is None and hasattr(ui, "ui"):
+            self.app = getattr(ui.ui, "app", None)
+        self._painel_externo = bool(self.app and hasattr(self.app, "abrir_painel_lateral"))
+        if self._painel_externo:
+            self._painel_frame = self.app.abrir_painel_lateral(titulo, lambda: None)
+            pai = self._painel_frame
+        else:
+            self._painel_frame = None
+            pai = self.app or ui
+        super().__init__(pai, fg_color="transparent")
+        self.pack(fill="both", expand=True)
+
+    def title(self, *_args):
+        return None
+
+    def geometry(self, *_args):
+        return None
+
+    def attributes(self, *_args, **_kwargs):
+        return None
+
+    def transient(self, *_args):
+        return None
+
+    def grab_set(self):
+        return None
+
+    def protocol(self, *_args):
+        return None
+
+    def resizable(self, *_args):
+        return None
+
+    def destroy(self):
+        if getattr(self, "_destroy_em_progresso", False):
+            return super().destroy()
+        if self._painel_externo and self._painel_frame is not None:
+            try:
+                if getattr(self._painel_frame, "_fechando_painel", False):
+                    return super().destroy()
+                self._destroy_em_progresso = True
+                self.app.fechar_painel_lateral(self._painel_frame)
+                return
+            except (tk.TclError, AttributeError):
+                pass
+        return super().destroy()
 
 
 class DialogConfig(_Janela):
@@ -938,11 +982,12 @@ class DialogHistorico(_Janela):
 
 
 # ================================================================== FORMULÁRIO DO REGISTRO
-class FormRegistro(ctk.CTkToplevel):
+class FormRegistro(_Janela):
     """Registro de um leito num dia (a anamnese do mapa num só lugar)."""
 
     def __init__(self, ui, item, somente_leitura=False, data_iso=None):
-        super().__init__(ui.app)
+        titulo = f"Leito {item['leito']['codigo']} — {mdb.iso_para_br(data_iso or ui.data.isoformat())}"
+        super().__init__(ui, titulo, "860x780")
         self.ui = ui
         self.leito = item["leito"]
         self.reg = item["registro"] or {}
@@ -970,7 +1015,7 @@ class FormRegistro(ctk.CTkToplevel):
         self._recalcular()
         if somente_leitura:
             self._travar()
-        self.after(200, lambda: _tornar_modal(self))
+        # A guia lateral não usa janela modal nem captura o foco.
 
     # ----------------------------------------------------------------- construção
     def _reg(self, w):
