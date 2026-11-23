@@ -52,11 +52,18 @@ class TestTelaInicialEmCamadas(unittest.TestCase):
         spec = (RAIZ / "app_clinica.spec").read_text(encoding="utf-8")
         launcher = (RAIZ / "Gerar_e_Abrir_NutriLab.bat").read_text(encoding="utf-8")
         self.assertIn("assets', 'identidade', 'renderizados", spec)
-        self.assertIn("tools\\gerar_identidade_visual.py", launcher)
+        self.assertIn('test_svg_pipeline.py', launcher)
         self.assertLess(
-            launcher.index("gerar_identidade_visual.py"),
-            launcher.index("-m PyInstaller")
+            launcher.index('test_svg_pipeline.py'),
+            launcher.index('gerar_banco_modelo.py')
         )
+        self.assertLess(
+            launcher.index('test_svg_pipeline.py'),
+            launcher.index('-m PyInstaller')
+        )
+        requisitos = (RAIZ / "requirements-build.txt").read_text(encoding="utf-8")
+        self.assertIn("resvg_py==0.5.0", requisitos)
+        self.assertNotIn("cairosvg", requisitos.lower())
 
 
 if __name__ == "__main__":
