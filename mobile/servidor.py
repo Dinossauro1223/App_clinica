@@ -38,8 +38,10 @@ CFG_INICIAL = [("desjejum", 0, None, None), ("colacao", 0, None, None), ("almoco
                ("lanche", 0, None, None), ("jantar", 1, "16:00", "22:00"), ("ceia", 0, None, None)]
 LOCK = threading.Lock()
 SESSOES, FALHAS = {}, {}
+SENHA_ADMIN_INICIAL = "123456789"
 
 ESQUEMA = """
+CREATE TABLE IF NOT EXISTS sistema_config(chave TEXT PRIMARY KEY, valor TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, login TEXT UNIQUE NOT NULL, nome TEXT NOT NULL,
   perfil TEXT NOT NULL, id_setor INTEGER, salt TEXT NOT NULL, senha TEXT NOT NULL, ativo INTEGER DEFAULT 1, criado_em TEXT);
 CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL);
@@ -200,22 +202,41 @@ def migrar(c):
 
 
 def preparar_banco(db, redefinir=False):
-    """Cria/atualiza o banco e o usuário 'admin'. Devolve a senha gerada (ou None se o admin já existia)."""
+    """Prepara o banco e aplica a senha inicial fixa do admin uma única vez.
+
+    Bancos antigos recebem a credencial inicial solicitada na primeira atualização;
+    depois disso, alterações de senha feitas pelo administrador são preservadas.
+    """
     Path(db).parent.mkdir(parents=True, exist_ok=True)
     c = conectar(db)
-    c.executescript(ESQUEMA)
-    migrar(c)
-    adm = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()
-    senha = None
-    if adm is None or redefinir:
-        senha = secrets.token_urlsafe(8)
+    try:
+        c.executescript(ESQUEMA)
+        migrar(c)
+        adm = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()
+        senha = None
+        inicializada = c.execute(
+            "SELECT valor FROM sistema_config WHERE chave='senha_admin_inicial_aplicada'"
+        ).fetchone()
         if adm is None:
-            criar_usuario(c, "admin", "Administrador", "admin", None, senha)
-        else:
+            criar_usuario(c, "admin", "Administrador", "admin", None, SENHA_ADMIN_INICIAL)
+            adm = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()
+            senha = SENHA_ADMIN_INICIAL
+        elif redefinir:
+            senha = secrets.token_urlsafe(8)
             definir_senha(c, adm["id"], senha)
-    c.commit()
-    c.close()
-    return senha
+        elif inicializada is None:
+            definir_senha(c, adm["id"], SENHA_ADMIN_INICIAL)
+            senha = SENHA_ADMIN_INICIAL
+        c.execute(
+            "INSERT OR REPLACE INTO sistema_config(chave,valor) VALUES('senha_admin_inicial_aplicada','1')"
+        )
+        c.commit()
+        return senha
+    except Exception:
+        c.rollback()
+        raise
+    finally:
+        c.close()
 
 
 def pub(u):

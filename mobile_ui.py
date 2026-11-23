@@ -5,6 +5,7 @@ Receber o que a copa registrou no celular (o nutricionista confere antes de entr
 Regras e tabelas: docs/mobile/INTEGRACAO_DESKTOP.md. A tela também abre sozinha:  python mobile_ui.py
 """
 import os
+import socket
 import webbrowser
 from datetime import date, timedelta
 from tkinter import filedialog, messagebox, ttk
@@ -15,6 +16,7 @@ import integracao_mobile as im
 import mapa_db as mdb
 import ui_workers
 import tema
+from mobile import servidor as servidor_mobile
 
 VERDE_ESC, VERDE, VERDE_HOVER = tema.VERDE_ESC, tema.VERDE, tema.VERDE_HOVER
 CINZA, CINZA_HOVER, AZUL, AZUL_HOVER, LARANJA, LARANJA_HOVER = (
@@ -136,10 +138,15 @@ class MobileUI:
         self.lbl_banco.configure(text="Verificando banco do Mobile…")
         mobile_db = self.mobile_db
         def trabalho():
+            try:
+                with socket.create_connection(("127.0.0.1", 8765), timeout=1.0):
+                    servidor = "ATIVO — celulares: http://%s:8765" % servidor_mobile.ip_lan()
+            except OSError:
+                servidor = "INATIVO — o servidor não responde na porta 8765"
             if not os.path.exists(mobile_db):
-                return "NÃO encontrado: ligue o servidor mobile uma vez"
+                return "%s; banco não encontrado: %s" % (servidor, mobile_db)
             qtd = im.sincronizar_catalogo_suplementos(self.db, mobile_db)
-            return "encontrado; catálogo de %d suplemento(s) atualizado" % qtd
+            return "%s; banco encontrado; catálogo de %d suplemento(s) atualizado" % (servidor, qtd)
         def sucesso(achou):
             if self._widgets_disponiveis():
                 self.lbl_banco.configure(text="Banco do mobile: %s (%s)" % (mobile_db, achou))

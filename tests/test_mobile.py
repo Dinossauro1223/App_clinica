@@ -81,6 +81,45 @@ class MobileTest(unittest.TestCase):
         return self.chamar(self.adm, "GET", "/api/estoque?estoque=" + est)[1]["linhas"][0]["qtd"]
 
     # ------------------------------------------------------------------ testes
+    def test_admin_inicial_usa_credencial_solicitada(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            banco = str(Path(pasta) / "mobile.db")
+            senha = sv.preparar_banco(banco)
+            self.assertEqual(senha, "123456789")
+            c = sv.conectar(banco)
+            try:
+                self.assertEqual(c.execute("SELECT login FROM usuarios WHERE perfil='admin'").fetchone()["login"], "admin")
+                self.assertEqual(sv.login(c, "127.0.0.1", {"login": "admin", "senha": "123456789"})["usuario"]["perfil"], "admin")
+            finally:
+                c.close()
+            # Simula banco legado: administrador existia com senha aleatória, mas sem marcador da migração.
+            c = sv.conectar(banco)
+            try:
+                uid = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()["id"]
+                c.execute("DELETE FROM sistema_config WHERE chave='senha_admin_inicial_aplicada'")
+                sv.definir_senha(c, uid, "senha-legada-aleatoria")
+                c.commit()
+            finally:
+                c.close()
+            self.assertEqual(sv.preparar_banco(banco), "123456789")
+            c = sv.conectar(banco)
+            try:
+                self.assertEqual(sv.login(c, "127.0.0.1", {"login": "admin", "senha": "123456789"})["usuario"]["perfil"], "admin")
+                uid = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()["id"]
+                sv.definir_senha(c, uid, "senha-personalizada")
+                c.commit()
+            finally:
+                c.close()
+            self.assertIsNone(sv.preparar_banco(banco))
+            c = sv.conectar(banco)
+            try:
+                self.assertEqual(sv.login(c, "127.0.0.1", {"login": "admin", "senha": "senha-personalizada"})["usuario"]["perfil"], "admin")
+            finally:
+                c.close()
+            senha_redefinida = sv.preparar_banco(banco, redefinir=True)
+            self.assertTrue(senha_redefinida)
+            self.assertNotEqual(senha_redefinida, "123456789")
+
     def test_login_invalido(self):
         self.assertEqual(self.chamar(None, "POST", "/api/login", {"login": "admin", "senha": "errada"})[0], 401)
 

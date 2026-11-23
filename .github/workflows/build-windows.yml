@@ -109,6 +109,9 @@ jobs:
             throw "DLL do Python está vazia: $dll"
           }
 
+      - name: Smoke test — abrir executável e validar servidor mobile
+        run: python tools/smoke_test_windows_exe.py dist/NutriLab/NutriLab.exe
+
       - name: Compactar pacote completo
         shell: pwsh
         run: |

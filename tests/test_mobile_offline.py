@@ -100,6 +100,11 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         asset = ROOT / "mobile" / "apk" / "app" / "assets" / "index.html"
         self.assertTrue(asset.exists())
         self.assertEqual(asset.read_bytes(), HTML.read_bytes())
+        release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        self.assertIn("setup-android@v4", release)
+        self.assertIn("--release 8 -classpath", release)
+        self.assertNotIn("-bootclasspath", release)
+        self.assertIn('tags: ["v*"]', release)
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("apk-java:", workflow)
         self.assertIn("android-34", workflow)

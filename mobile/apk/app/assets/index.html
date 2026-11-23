@@ -581,7 +581,24 @@ const novoItem=tenta(async()=>{
  else await api('/api/admin/itens',corpo);
  S.itemEditando=null;await recarregaBase();await vCad();aviso('Item salvo.',0);
 });
-(async()=>{try{const j=await api('/api/eu');if(j.usuario)return await abrir(j.usuario,j.hoje)}catch(e){}telaLogin('Não foi possível validar a sessão. Conecte-se ao servidor e entre novamente para continuar.')})();
+(async()=>{
+  // Sem token salvo, a tela de login é o estado inicial normal: não consultar /api/eu.
+  if(!S.tok){telaLogin();return}
+  try{
+    const j=await api('/api/eu');
+    if(j.usuario)return await abrir(j.usuario,j.hoje);
+    throw new Error('Resposta de sessão inválida.');
+  }catch(e){
+    const msg=String(e&&e.message||e);
+    if(/Failed to fetch|NetworkError|Load failed|fetch/i.test(msg)){
+      telaLogin('Não foi possível conectar ao servidor. Confira se o computador está ligado, no mesmo Wi-Fi e com o servidor NutriLab ativo.');
+    }else{
+      S.tok=null;
+      try{if(window.NLOffline){NLOffline.remove('token');NLOffline.remove('user')}sessionStorage.removeItem('tok')}catch(_e){}
+      telaLogin('Sua sessão expirou. Entre novamente para continuar.');
+    }
+  }
+})();
 window.NL={token:()=>S.tok,userId:()=>S.u&&S.u.id,isStaff:()=>ehStaff(),refresh:()=>ir('mapa'),
   aviso:(t,erro)=>aviso(t,erro),expired:()=>{sair();telaLogin('Sessão expirada. Entre novamente para sincronizar as alterações pendentes.')}};
 </script>
