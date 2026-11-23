@@ -704,13 +704,13 @@ class FichaDialog:
         linha_tbca.pack(fill="x", padx=6, pady=2)
         ctk.CTkLabel(linha_tbca, text="TBCA:", text_color="#455a64").pack(side="left", padx=(0, 4))
         tbca = ctk.CTkComboBox(
-            linha_tbca, width=235, values=self._opcoes_tbca,
+            linha_tbca, width=210, values=self._opcoes_tbca,
             command=lambda valor: self._selecionar_tbca(registro, valor)
         )
         tbca.set("— selecionar alimento da TBCA —")
         tbca.pack(side="left", padx=3, pady=3)
         ctk.CTkLabel(linha_tbca, text="Medida caseira:", text_color="#455a64").pack(side="left", padx=(8, 4))
-        medida = ctk.CTkEntry(linha_tbca, width=135, placeholder_text="Ex.: 1 colher")
+        medida = ctk.CTkEntry(linha_tbca, width=120, placeholder_text="Ex.: 1 colher")
         medida.pack(side="left", padx=3, pady=3)
 
         linha_referencias = ctk.CTkFrame(linha, fg_color="transparent")
@@ -726,13 +726,12 @@ class FichaDialog:
         linha_estoque.pack(fill="x", padx=6, pady=(2, 6))
         opcoes = ["— sem vínculo com Almoxarifado —"] + [f"{p['id_mobile']} | {p['nome']}" for p in self.produtos]
         ctk.CTkLabel(linha_estoque, text="Almoxarifado:", text_color="#455a64").pack(side="left", padx=(0, 4))
-        produto = ctk.CTkComboBox(linha_estoque, width=185, values=opcoes)
+        produto = ctk.CTkComboBox(linha_estoque, width=170, values=opcoes)
         produto.set(opcoes[0])
         produto.pack(side="left", padx=3, pady=3)
-        ctk.CTkLabel(linha_estoque, text="Preço manual (R$/unid.):", text_color="#455a64").pack(
-            side="left", padx=(10, 4)
-        )
-        preco = ctk.CTkEntry(linha_estoque, width=100, placeholder_text="0,00")
+        ctk.CTkLabel(linha_estoque, text="Preço manual (R$/unid.):", width=130,
+                     font=ctk.CTkFont(size=11), text_color="#455a64").pack(side="left", padx=(8, 3))
+        preco = ctk.CTkEntry(linha_estoque, width=90, placeholder_text="0,00")
         preco.pack(side="left", padx=3, pady=3)
         remover = ctk.CTkButton(
             linha_identificacao, text="×", width=28, height=28,
