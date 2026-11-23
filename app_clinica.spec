@@ -29,7 +29,7 @@ ARQUIVOS_DATA = [
     (PASTA_CAMADAS, 'identidade_camadas'),
     (os.path.join(SPECPATH, 'mobile', 'servidor.py'), 'mobile'),
     (os.path.join(SPECPATH, 'mobile', 'static'), 'mobile/static'),
-    (MODELO_BANCO, '.'),
+    (MODELO_BANCO, 'modelo_banco'),
     ('regras_exames_complementares.json', '.'),
     ('exames_internos', 'exames_internos'),
     ('condutas_internas', 'condutas_internas'),
