@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-import db_migracoes
+import mapa_db as mdb
 import integracao_mobile as im
 
 
@@ -11,7 +11,7 @@ class TestCaminhoMobileDB(unittest.TestCase):
     def test_executavel_usa_pasta_gravavel_compartilhada(self):
         with tempfile.TemporaryDirectory() as pasta:
             banco_clinico = os.path.join(pasta, "clinica.db")
-            db_migracoes.aplicar_migracoes(banco_clinico, backup=False)
+            mdb.inicializar(banco_clinico)
             raiz_local = os.path.join(pasta, "LocalAppData")
             with mock.patch.object(im.sys, "frozen", True, create=True), mock.patch.dict(
                 os.environ, {"LOCALAPPDATA": raiz_local}
