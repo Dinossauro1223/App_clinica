@@ -72,7 +72,14 @@ barra.definir_fixa(True)
 root.update()
 assert int(barra.cget("width")) == 250
 barra.definir_fixa(False)
+root.update()
 assert int(barra.cget("width")) == 58
+assert not barra.rolagem._scrollbar.grid_info(), "scrollbar deveria liberar a largura no modo recolhido"
+barra._abrir(True)
+root.update()
+assert barra.rolagem._scrollbar.grid_info(), "scrollbar deveria reaparecer no modo expandido"
+barra._abrir(False)
+root.update()
 # Os formulários de mapa e fichas devem criar e fechar guias, não Toplevels.
 from types import SimpleNamespace
 from gestao_alimentar_ui import _PainelJanela
