@@ -1268,12 +1268,6 @@ class AppClinica(ctk.CTk):
             scroll_frame, caminho_do_banco(), self.paciente_atual_id, self.paciente_atual_nome,
             pasta_saida=self.pasta_condutas_alta(), janela_pai=self)
         self.painel_condutas_alta.pack(fill="x", padx=20, pady=(10, 5))
-        ctk.CTkLabel(
-            scroll_frame,
-            text="Triagem NRS-2002: o banco e o serviço ambulatorial aceitam o resultado estruturado do módulo de triagem. O cálculo/classificação permanecem no módulo NRS-2002; a integração funcional depende da incorporação da outra branch.",
-            text_color=tema.SUAVE, font=ctk.CTkFont(size=12), wraplength=780, justify="left"
-        ).pack(anchor="w", padx=20, pady=(0, 6))
-
         ctk.CTkLabel(scroll_frame, text="Solicitação de Exames", font=ctk.CTkFont(weight="bold", size=17), text_color=tema.TEXTO).pack(anchor="w", padx=20, pady=(15, 0))
         frame_exames = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_exames.pack(fill="x", padx=20, pady=5)
