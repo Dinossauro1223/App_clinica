@@ -93,6 +93,7 @@ jobs:
           AvdId=nutrilab-ci
           avd.ini.displayname=NutriLab CI API 34
           abi.type=x86_64
+          hw.cpu.arch=x86_64
           image.sysdir.1=system-images/android-34/google_apis/x86_64/
           tag.id=google_apis
           tag.display=Google APIs
@@ -120,6 +121,10 @@ jobs:
           path.rel=avd/nutrilab-ci.avd
           target=android-34
           EOF
+          echo "Installed system image metadata:"
+          cat "$ANDROID_HOME/system-images/android-34/google_apis/x86_64/source.properties"
+          echo "Generated AVD CPU configuration:"
+          grep -E "^(abi.type|hw.cpu.arch|image.sysdir.1|target)=" "$HOME/.android/avd/nutrilab-ci.avd/config.ini"
           "$EMULATOR" -list-avds
           command -v "$EMULATOR"
           command -v "$ADB"
