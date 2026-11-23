@@ -233,6 +233,7 @@ class BaseDosTestes(unittest.TestCase):
         self.relogio = Relogio()
         self.fotos = []
         padroes = [mock.patch.object(self.ui, "_agora", self.relogio),
+                   mock.patch.object(self.ui.FaixaHorizontal, "espera_inicial_ms", 0),   # desenha na hora; o teste da espera religa
                    mock.patch.object(self.ui, "foto_tk", self._foto)]
         for p in padroes:
             p.start()
@@ -292,6 +293,42 @@ class TestFaixa(BaseDosTestes):
         faixa = self.ui.FaixaHorizontal(pai, [imagem(400, 200)], escala=1.0)
         faixa.canvas.bindings["<Configure>"](Evento(width=1100))
         self.assertEqual(self.fotos, [(400, 200)])
+
+    def test_primeiro_desenho_espera_e_usa_a_ultima_largura_avisada(self):
+        # o Tk avisa antes a largura provisória do canvas e só depois a final: desenha-se uma vez, na final
+        with mock.patch.object(self.ui.FaixaHorizontal, "espera_inicial_ms", self.ui.ESPERA_INICIAL_MS):
+            faixa = self.ui.FaixaHorizontal(Base(), [imagem() for _ in range(3)], escala=1.0)
+            c = faixa.canvas
+            c.bindings["<Configure>"](Evento(width=378))
+            self.assertIsNone(faixa.carrossel)
+            self.assertEqual(self.fotos, [])
+            self.assertEqual([ms for ms, _ in c.agendados.values()], [self.ui.ESPERA_INICIAL_MS])
+            c.bindings["<Configure>"](Evento(width=1100))
+            self.assertEqual(len(c.agendados), 1)                 # continua um desenho só, sem reagendar
+            c.executar_agendados()
+            self.assertEqual(faixa.carrossel.largura_visivel, 1100)
+            self.assertEqual(len(self.fotos), 3)                  # nenhum desenho na largura provisória
+            c.bindings["<Configure>"](Evento(width=1100))         # o Tk repete o aviso: já está firme
+            self.assertEqual(len(c.agendados), 0)
+
+    def test_desenho_direto_cancela_o_primeiro_desenho_agendado(self):
+        with mock.patch.object(self.ui.FaixaHorizontal, "espera_inicial_ms", self.ui.ESPERA_INICIAL_MS):
+            faixa = self.ui.FaixaHorizontal(Base(), [imagem() for _ in range(2)], escala=1.0)
+            faixa.canvas.bindings["<Configure>"](Evento(width=378))
+            faixa.ajustar(900)
+            self.assertEqual(faixa.canvas.agendados, {})
+            self.assertEqual(len(faixa.canvas.cancelados), 1)
+            antes = len(self.fotos)
+            faixa.canvas.executar_agendados()
+            self.assertEqual(len(self.fotos), antes)              # nada foi desenhado de novo
+
+    def test_destruir_antes_do_primeiro_desenho_cancela_o_agendado(self):
+        with mock.patch.object(self.ui.FaixaHorizontal, "espera_inicial_ms", self.ui.ESPERA_INICIAL_MS):
+            faixa = self.ui.FaixaHorizontal(Base(), [imagem()], escala=1.0)
+            faixa.canvas.bindings["<Configure>"](Evento(width=700))
+            faixa.canvas.bindings["<Destroy>"](Evento())
+            self.assertEqual(faixa.canvas.agendados, {})
+            self.assertEqual(self.fotos, [])
 
     def test_largura_minuscula_e_ignorada(self):
         pai = Base()

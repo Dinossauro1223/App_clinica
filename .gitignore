@@ -38,3 +38,6 @@ Thumbs.db
 *.sqlite-journal
 *.bak
 *.backup*
+
+# fotos da tela geradas por tools/capturar_graficos_tk.py (só servem para conferir, não vão para o Git)
+capturas/

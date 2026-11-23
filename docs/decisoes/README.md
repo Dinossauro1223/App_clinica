@@ -11,6 +11,9 @@ Uma ADR aceita não é editada: se a decisão mudar, cria-se uma nova ADR que a 
 | [0004](ADR-0004-integracao-do-servico-de-banco-no-aplicativo.md) | Integração do serviço único de banco ao aplicativo | Aceita (modo local) | 0 |
 | [0005](ADR-0005-executavel-sem-banco-real-modelo-sanitizado.md) | Executável sem o banco real: banco-modelo sanitizado | Aceita (modo local) | 0 |
 | [0006](ADR-0006-condutas-de-alta-na-consulta.md) | Condutas de alta na consulta: catálogo versionado, confirmação pela nutricionista e folha do paciente | Aceita (modo local); conteúdo clínico aguarda homologação | 4 |
+| [0007](ADR-0007-melhorias-ambulatoriais.md) | Ampliação do atendimento ambulatorial | Aceita para implementação inicial; homologação clínica e interface Windows pendentes | fora das fases |
+| [0008](ADR-0008-backups-automaticos.md) | Snapshots automáticos e encerramento protegido | Proposta implementada em branch; aguarda CI e revisão | fora das fases |
+| [0009](ADR-0009-graficos-desenhados-na-tela.md) | Gráficos do Mapa desenhados na tela (animados), com a imagem como opção | Aceita (modo local); aparência no monitor de uso a conferir | fora das fases |
 
 Convenção: toda ADR cita as fontes efetivamente consultadas (com data de consulta) e separa o que foi **verificado**
 do que ficou **pendente**.

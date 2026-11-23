@@ -503,7 +503,8 @@ class MapaUI:
             try:
                 self._grupos_png = self._mgr.renderizar_grupos(self._grupos or [])
             except ImportError as e:
-                messagebox.showwarning("Imagens simples", f"{e}\\n\\nEste estilo precisa de: pip install matplotlib\\nMostrando os gráficos animados.")
+                messagebox.showwarning("Imagens simples", f"{e}\n\nEste estilo precisa de:  pip install matplotlib\n"
+                                                          "Mostrando os gráficos animados.")
                 return self._grupos or []
         return self._grupos_png
 
@@ -538,7 +539,7 @@ class MapaUI:
         try:
             caminhos = self._mgr.salvar_graficos(self._agg, pasta)
         except ImportError as e:
-            messagebox.showerror("Biblioteca ausente", f"{e}\\n\\nInstale com: pip install matplotlib")
+            messagebox.showerror("Biblioteca ausente", f"{e}\n\nInstale com:  pip install matplotlib")
             return
         except OSError as e:
             messagebox.showerror("Salvar imagens", f"Não foi possível gravar:\n{e}")
