@@ -221,18 +221,20 @@ class AppClinica(ctk.CTk):
             # O servidor, o painel desktop e a integração devem apontar para o mesmo banco.
             caminho_db = im.caminho_mobile_db(caminho_do_banco(), get_base_path())
             senha_inicial = modulo.preparar_banco(caminho_db, False)
-            if senha_inicial:
-                messagebox.showinfo(
-                    "Acesso inicial ao NutriLab Mobile",
-                    "Foi criado o usuário administrador do servidor mobile.\n\n"
-                    f"Usuário: admin\nSenha inicial: {senha_inicial}\n\n"
-                    "Guarde essa senha em local seguro. Ela não será exibida novamente."
-                )
+            # Suba a API antes de exibir o aviso modal da primeira senha: a janela não deve
+            # atrasar o servidor nem impedir que o celular alcance a tela de login.
             servidor = modulo.criar_servidor(caminho_db, 8765, "0.0.0.0")
             thread = threading.Thread(target=servidor.serve_forever, name="NutriLabMobile", daemon=True)
             thread.start()
             self._servidor_mobile = servidor
             self._thread_servidor_mobile = thread
+            if senha_inicial:
+                messagebox.showinfo(
+                    "Acesso inicial ao NutriLab Mobile",
+                    "Foi criado o usuário administrador do servidor mobile.\n\n"
+                    f"Usuário: admin\nSenha inicial: {senha_inicial}\n\n"
+                    "Altere a senha após o primeiro acesso e guarde-a em local seguro."
+                )
         except OSError as erro:
             messagebox.showwarning(
                 "Servidor mobile indisponível",
