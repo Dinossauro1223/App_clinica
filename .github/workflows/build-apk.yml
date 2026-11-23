@@ -73,7 +73,7 @@ jobs:
 
       - name: Create and boot Android 34 emulator, install and launch APK
         run: |
-          echo "no" | avdmanager create avd --force -n nutrilab-ci -k "system-images;android-34;google_apis;x86_64" -d pixel_2
+          echo "no" | avdmanager create avd --force -n nutrilab-ci -k "system-images;android-34;google_apis;x86_64"
           command -v emulator
           command -v adb
           emulator -avd nutrilab-ci -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none > "$RUNNER_TEMP/nutrilab-emulator.log" 2>&1 &
