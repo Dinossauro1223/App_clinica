@@ -172,15 +172,23 @@ class TestBanco(unittest.TestCase):
         self.assertIn("Ensure Plus Advance", candidatos)
         self.assertIn("Glucerna 1.5 kcal", candidatos)
         self.assertIn("Nutrison Energy 1.5", candidatos)
-        # O único candidato com composição preenchida tem valores transcritos da ficha oficial.
-        nutrison = candidatos["Nutrison Energy 1.5"]
-        self.assertEqual((nutrison["kcal_100"], nutrison["ptn_100"], nutrison["lip_100"],
-                          nutrison["carb_100"], nutrison["sod_100"]), (151, 6, 5.6, 19, 128))
-        self.assertIn("danonenutricia.com.br", nutrison["observacao"])
+        # As três composições preenchidas foram transcritas das respectivas fichas oficiais por 100 mL.
+        fichas = {
+            "Nutrison Energy 1.5": (151, 6, 5.6, 19, 128),
+            "Nutrison Protein Plus Energy": (150, 7.5, 5.8, 17, 100),
+            "Nutrison advanced Diason": (102, 4.3, 4.2, 11, 100),
+            "Nutrison advanced Cubison": (103, 5.5, 3.3, 13, 100),
+        }
+        for nome, valores in fichas.items():
+            item = candidatos[nome]
+            self.assertEqual((item["kcal_100"], item["ptn_100"], item["lip_100"],
+                              item["carb_100"], item["sod_100"]), valores)
+            self.assertIn("danonenutricia.com.br", item["observacao"])
+            self.assertEqual(item["modulo"], "Fórmula enteral")
         # Os demais candidatos não recebem valores inferidos.
         self.assertIsNone(candidatos["Ensure Plus Advance"]["kcal_100"])
         self.assertIn("abbottbrasil.com.br", candidatos["Ensure Plus Advance"]["observacao"])
-        self.assertEqual(candidatos["Nutrison Energy 1.5"]["modulo"], "Fórmula enteral")
+        self.assertIsNone(candidatos["Nutrison Energy MF 1.5"]["kcal_100"])
         nomes = {s["nome"]: s["modulo"] for s in mdb.listar_suplementos(self.db)}
         self.assertEqual(nomes["Simbioflora"], "Módulo probiótico/simbiótico")
         self.assertEqual(nomes["Glutamina"], "Módulo de aminoácidos")
