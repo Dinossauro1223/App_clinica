@@ -64,6 +64,10 @@ class TestWindowsPackageContract(unittest.TestCase):
         self.assertIn("${bancoUsuario}-wal", workflow)
         self.assertIn("${bancoUsuario}-shm", workflow)
         self.assertIn("tools/verificar_pacote_windows.py", workflow)
+        spec = (ROOT / "app_clinica.spec").read_text(encoding="utf-8")
+        self.assertIn("(MODELO_BANCO, 'modelo_banco')", spec)
+        main = (ROOT / "main.py").read_text(encoding="utf-8")
+        self.assertIn('"modelo_banco", destino.name', main)
 
 
 if __name__ == "__main__":
