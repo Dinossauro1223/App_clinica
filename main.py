@@ -373,7 +373,7 @@ class AppClinica(ctk.CTk):
                 pass
             messagebox.showerror(
                 "Não foi possível abrir a tela",
-                f"A tela \\"{titulo}\\" não pôde ser aberta.\\n\\n{detalhe}\\n\\n"
+                f'A tela "{titulo}" não pôde ser aberta.\\n\\n{detalhe}\\n\\n'
                 "O erro técnico foi registrado em logs/erros_interface.log, quando possível."
             )
             return None
