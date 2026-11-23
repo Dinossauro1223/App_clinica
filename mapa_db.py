@@ -56,7 +56,7 @@ SUPLEMENTOS_COMPLEMENTARES = [
     ("Ensure Advance HMB", "Fórmula completa"),
     ("Glucerna", "Fórmula enteral e oral"),
     ("Glucerna SR", "Fórmula enteral e oral"),
-    ("Glucerna 1.5 kcal", "Fórmula enteral e oral"),
+    ("Glucerna 1.5 kcal", "Fórmula para diabetes"),
     ("PediaSure Complete", "Fórmula completa"),
 ]
 # Fórmulas cuja indicação para administração por sonda está descrita pelo fabricante.
@@ -269,7 +269,7 @@ def inicializar(db_path):
         versao_v4 = c.execute("SELECT valor FROM Mapa_Config WHERE chave='seed_suplementos_catalogo_v4'").fetchone()
         if not versao_v4:
             # Glucerna tem indicação registrada para uso oral e enteral; preserva módulos editados.
-            for nome in ("Glucerna", "Glucerna SR", "Glucerna 1.5 kcal"):
+            for nome in ("Glucerna", "Glucerna SR"):
                 c.execute("UPDATE Mapa_Suplementos SET modulo='Fórmula enteral e oral' "
                           "WHERE nome=? AND modulo='Fórmula para diabetes'", (nome,))
             for nome, modulo, kcal, ptn, lip, carb, sod, url in SUPLEMENTOS_DUAS_VIAS_COMPLEMENTARES:
