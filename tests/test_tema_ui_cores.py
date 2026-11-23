@@ -19,6 +19,17 @@ class TestTemaGlobal(unittest.TestCase):
             fonte = (raiz / modulo).read_text(encoding="utf-8")
             self.assertIsNone(padrao.search(fonte), f"{modulo} ainda contém cor fixa")
 
+    def test_telas_nao_usam_cores_nomeadas_fixadas_em_cartoes(self):
+        raiz = Path(__file__).resolve().parents[1]
+        modulos = (
+            "gestao_alimentar_ui.py", "mapa_ui.py", "condutas_alta_ui.py",
+            "almox_ui.py",
+        )
+        padrao = re.compile(r"""(?:fg_color|background)\s*=\s*["'](?:white|black)["']""", re.IGNORECASE)
+        for modulo in modulos:
+            fonte = (raiz / modulo).read_text(encoding="utf-8")
+            self.assertIsNone(padrao.search(fonte), f"{modulo} ainda fixa branco/preto")
+
     def test_paleta_cobre_estados_de_erro_e_informacao(self):
         for nome in ("ERRO", "ERRO_HOVER", "AZUL", "AZUL_HOVER"):
             valor = getattr(tema, nome)

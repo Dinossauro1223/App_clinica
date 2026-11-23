@@ -685,7 +685,7 @@ class FichaDialog:
     def adicionar_linha(self, item=None):
         # Cada ingrediente ocupa um cartão com linhas próprias para identificação,
         # referência TBCA, parâmetros nutricionais e vínculo/custo do Almoxarifado.
-        linha = ctk.CTkFrame(self.scroll, fg_color="white", corner_radius=6)
+        linha = ctk.CTkFrame(self.scroll, fg_color=tema.BRANCO, corner_radius=6)
         linha.pack(fill="x", padx=2, pady=4)
 
         linha_identificacao = ctk.CTkFrame(linha, fg_color="transparent")

@@ -150,7 +150,7 @@ class MapaUI:
                                          anchor="w", justify="left")
         self.lbl_condutas.pack(fill="x", padx=22, pady=(0, 0), anchor="w")
 
-        quadro = ctk.CTkFrame(area, fg_color="white")
+        quadro = ctk.CTkFrame(area, fg_color=tema.BRANCO)
         quadro.pack(fill="both", expand=True, padx=20, pady=6)
         colunas = [("leito", "Leito", 60, "center"), ("acomp", "Acomp.", 60, "center"), ("paciente", "Paciente", 220, "w"),
                    ("idade", "Idade", 50, "center"), ("imc", "IMC (classificação)", 170, "w"),
@@ -460,7 +460,7 @@ class MapaUI:
 
         self.quadro_kpi = ctk.CTkFrame(area, fg_color="transparent")
         self.quadro_kpi.pack(fill="x", padx=20, pady=(8, 2))
-        self.quadro_graf = ctk.CTkScrollableFrame(area, fg_color="white")
+        self.quadro_graf = ctk.CTkScrollableFrame(area, fg_color=tema.BRANCO)
         self.quadro_graf.pack(fill="both", expand=True, padx=20, pady=(4, 12))
         self._agg = self._grupos = self._grupos_png = self._painel = None
         self._gerar_graficos()
@@ -488,7 +488,7 @@ class MapaUI:
                    ("Com acompanhante", f"{k['acompanhante']} ({k['acompanhante_pct']:.0f}%)"),
                    ("Com suplemento", f"{k['com_suplemento']} ({k['com_suplemento_pct']:.0f}%)")]
         for rot, val in cartoes:
-            cx = ctk.CTkFrame(self.quadro_kpi, fg_color="white", corner_radius=8)
+            cx = ctk.CTkFrame(self.quadro_kpi, fg_color=tema.BRANCO, corner_radius=8)
             cx.pack(side="left", padx=4, ipadx=8, ipady=4)
             ctk.CTkLabel(cx, text=val, font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC).pack(padx=8)
             ctk.CTkLabel(cx, text=rot, font=ctk.CTkFont(size=11), text_color=tema.SUAVE).pack(padx=8)
@@ -560,7 +560,7 @@ class MapaUI:
         self.var_inativos = tk.IntVar(value=0)
         ctk.CTkCheckBox(barra, text="Mostrar inativos", variable=self.var_inativos,
                         command=self._recarregar_suplementos).pack(side="left")
-        quadro = ctk.CTkFrame(area, fg_color="white")
+        quadro = ctk.CTkFrame(area, fg_color=tema.BRANCO)
         quadro.pack(fill="both", expand=True, padx=20, pady=(0, 12))
         cols = [("nome", "Nome", 200, "w"), ("modulo", "Módulo", 190, "w"), ("emb", "Embalagem", 90, "center"),
                 ("kcal", "kcal/100", 65, "center"), ("ptn", "ptn/100", 65, "center"), ("lip", "lip/100", 65, "center"),
@@ -731,7 +731,7 @@ class DialogLeitos(_Janela):
         self.e_novo_setor.pack(side="left", padx=(12, 4))
         _btn(topo, "Criar", self._criar_setor, 60, CINZA_BTN, CINZA_HOVER).pack(side="left")
 
-        quadro = ctk.CTkFrame(self, fg_color="white")
+        quadro = ctk.CTkFrame(self, fg_color=tema.BRANCO)
         quadro.pack(fill="both", expand=True, padx=16, pady=6)
         self.tree = ttk.Treeview(quadro, columns=("codigo", "situacao"), show="headings", style=ESTILO_TREE,
                                  selectmode="browse", height=10)
@@ -893,7 +893,7 @@ class DialogBuscarPaciente(_Janela):
         self.e_busca = ctk.CTkEntry(topo, width=340, placeholder_text="Parte do nome")
         self.e_busca.pack(side="left")
         self.e_busca.bind("<KeyRelease>", lambda e: self._buscar())
-        quadro = ctk.CTkFrame(self, fg_color="white")
+        quadro = ctk.CTkFrame(self, fg_color=tema.BRANCO)
         quadro.pack(fill="both", expand=True, padx=16, pady=6)
         self.tree = ttk.Treeview(quadro, columns=("id", "nome", "nasc", "sexo"), show="headings", style=ESTILO_TREE,
                                  selectmode="browse")
@@ -950,7 +950,7 @@ class DialogHistorico(_Janela):
                      text_color=VERDE_ESC).pack(anchor="w", padx=16, pady=(14, 0))
         ctk.CTkLabel(self, text="Duplo clique (ou o botão abaixo) abre o registro do dia, somente para consulta.",
                      text_color=tema.SUAVE).pack(anchor="w", padx=16)
-        quadro = ctk.CTkFrame(self, fg_color="white")
+        quadro = ctk.CTkFrame(self, fg_color=tema.BRANCO)
         quadro.pack(fill="both", expand=True, padx=16, pady=8)
         cols = [("data", "Data", 90), ("leito", "Leito", 60), ("peso", "Peso (kg)", 80), ("imc", "IMC", 150),
                 ("via", "Via", 70), ("consist", "Consist.", 80), ("supl", "Suplementos", 220), ("reav", "Reav.", 90)]
@@ -1023,7 +1023,7 @@ class FormRegistro(_Janela):
     def _secao(self, titulo):
         ctk.CTkLabel(self.corpo, text=titulo, font=ctk.CTkFont(size=14, weight="bold"), text_color=VERDE_ESC
                      ).pack(anchor="w", padx=14, pady=(12, 2))
-        quadro = ctk.CTkFrame(self.corpo, fg_color="white", corner_radius=8)
+        quadro = ctk.CTkFrame(self.corpo, fg_color=tema.BRANCO, corner_radius=8)
         quadro.pack(fill="x", padx=10, pady=2)
         return quadro
 

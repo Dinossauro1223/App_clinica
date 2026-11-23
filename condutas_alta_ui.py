@@ -274,7 +274,7 @@ class JanelaCondutasAlta(ctk.CTkFrame):
     def _montar_cartao(self, c):
         cod, estado = c["codigo"], c["estado"]
         editavel = not self.sessao.entregue
-        q = ctk.CTkFrame(self.corpo, fg_color="white", corner_radius=8)
+        q = ctk.CTkFrame(self.corpo, fg_color=tema.BRANCO, corner_radius=8)
         q.pack(fill="x", padx=8, pady=5)
         self._cartoes.append(q)
 
