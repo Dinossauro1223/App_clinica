@@ -66,6 +66,16 @@ class BarraLateral(ctk.CTkFrame):
             scrollbar_button_hover_color=tema.VERDE
         )
         self.rolagem.pack(fill="both", expand=True)
+        # O scrollbar ocupa 16 px mesmo quando a barra tem apenas 58 px.
+        # Recolhido, ele desloca visualmente os ícones para a esquerda; ocultá-lo
+        # devolve toda a largura ao conteúdo. A rolagem pelo mouse continua ativa.
+        self._scrollbar_grid = {}
+        barra_rolagem = getattr(self.rolagem, "_scrollbar", None)
+        if barra_rolagem is not None:
+            try:
+                self._scrollbar_grid = barra_rolagem.grid_info()
+            except tk.TclError:
+                self._scrollbar_grid = {}
         for nome, itens in secoes:
             lbl = ctk.CTkLabel(
                 self.rolagem, text=nome, font=ctk.CTkFont(size=11, weight="bold"),
@@ -101,6 +111,15 @@ class BarraLateral(ctk.CTkFrame):
 
     def _rotular(self, aberta):
         self.aberta = aberta
+        barra_rolagem = getattr(getattr(self, "rolagem", None), "_scrollbar", None)
+        if barra_rolagem is not None:
+            try:
+                if aberta and self._scrollbar_grid:
+                    barra_rolagem.grid(**self._scrollbar_grid)
+                else:
+                    barra_rolagem.grid_remove()
+            except tk.TclError:
+                pass
         for texto, (_marca, botao, icone) in self.itens.items():
             botao.configure(
                 text=f"  {icone}    {texto}" if aberta else icone,
