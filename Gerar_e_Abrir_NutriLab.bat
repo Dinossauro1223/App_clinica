@@ -69,18 +69,17 @@ call %PY_CMD% -m pip install -r requirements-build.txt >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_DEPENDENCIAS
 
 echo.
-echo [2/5] Gerando banco inicial do proprio codigo...
-echo [2/5] Banco inicial >> "%LOG%"
+echo [2/5] Testando primeiro o renderizador SVG e a identidade visual...
+echo [2/5] Testes prioritarios SVG >> "%LOG%"
+call %PY_CMD% -m unittest discover -s tests -p "test_svg_pipeline.py" -v >> "%LOG%" 2>&1
+if errorlevel 1 goto ERRO_TESTES
+
+echo.
+echo [3/5] Gerando banco inicial do proprio codigo...
+echo [3/5] Banco inicial >> "%LOG%"
 call %PY_CMD% tools\gerar_banco_modelo.py --sobrescrever >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_BANCO
 if not exist "modelo_banco\clinica.db" goto ERRO_BANCO_AUSENTE
-
-echo.
-echo [3/5] Renderizando os componentes SVG transparentes...
-echo [3/5] Identidade visual SVG >> "%LOG%"
-call %PY_CMD% tools\gerar_identidade_visual.py >> "%LOG%" 2>&1
-if errorlevel 1 goto ERRO_IDENTIDADE
-if not exist "assets\identidade\renderizados\folhas.json" goto ERRO_IDENTIDADE
 
 echo.
 echo [4/5] Compilando NutriLab.exe...
@@ -140,8 +139,15 @@ pause
 exit /b 1
 
 :ERRO_IDENTIDADE
-echo ERRO ao renderizar a identidade visual em SVG.
-echo Verifique CairoSVG e Pillow em requirements-build.txt.
+echo ERRO ao validar os arquivos gerados da identidade visual.
+echo Consulte o registro: "%LOG%"
+type "%LOG%"
+pause
+exit /b 1
+
+:ERRO_TESTES
+echo ERRO: os testes prioritarios de renderizacao SVG/identidade visual falharam.
+echo A compilacao foi interrompida antes de gerar o banco ou executar o PyInstaller.
 echo Consulte o registro: "%LOG%"
 type "%LOG%"
 pause
