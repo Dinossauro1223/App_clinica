@@ -60,7 +60,7 @@ A tela do app é a do servidor; mudar o visual **não** exige gerar o APK de nov
 
 Desktop e servidor precisam estar no mesmo computador (para outro computador seria preciso um modo HTTP). Rodando como programa empacotado (PyInstaller) a pasta `mobile` precisa ir junto; pelo código-fonte funciona direto.
 Não feito: tela de estoque/refeições dentro do desktop (os dados já chegam nas tabelas `Mobile_*`), decisão de correções de refeição/estoque pelo desktop, notificação com o app do celular fechado.
-O APK ainda não foi confirmado em aparelho: o primeiro teste real (14/11/2026) parou no `aapt2` por causa do acento no caminho do usuário, o que foi corrigido; o registro do `.bat` (`gerar_apk_log.txt`) mostra qualquer falha nova.
+A compilação automatizada do APK usa JDK 17 + Android SDK 34, valida assinatura, manifesto, DEX e HTML embutido e instala/abre o aplicativo em emulador Android 34. O teste ponta a ponta também envia dados por HTTP ao servidor mobile e verifica a importação no banco clínico do desktop, incluindo os detalhes de suplementos. O APK publicado pelo CI usa uma chave efêmera de teste e não serve para atualizar por cima de uma instalação assinada com a chave local; para distribuir atualizações, gere o APK no computador com `Gerar_APK.bat`, que mantém a keystore local. A instalação em um aparelho físico ainda precisa ser confirmada.
 
 ## 8. Commits (todos com o dia na mensagem)
 
