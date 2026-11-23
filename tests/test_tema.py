@@ -15,6 +15,16 @@ class TestTemaDatas(unittest.TestCase):
         self.assertFalse(tema.data_valida("2026-01-01"))
         self.assertFalse(tema.data_valida(""))
 
+
+    def test_paleta_tem_contraste_independente_do_modo(self):
+        self.assertNotEqual(tema.BRANCO[0], tema.BRANCO[1])
+        self.assertNotEqual(tema.FUNDO[0], tema.FUNDO[1])
+        self.assertNotEqual(tema.TEXTO[0], tema.TEXTO[1])
+
+    def test_cor_atual_resolve_tupla_para_tk(self):
+        self.assertEqual(tema.cor_atual(("#ffffff", "#111111"), "Light"), "#ffffff")
+        self.assertEqual(tema.cor_atual(("#ffffff", "#111111"), "Dark"), "#111111")
+
     def test_mascara_data(self):
         self.assertEqual(tema.CampoData.formatar("01012026"), "01/01/2026")
         self.assertEqual(tema.CampoData.formatar("0101"), "01/01")

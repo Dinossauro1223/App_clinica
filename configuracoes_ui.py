@@ -51,10 +51,13 @@ class ConfiguracoesUI:
         dados = _ler()
         atual = dados.get("aparencia", "Light")
         escolha = next((nome for nome, modo in self.OPCOES.items() if modo == atual), "Claro")
-        seletor = ctk.CTkSegmentedButton(card, values=list(self.OPCOES), command=self._aplicar,
-                                         selected_color=tema.VERDE, selected_hover_color=tema.VERDE_HOVER,
-                                         unselected_color=tema.VERDE_CLARO,
-                                         unselected_hover_color=tema.BORDA)
+        seletor = ctk.CTkSegmentedButton(
+            card, values=list(self.OPCOES), command=self._aplicar,
+            selected_color=tema.VERDE, selected_hover_color=tema.VERDE_HOVER,
+            unselected_color=tema.BRANCO, unselected_hover_color=tema.BORDA,
+            text_color=tema.TEXTO, text_color_disabled=tema.SUAVE,
+            corner_radius=8, border_width=1, border_color=tema.BORDA
+        )
         seletor.set(escolha)
         seletor.pack(anchor="w", padx=18, pady=(0, 16))
         self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
@@ -186,6 +189,11 @@ class ConfiguracoesUI:
     def _aplicar(self, nome):
         modo = self.OPCOES.get(nome, "Light")
         ctk.set_appearance_mode(modo)
+        # O CustomTkinter atualiza os componentes com cores em tupla; ttk exige reaplicar os estilos.
+        try:
+            tema.aplicar_tema_ttk(self.app)
+        except Exception:
+            pass
         dados = _ler()
         dados["aparencia"] = modo
         if _salvar(dados):
