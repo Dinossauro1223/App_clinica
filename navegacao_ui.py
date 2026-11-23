@@ -87,7 +87,7 @@ class BarraLateral(ctk.CTkFrame):
         linha.pack(fill="x")
         linha.pack_propagate(False)
         marca = ctk.CTkFrame(linha, width=4, height=40, corner_radius=0, fg_color="transparent")
-        marca.pack(side="left")
+        marca.place(x=0, y=0, relheight=1.0)
         botao = ctk.CTkButton(
             linha, text=icone, anchor="center", height=40, corner_radius=0,
             fg_color="transparent", hover_color=tema.VERDE_HOVER,
@@ -179,7 +179,7 @@ class PilhaAbasLaterais(ctk.CTkFrame):
         super().__init__(master, fg_color="transparent", corner_radius=0)
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
-        self._nav = ctk.CTkScrollableFrame(self, width=132, fg_color=tema.FUNDO)
+        self._nav = ctk.CTkScrollableFrame(self, width=180, fg_color=tema.FUNDO)
         self._conteudo = ctk.CTkFrame(self, fg_color=tema.FUNDO, corner_radius=8)
         self._conteudo.grid(row=0, column=0, columnspan=2, sticky="nsew")
         self._conteudo.grid_rowconfigure(0, weight=1)
@@ -206,7 +206,7 @@ class PilhaAbasLaterais(ctk.CTkFrame):
         frame.pack(fill="both", expand=True)
         aba = {"titulo": str(titulo), "frame": frame, "botao": None}
         botao = ctk.CTkButton(
-            self._nav, text=str(titulo), height=38, width=118,
+            self._nav, text=str(titulo), height=38, width=166,
             corner_radius=8, fg_color=tema.VERDE_CLARO,
             hover_color=tema.BORDA, text_color=tema.TEXTO,
             anchor="w", font=ctk.CTkFont(size=12),

@@ -115,6 +115,14 @@ root.destroy()
         )
         self.assertEqual(resultado.returncode, 0, resultado.stdout + resultado.stderr)
 
+    def test_fontes_de_interface_nao_criam_janelas_secundarias(self):
+        from pathlib import Path
+        raiz = Path(__file__).resolve().parents[1]
+        for nome in ("main.py", "ambulatorial_ui.py", "mapa_ui.py",
+                     "gestao_alimentar_ui.py", "condutas_alta_ui.py"):
+            fonte = (raiz / nome).read_text(encoding="utf-8")
+            self.assertNotIn("CTkToplevel", fonte, f"{nome} ainda abre janela secundária")
+
     def test_dimensoes_padronizadas_da_barra(self):
         self.assertEqual(BarraLateral.RECOLHIDA, 58)
         self.assertEqual(BarraLateral.EXPANDIDA, 250)
