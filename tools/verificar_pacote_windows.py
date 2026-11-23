@@ -25,6 +25,13 @@ def verificar_pacote(caminho: str | Path) -> None:
             "O ZIP deve conter somente o modelo _internal/clinica.db; "
             f"encontrados: {bancos!r}"
         )
+    sobras_sqlite = [
+        nome for nome in nomes
+        if Path(nome).name.casefold() in {"clinica.db-wal", "clinica.db-shm", "clinica.db-journal"}
+        and "/" not in nome
+    ]
+    if sobras_sqlite:
+        raise ValueError("Arquivos SQLite graváveis na raiz do pacote: " + ", ".join(sobras_sqlite))
 
     htmls = [nome for nome in nomes if Path(nome).name.casefold() == "index.html"]
     if htmls != ["_internal/mobile/static/index.html"]:
