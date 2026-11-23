@@ -58,18 +58,18 @@ SUPLEMENTOS_COMPLEMENTARES = [
     ("PediaSure Complete", "Fórmula completa"),
 ]
 # Fórmulas cuja indicação para administração por sonda está descrita pelo fabricante.
-# Nutrison Energy 1.5 tem composição transcrita da tabela oficial por 100 mL; demais fichas
-# permanecem pendentes, sem estimativa por produto semelhante.
+# Quatro fórmulas permanecem sem composição; três têm os valores por 100 mL transcritos
+# das respectivas tabelas oficiais. Nenhum valor é estimado por produto semelhante.
 SUPLEMENTOS_ENTERAIS_COMPLEMENTARES = [
     ("Nutrison Energy 1.5", "Fórmula enteral", 151, 6, 5.6, 19, 128,
      "https://danonenutricia.com.br/produtos/details/nutrison-energy-1-5"),
     ("Nutrison Energy MF 1.5", "Fórmula enteral", None, None, None, None, None,
      "https://danonenutricia.com.br/produtos/details/nutrison_energry_mf_15"),
-    ("Nutrison Protein Plus Energy", "Fórmula enteral", None, None, None, None, None,
+    ("Nutrison Protein Plus Energy", "Fórmula enteral", 150, 7.5, 5.8, 17, 100,
      "https://danonenutricia.com.br/produtos/details/Nutrison-protein-plus-energy"),
-    ("Nutrison advanced Diason", "Fórmula enteral", None, None, None, None, None,
+    ("Nutrison advanced Diason", "Fórmula enteral", 102, 4.3, 4.2, 11, 100,
      "https://danonenutricia.com.br/produtos/details/nutrison-advanced-diason"),
-    ("Nutrison advanced Cubison", "Fórmula enteral", None, None, None, None, None,
+    ("Nutrison advanced Cubison", "Fórmula enteral", 103, 5.5, 3.3, 13, 100,
      "https://danonenutricia.com.br/produtos/details/nutrison-advanced-cubison"),
     ("Nutrison Protein Plus Multi Fiber", "Fórmula enteral", None, None, None, None, None,
      "https://danonenutricia.com.br/produtos/adultos/alimentacao-por-sonda"),
