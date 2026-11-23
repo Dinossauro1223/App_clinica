@@ -20,6 +20,9 @@ class TestSplashAnimationContract(unittest.TestCase):
         for token in ("random.uniform(-1.15, 1.15)", "random.randint(35, 75)",
                       "progresso - .35", 'p["x"] >= 850', "folha_marca"):
             self.assertIn(token, source)
+        stem = (ROOT / "assets" / "identidade" / "componentes" / "haste_folhas.svg").read_text(encoding="utf-8")
+        for attachment in ("M200 225", "M200 238", "M200 285"):
+            self.assertIn(attachment, stem)
 
 
 if __name__ == "__main__":
