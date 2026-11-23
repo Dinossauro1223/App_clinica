@@ -1450,12 +1450,11 @@ class FormRegistro(_Janela):
             self._suplementos = []
         self._via_anterior = nova_via
         if enteral:
-            modulos = ("Fórmula completa", "Fórmula para diabetes")
-            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") in modulos]
-            self._suplementos = [s for s in self._suplementos if s.get("modulo") in modulos]
+            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") == "Fórmula enteral"]
+            self._suplementos = [s for s in self._suplementos if s.get("modulo") == "Fórmula enteral"]
             self.lbl_sup_tipo.configure(
-                text="DIETA ENTERAL: selecione a fórmula administrada pela sonda. A suplementação oral anterior "
-                     "é substituída para evitar classificar o mesmo leito nas duas categorias.")
+                text="DIETA ENTERAL: selecione uma fórmula identificada pelo fabricante para administração por sonda. "
+                     "A suplementação oral anterior é substituída; fórmulas apenas orais não aparecem nesta lista.")
             self.cb_mod.configure(values=["Fórmulas enterais"])
             self.cb_mod.set("Fórmulas enterais")
         else:
