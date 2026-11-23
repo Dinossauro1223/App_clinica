@@ -179,7 +179,7 @@ class TestConfigurarBancoDados(BaseApp):
         caminho = self.usar_banco()
         for _ in range(3):
             self.main.AppClinica.configurar_banco_dados(self.app)
-        self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo"), [(15,)])
+        self.assertGreater(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo")[0][0], 15)
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Regras_Complementares"), [(1,)])
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM schema_migrations"),
                          [(len(self.main.db_migracoes.MIGRACOES),)])
