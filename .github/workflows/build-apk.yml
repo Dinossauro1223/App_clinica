@@ -73,6 +73,21 @@ jobs:
 
       - name: Create and boot Android 34 emulator, install and launch APK
         run: |
+          # setup-android installs emulator under ANDROID_HOME/emulator, which is
+          # not guaranteed to be on PATH on hosted runners.
+          export PATH="$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          EMULATOR="$ANDROID_HOME/emulator/emulator"
+          ADB="$ANDROID_HOME/platform-tools/adb"
+          if [ ! -x "$EMULATOR" ]; then
+            echo "Android emulator binary not found at $EMULATOR"
+            find "$ANDROID_HOME" -maxdepth 4 -type f -name emulator -print
+            exit 1
+          fi
+          if [ ! -x "$ADB" ]; then
+            echo "adb binary not found at $ADB"
+            find "$ANDROID_HOME" -maxdepth 4 -type f -name adb -print
+            exit 1
+          fi
           mkdir -p "$HOME/.android/avd/nutrilab-ci.avd"
           cat > "$HOME/.android/avd/nutrilab-ci.avd/config.ini" <<EOF
           AvdId=nutrilab-ci
@@ -105,23 +120,23 @@ jobs:
           path.rel=avd/nutrilab-ci.avd
           target=android-34
           EOF
-          emulator -list-avds
-          command -v emulator
-          command -v adb
-          emulator -avd nutrilab-ci -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none > "$RUNNER_TEMP/nutrilab-emulator.log" 2>&1 &
+          "$EMULATOR" -list-avds
+          command -v "$EMULATOR"
+          command -v "$ADB"
+          "$EMULATOR" -avd nutrilab-ci -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none > "$RUNNER_TEMP/nutrilab-emulator.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/nutrilab-emulator.pid"
           sleep 10
           if ! kill -0 "$(cat "$RUNNER_TEMP/nutrilab-emulator.pid")" 2>/dev/null; then
             cat "$RUNNER_TEMP/nutrilab-emulator.log"
             exit 1
           fi
-          if ! timeout 180 adb wait-for-device; then
+          if ! timeout 180 "$ADB" wait-for-device; then
             cat "$RUNNER_TEMP/nutrilab-emulator.log"
             exit 1
           fi
           BOOTED=0
           for attempt in $(seq 1 120); do
-            BOOTED="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
+            BOOTED="$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
             if [ "$BOOTED" = "1" ]; then break; fi
             sleep 5
           done
@@ -129,15 +144,15 @@ jobs:
             cat "$RUNNER_TEMP/nutrilab-emulator.log"
             exit 1
           fi
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          adb install -r build/NutriLab-Mobile.apk
-          adb shell am start -n br.nutrilab.mobile/.MainActivity
+          "$ADB" shell settings put global window_animation_scale 0
+          "$ADB" shell settings put global transition_animation_scale 0
+          "$ADB" shell settings put global animator_duration_scale 0
+          "$ADB" install -r build/NutriLab-Mobile.apk
+          "$ADB" shell am start -n br.nutrilab.mobile/.MainActivity
           sleep 8
-          adb shell dumpsys activity activities | grep -E "ResumedActivity.*br.nutrilab.mobile|topResumedActivity.*br.nutrilab.mobile"
-          if adb logcat -d | grep -q "FATAL EXCEPTION"; then
-            adb logcat -d -s AndroidRuntime:E
+          "$ADB" shell dumpsys activity activities | grep -E "ResumedActivity.*br.nutrilab.mobile|topResumedActivity.*br.nutrilab.mobile"
+          if "$ADB" logcat -d | grep -q "FATAL EXCEPTION"; then
+            "$ADB" logcat -d -s AndroidRuntime:E
             exit 1
           fi
-          adb emu kill
+          "$ADB" emu kill
