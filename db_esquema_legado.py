@@ -1,4 +1,6 @@
 """Criação idempotente do esquema legado e do catálogo inicial de exames."""
+import json
+import os
 
 def garantir_esquema_legado(conexao):
     """Cria/atualiza, de forma IDEMPOTENTE, as tabelas do esquema legado e a semente de exames.
@@ -70,26 +72,48 @@ def garantir_esquema_legado(conexao):
     )
     ''')
 
-    cursor.execute("SELECT COUNT(*) FROM Exames_Catalogo")
-    if cursor.fetchone()[0] == 0:
-        exames_basicos = [
-            ('EXM-GLICEMIA-DE-JEJUM', 'GLICEMIA DE JEJUM'),
-            ('EXM-HOMA-IR', 'HOMA IR'),
-            ('EXM-HBA1C', 'HBA1C'),
-            ('EXM-TOTG-2H', 'TOTG 2H'),
-            ('EXM-COLESTEROL-TOTAL', 'COLESTEROL TOTAL'),
-            ('EXM-HDL-COLESTEROL', 'HDL COLESTEROL'),
-            ('EXM-LDL-COLESTEROL', 'LDL COLESTEROL'),
-            ('EXM-TRIGLICERIDEOS', 'TRIGLICERIDEOS'),
-            ('EXM-FERRO-SERICO', 'FERRO SERICO'),
-            ('EXM-FERRITINA-SERICA', 'FERRITINA SERICA'),
-            ('EXM-SATURACAO-DE-TRANSFERRINA', 'SATURACAO DE TRANSFERRINA'),
-            ('EXM-TIBC', 'TIBC'),
-            ('EXM-B12-SERICA', 'B12 SERICA'),
-            ('EXM-ACIDO-METILMALONICO', 'ACIDO METILMALONICO'),
-            ('EXM-HOMOCISTEINA-SERICA', 'HOMOCISTEINA SERICA')
-        ]
-        cursor.executemany("INSERT OR IGNORE INTO Exames_Catalogo (id_exame, nome_amigavel) VALUES (?, ?)", exames_basicos)
+    # O catálogo é derivado dos JSON versionados em exames_internos. INSERT OR IGNORE
+    # preserva nomes já ajustados pelo usuário e preenche bancos novos ou incompletos.
+    exames_catalogo = []
+    pasta_exames = os.path.join(os.path.dirname(os.path.abspath(__file__)), "exames_internos")
+    if os.path.isdir(pasta_exames):
+        for raiz, _pastas, arquivos in os.walk(pasta_exames):
+            for arquivo in sorted(arquivos):
+                if not arquivo.lower().endswith(".json"):
+                    continue
+                caminho = os.path.join(raiz, arquivo)
+                try:
+                    with open(caminho, encoding="utf-8") as f:
+                        dados = json.load(f)
+                except (OSError, ValueError):
+                    continue
+                if not isinstance(dados, dict):
+                    continue
+                identificador = str(dados.get("id") or os.path.splitext(arquivo)[0]).strip()
+                nome = str(dados.get("nome") or dados.get("nome_amigavel") or "").strip()
+                if identificador and nome:
+                    exames_catalogo.append((identificador, nome))
+    exames_basicos = [
+        ('EXM-GLICEMIA-DE-JEJUM', 'GLICEMIA DE JEJUM'),
+        ('EXM-HOMA-IR', 'HOMA IR'),
+        ('EXM-HBA1C', 'HBA1C'),
+        ('EXM-TOTG-2H', 'TOTG 2H'),
+        ('EXM-COLESTEROL-TOTAL', 'COLESTEROL TOTAL'),
+        ('EXM-HDL-COLESTEROL', 'HDL COLESTEROL'),
+        ('EXM-LDL-COLESTEROL', 'LDL COLESTEROL'),
+        ('EXM-TRIGLICERIDEOS', 'TRIGLICERIDEOS'),
+        ('EXM-FERRO-SERICO', 'FERRO SERICO'),
+        ('EXM-FERRITINA-SERICA', 'FERRITINA SERICA'),
+        ('EXM-SATURACAO-DE-TRANSFERRINA', 'SATURACAO DE TRANSFERRINA'),
+        ('EXM-TIBC', 'TIBC'),
+        ('EXM-B12-SERICA', 'B12 SERICA'),
+        ('EXM-ACIDO-METILMALONICO', 'ACIDO METILMALONICO'),
+        ('EXM-HOMOCISTEINA-SERICA', 'HOMOCISTEINA SERICA')
+    ]
+    cursor.executemany(
+        "INSERT OR IGNORE INTO Exames_Catalogo (id_exame, nome_amigavel) VALUES (?, ?)",
+        exames_catalogo + exames_basicos
+    )
 
     cursor.execute('''
         INSERT INTO Regras_Complementares (exame_gatilho, exame_sugerido)
