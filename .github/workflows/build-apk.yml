@@ -74,9 +74,19 @@ jobs:
       - name: Create and boot Android 34 emulator, install and launch APK
         run: |
           echo "no" | avdmanager create avd --force -n nutrilab-ci -k "system-images;android-34;google_apis;x86_64" -d pixel_2
+          command -v emulator
+          command -v adb
           emulator -avd nutrilab-ci -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none > "$RUNNER_TEMP/nutrilab-emulator.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/nutrilab-emulator.pid"
-          adb wait-for-device
+          sleep 10
+          if ! kill -0 "$(cat "$RUNNER_TEMP/nutrilab-emulator.pid")" 2>/dev/null; then
+            cat "$RUNNER_TEMP/nutrilab-emulator.log"
+            exit 1
+          fi
+          if ! timeout 180 adb wait-for-device; then
+            cat "$RUNNER_TEMP/nutrilab-emulator.log"
+            exit 1
+          fi
           BOOTED=0
           for attempt in $(seq 1 120); do
             BOOTED="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
