@@ -17,7 +17,8 @@ class TestLauncherBootstrap(unittest.TestCase):
 
     def test_instalador_python_tem_hash_fixado(self):
         texto = self.launcher
-        self.assertIn("PYTHON_VERSION=3.12.10", texto)\n        self.assertIn("python-%PYTHON_VERSION%-amd64.exe", texto)
+        self.assertIn("PYTHON_VERSION=3.12.10", texto)
+        self.assertIn("python-%PYTHON_VERSION%-amd64.exe", texto)
         self.assertIn("PYTHON_SHA256=", texto)
         self.assertIn("Get-FileHash", texto)
 
