@@ -1458,10 +1458,11 @@ class FormRegistro(_Janela):
         if enteral:
             # Registros antigos podem conter fórmulas cadastradas antes da classificação enteral.
             # Preservá-las ao abrir evita perda de histórico; novas escolhas vêm apenas do módulo enteral.
-            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") == "Fórmula enteral"]
+            modulos_enterais = ("Fórmula enteral", "Fórmula enteral e oral", "Módulo oral/enteral")
+            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") in modulos_enterais]
             self.lbl_sup_tipo.configure(
-                text="DIETA ENTERAL: selecione uma fórmula identificada pelo fabricante para administração por sonda. "
-                     "A suplementação oral anterior é substituída; fórmulas apenas orais não aparecem nesta lista.")
+                text="DIETA ENTERAL: selecione fórmula ou módulo com indicação do fabricante para uso por sonda. "
+                     "A suplementação oral anterior é substituída; itens exclusivos da via oral não aparecem nesta lista.")
             self.cb_mod.configure(values=["Fórmulas enterais"])
             self.cb_mod.set("Fórmulas enterais")
         elif zero:
