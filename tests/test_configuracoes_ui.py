@@ -32,6 +32,14 @@ class TestPreferenciasConfiguracoes(unittest.TestCase):
                 caminho.write_text("{inválido", encoding="utf-8")
                 self.assertEqual(cfg._ler(), {})
 
+
+    def test_telas_carregadas_dinamicamente_estao_no_pacote_windows(self):
+        raiz = Path(__file__).resolve().parents[1]
+        spec = (raiz / "app_clinica.spec").read_text(encoding="utf-8")
+        for modulo in ("configuracoes_ui", "mobile_ui", "almox_ui",
+                       "gestao_alimentar_ui", "nrs_ui", "avaliacao_ui"):
+            self.assertIn(f"'{modulo}'", spec, f"{modulo} precisa ser incluído no PyInstaller")
+
     def test_falha_de_escrita_retorna_false(self):
         with mock.patch.object(cfg.os, "makedirs", side_effect=OSError("sem permissão")):
             self.assertFalse(cfg._salvar({"aparencia": "Light"}))

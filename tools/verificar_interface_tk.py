@@ -358,6 +358,78 @@ class Atalhos:
         caixa.destroy()
 
 
+
+def verificar_paineis_configuracoes_suplementos(raiz, ctk):
+    """Abre as duas telas pelo mesmo fluxo de guias do desktop, com Tk real e banco sintético."""
+    import tempfile
+    from pathlib import Path
+    from unittest import mock
+    import db_service
+    import mapa_db
+    import mapa_ui
+    import configuracoes_ui
+    from navegacao_ui import PilhaAbasLaterais
+
+    class AppHarness:
+        def __init__(self):
+            self.host = ctk.CTkFrame(raiz, fg_color="transparent")
+            self.host.pack(fill="both", expand=True)
+            self.pilha = PilhaAbasLaterais(self.host)
+            self.pilha.pack(fill="both", expand=True)
+            self.area_principal = self.pilha.pagina_atual
+            self.mapa = None
+
+        def __getattr__(self, nome):
+            return getattr(raiz, nome)
+
+        def limpar_area_principal(self):
+            for widget in self.area_principal.winfo_children():
+                widget.destroy()
+
+        def tela_inicial(self):
+            return None
+
+        def abrir_painel_lateral(self, titulo, comando):
+            frame = self.pilha.abrir(titulo)
+            self.area_principal = frame
+            comando()
+            return frame
+
+    def textos(widget):
+        saida = []
+        try:
+            valor = widget.cget("text")
+            if valor:
+                saida.append(str(valor))
+        except Exception:
+            pass
+        for filho in widget.winfo_children():
+            saida.extend(textos(filho))
+        return saida
+
+    with tempfile.TemporaryDirectory(prefix="nutrilab-ui-") as tmp:
+        banco = str(Path(tmp) / "clinica_teste.db")
+        mapa_db.inicializar(banco)
+        app = AppHarness()
+        app.mapa = type("MapaBanco", (), {"db": banco})()
+        with mock.patch.object(db_service, "caminho_banco", return_value=banco):
+            app.abrir_painel_lateral("Configurações", lambda: configuracoes_ui.ConfiguracoesUI(app).mostrar())
+            bombear(raiz, 0.2)
+            rotulos = textos(app.area_principal)
+            assert "Configurações" in rotulos, "a tela de Configurações não foi renderizada"
+            assert "Aparência do aplicativo" in rotulos, "opções de aparência não foram renderizadas"
+            assert "Reavaliação nutricional (NRS-2002)" in rotulos, "opções NRS não foram renderizadas"
+
+        app.mapa = mapa_ui.MapaUI(app, banco, RAIZ)
+        app.abrir_painel_lateral("Suplementos", app.mapa.mostrar_suplementos)
+        bombear(raiz, 0.3)
+        assert app.mapa.tree_sup.winfo_exists(), "a tabela de suplementos não foi criada"
+        linhas = app.mapa.tree_sup.get_children()
+        assert len(linhas) >= 6, f"catálogo inicial deveria mostrar pelo menos seis suplementos, mostrou {len(linhas)}"
+        assert app.pilha.quantidade == 2, "as duas telas deveriam permanecer em guias independentes"
+        app.pilha.limpar()
+        app.host.destroy()
+
 # --------------------------------------------------------------------------------------------- principal
 def main():
     try:
@@ -403,6 +475,11 @@ def main():
                     ("gráficos: escala de tela de 150%", g.escala_do_windows),
                     ("gráficos: destruir durante a animação", g.destruir_sem_erros)):
         rel.checar(nome, f)
+
+    rel.checar(
+        "navegação: Configurações e Suplementos em guias com Tk real",
+        verificar_paineis_configuracoes_suplementos, raiz, ctk
+    )
 
     bombear(raiz, 0.3)
     if erros:

@@ -356,9 +356,27 @@ class AppClinica(ctk.CTk):
         self.area_principal = frame
         try:
             comando()
-        except Exception:
+        except Exception as erro:
             self.area_principal = self._pilha_abas_laterais.fechar_ultima()
-            raise
+            # O executável é compilado sem console; não deixe falhas de importação/renderização
+            # desaparecerem silenciosamente quando o usuário abre uma tela pelo menu.
+            detalhe = f"{type(erro).__name__}: {erro}"
+            try:
+                import traceback
+                pasta_logs = os.path.join(os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__)), "logs")
+                os.makedirs(pasta_logs, exist_ok=True)
+                with open(os.path.join(pasta_logs, "erros_interface.log"), "a", encoding="utf-8") as registro:
+                    registro.write(f"\\n[{datetime.now().isoformat(timespec='seconds')}] Falha ao abrir {titulo}\\n")
+                    registro.write(traceback.format_exc())
+                    registro.write("\\n")
+            except OSError:
+                pass
+            messagebox.showerror(
+                "Não foi possível abrir a tela",
+                f'A tela "{titulo}" não pôde ser aberta.\\n\\n{detalhe}\\n\\n'
+                "O erro técnico foi registrado em logs/erros_interface.log, quando possível."
+            )
+            return None
         return frame
 
     def fechar_painel_lateral(self, frame):

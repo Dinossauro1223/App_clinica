@@ -30,6 +30,15 @@ class WidgetFake:
     def grid_configure(self, **_kwargs):
         pass
 
+    def grid_info(self):
+        return {"row": 0, "column": 1, "sticky": "ns"}
+
+    def grid(self, **kwargs):
+        self.grid_args = kwargs
+
+    def grid_remove(self):
+        self.grid_removed = True
+
 
 class TestNavegacaoV4(unittest.TestCase):
     def test_widgets_reais_customtkinter_em_processo_isolado(self):
@@ -63,7 +72,14 @@ barra.definir_fixa(True)
 root.update()
 assert int(barra.cget("width")) == 250
 barra.definir_fixa(False)
+root.update()
 assert int(barra.cget("width")) == 58
+assert not barra.rolagem._scrollbar.grid_info(), "scrollbar deveria liberar a largura no modo recolhido"
+barra._abrir(True)
+root.update()
+assert barra.rolagem._scrollbar.grid_info(), "scrollbar deveria reaparecer no modo expandido"
+barra._abrir(False)
+root.update()
 # Os formulários de mapa e fichas devem criar e fechar guias, não Toplevels.
 from types import SimpleNamespace
 from gestao_alimentar_ui import _PainelJanela
@@ -145,6 +161,20 @@ root.destroy()
         self.assertEqual(botao.configs[-1]["text"], "👥")
         self.assertEqual(botao.configs[-1]["anchor"], "center")
         self.assertEqual(titulo.configs[-1]["text"], "•")
+
+
+    def test_scrollbar_nao_desloca_icones_recolhidos_e_reaparece_expandido(self):
+        scrollbar = WidgetFake()
+        barra = SimpleNamespace(
+            aberta=False, itens={}, titulos=[], lbl_titulo=WidgetFake(),
+            lbl_rodape=WidgetFake(), rodape="© NutriLab",
+            rolagem=SimpleNamespace(_scrollbar=scrollbar),
+            _scrollbar_grid={"row": 0, "column": 1, "sticky": "ns"},
+        )
+        BarraLateral._rotular(barra, False)
+        self.assertTrue(scrollbar.grid_removed)
+        BarraLateral._rotular(barra, True)
+        self.assertEqual(scrollbar.grid_args, {"row": 0, "column": 1, "sticky": "ns"})
 
     def test_rotulos_aparecem_alinhados_no_modo_expandido(self):
         botao = WidgetFake()

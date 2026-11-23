@@ -53,6 +53,8 @@ a = Analysis(
     datas=DATAS,
     hiddenimports=[
         'mapa_export', 'mapa_graficos', 'graficos_ui', 'graficos_layout',
+        'configuracoes_ui', 'mobile_ui', 'almox_ui', 'gestao_alimentar_ui',
+        'nrs_ui', 'avaliacao_ui',
         'openpyxl', 'matplotlib.backends.backend_agg',
     ],
     hookspath=[],
