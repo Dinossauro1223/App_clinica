@@ -247,7 +247,8 @@ class MapaUI:
         else:
             self.lbl_resumo.configure(
                 text=f"{ocupados} de {total} leitos com registro  ·  {past} em dieta pastosa  ·  "
-                     f"{acomp} com acompanhante  ·  {sup_oral} com suplementação oral  ·  {enteral} em dieta enteral")
+                     f"{acomp} com acompanhante  ·  {ocupados - sup_oral - enteral} em via oral sem suplemento  ·  "
+                     f"{sup_oral} com suplementação oral  ·  {enteral} em dieta enteral")
 
     # ------------------------------------------------------------------ condutas de alta
     def _catalogo_condutas(self):
@@ -1314,7 +1315,8 @@ class FormRegistro(_Janela):
                 raise ValueError("Data de reavaliação inválida. Use DD/MM/AAAA.")
         for campo, rot in ((self.e_aj, "AJ"), (self.e_pp, "PP"), (self.e_pb, "PB"), (self.e_altura, "Altura"),
                            (self.e_peso, "Peso"), (self.e_idade, "Idade"), (self.e_fi_freq, "Frequência"),
-                           (self.e_fi_dias, "Dias")):
+                           (self.e_fi_dias, "Dias"), (self.e_meta_kcal, "Meta energética"),
+                           (self.e_meta_ptn, "Meta proteica")):
             if g(campo) and nc.parse_num(g(campo)) is None:
                 raise ValueError(f"Valor inválido em {rot}.")
         origem_a = {"Estimada": "E", "Real": "R"}.get(self.seg_alt.get())
