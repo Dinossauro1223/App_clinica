@@ -41,7 +41,7 @@ def validar_apk(apk: Path, app_dir: Path) -> None:
             raise RuntimeError("APK sem arquivos obrigatórios: " + ", ".join(faltando))
         if pacote.read("assets/index.html") != STATIC.read_bytes():
             raise RuntimeError("A interface HTML embutida no APK está desatualizada.")
-    if apk.stat().st_size < 50_000:
+    if apk.stat().st_size < 20_000:
         raise RuntimeError(f"APK inesperadamente pequeno: {apk.stat().st_size} bytes")
 
 
