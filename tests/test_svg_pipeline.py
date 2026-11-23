@@ -8,7 +8,6 @@ from __future__ import annotations
 import io
 import json
 import unittest
-from pathlib import Path
 
 import resvg_py
 from PIL import Image
