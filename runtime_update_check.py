@@ -1,8 +1,4 @@
-"""Verifica atualizacoes antes da inicializacao do NutriLab empacotado.
-
-O hook e deliberadamente pequeno e usa apenas a biblioteca padrao. Se GitHub estiver
-indisponivel, nao impede a abertura do programa.
-"""
+"""Verifica atualizacoes antes da inicializacao do NutriLab empacotado."""
 from __future__ import annotations
 
 import ctypes
@@ -12,7 +8,6 @@ from pathlib import Path
 import subprocess
 import sys
 import urllib.request
-
 
 REPO = "Dinossauro1223/App_clinica"
 API_URL = f"https://api.github.com/repos/{REPO}/commits/main"
@@ -49,20 +44,14 @@ def _confirmar(remote_sha: str, local_sha: str) -> bool:
         "Deseja fechar o programa e atualizar agora?"
     )
     resultado = ctypes.windll.user32.MessageBoxW(
-        0,
-        mensagem,
-        "Atualização do NutriLab",
-        0x00000004 | 0x00000040,
+        0, mensagem, "Atualização do NutriLab", 0x00000004 | 0x00000040
     )
     return resultado == 6
 
 
 def verificar_e_atualizar() -> None:
-    if os.environ.get("NUTRILAB_SKIP_UPDATE") == "1":
+    if os.environ.get("NUTRILAB_SKIP_UPDATE") == "1" or os.environ.get("CI") == "true":
         return
-    if os.environ.get("CI") == "true":
-        return
-
     raiz = _raiz_instalacao()
     if raiz is None:
         return
@@ -80,7 +69,6 @@ def verificar_e_atualizar() -> None:
             return
         if not _confirmar(remote_sha, local_sha):
             return
-
         subprocess.Popen(
             [
                 os.environ.get("COMSPEC", "cmd.exe"),
@@ -90,6 +78,7 @@ def verificar_e_atualizar() -> None:
                 remote_sha,
                 "--root",
                 str(raiz),
+                "--confirmed",
             ],
             cwd=str(raiz),
             creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
@@ -98,8 +87,6 @@ def verificar_e_atualizar() -> None:
         )
         os._exit(0)
     except Exception:
-        # Atualizacao nunca pode impedir o programa de abrir por erro de rede,
-        # API, permissao ou arquivo local.
         return
 
 
