@@ -38,6 +38,12 @@ class TestBuscaPrefixadaTBCA(unittest.TestCase):
         encontrados = ga.listar_alimentos(self.db, "arroz")
         self.assertNotIn("B001", [item["id_tbca"] for item in encontrados])
 
+    def test_rotulo_tbca_e_id_manual_sao_convertidos_sem_perda(self):
+        from gestao_alimentar_ui import _extrair_id_tbca
+        self.assertEqual(_extrair_id_tbca("A001 | Arroz branco cozido"), "A001")
+        self.assertEqual(_extrair_id_tbca("A001"), "A001")
+        self.assertIsNone(_extrair_id_tbca("— selecionar alimento da TBCA —"))
+
     def test_id_tbca_exato_continua_pesquisavel(self):
         encontrados = ga.listar_alimentos(self.db, "B001")
         self.assertEqual([item["id_tbca"] for item in encontrados], ["B001"])

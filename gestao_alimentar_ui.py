@@ -543,6 +543,14 @@ class GestaoAlimentarUI:
             self.tbca_tree.selection_remove(self.tbca_tree.selection())
 
 
+def _extrair_id_tbca(valor):
+    """Aceita tanto o rótulo selecionado 'ID | nome' quanto um ID digitado manualmente."""
+    texto = str(valor or "").strip()
+    if not texto or texto.startswith("—"):
+        return None
+    return texto.split(" | ", 1)[0].strip() or None
+
+
 class FichaDialog:
     """Editor de preparação com linhas de ingrediente e vínculo opcional à TBCA/Almoxarifado."""
 
@@ -717,10 +725,7 @@ class FichaDialog:
                 "nome": linha["nome"].get().strip(), "qtd_per_capita": linha["qtd"].get(),
                 "unidade": linha["unidade"].get(), "fator_correcao": linha["fc"].get() or 1,
                 "medida_caseira": linha["medida"].get().strip() or None,
-                "tbca_id": (
-                    linha["tbca"].get().split(" | ", 1)[0].strip()
-                    if " | " in linha["tbca"].get() else None
-                ),
+                "tbca_id": _extrair_id_tbca(linha["tbca"].get()),
                 "npu": linha["npu"].get().strip() or None,
                 "densidade_g_ml": linha["dens"].get().strip() or None,
                 "preco_unitario_manual": linha["preco"].get().strip() or None,
