@@ -1386,27 +1386,39 @@ class AppClinica(ctk.CTk):
             self.lbl_resultado_metabolismo.configure(text=f"Erro no cálculo.", text_color="#c62828")
 
     def abrir_modal_padroes(self, alvo):
-        modal = ctk.CTkToplevel(self)
-        modal.geometry("500x400")
-        modal.attributes("-topmost", True)
-        tabview_modal = _criar_tabview_compat(modal, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
-                                fg_color="#e8f5e9",
-                                segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
-                                segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                text_color="#ffffff", text_color_disabled="#d5e8d7")
+        """Abre a biblioteca de padrões em uma guia lateral, preservando a consulta anterior."""
+        titulos = {
+            "conduta": "Importar Condutas e Prescrições",
+            "anamnese": "Importar Sintomas Clínicos",
+            "exames": "Importar Análise e Valores de Referência",
+        }
+        titulo = titulos.get(alvo, "Importar padrões")
+        painel = self.abrir_painel_lateral(titulo, lambda: None)
+        cabecalho = ctk.CTkFrame(painel, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=12, pady=(10, 4))
+        ctk.CTkLabel(cabecalho, text=titulo, font=ctk.CTkFont(size=18, weight="bold"),
+                     text_color=tema.TEXTO).pack(side="left")
+        ctk.CTkButton(cabecalho, text="Fechar guia", width=100,
+                      command=lambda: self.fechar_painel_lateral(painel)).pack(side="right")
+        tabview_modal = _criar_tabview_compat(
+            painel, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
+            fg_color=tema.FUNDO,
+            segmented_button_selected_color=tema.VERDE,
+            segmented_button_selected_hover_color=tema.VERDE_ESC,
+            segmented_button_unselected_color=tema.VERDE_CLARO,
+            segmented_button_unselected_hover_color=tema.BORDA,
+            text_color=tema.TEXTO, text_color_disabled=tema.SUAVE
+        )
         tabview_modal.pack(padx=10, pady=10, fill="both", expand=True)
         if alvo == "conduta":
-            modal.title("Importar Condutas e Prescrições")
             aba_condutas = tabview_modal.add("Condutas")
             aba_prescricoes = tabview_modal.add("Prescrições")
             self.listar_arquivos_diretorio("condutas_internas", aba_condutas, self.txt_conduta)
             self.listar_arquivos_diretorio("prescricoes_internas", aba_prescricoes, self.txt_conduta)
         elif alvo == "anamnese":
-            modal.title("Importar Sintomas Clínicos")
             aba_sintomas = tabview_modal.add("Sintomas")
             self.listar_arquivos_diretorio("sintomas_internos", aba_sintomas, self.txt_anamnese)
         elif alvo == "exames":
-            modal.title("Importar Análise e Valores de Referência de Exames")
             aba_exames_ref = tabview_modal.add("Exames")
             self.listar_arquivos_diretorio("exames_internos", aba_exames_ref, self.txt_analise_exames)
 
@@ -1791,12 +1803,13 @@ class AppClinica(ctk.CTk):
                 self.lbl_msg_consulta.configure(text="Adicione exames à solicitação antes de lançar resultados.", text_color="#ef6c00")
             return
 
-        modal = ctk.CTkToplevel(self)
-        modal.geometry("600x500")
-        modal.title("Lançar Resultados Laboratoriais")
-        modal.attributes("-topmost", True)
-
-        ctk.CTkLabel(modal, text="Lançamento de Resultados", font=ctk.CTkFont(size=20, weight="bold"), text_color="#1b5e20").pack(pady=(10, 5))
+        modal = self.abrir_painel_lateral("Lançar Resultados Laboratoriais", lambda: None)
+        cabecalho_resultados = ctk.CTkFrame(modal, fg_color="transparent")
+        cabecalho_resultados.pack(fill="x", padx=12, pady=(10, 2))
+        ctk.CTkLabel(cabecalho_resultados, text="Lançamento de Resultados",
+                     font=ctk.CTkFont(size=20, weight="bold"), text_color=tema.TEXTO).pack(side="left")
+        ctk.CTkButton(cabecalho_resultados, text="Fechar guia", width=100,
+                      command=lambda: self.fechar_painel_lateral(modal)).pack(side="right")
 
         scroll = ctk.CTkScrollableFrame(modal, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=10, pady=10)
@@ -1867,9 +1880,9 @@ class AppClinica(ctk.CTk):
                 bandas = self._carregar_bandas_exame(id_exame)
                 status = self._classificar_valor(valor, ref_min, ref_max, bandas)
                 self.resultados_lancados[id_exame] = (valor, status)
-            # Limpa os labels dinâmicos ao fechar o modal
+            # Limpa os labels dinâmicos ao fechar a guia lateral
             self._labels_calculo = {}
-            modal.destroy()
+            self.fechar_painel_lateral(modal)
 
         ctk.CTkButton(modal, text="Salvar", fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"), command=salvar_e_fechar).pack(pady=(0, 10))
 
@@ -1919,22 +1932,26 @@ class AppClinica(ctk.CTk):
         except Exception as e: print(f"Erro: {e}")
 
     def _abrir_select_exame(self):
-        """Abre una janela de selección con scroll fluido (CTkScrollableFrame)."""
-        modal = ctk.CTkToplevel(self)
-        modal.geometry("380x420")
-        modal.title("Selecionar Exame")
-        modal.attributes("-topmost", True)
-        modal.configure(fg_color="#e8f5e9")
-
-        ctk.CTkLabel(modal, text="Selecione un exame do catálogo:", font=ctk.CTkFont(size=15, weight="bold"), text_color="#1b5e20").pack(pady=(10, 5))
-
-        self.entry_filtro_exames = ctk.CTkEntry(modal, placeholder_text="Filtrar por nombre...", font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        """Abre o catálogo de exames em uma guia lateral com filtro e rolagem."""
+        painel = self.abrir_painel_lateral("Selecionar exame", lambda: None)
+        self._painel_select_exame = painel
+        cabecalho = ctk.CTkFrame(painel, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=12, pady=(10, 2))
+        ctk.CTkLabel(cabecalho, text="Selecione um exame do catálogo",
+                     font=ctk.CTkFont(size=18, weight="bold"), text_color=tema.TEXTO).pack(side="left")
+        ctk.CTkButton(cabecalho, text="Fechar guia", width=100,
+                      command=lambda: self.fechar_painel_lateral(painel)).pack(side="right")
+        self.entry_filtro_exames = ctk.CTkEntry(
+            painel, placeholder_text="Filtrar por nome...", font=ctk.CTkFont(size=15),
+            fg_color=tema.BRANCO, text_color=tema.TEXTO,
+            placeholder_text_color=tema.SUAVE, border_color=tema.BORDA
+        )
         self.entry_filtro_exames.pack(fill="x", padx=15, pady=5)
-        self.entry_filtro_exames.bind("<KeyRelease>", lambda e: self._preencher_lista_exames())
-
-        self.scroll_lista_exames = ctk.CTkScrollableFrame(modal, width=340, height=300, fg_color="#f1f8ea", corner_radius=6)
+        self.entry_filtro_exames.bind("<KeyRelease>", lambda _e: self._preencher_lista_exames())
+        self.scroll_lista_exames = ctk.CTkScrollableFrame(
+            painel, fg_color=tema.FUNDO, corner_radius=6
+        )
         self.scroll_lista_exames.pack(fill="both", expand=True, padx=15, pady=10)
-
         self._preencher_lista_exames()
 
     def _preencher_lista_exames(self):
@@ -1950,13 +1967,13 @@ class AppClinica(ctk.CTk):
             ctk.CTkButton(self.scroll_lista_exames, text=opcion, anchor="w", fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=14), command=lambda o=opcion: self._seleccionar_exame(o)).pack(fill="x", padx=5, pady=2)
 
     def _seleccionar_exame(self, opcion):
-        """Guarda la elección y cierra la ventana del selector."""
+        """Guarda a escolha e fecha somente a guia do seletor de exames."""
         self.exame_escolhido = opcion
         self.btn_select_exame.configure(text=opcion)
-        try:
-            self.scroll_lista_exames.winfo_toplevel().destroy()
-        except Exception:
-            pass
+        painel = getattr(self, "_painel_select_exame", None)
+        if painel is not None:
+            self.fechar_painel_lateral(painel)
+            self._painel_select_exame = None
 
     def adicionar_exame(self, id_forcado=None, nome_forcado=None):
         if id_forcado and nome_forcado:

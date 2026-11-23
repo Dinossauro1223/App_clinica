@@ -174,32 +174,47 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
                           command=lambda d=doc: self._abrir_docx(d)).pack(side="right", padx=6, pady=4)
 
     def _novo_docx(self):
-        janela = ctk.CTkToplevel(self)
-        janela.title("Cadastrar recomendação DOCX")
-        janela.geometry("550x355")
-        janela.transient(self.winfo_toplevel())
-        janela.grab_set()
+        app = self.winfo_toplevel()
+        painel_externo = hasattr(app, "abrir_painel_lateral")
+        if painel_externo:
+            container = app.abrir_painel_lateral("Cadastrar recomendação DOCX", lambda: None)
+        else:
+            container = self
+        painel = ctk.CTkFrame(container, fg_color="transparent")
+        painel.pack(fill="both", expand=True)
+        cabecalho = ctk.CTkFrame(painel, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=14, pady=(10, 4))
+        ctk.CTkLabel(cabecalho, text="Cadastrar recomendação DOCX",
+                     font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE).pack(side="left")
+
+        def fechar():
+            if painel_externo:
+                app.fechar_painel_lateral(container)
+            else:
+                painel.destroy()
+
+        ctk.CTkButton(cabecalho, text="Fechar guia", width=100, command=fechar).pack(side="right")
         entradas = {}
         for chave, rotulo, dica in (("titulo", "Título", "Ex.: Orientações nutricionais"),
                                      ("caso", "Caso clínico/situação de uso", "Ex.: Diabetes tipo 2"),
                                      ("tags", "Palavras-chave (opcional)", "Ex.: DM; educação alimentar")):
-            ctk.CTkLabel(janela, text=rotulo, text_color=VERDE).pack(anchor="w", padx=14, pady=(10, 2))
-            campo = ctk.CTkEntry(janela, width=510, placeholder_text=dica,
+            ctk.CTkLabel(painel, text=rotulo, text_color=VERDE).pack(anchor="w", padx=14, pady=(10, 2))
+            campo = ctk.CTkEntry(painel, width=510, placeholder_text=dica,
                                  fg_color=BRANCO, border_color=BORDA, text_color="#263238")
             campo.pack(padx=14)
             entradas[chave] = campo
         arquivo = {"path": ""}
-        rotulo = ctk.CTkLabel(janela, text="Nenhum arquivo selecionado", wraplength=500)
+        rotulo = ctk.CTkLabel(painel, text="Nenhum arquivo selecionado", wraplength=500)
         rotulo.pack(pady=8)
 
         def escolher():
-            path = filedialog.askopenfilename(parent=janela, title="Selecione o DOCX",
+            path = filedialog.askopenfilename(parent=painel, title="Selecione o DOCX",
                                               filetypes=[("Documento Word", "*.docx")])
             if path:
                 arquivo["path"] = path
                 rotulo.configure(text=os.path.basename(path))
 
-        ctk.CTkButton(janela, text="Selecionar .docx", command=escolher).pack()
+        ctk.CTkButton(painel, text="Selecionar .docx", command=escolher).pack()
 
         def salvar():
             try:
@@ -208,13 +223,13 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
                 with sqlite3.connect(self.db_path) as conn:
                     amb.cadastrar_recomendacao_docx(conn, arquivo["path"], self.pasta_dados,
                         entradas["titulo"].get(), entradas["caso"].get(), entradas["tags"].get())
-                janela.destroy()
+                fechar()
                 self._listar_docs()
                 messagebox.showinfo("Biblioteca", "Recomendação cadastrada.", parent=self)
             except (amb.ErroAmbulatorial, sqlite3.Error, OSError) as exc:
-                messagebox.showerror("Não foi possível cadastrar", str(exc), parent=janela)
+                messagebox.showerror("Não foi possível cadastrar", str(exc), parent=painel)
 
-        ctk.CTkButton(janela, text="Salvar na biblioteca", command=salvar,
+        ctk.CTkButton(painel, text="Salvar na biblioteca", command=salvar,
                       fg_color=BOTAO, hover_color=HOVER).pack(pady=12)
 
     def _abrir_docx(self, doc):
