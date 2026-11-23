@@ -63,7 +63,7 @@ class TestAlmoxarifado(unittest.TestCase):
         iid = self.item("4,00")
         db.registrar_movimento(self.path, "2026-11-22", iid, "entrada", 5, "4,00")
         mid = db.registrar_movimento(self.path, "2026-11-22", iid, "consumo", 2, refeicao="almoco")
-        estorno = db.estornar_movimento(self.path, mid, justificativa="Lançamento duplicado")
+        estorno = db.estornar_movimento(self.path, mid, data="2026-11-22", justificativa="Lançamento duplicado")
         self.assertEqual(db.obter_item(self.path, iid)["saldo"], 5)
         rows = {m["id_movimento"]: m for m in db.listar_movimentos(self.path)}
         self.assertEqual(rows[mid]["motivo"], "consumo")
