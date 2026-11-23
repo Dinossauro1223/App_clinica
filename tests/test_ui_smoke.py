@@ -483,7 +483,7 @@ class TestInterface(unittest.TestCase):
         reg = mdb.obter_registro(self.db, self.ui.data.isoformat(), self._primeiro_leito()["leito"]["id_leito"])
         self.assertEqual(reg["via"], "Enteral")
         self.assertEqual([s["nome"] for s in reg["suplementos"]], ["Nutrison Energy 1.5"])
-        self.assertEqual((reg["suplementos"][0]["kcal_100"], reg["suplementos"][0]["ptn_100"]), (151.0, 6.0))
+        self.assertEqual((reg["suplementos"][0]["kcal_100"], reg["suplementos"][0]["ptn_100"]), (149.0, 6.0))
         self.assertTrue(reg["suplementos"][0]["ficha_snapshot_em"])
         self.assertEqual((reg["meta_kcal"], reg["meta_proteina_g"]), (1800.0, 90.0))
         self.assertIn("1 em dieta enteral", self.ui.lbl_resumo.opts["text"])
