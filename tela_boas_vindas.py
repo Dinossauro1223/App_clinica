@@ -139,7 +139,7 @@ class TelaBoasVindas:
         # Primeiro plano: maçã, wordmark, assinatura e marcas institucionais.
         self._imagem("maca", 929, 386, 378, 324)
         self._imagem("dna", 1238, 130, 132, 253)
-        self._imagem("frasco", 1290, 424, 204, 265)
+        self._imagem("frasco", 1320, 410, 175, 245)
         self._imagem("boas_vindas", 108, 250, 520, 100)
         self._imagem("wordmark", 100, 345, 759, 159)
         self._imagem("assinatura", 110, 458, 990, 135)
