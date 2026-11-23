@@ -298,6 +298,24 @@ class TestBanco(unittest.TestCase):
         outro = mdb.salvar_suplemento(self.db, dict(nome="Z"))
         self.assertTrue(mdb.remover_suplemento(self.db, outro))
 
+    def test_migracao_adiciona_colunas_de_snapshot_em_banco_antigo(self):
+        fd, legado = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            with sqlite3.connect(legado) as c:
+                c.execute("""CREATE TABLE Mapa_Registro_Suplementos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL,
+                    id_suplemento INTEGER, nome TEXT NOT NULL, modulo TEXT, qtd_dia REAL,
+                    unidade TEXT, ml_oferta REAL, agua_ml REAL,
+                    refeicoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0)""")
+            mdb.inicializar(legado)
+            with sqlite3.connect(legado) as c:
+                colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
+            self.assertTrue({"kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
+                             "ficha_observacao", "ficha_snapshot_em"}.issubset(colunas))
+        finally:
+            os.remove(legado)
+
     def test_snapshot_da_ficha_nao_muda_quando_catalogo_e_atualizado(self):
         sid = mdb.salvar_suplemento(self.db, dict(
             nome="Fórmula snapshot", modulo="Fórmula completa", emb_un="g",
