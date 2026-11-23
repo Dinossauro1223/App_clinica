@@ -55,7 +55,14 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .orientacao-texto{white-space:normal;line-height:1.55}
 .orientacao-texto br{display:block;margin-bottom:5px;content:""}
 .orientacao-nota{background:#edf3ef;border-left:4px solid var(--cor);border-radius:6px;padding:10px 12px;margin:8px 0}
-.img-diluicao{display:block;width:100%;max-height:180px;object-fit:contain;margin:4px auto 10px}
+.img-diluicao{display:block;width:100%;max-height:230px;object-fit:contain;margin:4px auto 10px}
+.potassio-grafico{display:grid;gap:9px;margin:12px 0}
+.potassio-linha{display:grid;grid-template-columns:minmax(105px,1fr) minmax(90px,2fr) 58px;align-items:center;gap:8px;font-size:.84rem}
+.potassio-barra{height:13px;background:#e8eeea;border-radius:20px;overflow:hidden}
+.potassio-barra span{display:block;height:100%;background:#347b70;border-radius:20px}
+.potassio-valor{font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+.potassio-legenda{font-size:.8rem;color:var(--suave);line-height:1.5}
+@media(max-width:360px){.potassio-linha{grid-template-columns:90px minmax(55px,1fr) 52px;gap:5px;font-size:.76rem}}
 .passos-preparo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
 .passo-preparo{border:1px solid var(--linha);border-radius:8px;background:#fff;padding:9px;font-size:.82rem}
 .passo-preparo b{display:block;margin-bottom:4px}
@@ -441,9 +448,15 @@ const repor=tenta(async()=>{
    Variedades fixadas para comparação: maçã Fuji c/ casca, banana-prata, uva Rubi,
    laranja Pera e mamão Papaia. Consultado em 22/11/2026. */
 const FRUTAS=[
- {id:'melao',nome:'Melão'}, {id:'melancia',nome:'Melancia'}, {id:'banana',nome:'Banana-prata'},
- {id:'maca',nome:'Maçã Fuji com casca'}, {id:'uva',nome:'Uva Rubi'}, {id:'abacaxi',nome:'Abacaxi'},
- {id:'abacate',nome:'Abacate'}, {id:'laranja',nome:'Laranja Pera'}, {id:'mamao',nome:'Mamão Papaia'}
+ {id:'melao',nome:'Melão',potassio:173.00,tbca:'BRC0028C'},
+ {id:'melancia',nome:'Melancia',potassio:83.62,tbca:'BRC0027C'},
+ {id:'banana',nome:'Banana (média)',potassio:346.00,tbca:'BRC0006C'},
+ {id:'maca',nome:'Maçã Fuji com casca',potassio:74.71,tbca:'TBCA – busca por componente'},
+ {id:'uva',nome:'Uva (média)',potassio:160.42,tbca:'BRC0033C'},
+ {id:'abacaxi',nome:'Abacaxi',potassio:137.51,tbca:'BRC0002C'},
+ {id:'abacate',nome:'Abacate',potassio:174.21,tbca:'BRC0001C'},
+ {id:'laranja',nome:'Laranja Pera',potassio:158.12,tbca:'BRC0020C'},
+ {id:'mamao',nome:'Mamão Papaia',potassio:124.84,tbca:'BRC0044C'}
 ];
 function frutaFig(f){ return '<span class="fruta-fig f-' + f.id + '" role=img aria-label="Ilustração de ' + esc(f.nome) + '"></span>'; }
 function textoOrientacao(o){
@@ -451,16 +464,22 @@ function textoOrientacao(o){
 }
 async function vOrientacoes(){
  const j=await api('/api/orientacoes'),os=j.orientacoes||[],by=Object.fromEntries(os.map(o=>[o.slug,o]));
- const dil='<div class=cartao><h2 style="margin-top:0">Preparo: líquido + pó + mistura</h2><p class=mini>Ilustração do fluxo; as quantidades devem vir da prescrição e da ficha técnica do produto.</p>' +
-  '<img class=img-diluicao src="/static/diluicao.svg" alt="Sequência ilustrativa: medir o líquido, dosar o pó e misturar até homogeneizar">' +
-  '<div class=passos-preparo><div class=passo-preparo><b>1. Medir o líquido</b>Use o volume e o diluente prescritos.</div>' +
-  '<div class=passo-preparo><b>2. Dosar o pó</b>Pese ou use a medida exclusiva indicada.</div>' +
-  '<div class=passo-preparo><b>3. Homogeneizar</b>Misture e confira o volume final.</div></div>' +
-  '<div class=orientacao-nota><b>Atenção:</b> não há medida universal de pó para água ou suco. Nunca complete ou concentre uma preparação por estimativa.</div></div>' + textoOrientacao(by.diluicao);
+ const dil='<div class=cartao><h2 style="margin-top:0">Como preparar: medir, pesar e misturar</h2><p class=mini>Veja a ordem das etapas. Os números de mL e g devem ser os da prescrição ou da ficha técnica.</p>' +
+  '<img class=img-diluicao src="/static/diluicao.svg" alt="Três etapas: medir o líquido em copo dosador graduado, pesar o pó em balança e misturar até dissolver; o volume final fica maior">' +
+  '<div class=passos-preparo><div class=passo-preparo><b>1. Meça o líquido</b>Use o copo dosador e confira os mL na escala.</div>' +
+  '<div class=passo-preparo><b>2. Pese o pó</b>Coloque o recipiente na balança, zere (tara) e confira os gramas (g).</div>' +
+  '<div class=passo-preparo><b>3. Misture</b>Acrescente o pó ao líquido e mexa. O volume pode aumentar.</div></div>' +
+  '<div class=orientacao-nota><b>Atenção:</b> se a prescrição pedir volume final, ajuste até a marca somente depois de misturar. Se indicar volume de líquido inicial, não complete por conta própria. Nunca estime a quantidade de pó.</div></div>' + textoOrientacao(by.diluicao);
  const cards='<div class=cartao><h2 style="margin-top:0">Reconheça as frutas</h2>' +
-  '<p class=mini>As imagens ajudam na identificação visual. Para valores de energia, nutrientes e composição, consulte a ficha do alimento, considerando a variedade, a parte comestível e o preparo.</p>' +
+  '<p class=mini>As ilustrações são referências visuais. A aparência real pode variar conforme a variedade e o amadurecimento.</p>' +
   '<div class=frutas-grade>' + FRUTAS.map(f=>'<article class=fruta-card><div class=fruta-topo>' + frutaFig(f) + '<b>' + esc(f.nome) + '</b></div></article>').join('') + '</div>' +
-  '<p class=orientacao-fonte>Fonte oficial para consulta de composição: <a href="https://www.tbca.net.br/base-dados/" target="_blank" rel="noopener">Tabela Brasileira de Composição de Alimentos (TBCA/USP)</a>. Consulte a ficha específica do alimento utilizado pelo serviço.</p></div>';
+  '<p class=orientacao-fonte>Composição nutricional: <a href="https://www.tbca.net.br/base-dados/" target="_blank" rel="noopener">TBCA/USP</a>. Os valores do gráfico abaixo são por 100 g da parte comestível.</p></div>' +
+  '<div class=cartao><h2 style="margin-top:0">Potássio nas frutas</h2><p class=mini>Comparação em miligramas (mg) por 100 g, alimento in natura.</p>' +
+  '<div class=potassio-grafico role=img aria-label="Gráfico de potássio por 100 gramas: maçã Fuji 74,71; melancia 83,62; mamão papaia 124,84; abacaxi 137,51; uva 160,42; laranja pera 158,12; melão 173; abacate 174,21; banana média 346 miligramas.">' +
+  FRUTAS.slice().sort((a,b)=>a.potassio-b.potassio).map(f=>'<div class=potassio-linha><span>'+esc(f.nome)+'</span><div class=potassio-barra><span style="width:'+Math.max(2,(f.potassio/360)*100)+'%"></span></div><span class=potassio-valor>'+f.potassio.toFixed(1).replace('.',',')+'</span></div>').join('') +
+  '</div><p class=potassio-legenda><b>Como ler:</b> quanto menor a barra, menor o potássio por 100 g nesta comparação. Maçã e melancia aparecem entre os menores valores; banana apresenta valor bem mais alto. Uva fica em faixa intermediária — não é “neutra” nem isenta de potássio.</p>' +
+  '<p class=potassio-legenda><b>Importante para doença renal:</b> este gráfico não libera nem proíbe alimentos. A quantidade permitida depende dos exames, da função renal, dos medicamentos, da porção e do plano individual. Confirme a escolha com a Nutrição.</p>' +
+  '<p class=orientacao-fonte>Fontes TBCA/USP: maçã Fuji (busca por componente); melancia BRC0027C; mamão Papaia BRC0044C; abacaxi BRC0002C; uva BRC0033C; laranja Pera BRC0020C; melão BRC0028C; abacate BRC0001C; banana média BRC0006C. <a href="https://www.tbca.net.br/base-dados/busca_componente.php?cmb_grupo=67&amp;cmb_tipo_alimento=65&amp;componente=mg%7CPOT%C3%81SSIO" target="_blank" rel="noopener">Consultar busca oficial de potássio na TBCA</a>.</p></div>';
  const editor=S.u.perfil==='admin'&&os.length ? '<div class=cartao><h2 style="margin-top:0">Editor de orientações</h2><p class=mini>Edite os textos abaixo ou acrescente um tópico. As alterações ficam salvas para todos os celulares.</p>' +
   os.map(o=>'<div class=editor-orientacao data-oid=' + o.id + '><label class=f>Título<input type=text class=otitulo maxlength=120 value="' + esc(o.titulo) + '"></label>' +
   '<label class=f>Texto<textarea class=otexto maxlength=8000 rows=5>' + esc(o.texto) + '</textarea></label>' +
