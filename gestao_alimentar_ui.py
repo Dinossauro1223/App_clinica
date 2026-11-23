@@ -171,6 +171,7 @@ class GestaoAlimentarUI:
         busca = ctk.CTkEntry(topo, textvariable=self.var_busca_tbca, width=250, placeholder_text="Buscar alimento ou ID TBCA")
         busca.pack(side="right", padx=(4, 0))
         busca.bind("<Return>", lambda _e: self.buscar_tbca())
+        busca.bind("<KeyRelease>", lambda _e: self.buscar_tbca())
         _btn(topo, "Buscar", self.buscar_tbca, 85, cor=CINZA, hover="#455a64").pack(side="right")
         ctk.CTkLabel(self.tab_tbca,
                      text="Importa a aba ‘TBCA (2024)’ do arquivo de referência. As demais abas de fórmulas da planilha não são executadas pelo aplicativo; a ficha aplica seus próprios cálculos validados.",
@@ -179,6 +180,9 @@ class GestaoAlimentarUI:
             ("id", "ID", 90, "center"), ("alimento", "Alimento", 330, "w"),
             ("kcal", "kcal/100g", 90, "e"), ("proteina", "Proteína/100g", 110, "e"),
             ("carbo", "Carboidrato/100g", 120, "e"), ("lipidio", "Lipídio/100g", 100, "e")], altura=18)
+        self.tbca_tree.configure(selectmode="extended")
+        self.tbca_tree.tag_configure("tbca_par", background="#EDF4EF", foreground="#20372B")
+        self.tbca_tree.tag_configure("tbca_impar", background="#FFFFFF", foreground="#20372B")
         frame.pack(fill="both", expand=True, padx=8, pady=(4, 8))
         self.buscar_tbca()
 
@@ -520,13 +524,31 @@ class GestaoAlimentarUI:
         if not self.tbca_tree:
             return
         termo = self.var_busca_tbca.get().strip()
-        rows = ga.listar_alimentos(self.db, termo=termo, limite=250)
-        for iid in self.tbca_tree.get_children():
-            self.tbca_tree.delete(iid)
-        for item in rows:
-            self.tbca_tree.insert("", "end", values=(item["id_tbca"], item["alimento"],
-                _fmt_num(item.get("kcal")), _fmt_num(item.get("proteina")),
-                _fmt_num(item.get("carboidrato")), _fmt_num(item.get("lipidio"))))
+        rows = ga.listar_alimentos(self.db, termo=termo, limite=10000)
+        self.tbca_tree.delete(*self.tbca_tree.get_children())
+        encontrados = []
+        for indice, item in enumerate(rows):
+            iid = self.tbca_tree.insert("", "end",
+                values=(item["id_tbca"], item["alimento"],
+                    _fmt_num(item.get("kcal")), _fmt_num(item.get("proteina")),
+                    _fmt_num(item.get("carboidrato")), _fmt_num(item.get("lipidio"))),
+                tags=("tbca_par" if indice % 2 == 0 else "tbca_impar",))
+            encontrados.append(iid)
+        # Destaca simultaneamente todos os resultados do prefixo digitado para facilitar a conferência.
+        if termo and encontrados:
+            self.tbca_tree.selection_set(encontrados)
+            self.tbca_tree.focus(encontrados[0])
+            self.tbca_tree.see(encontrados[0])
+        else:
+            self.tbca_tree.selection_remove(self.tbca_tree.selection())
+
+
+def _extrair_id_tbca(valor):
+    """Aceita tanto o rótulo selecionado 'ID | nome' quanto um ID digitado manualmente."""
+    texto = str(valor or "").strip()
+    if not texto or texto.startswith("—"):
+        return None
+    return texto.split(" | ", 1)[0].strip() or None
 
 
 class FichaDialog:
@@ -536,13 +558,17 @@ class FichaDialog:
         self.tela, self.ao_salvar, self.ficha = tela, ao_salvar, ficha
         self.janela = ctk.CTkToplevel(tela.app)
         self.janela.title("Editar ficha técnica" if ficha else "Nova ficha técnica")
-        self.janela.geometry("1160x720")
-        self.janela.minsize(980, 620)
+        self.janela.geometry("1320x720")
+        self.janela.minsize(1080, 620)
         self.janela.transient(tela.app)
         self.janela.grab_set()
         self.rows = []
         self.produtos = ga.listar_produtos_almox(tela.db)
-        self.tbca = ga.listar_alimentos(tela.db, limite=500)
+        self.tbca = ga.listar_alimentos(tela.db, limite=10000)
+        self._tbca_por_rotulo = {
+            f"{item['id_tbca']} | {item['alimento']}": item for item in self.tbca
+        }
+        self._opcoes_tbca = ["— selecionar alimento da TBCA —"] + list(self._tbca_por_rotulo)
         self._montar()
         self._preencher()
 
@@ -569,8 +595,12 @@ class FichaDialog:
         barra.pack(fill="x", padx=16, pady=(4, 2))
         ctk.CTkLabel(barra, text="Ingredientes", font=ctk.CTkFont(size=15, weight="bold"), text_color=VERDE_ESC).pack(side="left")
         _btn(barra, "＋ Adicionar ingrediente", self.adicionar_linha, 175).pack(side="right")
-        ctk.CTkLabel(area, text="Nome · qtd. per capita · unidade · FC · medida caseira · ID TBCA · NPU · densidade (g/ml) · produto do Almoxarifado",
-                     text_color="#546e7a", font=ctk.CTkFont(size=10)).pack(anchor="w", padx=17, pady=(0, 2))
+        ctk.CTkLabel(area, text="Selecione o alimento da TBCA para preencher nome e referência nutricional. O vínculo com o Almoxarifado é separado e opcional: associa o ingrediente ao item do estoque e usa seu preço/estoque sincronizados.",
+                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1250).pack(anchor="w", padx=17, pady=(0, 2))
+        ctk.CTkLabel(area, text="Preço manual: R$ por unidade da medida escolhida (g, kg, ml, L ou un). Quando preenchido, prevalece sobre o preço do Almoxarifado.",
+                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1250).pack(anchor="w", padx=17, pady=(0, 2))
+        ctk.CTkLabel(area, text="Campos por ingrediente: nome · quantidade per capita · unidade · fator de correção · alimento TBCA · medida caseira · NPU · densidade · vínculo Almoxarifado.",
+                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1100).pack(anchor="w", padx=17, pady=(0, 2))
         self.scroll = ctk.CTkScrollableFrame(area, fg_color="#f4f7f5")
         self.scroll.pack(fill="both", expand=True, padx=15, pady=4)
         rodape = ctk.CTkFrame(area, fg_color="transparent")
@@ -609,21 +639,29 @@ class FichaDialog:
         fc.pack(side="left", padx=2, pady=6)
         medida = ctk.CTkEntry(linha, width=115, placeholder_text="Medida caseira")
         medida.pack(side="left", padx=2, pady=6)
-        tbca = ctk.CTkEntry(linha, width=78, placeholder_text="ID TBCA")
+        tbca = ctk.CTkComboBox(
+            linha, width=220, values=self._opcoes_tbca,
+            command=lambda valor: self._selecionar_tbca(registro, valor)
+        )
+        tbca.set("— selecionar alimento da TBCA —")
         tbca.pack(side="left", padx=2, pady=6)
         npu = ctk.CTkEntry(linha, width=55, placeholder_text="NPU")
         npu.pack(side="left", padx=2, pady=6)
         dens = ctk.CTkEntry(linha, width=65, placeholder_text="g/ml")
         dens.pack(side="left", padx=2, pady=6)
-        opcoes = ["— sem vínculo —"] + [f"{p['id_mobile']} | {p['nome']}" for p in self.produtos]
+        opcoes = ["— sem vínculo com Almoxarifado —"] + [f"{p['id_mobile']} | {p['nome']}" for p in self.produtos]
+        ctk.CTkLabel(linha, text="Almox.:", text_color="#455a64").pack(side="left", padx=(5, 0))
         produto = ctk.CTkComboBox(linha, width=225, values=opcoes)
         produto.set(opcoes[0])
         produto.pack(side="left", padx=2, pady=6)
+        preco = ctk.CTkEntry(linha, width=90, placeholder_text="R$/unid.")
+        preco.pack(side="left", padx=2, pady=6)
         remover = ctk.CTkButton(linha, text="×", width=28, height=28, fg_color="#b71c1c", hover_color="#8e0000",
                                 command=lambda: self._remover_linha(registro))
         remover.pack(side="left", padx=4)
         registro = {"frame": linha, "nome": nome, "qtd": qtd, "unidade": unidade, "fc": fc,
-                    "medida": medida, "tbca": tbca, "npu": npu, "dens": dens, "produto": produto}
+                    "medida": medida, "tbca": tbca, "npu": npu, "dens": dens,
+                    "produto": produto, "preco": preco}
         self.rows.append(registro)
         if item:
             nome.insert(0, item.get("nome") or "")
@@ -631,14 +669,42 @@ class FichaDialog:
             unidade.set(item.get("unidade") or "g")
             fc.delete(0, "end"); fc.insert(0, str(item.get("fator_correcao") or 1))
             medida.insert(0, item.get("medida_caseira") or "")
-            tbca.insert(0, str(item.get("tbca_id") or ""))
+            if item.get("tbca_id"):
+                rotulo_tbca = next(
+                    (rotulo for rotulo, alimento in self._tbca_por_rotulo.items()
+                     if str(alimento["id_tbca"]) == str(item["tbca_id"])),
+                    None,
+                )
+                if rotulo_tbca:
+                    tbca.set(rotulo_tbca)
+            else:
+                tbca.set("— selecionar alimento da TBCA —")
             npu.insert(0, str(item.get("npu") if item.get("npu") is not None else ""))
             dens.insert(0, str(item.get("densidade_g_ml") or ""))
+            preco.insert(0, str(item.get("preco_unitario_manual") or ""))
             if item.get("id_produto_mobile") is not None:
                 for op in opcoes[1:]:
                     if op.startswith(str(item["id_produto_mobile"]) + " |"):
                         produto.set(op)
                         break
+
+    def _selecionar_tbca(self, registro, valor):
+        """Vincula o nome escolhido ao ID TBCA e preenche referências da própria tabela."""
+        alimento = self._tbca_por_rotulo.get(valor)
+        if not alimento:
+            return
+        nome = registro["nome"]
+        nome.delete(0, "end")
+        nome.insert(0, alimento["alimento"])
+        if alimento.get("fc_referencia") not in (None, 0):
+            registro["fc"].delete(0, "end")
+            registro["fc"].insert(0, str(alimento["fc_referencia"]))
+        if alimento.get("medida_caseira"):
+            registro["medida"].delete(0, "end")
+            registro["medida"].insert(0, str(alimento["medida_caseira"]))
+        if alimento.get("npu") is not None:
+            registro["npu"].delete(0, "end")
+            registro["npu"].insert(0, str(alimento["npu"]))
 
     def _remover_linha(self, registro):
         registro["frame"].destroy()
@@ -650,7 +716,7 @@ class FichaDialog:
         for linha in self.rows:
             produto_txt = linha["produto"].get()
             id_produto = None
-            if produto_txt != "— sem vínculo —" and " | " in produto_txt:
+            if produto_txt != "— sem vínculo com Almoxarifado —" and " | " in produto_txt:
                 try:
                     id_produto = int(produto_txt.split(" | ", 1)[0])
                 except ValueError:
@@ -659,9 +725,10 @@ class FichaDialog:
                 "nome": linha["nome"].get().strip(), "qtd_per_capita": linha["qtd"].get(),
                 "unidade": linha["unidade"].get(), "fator_correcao": linha["fc"].get() or 1,
                 "medida_caseira": linha["medida"].get().strip() or None,
-                "tbca_id": linha["tbca"].get().strip() or None,
+                "tbca_id": _extrair_id_tbca(linha["tbca"].get()),
                 "npu": linha["npu"].get().strip() or None,
                 "densidade_g_ml": linha["dens"].get().strip() or None,
+                "preco_unitario_manual": linha["preco"].get().strip() or None,
                 "id_produto_mobile": id_produto,
             })
         try:

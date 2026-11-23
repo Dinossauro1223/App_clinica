@@ -78,7 +78,8 @@ CREATE TABLE IF NOT EXISTS {TABELA_INGREDIENTES} (
     medida_caseira TEXT,
     densidade_g_ml REAL,
     npu REAL,
-    observacao TEXT
+    observacao TEXT,
+    preco_unitario_manual REAL
 );
 CREATE INDEX IF NOT EXISTS idx_ga_ingredientes_ficha ON {TABELA_INGREDIENTES}(id_ficha, ordem);
 CREATE TABLE IF NOT EXISTS GA_Preparacoes_Dia (
@@ -149,6 +150,9 @@ def inicializar(db_path):
     os.makedirs(os.path.dirname(os.path.abspath(str(db_path))), exist_ok=True)
     with _conexao(db_path) as conn:
         conn.executescript(_SCHEMA)
+        colunas_ingredientes = {r[1] for r in conn.execute(f"PRAGMA table_info({TABELA_INGREDIENTES})")}
+        if "preco_unitario_manual" not in colunas_ingredientes:
+            conn.execute(f"ALTER TABLE {TABELA_INGREDIENTES} ADD COLUMN preco_unitario_manual REAL")
 
 
 def _normalizar_cabecalho(valor):
@@ -269,11 +273,14 @@ def listar_alimentos(db_path, termo="", limite=60):
     termo = (termo or "").strip()
     with _conexao(db_path) as conn:
         if termo:
-            like = "%" + termo.replace("%", "\\%").replace("_", "\\_") + "%"
+            # A busca da TBCA é por prefixo: ao digitar "arroz", lista todos os alimentos
+            # cujo nome começa com "arroz", sem misturar ocorrências no meio do nome.
+            prefixo = termo.replace("%", "\\%").replace("_", "\\_") + "%"
             rows = conn.execute(
                 f"SELECT id_tbca,tipo,npu,fc_referencia,medida_caseira,per_capita,alimento,{','.join(NUTRIENTES)} "
-                f"FROM {TABELA_TBCA} WHERE alimento LIKE ? ESCAPE '\\' OR id_tbca=? ORDER BY alimento LIMIT ?",
-                (like, termo, max(1, min(int(limite), 500)))
+                f"FROM {TABELA_TBCA} WHERE alimento LIKE ? ESCAPE '\\' COLLATE NOCASE OR id_tbca=? "
+                f"ORDER BY CASE WHEN alimento LIKE ? ESCAPE '\\' COLLATE NOCASE THEN 0 ELSE 1 END, alimento COLLATE NOCASE LIMIT ?",
+                (prefixo, termo, prefixo, max(1, min(int(limite), 10000)))
             ).fetchall()
         else:
             rows = conn.execute(
@@ -362,9 +369,12 @@ def salvar_ficha(db_path, nome, categoria, porcoes, ingredientes, descricao="", 
         unidade = str(item.get("unidade") or "g").strip().lower()
         if unidade not in {"g", "kg", "mg", "ml", "l", "un"}:
             raise ValueError("Unidade não suportada: %s. Use g, kg, mg, ml, L ou un." % unidade)
+        preco_manual = _numero(item.get("preco_unitario_manual"))
+        if preco_manual is not None and preco_manual < 0:
+            raise ValueError("O preço manual não pode ser negativo.")
         preparados.append((ordem, item.get("tbca_id"), nome_item, item.get("id_produto_mobile"), unidade,
                            qtd, fc, item.get("medida_caseira"), _numero(item.get("densidade_g_ml")),
-                           _numero(item.get("npu")), item.get("observacao")))
+                           _numero(item.get("npu")), preco_manual, item.get("observacao")))
     agora = _agora()
     with _conexao(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -384,8 +394,8 @@ def salvar_ficha(db_path, nome, categoria, porcoes, ingredientes, descricao="", 
                     raise ValueError("Ficha não encontrada ou inativa.")
                 conn.execute(f"DELETE FROM {TABELA_INGREDIENTES} WHERE id_ficha=?", (int(id_ficha),))
             conn.executemany(
-                f"INSERT INTO {TABELA_INGREDIENTES}(id_ficha,ordem,tbca_id,nome,id_produto_mobile,unidade,qtd_per_capita,fator_correcao,medida_caseira,densidade_g_ml,npu,observacao) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                f"INSERT INTO {TABELA_INGREDIENTES}(id_ficha,ordem,tbca_id,nome,id_produto_mobile,unidade,qtd_per_capita,fator_correcao,medida_caseira,densidade_g_ml,npu,preco_unitario_manual,observacao) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 [(int(id_ficha), *x) for x in preparados]
             )
             conn.commit()
@@ -471,11 +481,12 @@ def calcular_ficha(db_path, id_ficha):
         custo_linha = None
         estoque_disp_base = None
         status_estoque = None
+        preco_manual = _numero(item.get("preco_unitario_manual"))
         if produto:
             if produto.get("embalagem_qtd") not in (None, 0):
                 dimensao_emb, conteudo_base = _para_base(produto["embalagem_qtd"], produto.get("embalagem_un"))
                 if dimensao_emb == dimensao_item and conteudo_base:
-                    # O estoque pode ser conferido mesmo quando o preço ainda não foi cadastrado.
+                    # Estoque continua sendo calculado pelo vínculo, independentemente da origem do preço.
                     if produto.get("estoque_qtd") is not None:
                         estoque_disp_base = float(produto["estoque_qtd"]) * conteudo_base
                         status_estoque = estoque_disp_base + 1e-9 >= qtd_bruta_base
@@ -483,19 +494,28 @@ def calcular_ficha(db_path, id_ficha):
                             estoque_faltante += 1
                     else:
                         estoque_incompleto += 1
-                    if produto.get("preco_unitario") is not None:
-                        custo_linha = (qtd_bruta_base / conteudo_base) * float(produto["preco_unitario"])
-                    else:
-                        custos_faltantes += 1
                 else:
-                    custos_faltantes += 1
                     estoque_incompleto += 1
             else:
-                custos_faltantes += 1
                 estoque_incompleto += 1
+            # Preço manual por unidade da medida selecionada prevalece; sem ele, usa o preço sincronizado.
+            if preco_manual is not None:
+                custo_linha = qtd_bruta_total * preco_manual
+            elif (produto.get("embalagem_qtd") not in (None, 0)
+                  and produto.get("preco_unitario") is not None):
+                dimensao_emb, conteudo_base = _para_base(produto["embalagem_qtd"], produto.get("embalagem_un"))
+                if dimensao_emb == dimensao_item and conteudo_base:
+                    custo_linha = (qtd_bruta_base / conteudo_base) * float(produto["preco_unitario"])
+                else:
+                    custos_faltantes += 1
+            else:
+                custos_faltantes += 1
         else:
-            custos_faltantes += 1
             estoque_incompleto += 1
+            if preco_manual is not None:
+                custo_linha = qtd_bruta_total * preco_manual
+            else:
+                custos_faltantes += 1
         if custo_linha is not None:
             custo_parcial += custo_linha
 
