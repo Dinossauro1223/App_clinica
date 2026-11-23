@@ -166,6 +166,35 @@ class Graficos:
         self.evento_de_mouse(c, "<ButtonRelease-1>", para)
 
     # ------------------------------------------------------------------ verificações
+    def primeiro_desenho_na_largura_final(self):
+        """O Tk avisa uma largura provisória do canvas (a padrão, uns 380 px) antes da final. A faixa espera um instante
+        e se desenha na largura final; sem isso os gráficos apareciam estreitos e depois pulavam. Conta os desenhos."""
+        desenhos = []
+        original = self.ui.FaixaHorizontal.ajustar
+        t0 = time.perf_counter()
+
+        def espiar(faixa, largura_px):
+            desenhos.append((id(faixa), round((time.perf_counter() - t0) * 1000), int(largura_px)))
+            return original(faixa, largura_px)
+
+        self.ui.FaixaHorizontal.ajustar = espiar
+        try:
+            p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado", espera=1.0)
+        finally:
+            self.ui.FaixaHorizontal.ajustar = original
+        por_faixa = {}
+        for chave, ms, largura in desenhos:
+            por_faixa.setdefault(chave, []).append((ms, largura))
+        resumo = ", ".join(f"{len(v)}x {[w for _, w in v]} px" for v in por_faixa.values())
+        print(f"[INFO] primeiro desenho das {len(p.faixas)} faixas (largura de cada desenho): {resumo}; "
+              f"último em {max(ms for _, ms, _ in desenhos)} ms", flush=True)
+        assert len(por_faixa) == len(p.faixas), "alguma faixa não chegou a desenhar"
+        for faixa in p.faixas:
+            v = por_faixa[id(faixa)]
+            assert len(v) <= 2, f"a faixa se desenhou {len(v)} vezes ao abrir: {v}"
+            igual(v[-1][1], faixa.canvas.winfo_width(), 2, "o último desenho usou a largura da faixa")
+            igual(faixa.carrossel.largura_visivel, faixa.canvas.winfo_width(), 2, "largura usada")
+
     def desenho_inicial(self):
         """Estilo animado (o padrão): os gráficos são desenhados direto no canvas, sem imagens."""
         p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado")
@@ -454,8 +483,14 @@ class Graficos:
             bombear(self.raiz, 0.4)
 
     def destruir_sem_erros(self):
-        self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.15)   # no meio da entrada
+        p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.0)
+        fim = time.monotonic() + 3.0
+        while time.monotonic() < fim and not all(f.carrossel is not None for f in p.faixas):
+            bombear(self.raiz, 0.03)                              # espera o primeiro desenho de cada faixa
+        bombear(self.raiz, 0.15)                                  # e deixa a entrada andar um pouco
         faixa, _ = self.faixa_com_rolagem()
+        assert any(c.inicio is not None and not c.pronto for f in p.faixas for c in f.cards), \
+            "a entrada já tinha terminado: o teste não pegaria a destruição no meio da animação"
         faixa.proximo()                                           # animação em andamento ao destruir
         destruir_rolavel(self.quadro)
         self.quadro = None
@@ -590,7 +625,8 @@ def main():
         rel.checar(nome, f)
 
     g = Graficos(raiz, ctk, erros)
-    for nome, f in (("gráficos animados: desenho inicial por grupo", g.desenho_inicial),
+    for nome, f in (("gráficos animados: primeiro desenho na largura final", g.primeiro_desenho_na_largura_final),
+                    ("gráficos animados: desenho inicial por grupo", g.desenho_inicial),
                     ("gráficos animados: a entrada anima até o fim", g.entrada_anima_ate_o_fim),
                     ("gráficos animados: entrada do gráfico que aparece depois", g.entrada_do_grafico_que_aparece_depois),
                     ("gráficos animados: balão com o valor", g.balao_com_o_valor),
