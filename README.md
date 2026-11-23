@@ -108,9 +108,9 @@ python -m unittest tests.test_condutas_alta_catalogo -v
 
 ### 3.1 Itens semeados no código
 
-`mapa_db.py` contém seis itens legados em `SUPLEMENTOS_INICIAIS` e uma segunda carga aditiva/versionada em `SUPLEMENTOS_COMPLEMENTARES`. Esta segunda carga inclui candidatos identificados no catálogo oficial Abbott Brasil: Ensure, Ensure Protein, Ensure Plus Advance, Ensure Advance, Glucerna, Glucerna SR, Glucerna 1.5 kcal e PediaSure Complete.
+\`mapa_db.py\` contém seis itens legados em \`SUPLEMENTOS_INICIAIS\` e duas cargas aditivas/versionadas: oito candidatos identificados no catálogo oficial Abbott Brasil (Ensure, Ensure Protein, Ensure Plus Advance, Ensure Advance, Glucerna, Glucerna SR, Glucerna 1.5 kcal e PediaSure Complete) e sete fórmulas identificadas pela Danone Nutricia como enterais/de administração por sonda (Nutrison Energy 1.5, Nutrison Energy MF 1.5, Nutrison Protein Plus Energy, Nutrison advanced Diason, Nutrison advanced Cubison, Nutrison Protein Plus Multi Fiber e Nutrison Soya 800G).
 
-Os candidatos novos são inseridos sem composição nutricional, volume ou preço. A observação do cadastro registra a fonte e informa que a ficha da apresentação precisa ser preenchida antes do cálculo. A carga é idempotente e não sobrescreve produtos existentes.
+O catálogo separa o módulo \`Fórmula enteral\` dos produtos orais e para diabetes. O Nutrison Energy 1.5 tem kcal, proteína, lipídios, carboidratos e sódio por 100 mL transcritos da ficha oficial; os demais candidatos são inseridos sem composição, volume ou preço. A observação registra a fonte e a pendência da ficha específica. A carga é idempotente e não sobrescreve produtos existentes.
 
 | Nome no código | Módulo inicial sugerido | Situação da classificação |
 |---|---|---|
