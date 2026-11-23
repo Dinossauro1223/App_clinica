@@ -32,6 +32,7 @@ CONDICOES = [
 MODULOS_PADRAO = [
     "Fórmula completa",
     "Fórmula para diabetes",
+    "Fórmula enteral",
     "Módulo de proteínas",
     "Módulo de aminoácidos",
     "Módulo de carboidratos",
@@ -55,6 +56,25 @@ SUPLEMENTOS_COMPLEMENTARES = [
     ("Glucerna SR", "Fórmula para diabetes"),
     ("Glucerna 1.5 kcal", "Fórmula para diabetes"),
     ("PediaSure Complete", "Fórmula completa"),
+]
+# Fórmulas cuja indicação para administração por sonda está descrita pelo fabricante.
+# Nutrison Energy 1.5 tem composição transcrita da tabela oficial por 100 mL; demais fichas
+# permanecem pendentes, sem estimativa por produto semelhante.
+SUPLEMENTOS_ENTERAIS_COMPLEMENTARES = [
+    ("Nutrison Energy 1.5", "Fórmula enteral", 151, 6, 5.6, 19, 128,
+     "https://danonenutricia.com.br/produtos/details/nutrison-energy-1-5"),
+    ("Nutrison Energy MF 1.5", "Fórmula enteral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/details/nutrison_energry_mf_15"),
+    ("Nutrison Protein Plus Energy", "Fórmula enteral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/details/Nutrison-protein-plus-energy"),
+    ("Nutrison advanced Diason", "Fórmula enteral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/details/nutrison-advanced-diason"),
+    ("Nutrison advanced Cubison", "Fórmula enteral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/details/nutrison-advanced-cubison"),
+    ("Nutrison Protein Plus Multi Fiber", "Fórmula enteral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/adultos/alimentacao-por-sonda"),
+    ("Nutrison Soya 800G", "Fórmula enteral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/adultos/alimentacao-por-sonda"),
 ]
 SUPLEMENTOS_INICIAIS = [
     ("Fresubin", "Fórmula completa"),
@@ -196,6 +216,17 @@ def inicializar(db_path):
                 if not existe:
                     c.execute("INSERT INTO Mapa_Suplementos (nome, modulo, observacao) VALUES (?,?,?)",
                               (nome, modulo, fonte))
+            for nome, modulo, kcal, ptn, lip, carb, sod, url in SUPLEMENTOS_ENTERAIS_COMPLEMENTARES:
+                existe = c.execute("SELECT 1 FROM Mapa_Suplementos WHERE LOWER(nome)=LOWER(?)", (nome,)).fetchone()
+                if not existe:
+                    observacao = ("Fonte oficial do fabricante. Composição por 100 mL transcrita da ficha/rótulo vigente."
+                                  if kcal is not None else
+                                  "Produto identificado como fórmula para nutrição enteral pelo fabricante; ficha nutricional específica pendente.")
+                    observacao += " " + url
+                    c.execute("""INSERT INTO Mapa_Suplementos
+                                 (nome, modulo, kcal_100, ptn_100, lip_100, carb_100, sod_100, observacao)
+                                 VALUES (?,?,?,?,?,?,?,?)""",
+                              (nome, modulo, kcal, ptn, lip, carb, sod, observacao))
             c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos_catalogo_v2', '1')")
         c.commit()
 
