@@ -172,7 +172,7 @@ class TestBanco(unittest.TestCase):
         self.assertIn("Ensure Plus Advance", candidatos)
         self.assertIn("Glucerna 1.5 kcal", candidatos)
         self.assertIn("Nutrison Energy 1.5", candidatos)
-        # As três composições preenchidas foram transcritas das respectivas fichas oficiais por 100 mL.
+        # As quatro composições preenchidas foram transcritas das respectivas fichas oficiais por 100 mL.
         fichas = {
             "Nutrison Energy 1.5": (151, 6, 5.6, 19, 128),
             "Nutrison Protein Plus Energy": (150, 7.5, 5.8, 17, 100),
