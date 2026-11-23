@@ -20,7 +20,7 @@ def verificar_pacote(caminho: str | Path) -> None:
         raise ValueError("Caminhos duplicados no ZIP: " + ", ".join(duplicados))
 
     bancos = [nome for nome in nomes if Path(nome).name.casefold() == "clinica.db"]
-    if bancos != ["_internal/clinica.db"]:
+    if bancos != ["_internal/modelo_banco/clinica.db"]:
         raise ValueError(
             "O ZIP deve conter somente o modelo _internal/clinica.db; "
             f"encontrados: {bancos!r}"
