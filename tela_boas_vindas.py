@@ -241,7 +241,8 @@ class TelaBoasVindas:
         tamanho = random.randint(7, 15)
         imagem = origem.resize((tamanho, tamanho), Image.Resampling.LANCZOS)
         self.particulas.append({
-            "imagem": imagem, "x": random.uniform(615, 650), "y": random.uniform(385, 465),
+            "origem": origem, "tamanho": tamanho, "fase": random.uniform(0, math.tau), "frequencia": random.uniform(.08, .22),
+            "x": random.uniform(605, 635), "y": random.uniform(385, 465),
             "vx": random.uniform(1.0, 2.2), "vy": random.uniform(-1.15, 1.15),
             "vida": random.randint(35, 75), "idade": 0, "item": None, "foto": None,
         })
@@ -253,9 +254,13 @@ class TelaBoasVindas:
             p["idade"] += 1
             p["x"] += p["vx"]
             p["y"] += p["vy"]
+            if random.random() < .04:
+                p["vy"] = random.uniform(-1.15, 1.15)
             progresso = p["idade"] / p["vida"]
             opacidade = max(0.0, 1.0 - max(0.0, (progresso - .35) / .65))
-            frame = p["imagem"].copy()
+            pulso = .55 + .45 * ((1 + math.sin(p["idade"] * p["frequencia"] + p["fase"])) / 2)
+            tamanho = max(4, int(p["tamanho"] * pulso))
+            frame = p["origem"].resize((tamanho, tamanho), Image.Resampling.LANCZOS)
             frame.putalpha(frame.getchannel("A").point(lambda valor: int(valor*opacidade)))
             p["foto"] = ImageTk.PhotoImage(frame)
             if p["item"] is None:
