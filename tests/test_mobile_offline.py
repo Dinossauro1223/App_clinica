@@ -97,9 +97,12 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertIn("--release 8", bat)
         self.assertIn('-classpath "%AJAR%"', bat)
         self.assertNotIn("-bootclasspath", bat)
+        # Uma única fonte versionada; os builds CI/local geram o asset dentro do APK.
         asset = ROOT / "mobile" / "apk" / "app" / "assets" / "index.html"
-        self.assertTrue(asset.exists())
-        self.assertEqual(asset.read_bytes(), HTML.read_bytes())
+        self.assertFalse(asset.exists(), "Não manter segunda cópia versionada de index.html")
+        builder = (ROOT / "tools" / "build_apk_ci.py").read_text(encoding="utf-8")
+        self.assertIn('shutil.copy2(STATIC, app / "assets" / "index.html")', builder)
+        self.assertIn('copy /y "%~dp0..\\static\\index.html" "%APP%\\assets\\index.html"', bat)
         release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         self.assertIn("setup-android@v4", release)
         self.assertIn("--release 8 -classpath", release)
