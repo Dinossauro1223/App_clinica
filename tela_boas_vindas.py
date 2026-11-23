@@ -242,7 +242,7 @@ class TelaBoasVindas:
         tamanho = random.randint(7, 15)
         self.particulas.append({
             "origem": origem, "tamanho": tamanho, "fase": random.uniform(0, math.tau), "frequencia": random.uniform(.08, .22),
-            "x": random.uniform(605, 635), "y": random.uniform(385, 465),
+            "x": random.uniform(570, 590), "y": random.uniform(405, 445),
             "vx": random.uniform(1.0, 2.2), "vy": random.uniform(-1.15, 1.15),
             "vida": random.randint(35, 75), "idade": 0, "item": None, "foto": None,
         })
