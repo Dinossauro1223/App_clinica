@@ -17,6 +17,7 @@ import customtkinter as ctk
 
 import nutri_calculos as nc
 import nrs2002 as nrs
+import suplementos_calculos as sc
 import avaliacao_nutri as avaliacao
 import mapa_db as mdb
 import condutas_alta as ca
@@ -155,7 +156,7 @@ class MapaUI:
         colunas = [("leito", "Leito", 60, "center"), ("acomp", "Acomp.", 60, "center"), ("paciente", "Paciente", 220, "w"),
                    ("idade", "Idade", 50, "center"), ("imc", "IMC (classificação)", 170, "w"),
                    ("via", "Via", 70, "center"), ("consist", "Consistência", 85, "center"),
-                   ("supl", "Suplementos", 190, "w"), ("fi", "Função intestinal", 110, "center"),
+                   ("supl", "Terapia nutricional", 210, "w"), ("fi", "Função intestinal", 110, "center"),
                    ("condutas", "Condutas de alta", 120, "center")]
         self.tree = ttk.Treeview(quadro, columns=[c[0] for c in colunas], show="headings", style=ESTILO_TREE,
                                  selectmode="browse")
@@ -210,7 +211,7 @@ class MapaUI:
         self.linhas = mdb.mapa_do_dia(self.db, self.data.isoformat(), self.id_setor)
         resumo = self._resumo_condutas()
         self.tree.delete(*self.tree.get_children())
-        ocupados = past = acomp = sup = com_pendencia = 0
+        ocupados = past = acomp = sup_oral = enteral = com_pendencia = 0
         for it in self.linhas:
             l, r = it["leito"], it["registro"]
             if r is None:
@@ -220,12 +221,21 @@ class MapaUI:
                 ocupados += 1
                 past += r.get("consistencia") == "Pastosa"
                 acomp += bool(r.get("acompanhante"))
-                sup += bool(r.get("suplementos"))
+                if r.get("via") == "Enteral":
+                    enteral += 1
+                else:
+                    sup_oral += bool(r.get("suplementos"))
                 imc = f"{_fmt(r.get('imc'))} ({r['imc_class']})" if r.get("imc") and r.get("imc_class") else _fmt(r.get("imc"))
                 cond = resumo.get(r.get("id_paciente"), {})
+                itens_terapia = ", ".join(s["nome"] + (" (batido com fruta)" if s.get("batido_fruta") else "")
+                                           for s in r["suplementos"])
+                if r.get("via") == "Enteral":
+                    itens_terapia = "Dieta enteral" + (": " + itens_terapia if itens_terapia else " (fórmula não informada)")
+                elif itens_terapia:
+                    itens_terapia = "Suplementação oral: " + itens_terapia
                 vals = (l["codigo"], "Sim" if r.get("acompanhante") else "Não", r["nome_paciente"],
                         "" if r.get("idade_anos") is None else r["idade_anos"], imc, r.get("via") or "",
-                        r.get("consistencia") or "", ", ".join(s["nome"] + (" (batido com fruta)" if s.get("batido_fruta") else "") for s in r["suplementos"]),
+                        r.get("consistencia") or "", itens_terapia,
                         self._fi_txt(r), cond.get("texto", ""))
                 tag = ("condpend",) if cond.get("estado") == "pendente" else ()
                 com_pendencia += cond.get("estado") == "pendente"
@@ -237,7 +247,7 @@ class MapaUI:
         else:
             self.lbl_resumo.configure(
                 text=f"{ocupados} de {total} leitos com registro  ·  {past} em dieta pastosa  ·  "
-                     f"{acomp} com acompanhante  ·  {sup} com suplemento")
+                     f"{acomp} com acompanhante  ·  {sup_oral} com suplementação oral  ·  {enteral} em dieta enteral")
 
     # ------------------------------------------------------------------ condutas de alta
     def _catalogo_condutas(self):
@@ -1004,6 +1014,8 @@ class FormRegistro(_Janela):
         self._peso_metodo = self.reg.get("peso_metodo")
         self._suplementos = [dict(s) for s in self.reg.get("suplementos", [])]
         self._catalogo = mdb.listar_suplementos(ui.db)
+        self._catalogo_visivel = list(self._catalogo)
+        self._via_anterior = None
         self._resultado_nrs = {}
         self._resultado_avaliacao = {}
         self._montar()
@@ -1093,7 +1105,7 @@ class FormRegistro(_Janela):
         q = self._secao("Dieta")
         l = self._linha(q)
         self.e_reav = self._entrada(l, "Reavaliação prevista (DD/MM/AAAA)", 100)
-        self.seg_via = self._seg(l, "Via", mdb.VIAS)
+        self.seg_via = self._seg(l, "Via", mdb.VIAS, cmd=self._via_mudou)
         l = self._linha(q)
         ctk.CTkLabel(l, text="Características:").pack(side="left", padx=(0, 6))
         self.var_carac = {}
@@ -1110,8 +1122,14 @@ class FormRegistro(_Janela):
                      font=ctk.CTkFont(size=11)).pack(side="left", padx=8)
         l = self._linha(q)
         self.seg_cons = self._seg(l, "Consistência", mdb.CONSISTENCIAS)
+        l = self._linha(q)
+        self.e_meta_kcal = self._entrada(l, "Meta energética (kcal/dia)", 85)
+        self.e_meta_ptn = self._entrada(l, "Meta proteica (g/dia)", 85)
 
-        q = self._secao("Suplementos administrados")
+        q = self._secao("Suplementação oral / dieta enteral")
+        self.lbl_sup_tipo = ctk.CTkLabel(q, text="Suplementação oral: complemento da alimentação por via oral",
+                                         text_color=tema.SUAVE, wraplength=760, justify="left")
+        self.lbl_sup_tipo.pack(anchor="w", padx=12, pady=(0, 4))
         l = self._linha(q)
         self.cb_mod = self._reg(ctk.CTkComboBox(l, values=["Todos os módulos"] + mdb.listar_modulos(self.ui.db), width=210,
                                                 state="readonly", command=lambda v: self._filtrar_sup()))
@@ -1240,6 +1258,9 @@ class FormRegistro(_Janela):
         _set_entry(self.e_reav, mdb.iso_para_br(r.get("data_reavaliacao")))
         if r.get("via"):
             self.seg_via.set(r["via"])
+        _set_entry(self.e_meta_kcal, _fmt(r.get("meta_kcal")).replace(",0", "") if r.get("meta_kcal") is not None else "")
+        _set_entry(self.e_meta_ptn, _fmt(r.get("meta_proteina_g")).replace(",0", "") if r.get("meta_proteina_g") is not None else "")
+        self._via_mudou(r.get("via") or "Oral", preservar=True)
         for campo, var in self.var_carac.items():
             var.set(1 if r.get(campo) else 0)
         ativas = mdb.codigos_condicoes(r.get("condicoes"))
@@ -1309,6 +1330,7 @@ class FormRegistro(_Janela):
             "peso_kg": n(self.e_peso), "peso_origem": origem_p,
             "peso_metodo": self._peso_metodo if origem_p == "E" else None,
             "data_reavaliacao": reav, "via": self.seg_via.get() or None,
+            "meta_kcal": n(self.e_meta_kcal), "meta_proteina_g": n(self.e_meta_ptn),
             **{campo: var.get() for campo, var in self.var_carac.items()},
             "condicoes": ",".join(c for c, var in self.var_cond.items() if var.get()) or None,
             "consistencia": self.seg_cons.get() or None,
@@ -1324,6 +1346,7 @@ class FormRegistro(_Janela):
 
     # ---------------------------------------------------------------- cálculos
     def _recalcular(self):
+        self._recalcular_oferta()
         peso, alt = nc.parse_num(self.e_peso.get()), nc.parse_num(self.e_altura.get())
         idade = nc.parse_num(self.e_idade.get())
         imc = nc.calcular_imc(peso, alt)
