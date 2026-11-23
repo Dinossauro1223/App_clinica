@@ -122,8 +122,10 @@ jobs:
           }
           # O smoke test cria o banco gravável ao lado do EXE. Ele NÃO pode ir no ZIP:
           # em uma atualização, o banco do usuário deve permanecer intacto.
-          if (Test-Path $bancoUsuario) {
-            Remove-Item -LiteralPath $bancoUsuario -Force
+          foreach ($arquivo in @($bancoUsuario, "$bancoUsuario-wal", "$bancoUsuario-shm", "$bancoUsuario-journal")) {
+            if (Test-Path $arquivo) {
+              Remove-Item -LiteralPath $arquivo -Force
+            }
           }
           if (Test-Path $bancoUsuario) {
             throw "O banco de runtime ainda seria empacotado: $bancoUsuario"
