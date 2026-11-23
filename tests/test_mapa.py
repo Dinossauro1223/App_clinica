@@ -166,7 +166,7 @@ class TestBanco(unittest.TestCase):
     def test_seed_e_idempotencia(self):
         mdb.inicializar(self.db)  # chamar de novo não duplica
         self.assertEqual(len(mdb.listar_suplementos(self.db)),
-                         len(mdb.SUPLEMENTOS_INICIAIS) + len(mdb.SUPLEMENTOS_COMPLEMENTARES) + len(mdb.SUPLEMENTOS_ENTERAIS_COMPLEMENTARES))
+                         len(mdb.SUPLEMENTOS_INICIAIS) + len(mdb.SUPLEMENTOS_COMPLEMENTARES) + len(mdb.SUPLEMENTOS_ENTERAIS_COMPLEMENTARES) + len(mdb.SUPLEMENTOS_DUAS_VIAS_COMPLEMENTARES))
         self.assertEqual(len(mdb.listar_modulos(self.db)), len(mdb.MODULOS_PADRAO))
         candidatos = {s["nome"]: s for s in mdb.listar_suplementos(self.db)}
         self.assertIn("Ensure Plus Advance", candidatos)
@@ -189,6 +189,16 @@ class TestBanco(unittest.TestCase):
         self.assertIsNone(candidatos["Ensure Plus Advance"]["kcal_100"])
         self.assertIn("abbottbrasil.com.br", candidatos["Ensure Plus Advance"]["observacao"])
         self.assertIsNone(candidatos["Nutrison Energy MF 1.5"]["kcal_100"])
+        self.assertEqual(candidatos["Glucerna 1.5 kcal"]["modulo"], "Fórmula enteral e oral")
+        self.assertEqual(candidatos["Nutri R 2.0"]["modulo"], "Fórmula enteral e oral")
+        self.assertEqual((candidatos["Nutri R 2.0"]["kcal_100"], candidatos["Nutri R 2.0"]["ptn_100"],
+                          candidatos["Nutri R 2.0"]["lip_100"], candidatos["Nutri R 2.0"]["carb_100"],
+                          candidatos["Nutri R 2.0"]["sod_100"]), (200, 3.3, 6.7, 32, 131))
+        self.assertEqual((candidatos["Nutri Enteral Soya"]["kcal_100"], candidatos["Nutri Enteral Soya"]["ptn_100"],
+                          candidatos["Nutri Enteral Soya"]["lip_100"], candidatos["Nutri Enteral Soya"]["carb_100"],
+                          candidatos["Nutri Enteral Soya"]["sod_100"]), (120, 4.4, 4, 17, 55))
+        self.assertIsNone(candidatos["NUTRI FIBER 1.5"]["kcal_100"])
+        self.assertEqual(candidatos["NUTRI HWHEY X"]["modulo"], "Módulo oral/enteral")
         nomes = {s["nome"]: s["modulo"] for s in mdb.listar_suplementos(self.db)}
         self.assertEqual(nomes["Simbioflora"], "Módulo probiótico/simbiótico")
         self.assertEqual(nomes["Glutamina"], "Módulo de aminoácidos")
