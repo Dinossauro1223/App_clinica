@@ -67,6 +67,15 @@ class TestPipelineSVG(unittest.TestCase):
                 self.assertIsNotNone(alpha.getbbox(), f"Camada vazia: {nome}")
                 self.assertLess(alpha.getextrema()[0], 255, f"Camada sem transparência: {nome}")
 
+        self.assertIn("folha_marca", pipeline.CAMADAS, "A camada de folhas pequenas deve ser renderizada")
+        dna_svg = (pipeline.COMPONENTES / "dna.svg").read_text(encoding="utf-8")
+        self.assertIn('id="dna"', dna_svg)
+        self.assertGreaterEqual(dna_svg.count("<path"), 2, "A hélice deve ter duas fitas")
+        institucional = (pipeline.COMPONENTES / "facisa_ufrn.svg").read_text(encoding="utf-8")
+        self.assertIn("M296 15L296 115", institucional)
+        wordmark = (pipeline.COMPONENTES / "wordmark.svg").read_text(encoding="utf-8")
+        self.assertIn("translate(650 76)", wordmark)
+
         manifesto_path = pipeline.RENDERIZADOS / "folhas.json"
         self.assertTrue(manifesto_path.is_file(), "Manifesto das folhas ausente")
         manifesto = json.loads(manifesto_path.read_text(encoding="utf-8"))
