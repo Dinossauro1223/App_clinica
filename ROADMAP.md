@@ -38,6 +38,19 @@ Ajustes de usabilidade pedidos pelo usuário que não pertencem a uma fase. Cada
 | Atalhos de edição no estilo do Google Planilhas (Ctrl+C/X/V, Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, F4, Ctrl+A, colar de planilha, Ctrl+C e Ctrl+A nas tabelas, F1) | Implementado em `atalhos_edicao.py` e ligado no `main.py`; 59 testes novos com widgets simulados e lógica pura. O comportamento no Tk real depende do CI (Windows e Linux) e de uso na máquina; lista em [`ATALHOS_DE_TECLADO.md`](docs/desenvolvimento/ATALHOS_DE_TECLADO.md) |
 | Gráficos agrupados por assunto, cada grupo numa faixa que se arrasta para o lado, com opção "de cima para baixo" nas Configurações do Mapa | Implementado em `graficos_layout.py`, `graficos_ui.py`, `mapa_graficos.py` e `mapa_ui.py`; DM, HAS e DRC ganharam grupo e gráfico próprios (8 gráficos). Testes com widgets simulados e, no CI, `tools/verificar_interface_tk.py` com Tk real; ver [`GRAFICOS_AGRUPADOS.md`](docs/desenvolvimento/GRAFICOS_AGRUPADOS.md). Aparência e sensação do arraste só se confirmam abrindo o programa |
 
+### 23/11/2026: gráficos animados, versão final (branch `feat/graficos-animados-2026-11-23`)
+
+Uma primeira versão dos gráficos animados entrou na `main` pelo pull request #74. Esta entrega completa a etapa.
+
+| Entrega | Estado |
+|---|---|
+| Gráficos do Mapa desenhados na tela (`tk.Canvas`) com animação de entrada, balão com o valor ao passar o mouse e opção "Imagens simples" (o desenho em PNG de antes) em Configurações do Mapa | Código em `graficos_nativos.py` (cena em Python puro), `graficos_pintor.py`, `graficos_ui.py`, `graficos_layout.py` e `mapa_ui.py`; decisão em [`ADR-0009`](docs/decisoes/ADR-0009-graficos-desenhados-na-tela.md), uso em [`GRAFICOS_AGRUPADOS.md`](docs/desenvolvimento/GRAFICOS_AGRUPADOS.md) |
+| Correção achada com Tk de verdade: o primeiro desenho da faixa usava uma largura provisória do Tk (378 px no Windows, 394 px no Linux) e os gráficos "pulavam" ao esticar | Corrigida: a faixa espera 50 ms e se desenha uma vez só, na largura final. Quatro testes novos com relógio e widgets simulados |
+| Verificação da interface com **Tk de verdade** no CI (Windows e Linux): arraste, encaixe, entrada animada, balão, textos dentro dos cartões, redimensionar durante a animação, escala de 150%, destruir a tela no meio da animação | `tools/verificar_interface_tk.py`: 25 verificações. Na branch de teste, execução 45092882621: 25 de 25 OK, 0 falhas, 0 puladas, no Windows e no Linux. Custo medido por gráfico em um quadro: média de 0,19 ms (Linux) e 0,38 ms (Windows) para cena e formas |
+| Fotos da tela do CI (`tools/capturar_graficos_tk.py`), guardadas como arquivo da execução por 7 dias; `tools/prever_graficos.py` desenha a cena com o Pillow, sem Tk | Informativo: o passo nunca falha o CI. Dados sintéticos |
+| Defeitos achados e corrigidos pelo caminho | Mensagens de erro de `mapa_ui.py` mostravam `\n` escrito na tela em vez de quebrar a linha (agora há teste); o CI do Linux rodava com tela de 640x480 e 8 bits (agora 1360x900 e 24 bits); `app_clinica.spec` não listava os módulos novos dos gráficos |
+| O que **não** está provado | Fluidez do arraste e nitidez no monitor de uso: o CI roda sem placa de vídeo e sem monitor, e o `tk.Canvas` não suaviza bordas (serrilhado leve em diagonais e na rosca). Quem preferir o desenho suave escolhe "Imagens simples" |
+
 ---
 
 # Fase 0 — Fundação técnica, segurança e reprodutibilidade

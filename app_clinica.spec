@@ -52,7 +52,7 @@ a = Analysis(
     binaries=[],
     datas=DATAS,
     hiddenimports=[
-        'mapa_export', 'mapa_graficos', 'graficos_ui', 'graficos_layout',
+        'mapa_export', 'mapa_graficos', 'graficos_ui', 'graficos_layout', 'graficos_nativos', 'graficos_pintor',
         'configuracoes_ui', 'mobile_ui', 'almox_ui', 'gestao_alimentar_ui',
         'nrs_ui', 'avaliacao_ui',
         'openpyxl', 'matplotlib.backends.backend_agg',

@@ -714,6 +714,8 @@ class TestInterface(unittest.TestCase):
         avisos = [c for c in MB.chamadas if c[0] == "showwarning"]
         self.assertEqual(len(avisos), 1)
         self.assertIn("pip install matplotlib", avisos[0][2])
+        self.assertNotIn("\\n", avisos[0][2])          # quebra de linha de verdade, não a barra e o n escritos
+        self.assertIn("\n", avisos[0][2])
         nativas, imagens = self._cartas()
         self.assertEqual((len(nativas), len(imagens)), (8, 0))     # a tela não fica em branco
 
@@ -725,7 +727,11 @@ class TestInterface(unittest.TestCase):
         FD.pasta = tempfile.mkdtemp()
         with mock.patch.object(self.ui._mgr, "salvar_graficos", side_effect=ImportError("No module named matplotlib")):
             self.ui._salvar_graficos()
-        self.assertEqual([c[0] for c in MB.chamadas if c[0] == "showerror"], ["showerror"])
+        erros = [c for c in MB.chamadas if c[0] == "showerror"]
+        self.assertEqual(len(erros), 1)
+        self.assertIn("pip install matplotlib", erros[0][2])
+        self.assertNotIn("\\n", erros[0][2])            # quebra de linha de verdade, não a barra e o n escritos
+        self.assertIn("\n", erros[0][2])
 
     def test_graficos_animados_tem_forma_desenhada_no_canvas(self):
         from test_mapa import popular_mes
