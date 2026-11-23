@@ -156,6 +156,18 @@ class MobileTest(unittest.TestCase):
         for conteudo_individual in ("escalaFrutas", "Carboidrato disponível:", "Fibra alimentar: maior",
                                     "Potássio: menor", "k:173", "f:4.03"):
             self.assertNotIn(conteudo_individual, pagina)
+        # O gráfico deve usar valores TBCA por 100 g, sem transformar a comparação em
+        # liberação/proibição clínica. Os desenhos precisam comunicar copo, balança e mistura.
+        for trecho in ("potassio:83.62", "potassio:346.00", "potassio:160.42",
+                       "Potássio nas frutas", "por 100 g", "não libera nem proíbe"):
+            self.assertIn(trecho, pagina)
+        desenho_preparo = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "diluicao.svg").read_text(encoding="utf-8")
+        for termo in ("COPO DOSADOR", "BALANÇA", "VOLUME MAIOR", "mL", "gramas"):
+            self.assertIn(termo, desenho_preparo)
+        self.assertNotIn("fumaça", desenho_preparo.lower())
+        desenho_frutas = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "frutas.svg").read_text(encoding="utf-8")
+        for termo in ("melancia", "uva", "mamão"):
+            self.assertIn(termo, desenho_frutas.lower())
 
 
     def test_admin_cadastra_e_edita_preco_e_embalagem_do_item(self):
