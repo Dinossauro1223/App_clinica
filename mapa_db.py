@@ -58,7 +58,7 @@ SUPLEMENTOS_COMPLEMENTARES = [
     ("PediaSure Complete", "Fórmula completa"),
 ]
 # Fórmulas cuja indicação para administração por sonda está descrita pelo fabricante.
-# Quatro fórmulas permanecem sem composição; três têm os valores por 100 mL transcritos
+# Três fórmulas permanecem sem composição; quatro têm os valores por 100 mL transcritos
 # das respectivas tabelas oficiais. Nenhum valor é estimado por produto semelhante.
 SUPLEMENTOS_ENTERAIS_COMPLEMENTARES = [
     ("Nutrison Energy 1.5", "Fórmula enteral", 151, 6, 5.6, 19, 128,
