@@ -51,11 +51,11 @@ class TestClassificacaoPorIndicador(unittest.TestCase):
                          "Obesidade")
 
     def test_imc_a_partir_de_cinco_anos_usa_referencia_2007(self):
-        self.assertEqual(classificar_escore_z("imc_idade", 1.5, 60),
+        self.assertEqual(classificar_escore_z("imc_idade", 1.5, 61),
                          "Sobrepeso")
-        self.assertEqual(classificar_escore_z("imc_idade", 2.5, 60),
+        self.assertEqual(classificar_escore_z("imc_idade", 2.5, 61),
                          "Obesidade")
-        self.assertEqual(classificar_escore_z("imc_idade", -2.5, 60),
+        self.assertEqual(classificar_escore_z("imc_idade", -2.5, 61),
                          "Magreza")
 
     def test_peso_por_idade_nao_classifica_excesso_de_peso_e_limita_a_10_anos(self):
