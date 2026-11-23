@@ -29,7 +29,7 @@ def verificar_pacote(caminho: str | Path) -> None:
     htmls = [nome for nome in nomes if Path(nome).name.casefold() == "index.html"]
     if htmls != ["_internal/mobile/static/index.html"]:
         raise ValueError(
-            "O ZIP deve conter somente a fonte mobile _internal/mobile/static/index.html; "
+            "O ZIP deve conter uma única fonte HTML mobile _internal/mobile/static/index.html; "
             f"encontrados: {htmls!r}"
         )
 
