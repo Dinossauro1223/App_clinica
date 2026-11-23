@@ -1471,7 +1471,7 @@ class FormRegistro(_Janela):
             self.cb_mod.configure(values=["—"])
             self.cb_mod.set("—")
         else:
-            self._catalogo_visivel = list(self._catalogo)
+            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") != "Fórmula enteral"]
             self.lbl_sup_tipo.configure(
                 text="SUPLEMENTAÇÃO ORAL: complemento da alimentação pela boca; o paciente continua classificado "
                      "como via oral, mesmo quando recebe suplemento.")
