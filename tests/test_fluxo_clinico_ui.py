@@ -32,7 +32,7 @@ class TestFluxoClinicoUI(unittest.TestCase):
         self.assertIn('text=f"Classificação NRS-2002:', self.mapa)
         self.assertIn('text=f"Classificação da avaliação:', self.mapa)
         coletar = self.mapa.split("    def _coletar(self):", 1)[1].split(
-            "    def _preencher", 1
+            "    def _recalcular(self):", 1
         )[0]
         self.assertIn('"nrs2002_json"', coletar)
         self.assertIn('"avaliacao_json"', coletar)
