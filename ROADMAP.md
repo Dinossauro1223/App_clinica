@@ -470,6 +470,9 @@ Entrega parcial da Fase 4, pedida em 14/11/2026: **condutas de alta na consulta*
 
 # Fase 6 — Estoque e controle do Serviço de Nutrição
 
+> **Entrega desktop em integração:** cadastro de itens e unidades, histórico de preços, livro de movimentos com estorno, saldo calculado, custos realizados por refeição/dia/mês e programação manual com snapshot de quantidade e preço. A migração é a v5, posterior à anamnese ambulatorial (v4). Não há importação presumida de preços ou fichas técnicas.
+
+
 **Objetivo:** digitalizar o controle operacional de gêneros e insumos conforme a planilha mensal do setor.
 
 **Agentes:** `supplement-stock-engineer` (líder), `database-backend-engineer`, `legacy-workbook-analyst`, `qa-security-reviewer`.
@@ -509,7 +512,13 @@ Entrega parcial da Fase 4, pedida em 14/11/2026: **condutas de alta na consulta*
 
 ---
 
-# Fase 7 — Refeições de pacientes/servidores e módulo móvel
+# Fase 7 — Refeições de pacientes/servidores, fichas e consumo operacional
+
+> **Atualização de 22/11/2026 — primeira entrega do consumo observacional implementada em branch baseada na main.** A Gestão alimentar reutiliza o cadastro de fichas técnicas e o catálogo de produtos/preços, importa movimentos mobile por intervalo de datas sem duplicidade, filtra retiradas Almoxarifado → Cozinha, permite distribuir cada retirada entre preparações esperadas/uso geral/perda, guarda revisões e calcula médias de retirada por item e por preparação. O servidor mobile passa a guardar snapshots de preço/custo nas transferências futuras e preserva as orientações educativas existentes.
+>
+> **Limites desta entrega:** associação às preparações ainda é manual; a programação de cardápio do dia não foi localizada como fonte estruturada no main atual e pode ser cadastrada nesta tela; retiradas não equivalem a consumo efetivo. A conciliação por estoque físico inicial/final, devoluções e perdas separadas permanece como próxima etapa. Fichas geradas a partir das médias serão observacionais até validação da Nutrição. Registros antigos sem preço snapshot podem usar apenas o preço atual como estimativa, identificado na interface.
+
+## Fase 7 — Refeições de pacientes/servidores e módulo móvel
 
 **Objetivo:** criar registro por refeição e apontamento rápido por celular, com acesso restrito à tarefa e ao horário autorizado.
 

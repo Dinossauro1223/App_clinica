@@ -30,8 +30,6 @@ from graficos_pintor import Fontes, PintorCanvas
 VERDE, VERDE_HOVER, VERDE_ESC = "#4caf50", "#388e3c", "#1b5e20"
 CINZA_BTN, CINZA_TEXTO, FUNDO_SECAO = "#b0bec5", "#546e7a", "#f7fbf8"
 INTERVALO_QUADROS_MS = 16          # cerca de 60 quadros por segundo no encaixe e na animação de entrada
-ESPERA_INICIAL_MS = 50             # 1º desenho da faixa: o Tk avisa antes uma largura provisória (a padrão do canvas)
-ESPERA_AJUSTE_MS = 120             # redesenho depois de a janela mudar de largura (não redesenha a cada pixel)
 PAUSA_ENTRE_ROLAGENS = 0.25        # segundos: Shift + roda anda uma posição por vez, mesmo girando rápido
 LIMIAR_ARRASTE = 3                 # pixels: menos que isso é um clique, não um arraste
 FUNDO_DICA, TEXTO_DICA, TAM_DICA = "#263238", "#ffffff", 11   # balão que mostra o valor ao passar o mouse
@@ -142,8 +140,6 @@ class CardNativo:
 class FaixaHorizontal:
     """Os gráficos de um grupo lado a lado num tk.Canvas que se arrasta com o mouse e encaixa ao soltar."""
 
-    espera_inicial_ms = ESPERA_INICIAL_MS     # (os testes zeram para desenhar na hora)
-
     def __init__(self, pai, itens, cor_fundo=FUNDO_SECAO, escala=1.0, ao_mudar=None, ao_montar=None, fontes=None,
                  atraso=0.0, centralizar=False):
         # cada item é uma carta (CardNativo, CardImagem) ou uma PIL.Image (vira CardImagem)
@@ -159,7 +155,6 @@ class FaixaHorizontal:
         self.dicas = {}                       # item do canvas -> texto do balão (preenchido pelo pintor)
         self._dica = None                     # (retângulo, texto) do balão, criado na primeira vez que aparece
         self._largura_montada = 0
-        self._largura_pendente = 0            # a última largura avisada pelo Tk, enquanto um desenho está agendado
         self._job_ajuste = self._job_animacao = self._job_entrada = None
         self._anim = self._arraste = None
         self._ultima_rolagem = 0.0
@@ -196,30 +191,16 @@ class FaixaHorizontal:
         largura = int(getattr(ev, "width", 0))
         if largura < 50:
             return
-        self._largura_pendente = largura
         if self.carrossel is None:
-            # Primeira vez. O Tk costuma avisar antes uma largura provisória (a padrão do canvas, uns 380 px) e só
-            # depois a final; desenhar já nessa largura faria os gráficos "pularem" ao esticar. Espera-se um instante
-            # e desenha-se uma vez só, na última largura avisada.
-            if self.espera_inicial_ms <= 0:
-                self.ajustar(largura)
-            elif self._job_ajuste is None:
-                self._job_ajuste = self.canvas.after(self.espera_inicial_ms, self._ajuste_agendado)
+            self.ajustar(largura)
         elif abs(largura - self._largura_montada) >= 12:   # a barra de rolagem da tela aparece e some: ignora o balanço
             if self._job_ajuste:
                 self._cancelar(self._job_ajuste)
-            self._job_ajuste = self.canvas.after(ESPERA_AJUSTE_MS, self._ajuste_agendado)
-
-    @_tolerante
-    def _ajuste_agendado(self):
-        self._job_ajuste = None
-        self.ajustar(self._largura_pendente)
+            self._job_ajuste = self.canvas.after(120, lambda: self.ajustar(largura))
 
     @_tolerante
     def ajustar(self, largura_px):
         """Desenha os gráficos para uma faixa de `largura_px` pixels (refeito quando a janela muda de largura)."""
-        if self._job_ajuste:                  # chamado direto: o desenho agendado ficaria repetido
-            self._cancelar(self._job_ajuste)
         self._job_ajuste = None
         self._cancelar_animacao()
         self._cancelar_entrada()

@@ -4,6 +4,10 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import sqlite3
 import os
+import math
+import threading
+import socket
+import importlib.util
 import json
 import shutil
 import sys
@@ -14,10 +18,20 @@ from fpdf import FPDF
 from PIL import Image
 import mapa_db
 import db_service
+import pacientes_integridade
 import db_migracoes
+from db_esquema_legado import garantir_esquema_legado
 import atalhos_edicao
+import tema
 from mapa_ui import MapaUI
+from tela_boas_vindas import TelaBoasVindas
+from navegacao_ui import BarraLateral, PilhaAbasLaterais
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
+import ambulatorial
+import atualizador
+import ui_motion
+from backup_manager import BackupManager
+from ambulatorial_ui import PainelConsultaEstruturada, DialogoAssociacoesExames
 
 
 def get_base_path():
@@ -72,8 +86,7 @@ def caminho_do_banco():
     return str(destino)
 
 
-ctk.set_appearance_mode("Light")
-ctk.set_default_color_theme("green")
+tema.configurar_ctk()
 
 def banco_interno_com_dados(destino):
     """Executável: devolve o caminho de OUTRO banco (em `_MEIPASS`/`_internal`) que contenha pacientes, ou None.
@@ -96,107 +109,21 @@ def banco_interno_com_dados(destino):
         return None
 
 
-def garantir_esquema_legado(conexao):
-    """Cria/atualiza, de forma IDEMPOTENTE, as tabelas do esquema legado e a semente de exames.
-
-    Não faz commit nem fecha a conexão: pode rodar dentro da transação da migração baseline
-    (db_migracoes) ou, depois dela, numa conexão comum.
-    """
-    cursor = conexao.cursor()
-
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Consultas (
-        id_consulta INTEGER PRIMARY KEY AUTOINCREMENT,
-        id_paciente INTEGER,
-        data_consulta TEXT,
-        anamnese TEXT,
-        peso TEXT,
-        altura TEXT,
-        gordura TEXT,
-        conduta TEXT
-    )
-    ''')
-
-    cursor.execute("PRAGMA table_info(Consultas)")
-    colunas = [col[1] for col in cursor.fetchall()]
-    if 'tmb' not in colunas:
-        cursor.execute("ALTER TABLE Consultas ADD COLUMN tmb TEXT")
-        cursor.execute("ALTER TABLE Consultas ADD COLUMN vet TEXT")
-        cursor.execute("ALTER TABLE Consultas ADD COLUMN naf TEXT")
-        cursor.execute("ALTER TABLE Consultas ADD COLUMN metodo_tmb TEXT")
-    if 'analise_exames' not in colunas:
-        cursor.execute("ALTER TABLE Consultas ADD COLUMN analise_exames TEXT")
-
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Exames_Solicitados (
-        id_solicitacao INTEGER PRIMARY KEY AUTOINCREMENT,
-        id_consulta INTEGER,
-        id_exame TEXT
-    )
-    ''')
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Arquivos_Paciente (
-        id_arquivo INTEGER PRIMARY KEY AUTOINCREMENT,
-        id_paciente INTEGER,
-        nome_arquivo TEXT,
-        caminho_arquivo TEXT,
-        data_upload TEXT
-    )
-    ''')
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Exames_Catalogo (
-        id_exame TEXT PRIMARY KEY,
-        nome_amigavel TEXT
-    )
-    ''')
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Regras_Complementares (
-        id_regra INTEGER PRIMARY KEY AUTOINCREMENT,
-        exame_gatilho TEXT,
-        exame_sugerido TEXT
-    )
-    ''')
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Resultados_Exames (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        id_consulta INTEGER,
-        id_exame TEXT,
-        valor REAL,
-        status TEXT
-    )
-    ''')
-
-    cursor.execute("SELECT COUNT(*) FROM Exames_Catalogo")
-    if cursor.fetchone()[0] == 0:
-        exames_basicos = [
-            ('EXM-GLICEMIA-DE-JEJUM', 'GLICEMIA DE JEJUM'),
-            ('EXM-HOMA-IR', 'HOMA IR'),
-            ('EXM-HBA1C', 'HBA1C'),
-            ('EXM-TOTG-2H', 'TOTG 2H'),
-            ('EXM-COLESTEROL-TOTAL', 'COLESTEROL TOTAL'),
-            ('EXM-HDL-COLESTEROL', 'HDL COLESTEROL'),
-            ('EXM-LDL-COLESTEROL', 'LDL COLESTEROL'),
-            ('EXM-TRIGLICERIDEOS', 'TRIGLICERIDEOS'),
-            ('EXM-FERRO-SERICO', 'FERRO SERICO'),
-            ('EXM-FERRITINA-SERICA', 'FERRITINA SERICA'),
-            ('EXM-SATURACAO-DE-TRANSFERRINA', 'SATURACAO DE TRANSFERRINA'),
-            ('EXM-TIBC', 'TIBC'),
-            ('EXM-B12-SERICA', 'B12 SERICA'),
-            ('EXM-ACIDO-METILMALONICO', 'ACIDO METILMALONICO'),
-            ('EXM-HOMOCISTEINA-SERICA', 'HOMOCISTEINA SERICA')
-        ]
-        cursor.executemany("INSERT OR IGNORE INTO Exames_Catalogo (id_exame, nome_amigavel) VALUES (?, ?)", exames_basicos)
-
-    cursor.execute('''
-        INSERT INTO Regras_Complementares (exame_gatilho, exame_sugerido)
-        SELECT 'EXM-GLICEMIA-DE-JEJUM', 'EXM-HOMA-IR'
-        WHERE NOT EXISTS (SELECT 1 FROM Regras_Complementares WHERE exame_gatilho = 'EXM-GLICEMIA-DE-JEJUM')
-    ''')
+def _criar_tabview_compat(master, fonte_abas=None, **kwargs):
+    """Cria CTkTabview sem depender de argumentos exclusivos do CustomTkinter 6.x."""
+    tab = ctk.CTkTabview(master, **kwargs)
+    if fonte_abas is not None:
+        try:
+            tab._segmented_button.configure(font=fonte_abas)
+        except (AttributeError, tk.TclError):
+            pass
+    return tab
 
 
 class AppClinica(ctk.CTk):
     def __init__(self):
         super().__init__()
+        tema.aplicar_tema_ttk(self)
 
         # Atalhos de edição no estilo do Google Planilhas (Ctrl+Z, Ctrl+Y, F4, colar de planilha, Ctrl+C nas tabelas).
         # Vale para todos os campos e tabelas de todas as janelas; a lista aparece com F1 (docs/desenvolvimento/ATALHOS_DE_TECLADO.md).
@@ -204,6 +131,12 @@ class AppClinica(ctk.CTk):
 
         self.title("Sistema de Gestão Clínica")
         self.geometry("950x750")
+        try:
+            self.state("zoomed")
+        except tk.TclError:
+            self.geometry("1280x800")
+        self.attributes("-fullscreen", False)
+        self.protocol("WM_DELETE_WINDOW", self._ao_fechar)
 
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
@@ -225,50 +158,158 @@ class AppClinica(ctk.CTk):
         
         self.tmb_atual = ""
         self.vet_atual = ""
+        self.calculos_ambulatoriais = {}
+        self.painel_consulta_estruturada = None
 
-        # --- MENU LATERAL ---
-        self.menu_lateral = ctk.CTkFrame(self, width=200, corner_radius=0, fg_color="#1b5e20")
-        self.menu_lateral.grid(row=0, column=0, sticky="nsew")
-        self.menu_lateral.grid_rowconfigure(4, weight=1)
+        # --- NAVEGAÇÃO V4 + PILHA DE ABAS LATERAIS ---
+        self.area_principal_host = ctk.CTkFrame(self, corner_radius=10, fg_color=tema.FUNDO)
+        self.area_principal_host.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
+        self._pilha_abas_laterais = PilhaAbasLaterais(self.area_principal_host)
+        self._pilha_abas_laterais.pack(fill="both", expand=True)
+        self.area_principal = self._pilha_abas_laterais.pagina_atual
 
-        self.label_menu = ctk.CTkLabel(self.menu_lateral, text="Menu", font=ctk.CTkFont(size=24, weight="bold"), text_color="#ffffff")
-        self.label_menu.grid(row=0, column=0, padx=20, pady=(20, 10))
-
-        self.btn_pacientes = ctk.CTkButton(self.menu_lateral, text="Pacientes", command=self.tela_pacientes, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_pacientes.grid(row=1, column=0, padx=20, pady=10)
-
-        self.btn_consultas = ctk.CTkButton(self.menu_lateral, text="Nova Consulta", command=self.tela_consultas, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_consultas.grid(row=2, column=0, padx=20, pady=10)
-
-        self.btn_exames = ctk.CTkButton(self.menu_lateral, text="Catálogo de Exames", command=self.tela_exames, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-        self.btn_exames.grid(row=3, column=0, padx=20, pady=10)
-
-        # --- Mapa Nutricional ---
-        self.menu_mapa = ctk.CTkFrame(self.menu_lateral, fg_color="transparent")
-        self.menu_mapa.grid(row=4, column=0, sticky="new")
-        for texto, comando in (("Mapa Nutricional", self.tela_mapa),
-                               ("Gráficos do Mês", self.tela_mapa_graficos),
-                               ("Suplementos", self.tela_suplementos),
-                               ("Mobile (copa)", self.tela_mobile)):
-            ctk.CTkButton(self.menu_mapa, text=texto, command=comando, fg_color="#4caf50", hover_color="#388e3c",
-                          text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold")).pack(padx=20, pady=10)
-
-        # Rodapé fixado na parte inferior do menu lateral
-        self.label_copyright = ctk.CTkLabel(
-            self.menu_lateral,
-            text="© 2026 Neis Bila de Alencar. Todos os direitos reservados.",
-            font=ctk.CTkFont(size=10),
-            text_color="#ffffff",
-            justify="left",
-            wraplength=170,
+        secoes_menu = [
+            ("CLÍNICA", [
+                ("👥", "Pacientes", lambda: self.abrir_painel_lateral("Pacientes", self.tela_pacientes)),
+                ("🧪", "Catálogo de Exames", lambda: self.abrir_painel_lateral("Catálogo de Exames", self.tela_exames)),
+            ]),
+            ("MAPA NUTRICIONAL", [
+                ("🗺️", "Mapa Nutricional", lambda: self.abrir_painel_lateral("Mapa Nutricional", self.tela_mapa)),
+                ("📊", "Gráficos do Mês", lambda: self.abrir_painel_lateral("Gráficos do Mês", self.tela_mapa_graficos)),
+                ("🥣", "Suplementos", lambda: self.abrir_painel_lateral("Suplementos", self.tela_suplementos)),
+                ("📦", "Almoxarifado", lambda: self.abrir_painel_lateral("Almoxarifado", self.tela_almoxarifado)),
+                ("📱", "Mobile (copa)", lambda: self.abrir_painel_lateral("Mobile (copa)", self.tela_mobile)),
+            ]),
+            ("GESTÃO", [
+                ("🍲", "Fichas e consumo da cozinha", lambda: self.abrir_painel_lateral("Fichas e consumo", self.tela_gestao_alimentar_fichas)),
+            ]),
+        ]
+        self.menu_lateral = BarraLateral(
+            self, secoes=secoes_menu,
+            config=("⚙️", "Configurações", lambda: self.abrir_painel_lateral("Configurações", self.tela_configuracoes)),
+            rodape="© 2026 Neis Bila de Alencar. Todos os direitos reservados."
         )
-        self.label_copyright.grid(row=5, column=0, padx=10, pady=(0, 10), sticky="sw")
-
-        # --- ÁREA PRINCIPAL ---
-        self.area_principal = ctk.CTkFrame(self, corner_radius=10, fg_color="#F0F7F4")
-        self.area_principal.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
-        
+        self.bind("<Escape>", self._fechar_ultima_aba_lateral, add="+")
         self.tela_inicial()
+        self._iniciar_backups()
+        self._iniciar_servidor_mobile()
+        # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
+        self.after(1200, lambda: atualizador.iniciar_verificacao(self, self._resultado_atualizacao))
+
+
+    def _iniciar_servidor_mobile(self):
+        """Inicia o servidor local uma única vez; não assume propriedade de processo preexistente."""
+        self._servidor_mobile = None
+        try:
+            with socket.create_connection(("127.0.0.1", 8765), timeout=0.35):
+                # O BAT/manual ou outra instância já atende a porta: não iniciar nem encerrar esse processo.
+                return
+        except OSError:
+            pass
+
+        caminho_servidor = os.path.join(get_base_path(), "mobile", "servidor.py")
+        if not os.path.isfile(caminho_servidor):
+            caminho_servidor = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mobile", "servidor.py")
+        try:
+            spec = importlib.util.spec_from_file_location("nutrilab_servidor_mobile", caminho_servidor)
+            if spec is None or spec.loader is None:
+                raise RuntimeError("Não foi possível carregar mobile/servidor.py.")
+            modulo = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(modulo)
+
+            if getattr(sys, "frozen", False):
+                base_dados = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+                caminho_db = os.path.join(base_dados, "NutriLab", "mobile", "mobile.db")
+            else:
+                caminho_db = os.path.join(os.path.dirname(caminho_servidor), "dados", "mobile.db")
+            senha_inicial = modulo.preparar_banco(caminho_db, False)
+            if senha_inicial:
+                messagebox.showinfo(
+                    "Acesso inicial ao NutriLab Mobile",
+                    "Foi criado o usuário administrador do servidor mobile.\n\n"
+                    f"Usuário: admin\nSenha inicial: {senha_inicial}\n\n"
+                    "Guarde essa senha em local seguro. Ela não será exibida novamente."
+                )
+            servidor = modulo.criar_servidor(caminho_db, 8765, "0.0.0.0")
+            thread = threading.Thread(target=servidor.serve_forever, name="NutriLabMobile", daemon=True)
+            thread.start()
+            self._servidor_mobile = servidor
+            self._thread_servidor_mobile = thread
+        except OSError as erro:
+            messagebox.showwarning(
+                "Servidor mobile indisponível",
+                "Não foi possível iniciar o servidor mobile na porta 8765. "
+                "Os módulos que não dependem dele continuarão disponíveis.\n\n"
+                f"Detalhe: {erro}"
+            )
+        except Exception as erro:
+            messagebox.showwarning(
+                "Servidor mobile indisponível",
+                "O NutriLab continuará funcionando, mas a integração mobile não foi iniciada.\n\n"
+                f"Detalhe: {erro}"
+            )
+
+    def _encerrar_servidor_mobile(self):
+        """Encerra somente o servidor criado por esta instância do desktop."""
+        servidor = getattr(self, "_servidor_mobile", None)
+        if servidor is not None:
+            try:
+                servidor.shutdown()
+            except Exception:
+                pass
+            try:
+                servidor.server_close()
+            except Exception:
+                pass
+            self._servidor_mobile = None
+
+    def _encerrar_e_destruir(self):
+        self._encerrando_app = True
+        self._encerrar_servidor_mobile()
+        self.destroy()
+
+    def _iniciar_backups(self):
+        """Ativa snapshots periódicos e backup obrigatório no encerramento normal."""
+        self._gerenciador_backups = BackupManager(
+            self, caminho_do_banco(), on_error=self._erro_backup_automatico
+        )
+        self._gerenciador_backups.iniciar()
+
+    def _erro_backup_automatico(self, erro):
+        """Informa falhas sem ocultar que a proteção não foi concluída."""
+        messagebox.showerror(
+            "Falha no backup de segurança",
+            "Não foi possível concluir o backup automático do banco de dados. "
+            "O programa permanecerá aberto para evitar um encerramento sem a cópia de segurança.\n\n"
+            f"Detalhe: {erro}"
+        )
+
+    def _ao_fechar(self):
+        """Só encerra a interface depois de criar e validar o backup final."""
+        gerenciador = getattr(self, "_gerenciador_backups", None)
+        if gerenciador is None:
+            self._encerrar_e_destruir()
+            return
+        gerenciador.fechar(ao_concluir=self._encerrar_e_destruir)
+
+    def _resultado_atualizacao(self, resultado):
+        """Exibe comparação de versões sem executar alterações automáticas no banco de dados."""
+        if resultado.get("status") == "erro":
+            # Sem conexão ou falha na API: não assumir que o programa está atualizado.
+            print("NutriLab: não foi possível consultar atualizações:", resultado.get("erro"))
+            return
+        if resultado.get("status") != "atualizacao":
+            return
+        url = resultado.get("url", "")
+        tem_pacote = bool(resultado.get("pacote_windows"))
+        texto = ("Versão instalada: {local}\nÚltima versão no GitHub: {remota}\n\n".format(**resultado))
+        texto += ("Há um pacote Windows publicado. A atualização deverá preservar o banco e os arquivos locais."
+                  if tem_pacote else
+                  "A release existe, mas ainda não há pacote Windows publicado. Nenhum arquivo será alterado.")
+        if messagebox.askyesno("Atualização do NutriLab disponível", texto + "\n\nAbrir a página da atualização?"):
+            import webbrowser
+            if url:
+                webbrowser.open(url)
 
     def tela_mapa(self):
         self.mapa.mostrar_mapa()
@@ -282,6 +323,67 @@ class AppClinica(ctk.CTk):
     def tela_mobile(self):
         from mobile_ui import MobileUI
         MobileUI(self, caminho_do_banco(), get_base_path()).mostrar()
+
+    def tela_almoxarifado(self):
+        """Abre o controle de itens, estoque, movimentações e programação de custos."""
+        from almox_ui import AlmoxUI
+        AlmoxUI(self, caminho_do_banco()).mostrar()
+
+    def tela_gestao_alimentar_fichas(self):
+        """Abre fichas técnicas e a análise observacional de retiradas da cozinha."""
+        from gestao_alimentar_ui import GestaoAlimentarUI
+        GestaoAlimentarUI(self, caminho_do_banco(), get_base_path()).mostrar()
+
+    def tela_configuracoes(self):
+        from configuracoes_ui import ConfiguracoesUI
+        ConfiguracoesUI(self).mostrar()
+
+    def tela_nrs(self):
+        from nrs_ui import NRSUI
+        NRSUI(self, self.mapa.db).mostrar()
+
+    def tela_avaliacao(self):
+        from avaliacao_ui import AvaliacaoUI
+        AvaliacaoUI(self, self.mapa.db).mostrar()
+
+    def alternar_menu(self):
+        """Fixa ou solta a barra lateral v4."""
+        return self.menu_lateral.alternar()
+
+    def abrir_painel_lateral(self, titulo, comando):
+        """Abre uma nova guia lateral sem destruir as anteriores."""
+        frame = self._pilha_abas_laterais.abrir(titulo)
+        self.area_principal = frame
+        try:
+            comando()
+        except Exception:
+            self.area_principal = self._pilha_abas_laterais.fechar_ultima()
+            raise
+        return frame
+
+    def fechar_painel_lateral(self, frame):
+        """Fecha uma guia específica e restaura a página que ficou ativa."""
+        self.area_principal = self._pilha_abas_laterais.fechar(frame)
+        if self._pilha_abas_laterais.quantidade == 0 and not getattr(self, "_encerrando_app", False):
+            self.tela_inicial()
+        return self.area_principal
+
+    def _fechar_ultima_aba_lateral(self, event=None):
+        """ESC fecha somente a última guia lateral aberta e restaura a anterior."""
+        if getattr(self, "_tela_inicial_ativa", False):
+            return None
+        try:
+            foco = self.focus_get()
+            if foco is not None and foco.winfo_toplevel() is not self:
+                return None  # um diálogo modal tem prioridade sobre a pilha de páginas
+        except (tk.TclError, AttributeError):
+            pass
+        if self._pilha_abas_laterais.quantidade == 0:
+            return None
+        self.area_principal = self._pilha_abas_laterais.fechar_ultima()
+        if self._pilha_abas_laterais.quantidade == 0 and not getattr(self, "_encerrando_app", False):
+            self.tela_inicial()
+        return "break"
 
     def configurar_banco_dados(self):
         caminho = caminho_do_banco()
@@ -313,47 +415,111 @@ class AppClinica(ctk.CTk):
             widget.destroy()
 
     def tela_inicial(self):
+        """Apresentação inicial em camadas; a navegação é exibida após a escolha da área."""
+        self._pilha_abas_laterais.limpar()
+        self.area_principal = self._pilha_abas_laterais.pagina_atual
+        self._pilha_abas_laterais.pack_forget()
         self.limpar_area_principal()
-
-        caminho_imagem = os.path.join(get_base_path(), "welcome_nutrilab.png")
-        self.imagem_bem_vindo_pil = Image.open(caminho_imagem)
-        self._tamanho_imagem_bem_vindo = self.imagem_bem_vindo_pil.size
-        self.imagem_bem_vindo = ctk.CTkImage(
-            light_image=self.imagem_bem_vindo_pil,
-            dark_image=self.imagem_bem_vindo_pil,
-            size=self._tamanho_imagem_bem_vindo
+        self._tela_inicial_ativa = True
+        self._timer_areas_iniciais = None
+        self.menu_lateral.place_forget()
+        self.area_principal_host.grid_configure(row=0, column=0, padx=0, pady=0, sticky="nsew")
+        self.area_principal_host.configure(corner_radius=0)
+        self.grid_columnconfigure(0, weight=1, minsize=0)
+        self.grid_columnconfigure(1, weight=0, minsize=0)
+        self._tela_boas_vindas = TelaBoasVindas(
+            self.area_principal_host, self._entrar_na_area_inicial
+        )
+        self._tela_boas_vindas.frame.pack(fill="both", expand=True)
+        self._binding_esc_inicial = self.bind(
+            "<Escape>", self._confirmar_saida_inicial, add="+"
         )
 
-        self.label_bem_vindo = ctk.CTkLabel(self.area_principal, text="", image=self.imagem_bem_vindo, fg_color="#F0F7F4")
-        self.label_bem_vindo.pack(fill="both", expand=True, padx=60, pady=40)
-        self.label_bem_vindo.bind("<Configure>", self._redimensionar_imagem_bem_vindo)
+    def _mostrar_areas_iniciais(self):
+        if not getattr(self, "_tela_inicial_ativa", False) or self._areas_iniciais_visiveis:
+            return
+        self._areas_iniciais_visiveis = True
+        if self._timer_areas_iniciais:
+            try:
+                self.after_cancel(self._timer_areas_iniciais)
+            except Exception:
+                pass
+            self._timer_areas_iniciais = None
+        self.label_instrucao_inicial.place_forget()
+        painel = ctk.CTkFrame(
+            self._tela_boas_vindas, fg_color="#F8FCF5",
+            border_color="#B8DCC8", border_width=1, corner_radius=18
+        )
+        painel.place(relx=0.5, rely=0.82, relwidth=0.78, anchor="center")
+        ctk.CTkLabel(
+            painel, text="Escolha por onde deseja começar",
+            text_color="#064D3C", font=ctk.CTkFont(size=23, weight="bold")
+        ).pack(pady=(14, 10))
+        opcoes = (
+            ("Gestão Clínica", "Pacientes, consultas, exames e avaliações", self.tela_pacientes),
+            ("Nutrição", "Mapa nutricional, gráficos e suplementos", self.tela_mapa),
+            ("Gestão Alimentar", "Almoxarifado, copa e fichas de consumo", self.tela_almoxarifado),
+        )
+        linha = ctk.CTkFrame(painel, fg_color="transparent")
+        linha.pack(fill="x", padx=14, pady=(0, 14))
+        for titulo, descricao, comando in opcoes:
+            cartao = ctk.CTkFrame(linha, fg_color="#FFFFFF", border_color="#C9E5D3",
+                                  border_width=1, corner_radius=12)
+            cartao.pack(side="left", fill="both", expand=True, padx=7)
+            ctk.CTkLabel(cartao, text=titulo, text_color="#08764B",
+                         font=ctk.CTkFont(size=17, weight="bold")).pack(padx=12, pady=(14, 5))
+            ctk.CTkLabel(cartao, text=descricao, text_color="#536968",
+                         font=ctk.CTkFont(size=12), wraplength=220).pack(padx=12, pady=(0, 12))
+            ctk.CTkButton(
+                cartao, text="Entrar", fg_color="#218C55", hover_color="#176D42",
+                command=lambda fn=comando: self._entrar_na_area_inicial(fn)
+            ).pack(fill="x", padx=12, pady=(0, 14))
 
-    def _redimensionar_imagem_bem_vindo(self, event):
-        largura_orig, altura_orig = self.imagem_bem_vindo_pil.size
-        largura_disp = self.area_principal.winfo_width() - 120
-        altura_disp = self.area_principal.winfo_height() - 80
-        if largura_disp > 1 and altura_disp > 1:
-            fator = min(largura_disp / largura_orig, altura_disp / altura_orig)
-            novo_w = int(largura_orig * fator)
-            novo_h = int(altura_orig * fator)
-            if novo_w > 1 and novo_h > 1 and (novo_w, novo_h) != self._tamanho_imagem_bem_vindo:
-                self._tamanho_imagem_bem_vindo = (novo_w, novo_h)
-                self.imagem_bem_vindo = ctk.CTkImage(
-                    light_image=self.imagem_bem_vindo_pil,
-                    dark_image=self.imagem_bem_vindo_pil,
-                    size=(novo_w, novo_h)
-                )
-                self.label_bem_vindo.configure(image=self.imagem_bem_vindo)
+    def _entrar_na_area_inicial(self, destino):
+        if not getattr(self, "_tela_inicial_ativa", False):
+            return
+        self._tela_inicial_ativa = False
+        if getattr(self, "_binding_esc_inicial", None):
+            self.unbind("<Escape>", self._binding_esc_inicial)
+            self._binding_esc_inicial = None
+        if getattr(self, "_tela_boas_vindas", None):
+            self._tela_boas_vindas.parar()
+            self._tela_boas_vindas.frame.destroy()
+            self._tela_boas_vindas = None
+
+        self.menu_lateral.place(x=0, y=0, relheight=1.0)
+        self.area_principal_host.grid_configure(row=0, column=1, padx=20, pady=20, sticky="nsew")
+        self.area_principal_host.configure(corner_radius=10)
+        self.grid_columnconfigure(
+            0, weight=0,
+            minsize=self.menu_lateral.EXPANDIDA if self.menu_lateral.fixa else self.menu_lateral.RECOLHIDA
+        )
+        self.grid_columnconfigure(1, weight=1, minsize=0)
+        self._pilha_abas_laterais.pack(fill="both", expand=True)
+
+        destinos = {
+            "clinica": ("Pacientes", self.tela_pacientes),
+            "nutricao": ("Mapa Nutricional", self.tela_mapa),
+            "alimentar": ("Almoxarifado", self.tela_almoxarifado),
+        }
+        titulo, comando = destinos.get(destino, destinos["clinica"])
+        self.abrir_painel_lateral(titulo, comando)
+
+    def _confirmar_saida_inicial(self, event=None):
+        if getattr(self, "_tela_inicial_ativa", False):
+            if messagebox.askyesno("Sair do NutriLab", "Deseja realmente sair do NutriLab?"):
+                self._ao_fechar()
+            return "break"
 
     # --- MÓDULO DE PACIENTES ---
     def tela_pacientes(self):
         self.limpar_area_principal()
 
         ctk.CTkLabel(self.area_principal, text="Gestão de Pacientes", font=ctk.CTkFont(size=24, weight="bold"), text_color="#1b5e20").pack(pady=(20, 10))
-        self.tabview = ctk.CTkTabview(self.area_principal, fg_color="#e8f5e9",
+        self.tabview = _criar_tabview_compat(self.area_principal, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
+                                      fg_color="#e8f5e9",
                                       segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
                                       segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                      segmented_button_font=ctk.CTkFont(size=15, weight="bold"),
                                       text_color="#ffffff", text_color_disabled="#d5e8d7")
         self.tabview.pack(padx=20, pady=10, fill="both", expand=True)
         aba_cadastro = self.tabview.add("Novo Cadastro")
@@ -361,12 +527,26 @@ class AppClinica(ctk.CTk):
 
         self.entry_nome = ctk.CTkEntry(aba_cadastro, placeholder_text="Nome Completo", width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
         self.entry_nome.pack(pady=10)
-        self.entry_nasc = ctk.CTkEntry(aba_cadastro, placeholder_text="Data de Nascimento (DD/MM/AAAA)", width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_nasc = tema.CampoData(aba_cadastro, placeholder_text="Data de Nascimento (DD/MM/AAAA)", width=300,
+                                         font=ctk.CTkFont(size=15), fg_color=tema.BRANCO, text_color=tema.VERDE_ESC,
+                                         placeholder_text_color=tema.SUAVE, border_color=tema.BORDA)
         self.entry_nasc.pack(pady=10)
         self.combo_sexo = ctk.CTkComboBox(aba_cadastro, values=["Feminino", "Masculino"], width=300, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", button_color="#4caf50", button_hover_color="#388e3c", dropdown_fg_color="#ffffff", dropdown_hover_color="#c8e6c9", dropdown_text_color="#1b5e20")
         self.combo_sexo.set("Feminino")
         self.combo_sexo.pack(pady=10)
-        ctk.CTkButton(aba_cadastro, text="Salvar Cadastro", command=self.salvar_paciente, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=20)
+        botoes_cadastro = ctk.CTkFrame(aba_cadastro, fg_color="transparent")
+        botoes_cadastro.pack(pady=18)
+        ctk.CTkButton(
+            botoes_cadastro, text="Salvar Cadastro", command=self.salvar_paciente,
+            fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff",
+            font=ctk.CTkFont(size=15, weight="bold")
+        ).pack(side="left", padx=5)
+        ctk.CTkButton(
+            botoes_cadastro, text="Salvar e iniciar consulta",
+            command=lambda: self.salvar_paciente(iniciar_consulta=True),
+            fg_color="#1e7a4f", hover_color="#17633f", text_color="#ffffff",
+            font=ctk.CTkFont(size=15, weight="bold")
+        ).pack(side="left", padx=5)
         self.lbl_mensagem = ctk.CTkLabel(aba_cadastro, text="", text_color="#2e7d32", font=ctk.CTkFont(size=15))
         self.lbl_mensagem.pack()
 
@@ -377,6 +557,21 @@ class AppClinica(ctk.CTk):
         style.configure("Treeview.Heading", background="#4caf50", foreground="#ffffff", relief="flat", font=("Segoe UI", 14, "bold"))
         style.map("Treeview.Heading", background=[('active', '#388e3c')])
         
+        barra_lista = ctk.CTkFrame(aba_lista, fg_color="transparent")
+        barra_lista.pack(fill="x", padx=10, pady=(8, 2))
+        self.btn_consulta_paciente = ctk.CTkButton(
+            barra_lista, text="Nova consulta do paciente selecionado",
+            command=self.iniciar_consulta_paciente, state="disabled",
+            fg_color="#1e7a4f", hover_color="#17633f", text_color="#ffffff",
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        self.btn_consulta_paciente.pack(side="left")
+        self.lbl_paciente_selecionado = ctk.CTkLabel(
+            barra_lista, text="Selecione um paciente para iniciar uma consulta.",
+            text_color="#52645a", font=ctk.CTkFont(size=12)
+        )
+        self.lbl_paciente_selecionado.pack(side="left", padx=12)
+
         tree_frame = ctk.CTkFrame(aba_lista, fg_color="#e8f5e9")
         tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -395,7 +590,16 @@ class AppClinica(ctk.CTk):
         self.tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.tree.bind("<Double-1>", self.abrir_perfil_paciente)
+        self.tree.bind("<<TreeviewSelect>>", self._atualizar_acao_consulta_paciente)
         self.carregar_tabela_pacientes()
+
+        self.fab_paciente = ctk.CTkButton(
+            self.area_principal, text="+ Adicionar paciente",
+            command=self._abrir_cadastro_paciente, width=190, height=44,
+            corner_radius=22, fg_color="#F08A24", hover_color="#D97706",
+            text_color="#ffffff", font=ctk.CTkFont(size=14, weight="bold")
+        )
+        self.fab_paciente.place(relx=0.98, rely=0.98, anchor="se")
 
         # Botão de exclusão debajo de la tabla (acción destructiva em vermelho)
         ctk.CTkButton(
@@ -408,22 +612,57 @@ class AppClinica(ctk.CTk):
             command=self.eliminar_paciente,
         ).pack(fill="x", padx=10, pady=10)
 
-    def salvar_paciente(self):
+    def _abrir_cadastro_paciente(self):
+        """Abre a aba de cadastro pelo botão flutuante."""
+        self.tabview.set("Novo Cadastro")
+        self.entry_nome.focus_set()
+
+    def _atualizar_acao_consulta_paciente(self, _evento=None):
+        selecionados = self.tree.selection()
+        habilitado = bool(selecionados)
+        self.btn_consulta_paciente.configure(state="normal" if habilitado else "disabled")
+        if habilitado:
+            valores = self.tree.item(selecionados[0], "values")
+            self.lbl_paciente_selecionado.configure(text=f"Paciente: {valores[1]}")
+        else:
+            self.lbl_paciente_selecionado.configure(text="Selecione um paciente para iniciar uma consulta.")
+
+    def iniciar_consulta_paciente(self):
+        """Inicia consulta somente a partir de um paciente explicitamente selecionado."""
+        selecionados = self.tree.selection()
+        if not selecionados:
+            messagebox.showinfo("Nova consulta", "Selecione um paciente na lista.")
+            return
+        valores = self.tree.item(selecionados[0], "values")
+        self.paciente_atual_id, self.paciente_atual_nome, self.paciente_atual_nasc, self.paciente_atual_sexo = valores
+        self.abrir_painel_lateral("Nova consulta", self.tela_consultas)
+
+    def salvar_paciente(self, iniciar_consulta=False):
         nome = self.entry_nome.get()
         nasc = self.entry_nasc.get()
         sexo = self.combo_sexo.get()
         if nome.strip() == "":
             self.lbl_mensagem.configure(text="Erro: O nome é obrigatório.", text_color="#c62828")
             return
+        if nasc.strip() and not tema.data_valida(nasc):
+            self.lbl_mensagem.configure(text="Erro: informe uma data de nascimento válida (DD/MM/AAAA).", text_color="#c62828")
+            return
         conexao = sqlite3.connect(caminho_do_banco())
         cursor = conexao.cursor()
         cursor.execute('INSERT INTO Pacientes (nome, data_nascimento, sexo) VALUES (?, ?, ?)', (nome, nasc, sexo))
+        id_novo = cursor.lastrowid
         conexao.commit()
         conexao.close()
         self.entry_nome.delete(0, 'end')
         self.entry_nasc.delete(0, 'end')
         self.carregar_tabela_pacientes()
         self.tabview.set("Pacientes Cadastrados")
+        if iniciar_consulta:
+            self.paciente_atual_id = id_novo
+            self.paciente_atual_nome = nome
+            self.paciente_atual_nasc = nasc
+            self.paciente_atual_sexo = sexo
+            self.abrir_painel_lateral("Nova consulta", self.tela_consultas)
 
     def carregar_tabela_pacientes(self):
         for item in self.tree.get_children():
@@ -456,16 +695,41 @@ class AppClinica(ctk.CTk):
         if not confirmar:
             return
 
+        # Antes de excluir, verifica referências clínicas e arquivos armazenados.
+        pasta_paciente = os.path.join(
+            get_writable_path("arquivos_pacientes"), f"paciente_{id_paciente}"
+        )
         conexao = sqlite3.connect(caminho_do_banco())
-        cursor = conexao.cursor()
-        cursor.execute("DELETE FROM Pacientes WHERE id_paciente = ?", (id_paciente,))
-        conexao.commit()
-        conexao.close()
+        try:
+            vinculados = pacientes_integridade.registros_vinculados(
+                conexao, int(id_paciente), pasta_paciente
+            )
+            if vinculados:
+                resumo = "\n".join(f"• {nome}: {quantidade}" for nome, quantidade in vinculados.items())
+                messagebox.showwarning(
+                    "Exclusão bloqueada",
+                    "Este paciente possui histórico clínico ou arquivos vinculados. "
+                    "Para proteger os dados, a exclusão definitiva foi bloqueada.\n\n"
+                    f"Registros encontrados:\n{resumo}\n\n"
+                    "Não apague manualmente esses dados. Considere manter o cadastro."
+                )
+                return
+            cursor = conexao.cursor()
+            cursor.execute("DELETE FROM Pacientes WHERE id_paciente = ?", (id_paciente,))
+            conexao.commit()
+        finally:
+            conexao.close()
 
         self.carregar_tabela_pacientes()
 
     # --- PERFIL DO PACIENTE ---
-    def abrir_perfil_paciente(self, event):
+    def abrir_perfil_paciente(self, event=None, _painel_aberto=False):
+        if not _painel_aberto:
+            self.abrir_painel_lateral(
+                "Perfil do paciente",
+                lambda: self.abrir_perfil_paciente(event, _painel_aberto=True)
+            )
+            return
         selecao = self.tree.selection()
         if not selecao: return
         valores = self.tree.item(selecao[0])['values']
@@ -474,21 +738,21 @@ class AppClinica(ctk.CTk):
         self.paciente_atual_sexo = sexo
         
         self.limpar_area_principal()
-        ctk.CTkButton(self.area_principal, text="← Voltar", width=80, fg_color="#c8e6c9", hover_color="#a5d6a7", text_color="#1b5e20", border_width=1, border_color="#4caf50", font=ctk.CTkFont(size=15), command=self.tela_pacientes).pack(anchor="nw", pady=10, padx=10)
+        ctk.CTkButton(self.area_principal, text="← Voltar", width=80, fg_color="#c8e6c9", hover_color="#a5d6a7", text_color="#1b5e20", border_width=1, border_color="#4caf50", font=ctk.CTkFont(size=15), command=self._fechar_ultima_aba_lateral).pack(anchor="nw", pady=10, padx=10)
         ctk.CTkLabel(self.area_principal, text=f"Perfil Clínico: {self.paciente_atual_nome}", font=ctk.CTkFont(size=26, weight="bold"), text_color="#1b5e20").pack(pady=(0, 5))
         ctk.CTkLabel(self.area_principal, text=f"ID: {self.paciente_atual_id}  |  Nascimento: {nasc}  |  Sexo: {sexo}", font=ctk.CTkFont(size=17), text_color="#2f3e33").pack(pady=5)
 
-        tabview_perfil = ctk.CTkTabview(self.area_principal, fg_color="#e8f5e9",
+        tabview_perfil = _criar_tabview_compat(self.area_principal, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
+                                        fg_color="#e8f5e9",
                                         segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
                                         segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                        segmented_button_font=ctk.CTkFont(size=15, weight="bold"),
                                         text_color="#ffffff", text_color_disabled="#d5e8d7")
         tabview_perfil.pack(padx=20, pady=10, fill="both", expand=True)
         
         aba_hist = tabview_perfil.add("Histórico de Consultas")
         aba_exm = tabview_perfil.add("Exames e Arquivos")
         
-        ctk.CTkButton(aba_hist, text="Iniciar Nova Consulta", command=self.tela_consultas, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
+        ctk.CTkButton(aba_hist, text="Iniciar Nova Consulta", command=lambda: self.abrir_painel_lateral("Nova consulta", self.tela_consultas), fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
 
         scroll_hist = ctk.CTkScrollableFrame(aba_hist, fg_color="transparent")
         scroll_hist.pack(fill="both", expand=True, padx=10, pady=10)
@@ -910,6 +1174,16 @@ class AppClinica(ctk.CTk):
         self.txt_anamnese = ctk.CTkTextbox(scroll_frame, width=600, height=100, font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", border_width=1, border_color="#a5d6a7")
         self.txt_anamnese.pack(padx=20, pady=5)
 
+        # Campos guiados, medicamentos/metas separados, recordatório opcional e biblioteca DOCX.
+        self.painel_consulta_estruturada = PainelConsultaEstruturada(
+            scroll_frame, caminho_do_banco(), os.path.dirname(caminho_do_banco()))
+        self.painel_consulta_estruturada.pack(fill="x", padx=20, pady=8)
+        frame_softsus = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+        frame_softsus.pack(fill="x", padx=20, pady=4)
+        ctk.CTkButton(frame_softsus, text="Montar e copiar texto para SoftSus",
+                      fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff",
+                      command=self.copiar_anamnese_softsus).pack(side="left")
+
         ctk.CTkLabel(scroll_frame, text="Antropometria e Composição Corporal", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(anchor="w", padx=20, pady=(15, 0))
         frame_antro = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_antro.pack(fill="x", padx=20, pady=5)
@@ -941,6 +1215,51 @@ class AppClinica(ctk.CTk):
         self.lbl_resultado_metabolismo = ctk.CTkLabel(frame_calculo, text="Insira os dados acima para calcular a Taxa Metabólica Basal e o VET.", font=ctk.CTkFont(size=17, weight="bold"), text_color="#1b5e20")
         self.lbl_resultado_metabolismo.pack(pady=10)
 
+        # Equações DRI 2023 (EER) e fórmula de bolso são exibidas lado a lado, sem substituir a TMB existente.
+        frame_dri = ctk.CTkFrame(frame_calculo, fg_color="#f5fbf5", corner_radius=8)
+        frame_dri.pack(fill="x", padx=10, pady=(4, 10))
+        ctk.CTkLabel(frame_dri, text="Necessidade energética — DRI 2023 e fórmula de bolso",
+                     text_color="#1b5e20", font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=8, pady=(8, 2))
+        linha_dri = ctk.CTkFrame(frame_dri, fg_color="transparent")
+        linha_dri.pack(fill="x", padx=8, pady=4)
+        ctk.CTkLabel(linha_dri, text="Atividade física:", text_color="#1b5e20").pack(side="left", padx=(0, 5))
+        self.combo_dri_atividade = ctk.CTkComboBox(
+            linha_dri, values=["Inativo", "Pouco ativo", "Ativo", "Muito ativo"], width=150,
+            command=self.calcular_necessidades_dri)
+        self.combo_dri_atividade.set("Inativo")
+        self.combo_dri_atividade.pack(side="left", padx=5)
+        ctk.CTkLabel(linha_dri, text="Fórmula de bolso:", text_color="#1b5e20").pack(side="left", padx=(12, 5))
+        self.combo_fator_bolso = ctk.CTkComboBox(
+            linha_dri, values=[str(v) for v in range(25, 36)], width=65,
+            command=self.calcular_necessidades_dri)
+        self.combo_fator_bolso.set("25")
+        self.combo_fator_bolso.pack(side="left", padx=5)
+        ctk.CTkLabel(linha_dri, text="kcal/kg/dia", text_color="#1b5e20").pack(side="left")
+        self.entry_fator_proteico = ctk.CTkEntry(
+            linha_dri, placeholder_text="Proteína g/kg", width=110, fg_color="#ffffff",
+            text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        self.entry_fator_proteico.pack(side="left", padx=(12, 4))
+        self.entry_fator_proteico.bind("<KeyRelease>", self.calcular_necessidades_dri)
+        self.lbl_resultado_dri = ctk.CTkLabel(
+            frame_dri, text="Preencha peso, altura e atividade física para estimar as necessidades.",
+            text_color="#556b58", font=ctk.CTkFont(size=14), justify="left", wraplength=780)
+        self.lbl_resultado_dri.pack(anchor="w", padx=8, pady=(4, 8))
+        linha_condicao = ctk.CTkFrame(frame_dri, fg_color="transparent")
+        linha_condicao.pack(fill="x", padx=8, pady=(2, 4))
+        ctk.CTkLabel(linha_condicao, text="Condição reprodutiva:", text_color="#1b5e20").pack(side="left", padx=(0, 6))
+        self.combo_dri_condicao = ctk.CTkComboBox(
+            linha_condicao,
+            values=["Não informado", "Não gestante/não lactante", "Gestante", "Lactante", "Não se aplica"],
+            width=235, command=self.calcular_necessidades_dri)
+        sexo_cadastro = str(self.paciente_atual_sexo or "").strip().casefold()
+        self.combo_dri_condicao.set("Não se aplica" if sexo_cadastro in ("masculino", "homem", "male", "h") else "Não informado")
+        self.combo_dri_condicao.pack(side="left", padx=5)
+        ctk.CTkLabel(frame_dri,
+                     text="DRI 2023 implementada para adultos ≥19 anos. Em mulheres, o cálculo exige confirmar 'Não gestante/não lactante'; não usar a equação adulta em gestação, lactação ou pediatria. O fator proteico é definido pelo profissional.",
+                     text_color="#687b6c", font=ctk.CTkFont(size=12), wraplength=780,
+                     justify="left").pack(anchor="w", padx=8, pady=(0, 6))
+        self.calcular_necessidades_dri(silencioso=True)
+
         frame_conduta = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_conduta.pack(fill="x", padx=20, pady=(15, 0))
         ctk.CTkLabel(frame_conduta, text="Conduta Dietoterápica", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(side="left")
@@ -954,6 +1273,11 @@ class AppClinica(ctk.CTk):
             scroll_frame, caminho_do_banco(), self.paciente_atual_id, self.paciente_atual_nome,
             pasta_saida=self.pasta_condutas_alta(), janela_pai=self)
         self.painel_condutas_alta.pack(fill="x", padx=20, pady=(10, 5))
+        ctk.CTkLabel(
+            scroll_frame,
+            text="Triagem NRS-2002: o banco e o serviço ambulatorial aceitam o resultado estruturado do módulo de triagem. O cálculo/classificação permanecem no módulo NRS-2002; a integração funcional depende da incorporação da outra branch.",
+            text_color="#556b58", font=ctk.CTkFont(size=12), wraplength=780, justify="left"
+        ).pack(anchor="w", padx=20, pady=(0, 6))
 
         ctk.CTkLabel(scroll_frame, text="Solicitação de Exames", font=ctk.CTkFont(weight="bold", size=17), text_color="#1b5e20").pack(anchor="w", padx=20, pady=(15, 0))
         frame_exames = ctk.CTkFrame(scroll_frame, fg_color="transparent")
@@ -978,6 +1302,10 @@ class AppClinica(ctk.CTk):
         self.btn_select_exame.grid(row=0, column=0, padx=(0, 10))
 
         ctk.CTkButton(frame_exames, text="Adicionar à Solicitação", command=self.adicionar_exame, fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=15, weight="bold")).grid(row=0, column=1)
+        ctk.CTkButton(scroll_frame, text="Gerenciar associações: exames, diagnósticos clínicos e nutricionais",
+                      command=lambda: DialogoAssociacoesExames(self, caminho_do_banco()),
+                      fg_color="#607d8b", hover_color="#455a64", text_color="#ffffff",
+                      font=ctk.CTkFont(size=14)).pack(anchor="w", padx=20, pady=(2, 6))
 
         frame_analise_exames = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         frame_analise_exames.pack(fill="x", padx=20, pady=(15, 0))
@@ -1058,27 +1386,39 @@ class AppClinica(ctk.CTk):
             self.lbl_resultado_metabolismo.configure(text=f"Erro no cálculo.", text_color="#c62828")
 
     def abrir_modal_padroes(self, alvo):
-        modal = ctk.CTkToplevel(self)
-        modal.geometry("500x400")
-        modal.attributes("-topmost", True)
-        tabview_modal = ctk.CTkTabview(modal, fg_color="#e8f5e9",
-                                segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
-                                segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                segmented_button_font=ctk.CTkFont(size=15, weight="bold"),
-                                text_color="#ffffff", text_color_disabled="#d5e8d7")
+        """Abre a biblioteca de padrões em uma guia lateral, preservando a consulta anterior."""
+        titulos = {
+            "conduta": "Importar Condutas e Prescrições",
+            "anamnese": "Importar Sintomas Clínicos",
+            "exames": "Importar Análise e Valores de Referência",
+        }
+        titulo = titulos.get(alvo, "Importar padrões")
+        painel = self.abrir_painel_lateral(titulo, lambda: None)
+        cabecalho = ctk.CTkFrame(painel, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=12, pady=(10, 4))
+        ctk.CTkLabel(cabecalho, text=titulo, font=ctk.CTkFont(size=18, weight="bold"),
+                     text_color=tema.TEXTO).pack(side="left")
+        ctk.CTkButton(cabecalho, text="Fechar guia", width=100,
+                      command=lambda: self.fechar_painel_lateral(painel)).pack(side="right")
+        tabview_modal = _criar_tabview_compat(
+            painel, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
+            fg_color=tema.FUNDO,
+            segmented_button_selected_color=tema.VERDE,
+            segmented_button_selected_hover_color=tema.VERDE_ESC,
+            segmented_button_unselected_color=tema.VERDE_CLARO,
+            segmented_button_unselected_hover_color=tema.BORDA,
+            text_color=tema.TEXTO, text_color_disabled=tema.SUAVE
+        )
         tabview_modal.pack(padx=10, pady=10, fill="both", expand=True)
         if alvo == "conduta":
-            modal.title("Importar Condutas e Prescrições")
             aba_condutas = tabview_modal.add("Condutas")
             aba_prescricoes = tabview_modal.add("Prescrições")
             self.listar_arquivos_diretorio("condutas_internas", aba_condutas, self.txt_conduta)
             self.listar_arquivos_diretorio("prescricoes_internas", aba_prescricoes, self.txt_conduta)
         elif alvo == "anamnese":
-            modal.title("Importar Sintomas Clínicos")
             aba_sintomas = tabview_modal.add("Sintomas")
             self.listar_arquivos_diretorio("sintomas_internos", aba_sintomas, self.txt_anamnese)
         elif alvo == "exames":
-            modal.title("Importar Análise e Valores de Referência de Exames")
             aba_exames_ref = tabview_modal.add("Exames")
             self.listar_arquivos_diretorio("exames_internos", aba_exames_ref, self.txt_analise_exames)
 
@@ -1463,12 +1803,13 @@ class AppClinica(ctk.CTk):
                 self.lbl_msg_consulta.configure(text="Adicione exames à solicitação antes de lançar resultados.", text_color="#ef6c00")
             return
 
-        modal = ctk.CTkToplevel(self)
-        modal.geometry("600x500")
-        modal.title("Lançar Resultados Laboratoriais")
-        modal.attributes("-topmost", True)
-
-        ctk.CTkLabel(modal, text="Lançamento de Resultados", font=ctk.CTkFont(size=20, weight="bold"), text_color="#1b5e20").pack(pady=(10, 5))
+        modal = self.abrir_painel_lateral("Lançar Resultados Laboratoriais", lambda: None)
+        cabecalho_resultados = ctk.CTkFrame(modal, fg_color="transparent")
+        cabecalho_resultados.pack(fill="x", padx=12, pady=(10, 2))
+        ctk.CTkLabel(cabecalho_resultados, text="Lançamento de Resultados",
+                     font=ctk.CTkFont(size=20, weight="bold"), text_color=tema.TEXTO).pack(side="left")
+        ctk.CTkButton(cabecalho_resultados, text="Fechar guia", width=100,
+                      command=lambda: self.fechar_painel_lateral(modal)).pack(side="right")
 
         scroll = ctk.CTkScrollableFrame(modal, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=10, pady=10)
@@ -1539,9 +1880,9 @@ class AppClinica(ctk.CTk):
                 bandas = self._carregar_bandas_exame(id_exame)
                 status = self._classificar_valor(valor, ref_min, ref_max, bandas)
                 self.resultados_lancados[id_exame] = (valor, status)
-            # Limpa os labels dinâmicos ao fechar o modal
+            # Limpa os labels dinâmicos ao fechar a guia lateral
             self._labels_calculo = {}
-            modal.destroy()
+            self.fechar_painel_lateral(modal)
 
         ctk.CTkButton(modal, text="Salvar", fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"), command=salvar_e_fechar).pack(pady=(0, 10))
 
@@ -1591,22 +1932,26 @@ class AppClinica(ctk.CTk):
         except Exception as e: print(f"Erro: {e}")
 
     def _abrir_select_exame(self):
-        """Abre una janela de selección con scroll fluido (CTkScrollableFrame)."""
-        modal = ctk.CTkToplevel(self)
-        modal.geometry("380x420")
-        modal.title("Selecionar Exame")
-        modal.attributes("-topmost", True)
-        modal.configure(fg_color="#e8f5e9")
-
-        ctk.CTkLabel(modal, text="Selecione un exame do catálogo:", font=ctk.CTkFont(size=15, weight="bold"), text_color="#1b5e20").pack(pady=(10, 5))
-
-        self.entry_filtro_exames = ctk.CTkEntry(modal, placeholder_text="Filtrar por nombre...", font=ctk.CTkFont(size=15), fg_color="#ffffff", text_color="#1b5e20", placeholder_text_color="#7a9e7e", border_color="#a5d6a7")
+        """Abre o catálogo de exames em uma guia lateral com filtro e rolagem."""
+        painel = self.abrir_painel_lateral("Selecionar exame", lambda: None)
+        self._painel_select_exame = painel
+        cabecalho = ctk.CTkFrame(painel, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=12, pady=(10, 2))
+        ctk.CTkLabel(cabecalho, text="Selecione um exame do catálogo",
+                     font=ctk.CTkFont(size=18, weight="bold"), text_color=tema.TEXTO).pack(side="left")
+        ctk.CTkButton(cabecalho, text="Fechar guia", width=100,
+                      command=lambda: self.fechar_painel_lateral(painel)).pack(side="right")
+        self.entry_filtro_exames = ctk.CTkEntry(
+            painel, placeholder_text="Filtrar por nome...", font=ctk.CTkFont(size=15),
+            fg_color=tema.BRANCO, text_color=tema.TEXTO,
+            placeholder_text_color=tema.SUAVE, border_color=tema.BORDA
+        )
         self.entry_filtro_exames.pack(fill="x", padx=15, pady=5)
-        self.entry_filtro_exames.bind("<KeyRelease>", lambda e: self._preencher_lista_exames())
-
-        self.scroll_lista_exames = ctk.CTkScrollableFrame(modal, width=340, height=300, fg_color="#f1f8ea", corner_radius=6)
+        self.entry_filtro_exames.bind("<KeyRelease>", lambda _e: self._preencher_lista_exames())
+        self.scroll_lista_exames = ctk.CTkScrollableFrame(
+            painel, fg_color=tema.FUNDO, corner_radius=6
+        )
         self.scroll_lista_exames.pack(fill="both", expand=True, padx=15, pady=10)
-
         self._preencher_lista_exames()
 
     def _preencher_lista_exames(self):
@@ -1622,13 +1967,13 @@ class AppClinica(ctk.CTk):
             ctk.CTkButton(self.scroll_lista_exames, text=opcion, anchor="w", fg_color="#4caf50", hover_color="#388e3c", text_color="#ffffff", font=ctk.CTkFont(size=14), command=lambda o=opcion: self._seleccionar_exame(o)).pack(fill="x", padx=5, pady=2)
 
     def _seleccionar_exame(self, opcion):
-        """Guarda la elección y cierra la ventana del selector."""
+        """Guarda a escolha e fecha somente a guia do seletor de exames."""
         self.exame_escolhido = opcion
         self.btn_select_exame.configure(text=opcion)
-        try:
-            self.scroll_lista_exames.winfo_toplevel().destroy()
-        except Exception:
-            pass
+        painel = getattr(self, "_painel_select_exame", None)
+        if painel is not None:
+            self.fechar_painel_lateral(painel)
+            self._painel_select_exame = None
 
     def adicionar_exame(self, id_forcado=None, nome_forcado=None):
         if id_forcado and nome_forcado:
@@ -1654,9 +1999,42 @@ class AppClinica(ctk.CTk):
                           JOIN Exames_Catalogo E ON R.exame_sugerido = E.id_exame
                           WHERE R.exame_gatilho = ?''', (id_gatilho,))
         sugestoes = cursor.fetchall()
+        cursor.execute("SELECT id_exame, nome_amigavel FROM Exames_Catalogo")
+        nomes_exames = {r[0]: r[1] for r in cursor.fetchall()}
         conexao.close()
+        exibidos = set()
         for sug_id, sug_nome in sugestoes:
-            if sug_id not in self.exames_selecionados_lista: self.exibir_sugestao(sug_id, sug_nome)
+            if sug_id not in self.exames_selecionados_lista:
+                self.exibir_sugestao(sug_id, sug_nome)
+                exibidos.add(sug_id)
+        # Associações configuráveis: exame recomendado ou relação com diagnóstico.
+        try:
+            with sqlite3.connect(caminho_do_banco()) as conn:
+                associacoes = ambulatorial.associacoes_do_exame(conn, id_gatilho)
+            for item in associacoes:
+                tipo, valor = item["tipo_associacao"], item["valor_relacionado"]
+                if tipo == "exame_recomendado":
+                    nome = nomes_exames.get(valor, valor)
+                    if valor not in self.exames_selecionados_lista and valor not in exibidos:
+                        self.exibir_sugestao(valor, nome)
+                        exibidos.add(valor)
+                else:
+                    self.exibir_sugestao_diagnostico(item)
+        except sqlite3.Error as exc:
+            print(f"[AVISO] Não foi possível carregar as associações clínicas do exame: {exc}")
+
+    def exibir_sugestao_diagnostico(self, associacao):
+        self.frame_sugestoes.pack(fill="x", padx=20, pady=10)
+        tipo = {"diagnostico_clinico": "diagnóstico clínico",
+                "diagnostico_nutricional": "diagnóstico nutricional"}.get(
+                    associacao["tipo_associacao"], "diagnóstico")
+        container = ctk.CTkFrame(self.frame_sugestoes, fg_color="transparent")
+        container.pack(fill="x", padx=10, pady=5)
+        texto = f"Relação para revisão profissional — {tipo}: {associacao['valor_relacionado']}"
+        if associacao.get("justificativa"):
+            texto += f" | {associacao['justificativa']}"
+        ctk.CTkLabel(container, text=texto, text_color="#ffffff",
+                     font=ctk.CTkFont(size=13), wraplength=620, justify="left").pack(anchor="w")
 
     def exibir_sugestao(self, sug_id, sug_nome):
         self.frame_sugestoes.pack(fill="x", padx=20, pady=10)
@@ -1707,16 +2085,98 @@ class AppClinica(ctk.CTk):
             return "Obesidade grau II"
         return "Obesidade grau III"
 
+    def calcular_necessidades_dri(self, *args, silencioso=False):
+        """Atualiza EER, comparação kcal/kg e proteína quando os dados estão disponíveis."""
+        try:
+            peso, altura = self.entry_peso.get().strip(), self.entry_altura.get().strip()
+            if not peso or not altura:
+                self.calculos_ambulatoriais = {}
+                if hasattr(self, "lbl_resultado_dri"):
+                    self.lbl_resultado_dri.configure(
+                        text="Preencha peso e altura para estimar as necessidades.", text_color="#556b58")
+                return None
+            idade = self._calcular_idade_por_nascimento(getattr(self, "paciente_atual_nasc", ""))
+            if idade is None:
+                raise ambulatorial.ErroAmbulatorial("Data de nascimento ausente ou inválida no cadastro do paciente.")
+            condicao = self.combo_dri_condicao.get() if hasattr(self, "combo_dri_condicao") else "Não informado"
+            if condicao not in ("Não gestante/não lactante", "Não se aplica"):
+                raise ambulatorial.ErroAmbulatorial(
+                    "A DRI EER adulta só é calculada após confirmar que não há gestação ou lactação. "
+                    "Para gestantes/lactantes ou condição não informada, use avaliação específica.")
+            pal = {"Inativo": "inativo", "Pouco ativo": "pouco_ativo",
+                   "Ativo": "ativo", "Muito ativo": "muito_ativo"}.get(self.combo_dri_atividade.get(), "inativo")
+            resumo = ambulatorial.calcular_resumo_nutricional(
+                peso, altura, idade, self.paciente_atual_sexo, pal,
+                self.combo_fator_bolso.get(), self.entry_fator_proteico.get().strip())
+            self.calculos_ambulatoriais = resumo
+            texto = (f"IMC: {resumo['imc_kg_m2']:.2f} kg/m²   |   "
+                     f"DRI 2023 (EER): {resumo['dri_2023_kcal_dia']:.0f} kcal/dia   |   "
+                     f"Bolso ({resumo['formula_bolso_fator_kcal_kg']} kcal/kg): "
+                     f"{resumo['formula_bolso_kcal_dia']:.0f} kcal/dia")
+            if resumo.get("proteina_g_dia") is not None:
+                texto += (f"   |   Proteína ({resumo['proteina_fator_g_kg']} g/kg): "
+                          f"{resumo['proteina_g_dia']:.1f} g/dia")
+            self.lbl_resultado_dri.configure(text=texto, text_color="#1b5e20")
+            return resumo
+        except ambulatorial.ErroAmbulatorial as exc:
+            self.calculos_ambulatoriais = {}
+            if hasattr(self, "lbl_resultado_dri"):
+                cor = "#8a6d3b" if "19 anos" in str(exc) else "#556b58"
+                self.lbl_resultado_dri.configure(text=str(exc), text_color=cor)
+            if not silencioso:
+                print(f"[AVISO] Cálculo DRI 2023 não realizado: {exc}")
+            return None
+
+    def _dados_anamnese_final(self):
+        painel = getattr(self, "painel_consulta_estruturada", None)
+        dados = painel.dados() if painel else {
+            "anamnese_guiada": {}, "recordatorio_24h": "", "medicamentos": [], "metas": [],
+            "recomendacoes_ids": [], "conduta_recomendacao": ""}
+        necessidades = self.calcular_necessidades_dri(silencioso=True)
+        antropometria = {}
+        peso = self.entry_peso.get().strip()
+        altura = self.entry_altura.get().strip()
+        gordura = self.entry_gordura.get().strip()
+        if peso: antropometria["peso_kg"] = peso
+        if altura: antropometria["altura_m"] = altura
+        if gordura: antropometria["gordura_percentual"] = gordura
+        if peso and altura:
+            try:
+                antropometria["imc_kg_m2"] = ambulatorial.calcular_imc(peso, altura)
+            except ambulatorial.ErroAmbulatorial:
+                pass
+        texto = ambulatorial.montar_texto_anamnese(
+            dados["anamnese_guiada"], dados["recordatorio_24h"], antropometria,
+            necessidades, dados["medicamentos"], dados["metas"])
+        complemento = self.txt_anamnese.get("1.0", "end-1c").strip()
+        if complemento:
+            texto += "\n\nANOTAÇÕES/COMPLEMENTO DA CONSULTA\n" + complemento
+        return texto, dados, antropometria, necessidades
+
+    def copiar_anamnese_softsus(self):
+        try:
+            texto, _, _, _ = self._dados_anamnese_final()
+            if not texto.strip():
+                messagebox.showwarning("Anamnese", "Preencha pelo menos um campo antes de copiar.", parent=self)
+                return
+            self.clipboard_clear()
+            self.clipboard_append(texto)
+            self.update()
+            messagebox.showinfo("SoftSus", "Texto da anamnese copiado para a área de transferência.", parent=self)
+        except Exception as exc:
+            messagebox.showerror("Copiar anamnese", str(exc), parent=self)
+
     def _calcular_imc_dinamico(self, *args):
-        """Gatilho <KeyRelease> dos entries de Peso/Altura: calcula IMC em tempo real."""
+        """Atualiza IMC e estimativas energéticas sempre que peso/altura mudam."""
         try:
             peso_str = self.entry_peso.get().strip().replace(',', '.')
             altura_str = self.entry_altura.get().strip().replace(',', '.')
             if not peso_str or not altura_str:
                 self.lbl_imc.configure(text="IMC: -- kg/m²", text_color="#556b58")
+                if hasattr(self, "lbl_resultado_dri"):
+                    self.calcular_necessidades_dri(silencioso=True)
                 return
-            peso = float(peso_str)
-            altura = float(altura_str)
+            peso, altura = float(peso_str), float(altura_str)
             if peso <= 0 or altura <= 0:
                 raise ZeroDivisionError("peso/altura devem ser maiores que zero")
             imc = peso / (altura ** 2)
@@ -1725,13 +2185,18 @@ class AppClinica(ctk.CTk):
             sufixo_idade = f" (≥60 anos - régua idoso)" if (idade is not None and idade >= 60) else ""
             self.lbl_imc.configure(
                 text=f"IMC: {imc:.1f} kg/m² — {classificacao}{sufixo_idade}",
-                text_color="#1b5e20"
-            )
+                text_color="#1b5e20")
+            if hasattr(self, "lbl_resultado_dri"):
+                self.calcular_necessidades_dri(silencioso=True)
         except (ValueError, ZeroDivisionError):
             self.lbl_imc.configure(text="IMC: -- kg/m²", text_color="#556b58")
+            if hasattr(self, "lbl_resultado_dri"):
+                self.calcular_necessidades_dri(silencioso=True)
         except Exception as e:
             print(f"[ERRO CRÍTICO IMC]: {e}")
             self.lbl_imc.configure(text="IMC: -- kg/m²", text_color="#556b58")
+            if hasattr(self, "lbl_resultado_dri"):
+                self.calcular_necessidades_dri(silencioso=True)
 
     def _calcular_indices_para_pdf(self, valores):
         """Recebe {NOME_EXAME: valor} e retorna as linhas de laudo dos pares clínicos.
@@ -1800,7 +2265,7 @@ class AppClinica(ctk.CTk):
 
     def salvar_consulta(self):
         if not self.paciente_atual_id: return
-        anamnese = self.txt_anamnese.get("1.0", "end-1c")
+        anamnese, dados_estruturados, antropometria, necessidades = self._dados_anamnese_final()
         peso = self.entry_peso.get()
         altura = self.entry_altura.get()
         gordura = self.entry_gordura.get()
@@ -1826,6 +2291,21 @@ class AppClinica(ctk.CTk):
                 (id_consulta, id_exame, valor, status)
             )
 
+        # Campos adicionais em tabelas próprias para manter compatibilidade com Consultas legadas.
+        dados_db = {
+            "anamnese_guiada": dados_estruturados["anamnese_guiada"],
+            "recordatorio_24h": dados_estruturados["recordatorio_24h"],
+            "antropometria": antropometria,
+            "necessidades": necessidades or {},
+            "medicamentos": dados_estruturados["medicamentos"],
+            "metas": dados_estruturados["metas"],
+        }
+        ambulatorial.salvar_dados_estruturados(conexao, id_consulta, dados_db)
+        ambulatorial.associar_recomendacoes(
+            conexao, id_consulta, self.paciente_atual_id,
+            dados_estruturados["recomendacoes_ids"],
+            dados_estruturados["conduta_recomendacao"])
+
         conexao.commit()
         conexao.close()
         self.lbl_msg_consulta.configure(text="Evolução salva com sucesso!")
@@ -1840,10 +2320,10 @@ class AppClinica(ctk.CTk):
         titulo = ctk.CTkLabel(self.area_principal, text="Catálogo e Regras de Exames", font=ctk.CTkFont(size=24, weight="bold"), text_color="#1b5e20")
         titulo.pack(pady=(20, 10))
 
-        tabview_exames = ctk.CTkTabview(self.area_principal, fg_color="#e8f5e9",
+        tabview_exames = _criar_tabview_compat(self.area_principal, fonte_abas=ctk.CTkFont(size=15, weight="bold"),
+                                        fg_color="#e8f5e9",
                                         segmented_button_selected_color="#2e7d32", segmented_button_selected_hover_color="#1b5e20",
                                         segmented_button_unselected_color="#558b2f", segmented_button_unselected_hover_color="#689f38",
-                                        segmented_button_font=ctk.CTkFont(size=15, weight="bold"),
                                         text_color="#ffffff", text_color_disabled="#d5e8d7")
         tabview_exames.pack(padx=20, pady=10, fill="both", expand=True)
 

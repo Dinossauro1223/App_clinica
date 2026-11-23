@@ -169,12 +169,211 @@ _CONDUTAS_ALTA_TRAVAS_DOWN = (
     "DROP TRIGGER IF EXISTS tr_condutas_alta_docs_ins_imutavel",
 )
 
+
+# --- v4: evolução ambulatorial estruturada, biblioteca DOCX, relações de exames e triagens ----------------------------
+_AMBULATORIAL_UP = (
+    """CREATE TABLE IF NOT EXISTS Consulta_Dados_Estruturados (
+        id_consulta INTEGER PRIMARY KEY,
+        anamnese_guiada_json TEXT NOT NULL DEFAULT '{}',
+        recordatorio_24h TEXT,
+        antropometria_json TEXT NOT NULL DEFAULT '{}',
+        necessidades_json TEXT NOT NULL DEFAULT '{}',
+        criado_em TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Consulta_Medicamentos (
+        id_medicamento INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_consulta INTEGER NOT NULL,
+        nome TEXT NOT NULL,
+        dose TEXT,
+        via TEXT,
+        frequencia TEXT,
+        indicacao TEXT,
+        observacao TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS Consulta_Metas (
+        id_meta INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_consulta INTEGER NOT NULL,
+        descricao TEXT NOT NULL,
+        indicador TEXT,
+        prazo TEXT,
+        status TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS Recomendacoes_Docs (
+        id_recomendacao INTEGER PRIMARY KEY AUTOINCREMENT,
+        titulo TEXT NOT NULL,
+        caso_clinico TEXT NOT NULL,
+        tags TEXT,
+        nome_original TEXT NOT NULL,
+        arquivo_relativo TEXT NOT NULL UNIQUE,
+        tamanho_bytes INTEGER NOT NULL,
+        sha256 TEXT NOT NULL,
+        ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0,1)),
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Consulta_Recomendacoes (
+        id_associacao INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_consulta INTEGER NOT NULL,
+        id_paciente INTEGER NOT NULL,
+        id_recomendacao INTEGER NOT NULL REFERENCES Recomendacoes_Docs(id_recomendacao),
+        conduta_relacionada TEXT,
+        observacao TEXT,
+        associado_em TEXT NOT NULL,
+        UNIQUE (id_consulta, id_recomendacao)
+    )""",
+    """CREATE TABLE IF NOT EXISTS Exames_Associacoes (
+        id_associacao INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_exame TEXT NOT NULL,
+        tipo_associacao TEXT NOT NULL CHECK (tipo_associacao IN ('exame_recomendado','diagnostico_clinico','diagnostico_nutricional')),
+        valor_relacionado TEXT NOT NULL,
+        justificativa TEXT,
+        fonte TEXT,
+        ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0,1)),
+        criado_em TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Consulta_Triagens (
+        id_triagem INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_consulta INTEGER NOT NULL,
+        instrumento TEXT NOT NULL,
+        versao TEXT,
+        pontuacao_total REAL,
+        classificacao TEXT,
+        resultado_json TEXT NOT NULL,
+        origem TEXT,
+        criado_em TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_consulta_medicamentos_consulta ON Consulta_Medicamentos(id_consulta)",
+    "CREATE INDEX IF NOT EXISTS ix_consulta_metas_consulta ON Consulta_Metas(id_consulta)",
+    "CREATE INDEX IF NOT EXISTS ix_recomendacoes_docs_ativas ON Recomendacoes_Docs(ativo,titulo)",
+    "CREATE INDEX IF NOT EXISTS ix_consulta_recomendacoes_consulta ON Consulta_Recomendacoes(id_consulta,id_paciente)",
+    "CREATE INDEX IF NOT EXISTS ix_exames_associacoes_exame ON Exames_Associacoes(id_exame,ativo)",
+    "CREATE INDEX IF NOT EXISTS ix_consulta_triagens_consulta ON Consulta_Triagens(id_consulta,instrumento)",
+)
+_AMBULATORIAL_DOWN = (
+    "DROP INDEX IF EXISTS ix_consulta_triagens_consulta",
+    "DROP INDEX IF EXISTS ix_exames_associacoes_exame",
+    "DROP INDEX IF EXISTS ix_consulta_recomendacoes_consulta",
+    "DROP INDEX IF EXISTS ix_recomendacoes_docs_ativas",
+    "DROP INDEX IF EXISTS ix_consulta_metas_consulta",
+    "DROP INDEX IF EXISTS ix_consulta_medicamentos_consulta",
+    "DROP TABLE IF EXISTS Consulta_Triagens",
+    "DROP TABLE IF EXISTS Exames_Associacoes",
+    "DROP TABLE IF EXISTS Consulta_Recomendacoes",
+    "DROP TABLE IF EXISTS Recomendacoes_Docs",
+    "DROP TABLE IF EXISTS Consulta_Metas",
+    "DROP TABLE IF EXISTS Consulta_Medicamentos",
+    "DROP TABLE IF EXISTS Consulta_Dados_Estruturados",
+)
+
+# --- v5: Almoxarifado, movimentos com valor histórico e programação por refeição ----------------
+_ALMOX_UP = (
+    """CREATE TABLE IF NOT EXISTS Almox_Itens (
+        id_item INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, unidade TEXT NOT NULL,
+        categoria TEXT NOT NULL DEFAULT 'Gêneros alimentícios', valor_unitario REAL, estoque_minimo REAL,
+        ativo INTEGER NOT NULL DEFAULT 1, observacao TEXT, criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL,
+        UNIQUE(nome COLLATE NOCASE, unidade COLLATE NOCASE))""",
+    """CREATE TABLE IF NOT EXISTS Almox_Historico_Preco (
+        id_preco INTEGER PRIMARY KEY AUTOINCREMENT, id_item INTEGER NOT NULL, valor_unitario REAL NOT NULL,
+        origem TEXT NOT NULL, fonte TEXT, registrado_em TEXT NOT NULL)""",
+    "CREATE INDEX IF NOT EXISTS ix_almox_preco_item ON Almox_Historico_Preco(id_item, registrado_em)",
+    """CREATE TABLE IF NOT EXISTS Almox_Movimentos (
+        id_movimento INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, hora TEXT NOT NULL, id_item INTEGER NOT NULL,
+        operacao TEXT NOT NULL CHECK(operacao IN ('entrada','saida')),
+        motivo TEXT NOT NULL CHECK(motivo IN ('compra','consumo','perda','ajuste','estorno')),
+        quantidade REAL NOT NULL CHECK(quantidade > 0), valor_unitario REAL NOT NULL CHECK(valor_unitario >= 0),
+        valor_total REAL NOT NULL CHECK(valor_total >= 0), refeicao TEXT, observacao TEXT, usuario TEXT,
+        origem TEXT NOT NULL DEFAULT 'manual', id_programacao INTEGER, id_linha_programacao INTEGER,
+        id_estorno_de INTEGER UNIQUE, criado_em TEXT NOT NULL, UNIQUE(id_linha_programacao))""",
+    "CREATE INDEX IF NOT EXISTS ix_almox_mov_data ON Almox_Movimentos(data, motivo, refeicao)",
+    "CREATE INDEX IF NOT EXISTS ix_almox_mov_item ON Almox_Movimentos(id_item, data)",
+    """CREATE TABLE IF NOT EXISTS Almox_Programacoes (
+        id_programacao INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, refeicao TEXT NOT NULL,
+        porcoes REAL NOT NULL CHECK(porcoes > 0), status TEXT NOT NULL DEFAULT 'rascunho',
+        observacao TEXT, criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL)""",
+    "CREATE INDEX IF NOT EXISTS ix_almox_prog_data ON Almox_Programacoes(data, refeicao, status)",
+    """CREATE TABLE IF NOT EXISTS Almox_Programacao_Itens (
+        id_linha INTEGER PRIMARY KEY AUTOINCREMENT, id_programacao INTEGER NOT NULL, id_item INTEGER NOT NULL,
+        quantidade_por_porcao REAL NOT NULL CHECK(quantidade_por_porcao > 0),
+        quantidade_total REAL NOT NULL CHECK(quantidade_total > 0),
+        valor_unitario REAL NOT NULL CHECK(valor_unitario >= 0), valor_total REAL NOT NULL CHECK(valor_total >= 0),
+        origem TEXT NOT NULL DEFAULT 'manual', referencia_ficha TEXT, versao_ficha TEXT, observacao TEXT)""",
+    "CREATE INDEX IF NOT EXISTS ix_almox_prog_item ON Almox_Programacao_Itens(id_programacao, id_item)",
+    """CREATE TRIGGER IF NOT EXISTS tr_almox_mov_nao_alterar BEFORE UPDATE ON Almox_Movimentos
+       BEGIN SELECT RAISE(ABORT, 'Movimento é histórico: registre ajuste ou estorno.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_almox_mov_nao_apagar BEFORE DELETE ON Almox_Movimentos
+       BEGIN SELECT RAISE(ABORT, 'Movimento não pode ser apagado; registre estorno.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_almox_preco_nao_alterar BEFORE UPDATE ON Almox_Historico_Preco
+       BEGIN SELECT RAISE(ABORT, 'Histórico de preço não pode ser alterado.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_almox_preco_nao_apagar BEFORE DELETE ON Almox_Historico_Preco
+       BEGIN SELECT RAISE(ABORT, 'Histórico de preço não pode ser apagado.'); END""",
+)
+_ALMOX_DOWN = (
+    "DROP TRIGGER IF EXISTS tr_almox_preco_nao_apagar",
+    "DROP TRIGGER IF EXISTS tr_almox_preco_nao_alterar",
+    "DROP TRIGGER IF EXISTS tr_almox_mov_nao_apagar",
+    "DROP TRIGGER IF EXISTS tr_almox_mov_nao_alterar",
+    "DROP TABLE IF EXISTS Almox_Programacao_Itens",
+    "DROP TABLE IF EXISTS Almox_Programacoes",
+    "DROP TABLE IF EXISTS Almox_Movimentos",
+    "DROP TABLE IF EXISTS Almox_Historico_Preco",
+    "DROP TABLE IF EXISTS Almox_Itens",
+)
+
+# --- v6: prontuário eletrônico nutricional, usuários e evoluções imutáveis ----------------
+_PEP_UP = (
+    """CREATE TABLE IF NOT EXISTS Pep_Config (
+        chave TEXT PRIMARY KEY,
+        valor TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Pep_Usuarios (
+        id_usuario INTEGER PRIMARY KEY AUTOINCREMENT,
+        login TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        nome_completo TEXT NOT NULL,
+        crn TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        senha_hash TEXT NOT NULL,
+        assinatura BLOB,
+        ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
+        criado_em TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Pep_Evolucoes (
+        id_evolucao INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_paciente INTEGER NOT NULL,
+        paciente_nome TEXT NOT NULL,
+        data_evolucao TEXT NOT NULL,
+        cabecalho_json TEXT NOT NULL,
+        texto TEXT NOT NULL,
+        id_usuario INTEGER NOT NULL REFERENCES Pep_Usuarios(id_usuario),
+        assinante_nome TEXT NOT NULL,
+        assinante_crn TEXT NOT NULL,
+        criada_em TEXT NOT NULL,
+        adendo_de INTEGER REFERENCES Pep_Evolucoes(id_evolucao)
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_pep_evolucoes_paciente_data ON Pep_Evolucoes (id_paciente, data_evolucao, id_evolucao)",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucoes_update_imutavel BEFORE UPDATE ON Pep_Evolucoes
+       BEGIN SELECT RAISE(ABORT, 'Evolução PEP imutável: registre um adendo.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucoes_delete_imutavel BEFORE DELETE ON Pep_Evolucoes
+       BEGIN SELECT RAISE(ABORT, 'Evolução PEP imutável: não é permitido apagar.'); END""",
+)
+_PEP_DOWN = (
+    "DROP TRIGGER IF EXISTS tr_pep_evolucoes_delete_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_evolucoes_update_imutavel",
+    "DROP INDEX IF EXISTS ix_pep_evolucoes_paciente_data",
+    "DROP TABLE IF EXISTS Pep_Evolucoes",
+    "DROP TABLE IF EXISTS Pep_Usuarios",
+    "DROP TABLE IF EXISTS Pep_Config",
+)
+
 # Lista oficial. NOVAS migrações entram SEMPRE ao final, com versão contígua; nunca editar uma já publicada.
 MIGRACOES = (
     Migracao(versao=1, nome="baseline_esquema_legado", up=(), down=None, baseline=True),
     Migracao(versao=2, nome="condutas_alta", up=_CONDUTAS_ALTA_UP, down=_CONDUTAS_ALTA_DOWN),
     Migracao(versao=3, nome="condutas_alta_travas_contra_substituicao", up=_CONDUTAS_ALTA_TRAVAS_UP,
              down=_CONDUTAS_ALTA_TRAVAS_DOWN),
+    Migracao(versao=4, nome="ambulatorial_anamnese_recomendacoes_exames_triagens",
+             up=_AMBULATORIAL_UP, down=_AMBULATORIAL_DOWN),
+    Migracao(versao=5, nome="almoxarifado_custos_programacao", up=_ALMOX_UP, down=_ALMOX_DOWN),
+    Migracao(versao=6, nome="pep_evolucoes_immutability", up=_PEP_UP, down=_PEP_DOWN),
 )
 
 

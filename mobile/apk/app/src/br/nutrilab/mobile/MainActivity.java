@@ -5,6 +5,9 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Base64;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -19,6 +22,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.KeyStore;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 
 import org.json.JSONObject;
 
@@ -65,7 +73,7 @@ public class MainActivity extends Activity {
             @Override
             public void onReceivedError(WebView v, WebResourceRequest pedido, WebResourceError erro) {
                 if (pedido.isForMainFrame()) {
-                    v.loadUrl("file:///android_asset/erro.html?motivo=conexao");
+                    abrirOffline();
                 }
             }
 
@@ -87,11 +95,153 @@ public class MainActivity extends Activity {
             }
         });
         abrir();
+        verificarAtualizacao();
+    }
+
+    private static final String REPO_RELEASES = "https://api.github.com/repos/Dinossauro1223/App_clinica/releases/latest";
+    private static final String APK_ASSET = "NutriLab-Mobile.apk";
+    private static final String PREF_DOWNLOAD_ID = "update_apk_download_id";
+
+    /** Consulta a release estável sem bloquear a abertura do mapa/interface. */
+    private void verificarAtualizacao() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                HttpURLConnection c = null;
+                try {
+                    c = (HttpURLConnection) new URL(REPO_RELEASES).openConnection();
+                    c.setConnectTimeout(7000);
+                    c.setReadTimeout(7000);
+                    c.setRequestProperty("Accept", "application/vnd.github+json");
+                    c.setRequestProperty("User-Agent", "NutriLab-Android");
+                    if (c.getResponseCode() != 200) throw new Exception("GitHub HTTP " + c.getResponseCode());
+                    BufferedReader br = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
+                    StringBuilder body = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) body.append(line);
+                    br.close();
+                    JSONObject release = new JSONObject(body.toString());
+                    String latest = release.optString("tag_name", "").replaceFirst("^[vV]", "");
+                    String installed = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+                    if (latest.isEmpty()) throw new Exception("Release sem tag de versão.");
+                    if (compararVersoes(latest, installed) > 0) {
+                        org.json.JSONArray assets = release.optJSONArray("assets");
+                        String apkUrl = null;
+                        if (assets != null) {
+                            for (int i = 0; i < assets.length(); i++) {
+                                JSONObject asset = assets.getJSONObject(i);
+                                if (APK_ASSET.equals(asset.optString("name"))) {
+                                    apkUrl = asset.optString("browser_download_url");
+                                    break;
+                                }
+                            }
+                        }
+                        if (apkUrl == null || !apkUrl.startsWith("https://")) {
+                            throw new Exception("A release " + latest + " ainda não contém o APK.");
+                        }
+                        final String url = apkUrl;
+                        runOnUiThread(new Runnable() {
+                            @Override public void run() { oferecerAtualizacao(installed, latest, url); }
+                        });
+                    } else {
+                        limparDownloadsTemporarios();
+                    }
+                } catch (Exception e) {
+                    // Falha de rede/API nunca é interpretada como "já atualizado" e nunca apaga arquivos.
+                    android.util.Log.w("NutriLabUpdate", "Não foi possível verificar atualização", e);
+                } finally {
+                    if (c != null) c.disconnect();
+                }
+            }
+        }, "nutrilab-update-check").start();
+    }
+
+    private int compararVersoes(String a, String b) {
+        String[] aa = a.split("\\."), bb = (b == null ? "0" : b).split("\\.");
+        for (int i = 0; i < Math.max(aa.length, bb.length); i++) {
+            int x = i < aa.length ? numeroVersao(aa[i]) : 0;
+            int y = i < bb.length ? numeroVersao(bb[i]) : 0;
+            if (x != y) return x > y ? 1 : -1;
+        }
+        return 0;
+    }
+
+    private int numeroVersao(String s) {
+        try { return Integer.parseInt(s.replaceAll("[^0-9].*$", "")); }
+        catch (Exception e) { return 0; }
+    }
+
+    private void oferecerAtualizacao(String atual, String nova, final String url) {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Atualização do NutriLab")
+                .setMessage("Versão instalada: " + atual + "\\nNova versão: " + nova
+                        + "\\n\\nDeseja baixar o APK? A instalação será confirmada pelo Android. "
+                        + "Seus dados locais e a fila offline não serão apagados.")
+                .setNegativeButton("Depois", null)
+                .setPositiveButton("Baixar APK", (dialog, which) -> baixarApk(url, nova))
+                .show();
+    }
+
+    private void baixarApk(String url, String versao) {
+        try {
+            android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            android.app.DownloadManager.Request req = new android.app.DownloadManager.Request(Uri.parse(url));
+            req.setTitle("NutriLab Mobile " + versao);
+            req.setDescription("Baixando atualização oficial");
+            req.setMimeType("application/vnd.android.package-archive");
+            req.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            req.setDestinationInExternalFilesDir(this, android.os.Environment.DIRECTORY_DOWNLOADS,
+                    "NutriLab-Mobile-" + versao + ".apk");
+            long id = dm.enqueue(req);
+            prefs.edit().putLong(PREF_DOWNLOAD_ID, id).apply();
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Download iniciado")
+                    .setMessage("O Android avisará quando o APK estiver pronto. Toque na notificação para iniciar a instalação.")
+                    .setPositiveButton("OK", null).show();
+        } catch (Exception e) {
+            new android.app.AlertDialog.Builder(this).setTitle("Não foi possível baixar")
+                    .setMessage(e.getMessage()).setPositiveButton("OK", null).show();
+        }
+    }
+
+    /** Remove somente o registro/arquivo do DownloadManager criado por esta função. */
+    private void limparDownloadsTemporarios() {
+        long id = prefs.getLong(PREF_DOWNLOAD_ID, -1L);
+        if (id >= 0) {
+            try {
+                android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                dm.remove(id);
+            } catch (Exception e) {
+                android.util.Log.w("NutriLabUpdate", "Falha ao limpar APK temporário", e);
+            }
+            prefs.edit().remove(PREF_DOWNLOAD_ID).apply();
+        }
     }
 
     private void abrir() {
         String url = prefs.getString("servidor", "");
         web.loadUrl(url.isEmpty() ? "file:///android_asset/config.html" : url);
+    }
+
+    /** Carrega uma cópia local da interface mantendo a origem do servidor para as chamadas /api. */
+    private void abrirOffline() {
+        String servidor = prefs.getString("servidor", "");
+        if (servidor.isEmpty()) {
+            web.loadUrl("file:///android_asset/config.html");
+            return;
+        }
+        try {
+            InputStream in = getAssets().open("index.html");
+            BufferedReader leitor = new BufferedReader(new InputStreamReader(in, "UTF-8"));
+            StringBuilder html = new StringBuilder();
+            String linha;
+            while ((linha = leitor.readLine()) != null) {
+                html.append(linha).append("\n");
+            }
+            leitor.close();
+            web.loadDataWithBaseURL(servidor + "/", html.toString(), "text/html", "UTF-8", null);
+        } catch (Exception e) {
+            web.loadUrl("file:///android_asset/erro.html?motivo=conexao");
+        }
     }
 
     @Override
@@ -167,6 +317,72 @@ public class MainActivity extends Activity {
 
     /** Ponte entre as paginas locais (config e erro) e o aplicativo. */
     public class Ponte {
+        private static final String CACHE_PREFIX = "cache:";
+        private static final String CACHE_ALIAS = "NutriLabOfflineCache";
+
+        private SecretKey chaveCache() throws Exception {
+            KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+            ks.load(null);
+            if (!ks.containsAlias(CACHE_ALIAS)) {
+                KeyGenerator gerador = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+                gerador.init(new KeyGenParameterSpec.Builder(CACHE_ALIAS,
+                        KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                        .setRandomizedEncryptionRequired(true).build());
+                gerador.generateKey();
+            }
+            return (SecretKey) ks.getKey(CACHE_ALIAS, null);
+        }
+
+        @JavascriptInterface
+        public String cacheGet(String chave) {
+            try {
+                String valor = prefs.getString(CACHE_PREFIX + chave, "");
+                if (valor.isEmpty()) return "";
+                String[] partes = valor.split(":", 2);
+                if (partes.length != 2) return "";
+                byte[] iv = Base64.decode(partes[0], Base64.NO_WRAP);
+                byte[] cifrado = Base64.decode(partes[1], Base64.NO_WRAP);
+                Cipher cifra = Cipher.getInstance("AES/GCM/NoPadding");
+                cifra.init(Cipher.DECRYPT_MODE, chaveCache(), new GCMParameterSpec(128, iv));
+                return new String(cifra.doFinal(cifrado), "UTF-8");
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        @JavascriptInterface
+        public boolean cacheSet(String chave, String texto) {
+            try {
+                Cipher cifra = Cipher.getInstance("AES/GCM/NoPadding");
+                cifra.init(Cipher.ENCRYPT_MODE, chaveCache());
+                byte[] cifrado = cifra.doFinal(texto.getBytes("UTF-8"));
+                String valor = Base64.encodeToString(cifra.getIV(), Base64.NO_WRAP) + ":"
+                        + Base64.encodeToString(cifrado, Base64.NO_WRAP);
+                prefs.edit().putString(CACHE_PREFIX + chave, valor).apply();
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public void cacheRemove(String chave) {
+            prefs.edit().remove(CACHE_PREFIX + chave).apply();
+        }
+
+        @JavascriptInterface
+        public void cacheClear() {
+            SharedPreferences.Editor editor = prefs.edit();
+            for (String chave : prefs.getAll().keySet()) {
+                if (chave.startsWith(CACHE_PREFIX + "GET:") || chave.equals(CACHE_PREFIX + "queue")) {
+                    editor.remove(chave);
+                }
+            }
+            editor.apply();
+        }
+
         @JavascriptInterface
         public String servidor() {
             return prefs.getString("servidor", "");

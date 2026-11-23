@@ -1,0 +1,129 @@
+name: Build Windows
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-assets:
+    name: Gerar identidade visual (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v6
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Instalar renderizador SVG
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2
+          python -m pip install --upgrade pip
+          python -m pip install "cairosvg>=2.7,<3" pillow
+
+      - name: Gerar PNG e ICO
+        run: python tools/gerar_identidade_visual.py
+
+      - name: Disponibilizar arquivos gerados
+        uses: actions/upload-artifact@v4
+        with:
+          name: identidade-visual-gerada
+          path: |
+            assets/identidade/nutrilab_identidade.png
+            assets/identidade/nutrilab_icone.png
+            assets/identidade/nutrilab.ico
+            assets/identidade/renderizados/
+          if-no-files-found: error
+
+  build:
+    name: Build NutriLab para Windows
+    needs: generate-assets
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Baixar o código (histórico completo para auditoria)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+
+      - name: Auditar privacidade antes da compilação
+        run: python tools/auditar_repositorio.py --ci
+
+      - name: Instalar dependências de compilação
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-build.txt
+
+      - name: Baixar identidade visual gerada
+        uses: actions/download-artifact@v4
+        with:
+          name: identidade-visual-gerada
+          path: assets/identidade
+
+      - name: Gerar banco inicial vazio e sanitizado
+        run: python tools/gerar_banco_modelo.py
+
+      - name: Compilar NutriLab.exe
+        run: python -m PyInstaller --clean --noconfirm app_clinica.spec
+
+      - name: Verificar pacote compilado
+        shell: pwsh
+        run: |
+          $exe = "dist/NutriLab/NutriLab.exe"
+          if (!(Test-Path $exe)) {
+            throw "Executável não encontrado: $exe"
+          }
+          $dll = "dist/NutriLab/_internal/python312.dll"
+          $icon = "assets/identidade/nutrilab.ico"
+          if (!(Test-Path $dll)) {
+            throw "DLL do Python não encontrada: $dll"
+          }
+          $camadas = "dist/NutriLab/_internal/identidade_camadas/folhas.json"
+          if (!(Test-Path $camadas)) {
+            throw "Camadas transparentes da tela inicial não foram empacotadas: $camadas"
+          }
+          if (!(Test-Path $icon)) {
+            throw "Ícone original não foi gerado: $icon"
+          }
+          if ((Get-Item $dll).Length -le 0) {
+            throw "DLL do Python está vazia: $dll"
+          }
+
+      - name: Compactar pacote completo
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "dist/NutriLab/*" -DestinationPath "dist/NutriLab-Windows-x64.zip" -Force
+
+      - name: Publicar artefato de teste
+        uses: actions/upload-artifact@v4
+        with:
+          name: NutriLab-Windows-x64
+          path: dist/NutriLab-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publicar GitHub Release (somente tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/NutriLab-Windows-x64.zip
+          generate_release_notes: true

@@ -5,6 +5,7 @@ Sem dependência de interface gráfica. Todas as funções recebem o caminho do 
 Datas são gravadas em ISO (AAAA-MM-DD); use iso_para_br/data_br_para_iso na interface.
 """
 import calendar
+import json
 import sqlite3
 from contextlib import closing
 from datetime import datetime, date
@@ -12,7 +13,7 @@ from datetime import datetime, date
 import nutri_calculos as nc
 
 # ----------------------------------------------------------------- listas fixas
-VIAS = ["Oral", "Enteral"]
+VIAS = ["Oral", "Enteral", "Zero"]
 CONSISTENCIAS = ["Livre", "Branda", "Pastosa", "Líq/Past", "Líquida"]
 # (campo no banco, sigla impressa, nome completo)
 CARACTERISTICAS = [
@@ -75,10 +76,13 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
     dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
     constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, condicoes TEXT, consistencia TEXT,
     obs_sim TEXT, obs_nao TEXT, fi_estado TEXT, fi_freq REAL, fi_dias_ausente INTEGER,
+    nrs2002_json TEXT, nrs2002_classificacao TEXT,
+    avaliacao_json TEXT, avaliacao_classificacao TEXT,
     criado_em TEXT, atualizado_em TEXT, UNIQUE(data, id_leito));
 CREATE TABLE IF NOT EXISTS Mapa_Registro_Suplementos (
     id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL, id_suplemento INTEGER,
-    nome TEXT NOT NULL, modulo TEXT, qtd_dia REAL, unidade TEXT);
+    nome TEXT NOT NULL, modulo TEXT, qtd_dia REAL, unidade TEXT,
+    ml_oferta REAL, agua_ml REAL, refeicoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0);
 CREATE INDEX IF NOT EXISTS ix_mapa_reg_data ON Mapa_Registros(data);
 CREATE INDEX IF NOT EXISTS ix_mapa_reg_pac ON Mapa_Registros(id_paciente);
 CREATE INDEX IF NOT EXISTS ix_mapa_regsup_reg ON Mapa_Registro_Suplementos(id_registro);
@@ -90,6 +94,7 @@ _CAMPOS_REG = [
     "peso_kg", "peso_origem", "peso_metodo", "imc", "imc_class", "data_reavaliacao", "via",
     "dm", "has", "laxativa", "constipante", "drc", "condicoes", "consistencia", "obs_sim", "obs_nao",
     "fi_estado", "fi_freq", "fi_dias_ausente",
+    "nrs2002_json", "nrs2002_classificacao", "avaliacao_json", "avaliacao_classificacao",
 ]
 
 # --------------------------------------------------------------------- utilidades
@@ -136,6 +141,17 @@ def inicializar(db_path):
         colunas = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
         if "condicoes" not in colunas:
             c.execute("ALTER TABLE Mapa_Registros ADD COLUMN condicoes TEXT")
+        for nome, tipo in (
+            ("nrs2002_json", "TEXT"), ("nrs2002_classificacao", "TEXT"),
+            ("avaliacao_json", "TEXT"), ("avaliacao_classificacao", "TEXT"),
+        ):
+            if nome not in colunas:
+                c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
+        colunas_sup = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
+        for nome, tipo in (("ml_oferta", "REAL"), ("agua_ml", "REAL"),
+                           ("refeicoes_json", "TEXT DEFAULT '[]'"), ("batido_fruta", "INTEGER DEFAULT 0")):
+            if nome not in colunas_sup:
+                c.execute(f"ALTER TABLE Mapa_Registro_Suplementos ADD COLUMN {nome} {tipo}")
         # Pacientes pertence ao programa principal; garante existência em bancos novos.
         c.execute("""CREATE TABLE IF NOT EXISTS Pacientes (
             id_paciente INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL,
@@ -462,9 +478,11 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
         c.execute("DELETE FROM Mapa_Registro_Suplementos WHERE id_registro=?", (id_reg,))
         for s in reg.get("suplementos") or []:
             c.execute("""INSERT INTO Mapa_Registro_Suplementos
-                         (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade) VALUES (?,?,?,?,?,?)""",
+                         (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade, ml_oferta, agua_ml,
+                          refeicoes_json, batido_fruta) VALUES (?,?,?,?,?,?,?,?,?,?)""",
                       (id_reg, s.get("id_suplemento"), s["nome"], s.get("modulo"), s.get("qtd_dia"),
-                       s.get("unidade")))
+                       s.get("unidade"), s.get("ml_oferta"), s.get("agua_ml"),
+                       json.dumps(s.get("refeicoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta")))))
         c.commit()
         return id_reg
 
@@ -476,7 +494,12 @@ def _anexar_suplementos(c, registros):
     por_reg = {i: [] for i in ids}
     marcas = ",".join("?" * len(ids))
     for s in c.execute(f"SELECT * FROM Mapa_Registro_Suplementos WHERE id_registro IN ({marcas}) ORDER BY id", ids):
-        por_reg[s["id_registro"]].append(dict(s))
+        item = dict(s)
+        try:
+            item["refeicoes"] = json.loads(item.get("refeicoes_json") or "[]")
+        except (TypeError, ValueError):
+            item["refeicoes"] = []
+        por_reg[s["id_registro"]].append(item)
     for r in registros:
         r["suplementos"] = por_reg[r["id_registro"]]
     return registros
@@ -561,8 +584,11 @@ def copiar_mapa(db_path, origem_iso, destino_iso, id_setor=None):
                             [destino_iso, r["id_leito"]] + [r.get(k) for k in _CAMPOS_REG] + [_agora(), _agora()])
             for s in r["suplementos"]:
                 c.execute("""INSERT INTO Mapa_Registro_Suplementos
-                             (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade) VALUES (?,?,?,?,?,?)""",
-                          (cur.lastrowid, s["id_suplemento"], s["nome"], s["modulo"], s["qtd_dia"], s["unidade"]))
+                             (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade, ml_oferta, agua_ml,
+                              refeicoes_json, batido_fruta) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                          (cur.lastrowid, s.get("id_suplemento"), s["nome"], s.get("modulo"), s["qtd_dia"],
+                           s["unidade"], s.get("ml_oferta"), s.get("agua_ml"),
+                           json.dumps(s.get("refeicoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta")))))
             copiados += 1
         c.commit()
     return copiados

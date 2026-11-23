@@ -260,12 +260,31 @@ def restaurar_backup(backup, destino=None, *, agora=None) -> ResultadoRestauraca
         if not ok:
             raise IntegridadeError("a cópia restaurada não passou na verificação; o banco atual permanece intacto: "
                                    + "; ".join(linhas[:3]))
+        auxiliares_movidos = []
         for sufixo in ("-wal", "-shm", "-journal"):
             auxiliar = destino.with_name(destino.name + sufixo)
             if auxiliar.exists():
-                os.replace(auxiliar, auxiliar.with_name(auxiliar.name + ".antes-da-restauracao"))
+                arquivo_preservado = auxiliar.with_name(auxiliar.name + ".antes-da-restauracao")
+                os.replace(auxiliar, arquivo_preservado)
+                auxiliares_movidos.append((auxiliar, arquivo_preservado))
         os.replace(temporario, destino)
-    except Exception:
+    except Exception as erro_original:
+        # Se a troca atômica falhar depois de mover WAL/SHM/JOURNAL, devolve os
+        # auxiliares aos nomes originais. Sem isso, o arquivo .db poderia ficar
+        # presente, mas perder transações confirmadas que ainda estavam no WAL.
+        falhas_rollback = []
+        for auxiliar, arquivo_preservado in reversed(locals().get("auxiliares_movidos", [])):
+            try:
+                if arquivo_preservado.exists() and not auxiliar.exists():
+                    os.replace(arquivo_preservado, auxiliar)
+            except OSError as erro_rollback:
+                falhas_rollback.append(f"{auxiliar.name}: {erro_rollback}")
         _remover_se_existir(temporario)
+        if falhas_rollback:
+            raise ErroBanco(
+                "a restauração falhou e não foi possível recolocar todos os arquivos auxiliares "
+                "do banco atual; preserve os arquivos .antes-da-restauracao e solicite suporte: "
+                + "; ".join(falhas_rollback)
+            ) from erro_original
         raise
     return ResultadoRestauracao(destino, copia)

@@ -7,6 +7,7 @@ mapa_export e mapa_graficos; aqui só há interface. mapa_export e mapa_graficos
 importados na hora de usar (openpyxl, fpdf e matplotlib não atrasam a abertura do programa).
 """
 import os
+import json
 import sqlite3
 from datetime import date, datetime, timedelta
 import tkinter as tk
@@ -15,6 +16,8 @@ from tkinter import ttk, messagebox, filedialog
 import customtkinter as ctk
 
 import nutri_calculos as nc
+import nrs2002 as nrs
+import avaliacao_nutri as avaliacao
 import mapa_db as mdb
 import condutas_alta as ca
 import graficos_layout as gl
@@ -72,8 +75,8 @@ class MapaUI:
         for pasta in (os.path.dirname(os.path.abspath(db_path)), base_dir):
             self.lms = self.lms or nc.TabelaLMS.carregar_padrao(pasta)
         self._imagens = []
-        self._grupos = None   # gráficos do mês agrupados (ver mapa_graficos.especificar_por_grupo)
-        self._grupos_png = None   # os mesmos, já em imagem (só se o estilo "imagens simples" for usado)
+        self._grupos = None
+        self._grupos_png = None
         self._painel = None
 
     # ------------------------------------------------------------------ configurações
@@ -87,7 +90,6 @@ class MapaUI:
 
     @property
     def estilo_graficos(self):
-        """Como cada gráfico é desenhado: animado (na tela) ou imagem simples (matplotlib)."""
         return gl.estilo_valido(mdb.obter_config(self.db, gl.CHAVE_ESTILO, gl.ESTILO_ANIMADO))
 
     @property
@@ -110,8 +112,8 @@ class MapaUI:
     def mostrar_mapa(self):
         area = self._preparar_area()
         self.setores = mdb.listar_setores(self.db)
-        if not self.id_setor or self.id_setor not in [s["id_setor"] for s in self.setores]:
-            self.id_setor = self.setores[0]["id_setor"] if self.setores else None
+        if self.id_setor not in [s["id_setor"] for s in self.setores]:
+            self.id_setor = None  # None representa a visão geral de todos os setores.
 
         topo = ctk.CTkFrame(area, fg_color="transparent")
         topo.pack(fill="x", padx=20, pady=(15, 5))
@@ -128,11 +130,11 @@ class MapaUI:
         _btn(barra, "▶", lambda: self._mudar_dia(1), 40).pack(side="left")
         _btn(barra, "Hoje", self._ir_hoje, 70, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(8, 16))
         ctk.CTkLabel(barra, text="Setor:").pack(side="left")
-        self.cb_setor = ctk.CTkComboBox(barra, values=[s["nome"] for s in self.setores], width=190, state="readonly",
-                                        command=self._trocar_setor)
+        self.cb_setor = ctk.CTkComboBox(barra, values=["Visão geral (todos os setores)"] + [s["nome"] for s in self.setores],
+                                        width=190, state="readonly", command=self._trocar_setor)
         self.cb_setor.pack(side="left", padx=6)
-        if self.id_setor:
-            self.cb_setor.set([s["nome"] for s in self.setores if s["id_setor"] == self.id_setor][0])
+        self.cb_setor.set(next((s["nome"] for s in self.setores if s["id_setor"] == self.id_setor),
+                               "Visão geral (todos os setores)"))
 
         acoes = ctk.CTkFrame(area, fg_color="transparent")
         acoes.pack(fill="x", padx=20, pady=4)
@@ -169,15 +171,18 @@ class MapaUI:
         self.tree.pack(side="left", fill="both", expand=True, padx=(6, 0), pady=6)
         rolagem.pack(side="right", fill="y", pady=6)
         self.tree.bind("<Double-1>", lambda e: self._editar())
+        # Ações frequentes também ficam disponíveis pelo teclado, sem depender dos botões.
+        self.tree.bind("<Return>", self._atalho_editar)
+        self.tree.bind("<F2>", self._atalho_editar)
+        self.tree.bind("<Control-h>", self._atalho_historico)
+        self.tree.bind("<Control-H>", self._atalho_historico)
 
         self.lbl_resumo = ctk.CTkLabel(area, text="", font=ctk.CTkFont(size=12), text_color="#37474f")
         self.lbl_resumo.pack(fill="x", padx=22, pady=(0, 10), anchor="w")
         self._recarregar()
 
     def _trocar_setor(self, nome):
-        for s in self.setores:
-            if s["nome"] == nome:
-                self.id_setor = s["id_setor"]
+        self.id_setor = next((s["id_setor"] for s in self.setores if s["nome"] == nome), None)
         self._recarregar()
 
     def _mudar_dia(self, delta):
@@ -211,7 +216,7 @@ class MapaUI:
         for it in self.linhas:
             l, r = it["leito"], it["registro"]
             if r is None:
-                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "", "")
+                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "", "", l.get("setor", ""))
                 tag = ("vago",)
             else:
                 ocupados += 1
@@ -222,7 +227,7 @@ class MapaUI:
                 cond = resumo.get(r.get("id_paciente"), {})
                 vals = (l["codigo"], "Sim" if r.get("acompanhante") else "Não", r["nome_paciente"],
                         "" if r.get("idade_anos") is None else r["idade_anos"], imc, r.get("via") or "",
-                        r.get("consistencia") or "", ", ".join(s["nome"] for s in r["suplementos"]),
+                        r.get("consistencia") or "", ", ".join(s["nome"] + (" (batido com fruta)" if s.get("batido_fruta") else "") for s in r["suplementos"]),
                         self._fi_txt(r), cond.get("texto", ""))
                 tag = ("condpend",) if cond.get("estado") == "pendente" else ()
                 com_pendencia += cond.get("estado") == "pendente"
@@ -313,6 +318,16 @@ class MapaUI:
         if it:
             FormRegistro(self, it)
 
+    def _atalho_editar(self, _evento=None):
+        """Abre o formulário do leito selecionado (Enter/F2)."""
+        self._editar()
+        return "break"
+
+    def _atalho_historico(self, _evento=None):
+        """Abre o histórico do paciente selecionado (Ctrl+H)."""
+        self._historico()
+        return "break"
+
     def _historico(self):
         it = self._selecionado()
         if not it:
@@ -367,7 +382,7 @@ class MapaUI:
 
     # ------------------------------------------------------------------- exportações
     def _nome_setor(self):
-        return next((s["nome"] for s in self.setores if s["id_setor"] == self.id_setor), "Setor")
+        return next((s["nome"] for s in self.setores if s["id_setor"] == self.id_setor), "Todos_os_setores")
 
     def _exportar(self, extensao, rotulo, funcao):
         if not self.linhas:
@@ -437,7 +452,7 @@ class MapaUI:
         self.cb_ano.pack(side="left", padx=6)
         self.cb_ano.set(str(ano))
         ctk.CTkLabel(barra, text="Setor:").pack(side="left", padx=(8, 0))
-        self.cb_setor_g = ctk.CTkComboBox(barra, values=["Todos os setores"] + [s["nome"] for s in self.setores],
+        self.cb_setor_g = ctk.CTkComboBox(barra, values=["Visão geral (todos os setores)"] + [s["nome"] for s in self.setores],
                                           width=180, state="readonly")
         self.cb_setor_g.pack(side="left", padx=6)
         self.cb_setor_g.set("Todos os setores")
@@ -479,36 +494,34 @@ class MapaUI:
             cx.pack(side="left", padx=4, ipadx=8, ipady=4)
             ctk.CTkLabel(cx, text=val, font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC).pack(padx=8)
             ctk.CTkLabel(cx, text=rot, font=ctk.CTkFont(size=11), text_color="#546e7a").pack(padx=8)
-        self._grupos = self._mgr.especificar_por_grupo(self._agg)   # só contas: o desenho é feito na tela
+        self._grupos = self._mgr.especificar_por_grupo(self._agg)
         self._grupos_png = None
         self._montar_painel()
 
     def _grupos_para_o_estilo(self):
-        """Animados: as especificações (instantâneo). Imagens simples: os PNGs do matplotlib, feitos uma vez só."""
         if self.estilo_graficos == gl.ESTILO_ANIMADO:
             return self._grupos or []
         if self._grupos_png is None:
             try:
                 self._grupos_png = self._mgr.renderizar_grupos(self._grupos or [])
-            except ImportError as e:   # matplotlib não instalado: os gráficos animados não dependem dele
-                messagebox.showwarning("Imagens simples", f"{e}\n\nEste estilo precisa de:  pip install matplotlib\n"
-                                                          "Mostrando os gráficos animados.")
+            except ImportError as e:
+                messagebox.showwarning("Imagens simples", f"{e}\\n\\nEste estilo precisa de: pip install matplotlib\\nMostrando os gráficos animados.")
                 return self._grupos or []
         return self._grupos_png
 
     def _montar_painel(self):
-        """Desenha os grupos já calculados (self._grupos) no jeito escolhido em Configurações."""
         import graficos_ui
         for w in self.quadro_graf.winfo_children():
             w.destroy()
-        self._painel = graficos_ui.PainelGraficos(self.quadro_graf, self._grupos_para_o_estilo(),
-                                                  self.disposicao_graficos)
+        self._painel = graficos_ui.PainelGraficos(
+            self.quadro_graf, self._grupos_para_o_estilo(), self.disposicao_graficos
+        )
         self._imagens = self._painel.imagens
 
     def aplicar_config_graficos(self):
         """Depois de salvar as Configurações: se a tela de gráficos está aberta, redesenha no novo jeito.
 
-        Não refaz as contas dos dados: só reorganiza (e, se o estilo mudou para imagem, desenha os PNGs uma vez).
+        Não gera os gráficos de novo (é a parte demorada): só reorganiza os que já existem.
         """
         quadro = getattr(self, "quadro_graf", None)
         try:
@@ -526,8 +539,8 @@ class MapaUI:
             return
         try:
             caminhos = self._mgr.salvar_graficos(self._agg, pasta)
-        except ImportError as e:   # as imagens são feitas pelo matplotlib; a tela animada não precisa dele
-            messagebox.showerror("Biblioteca ausente", f"{e}\n\nInstale com:  pip install matplotlib")
+        except ImportError as e:
+            messagebox.showerror("Biblioteca ausente", f"{e}\\n\\nInstale com: pip install matplotlib")
             return
         except OSError as e:
             messagebox.showerror("Salvar imagens", f"Não foi possível gravar:\n{e}")
@@ -612,14 +625,58 @@ class MapaUI:
 
 
 # =============================================================================== DIÁLOGOS
-class _Janela(ctk.CTkToplevel):
+class _Janela(ctk.CTkFrame):
+    """Conteúdo de uma guia lateral; não cria janela Toplevel nem captura o foco."""
+
     def __init__(self, ui, titulo, geometria):
-        super().__init__(ui.app)
         self.ui = ui
-        self.title(titulo)
-        self.geometry(geometria)
-        self.attributes("-topmost", True)
-        self.after(200, lambda: _tornar_modal(self))
+        self.app = getattr(ui, "app", None)
+        if self.app is None and hasattr(ui, "ui"):
+            self.app = getattr(ui.ui, "app", None)
+        self._painel_externo = bool(self.app and hasattr(self.app, "abrir_painel_lateral"))
+        if self._painel_externo:
+            self._painel_frame = self.app.abrir_painel_lateral(titulo, lambda: None)
+            pai = self._painel_frame
+        else:
+            self._painel_frame = None
+            pai = self.app or ui
+        super().__init__(pai, fg_color="transparent")
+        self.pack(fill="both", expand=True)
+
+    def title(self, *_args):
+        return None
+
+    def geometry(self, *_args):
+        return None
+
+    def attributes(self, *_args, **_kwargs):
+        return None
+
+    def transient(self, *_args):
+        return None
+
+    def grab_set(self):
+        return None
+
+    def protocol(self, *_args):
+        return None
+
+    def resizable(self, *_args):
+        return None
+
+    def destroy(self):
+        if getattr(self, "_destroy_em_progresso", False):
+            return super().destroy()
+        if self._painel_externo and self._painel_frame is not None:
+            try:
+                if getattr(self._painel_frame, "_fechando_painel", False):
+                    return super().destroy()
+                self._destroy_em_progresso = True
+                self.app.fechar_painel_lateral(self._painel_frame)
+                return
+            except (tk.TclError, AttributeError):
+                pass
+        return super().destroy()
 
 
 class DialogConfig(_Janela):
@@ -847,8 +904,29 @@ class DialogBuscarPaciente(_Janela):
             self.tree.column(c, width=w, anchor="w" if c == "nome" else "center")
         self.tree.pack(fill="both", expand=True, padx=6, pady=6)
         self.tree.bind("<Double-1>", lambda e: self._escolher())
+        self.tree.bind("<Return>", self._atalho_escolher)
+        self.e_busca.bind("<Escape>", self._atalho_fechar)
+        self.e_busca.bind("<Control-f>", self._atalho_focar_busca)
+        self.e_busca.bind("<Control-F>", self._atalho_focar_busca)
+        self.tree.bind("<Escape>", self._atalho_fechar)
+        self.tree.bind("<Control-f>", self._atalho_focar_busca)
+        self.tree.bind("<Control-F>", self._atalho_focar_busca)
         _btn(self, "Usar este paciente", self._escolher, 170).pack(pady=(4, 14))
         self._buscar()
+        self.after(250, self.e_busca.focus_set)
+
+    def _atalho_escolher(self, _evento=None):
+        self._escolher()
+        return "break"
+
+    def _atalho_fechar(self, _evento=None):
+        self.destroy()
+        return "break"
+
+    def _atalho_focar_busca(self, _evento=None):
+        self.e_busca.focus_set()
+        self.e_busca.icursor("end")
+        return "break"
 
     def _buscar(self):
         self.tree.delete(*self.tree.get_children())
@@ -890,7 +968,7 @@ class DialogHistorico(_Janela):
             imc = f"{_fmt(r.get('imc'))} ({r['imc_class']})" if r.get("imc") and r.get("imc_class") else _fmt(r.get("imc"))
             self.tree.insert("", "end", iid=str(r["id_registro"]), values=(
                 mdb.iso_para_br(r["data"]), r["leito_codigo"], _fmt(r.get("peso_kg")), imc, r.get("via") or "",
-                r.get("consistencia") or "", ", ".join(s["nome"] for s in r["suplementos"]),
+                r.get("consistencia") or "", ", ".join(s["nome"] + (" (batido com fruta)" if s.get("batido_fruta") else "") for s in r["suplementos"]),
                 mdb.iso_para_br(r.get("data_reavaliacao"))))
         _btn(self, "Abrir registro", self._abrir, 140).pack(pady=(0, 14))
 
@@ -904,11 +982,12 @@ class DialogHistorico(_Janela):
 
 
 # ================================================================== FORMULÁRIO DO REGISTRO
-class FormRegistro(ctk.CTkToplevel):
+class FormRegistro(_Janela):
     """Registro de um leito num dia (a anamnese do mapa num só lugar)."""
 
     def __init__(self, ui, item, somente_leitura=False, data_iso=None):
-        super().__init__(ui.app)
+        titulo = f"Leito {item['leito']['codigo']} — {mdb.iso_para_br(data_iso or ui.data.isoformat())}"
+        super().__init__(ui, titulo, "860x780")
         self.ui = ui
         self.leito = item["leito"]
         self.reg = item["registro"] or {}
@@ -926,12 +1005,17 @@ class FormRegistro(ctk.CTkToplevel):
         self._peso_metodo = self.reg.get("peso_metodo")
         self._suplementos = [dict(s) for s in self.reg.get("suplementos", [])]
         self._catalogo = mdb.listar_suplementos(ui.db)
+        self._resultado_nrs = {}
+        self._resultado_avaliacao = {}
         self._montar()
+        self.bind("<Control-s>", self._atalho_salvar)
+        self.bind("<Control-S>", self._atalho_salvar)
+        self.bind("<Escape>", self._atalho_fechar)
         self._preencher()
         self._recalcular()
         if somente_leitura:
             self._travar()
-        self.after(200, lambda: _tornar_modal(self))
+        # A guia lateral não usa janela modal nem captura o foco.
 
     # ----------------------------------------------------------------- construção
     def _reg(self, w):
@@ -1067,6 +1151,65 @@ class FormRegistro(ctk.CTkToplevel):
         self.e_fi_dias.pack(side="left", padx=(0, 4))
         ctk.CTkLabel(l, text="dias sem evacuar (se ausente)").pack(side="left")
 
+        # Triagem NRS-2002 integrada ao mapa; o algoritmo oficial permanece em nrs2002.py.
+        q = self._secao("Triagem nutricional — NRS-2002")
+        self.nrs_respostas = {}
+        for codigo, pergunta in nrs.PERGUNTAS:
+            l = self._linha(q)
+            ctk.CTkLabel(l, text=pergunta, width=340, anchor="w").pack(side="left")
+            cb = self._reg(ctk.CTkComboBox(l, values=["—", "Não", "Sim"], width=150, state="readonly",
+                                           command=lambda _v: self._recalcular_nrs()))
+            cb.set("—")
+            cb.pack(side="left")
+            self.nrs_respostas[codigo] = cb
+        l = self._linha(q)
+        ctk.CTkLabel(l, text="Estado nutricional").pack(side="left", padx=(0, 6))
+        self.cb_nrs_estado = self._reg(ctk.CTkComboBox(
+            l, values=["—"] + [nrs.ESTADO[i] for i in range(4)], width=180, state="readonly",
+            command=lambda _v: self._recalcular_nrs()))
+        self.cb_nrs_estado.set("—")
+        self.cb_nrs_estado.pack(side="left", padx=(0, 14))
+        ctk.CTkLabel(l, text="Gravidade da doença").pack(side="left", padx=(0, 6))
+        self.cb_nrs_gravidade = self._reg(ctk.CTkComboBox(
+            l, values=["—"] + [nrs.GRAVIDADE[i] for i in range(4)], width=180, state="readonly",
+            command=lambda _v: self._recalcular_nrs()))
+        self.cb_nrs_gravidade.set("—")
+        self.cb_nrs_gravidade.pack(side="left")
+        self.lbl_nrs_classificacao = ctk.CTkLabel(
+            q, text="Classificação NRS-2002: não preenchida", font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=VERDE_ESC, anchor="w")
+        self.lbl_nrs_classificacao.pack(anchor="w", padx=12, pady=(2, 10))
+
+        # Avaliação nutricional: reaproveita o núcleo validado e exibe apenas a classificação final.
+        q = self._secao("Avaliação nutricional")
+        l = self._linha(q)
+        ctk.CTkLabel(l, text="Edema").pack(side="left", padx=(0, 4))
+        self.cb_av_edema = self._reg(ctk.CTkComboBox(
+            l, values=list(avaliacao.EDEMA), width=190, state="readonly",
+            command=lambda _v: self._recalcular_avaliacao()))
+        self.cb_av_edema.set("Ausente")
+        self.cb_av_edema.pack(side="left", padx=(0, 12))
+        ctk.CTkLabel(l, text="Ascite").pack(side="left", padx=(0, 4))
+        self.cb_av_ascite = self._reg(ctk.CTkComboBox(
+            l, values=list(avaliacao.ASCITE), width=180, state="readonly",
+            command=lambda _v: self._recalcular_avaliacao()))
+        self.cb_av_ascite.set("Ausente")
+        self.cb_av_ascite.pack(side="left")
+        l = self._linha(q)
+        self.av_amputacoes = {}
+        for nivel in avaliacao.AMPUTACOES:
+            ctk.CTkLabel(l, text=nivel, width=145, anchor="w").pack(side="left", padx=(0, 3))
+            cb = self._reg(ctk.CTkComboBox(
+                l, values=["0", "1", "2"], width=55, state="readonly",
+                command=lambda _v: self._recalcular_avaliacao()))
+            cb.set("0")
+            cb.pack(side="left", padx=(0, 8))
+            self.av_amputacoes[nivel] = cb
+        self.lbl_avaliacao_classificacao = ctk.CTkLabel(
+            q, text="Classificação da avaliação: informe os dados antropométricos.",
+            font=ctk.CTkFont(size=13, weight="bold"), text_color=VERDE_ESC, anchor="w")
+        self.lbl_avaliacao_classificacao.pack(anchor="w", padx=12, pady=(2, 10))
+
         rodape = ctk.CTkFrame(self, fg_color="transparent")
         rodape.pack(fill="x", padx=10, pady=8)
         self.b_salvar = _btn(rodape, "Salvar", self._salvar, 130)
@@ -1112,6 +1255,25 @@ class FormRegistro(ctk.CTkToplevel):
         _set_entry(self.e_fi_freq, _fmt(r.get("fi_freq")).replace(",0", "") if r.get("fi_freq") else "")
         _set_entry(self.e_fi_dias, r.get("fi_dias_ausente"))
         self._atualizar_sup()
+        try:
+            salvo_nrs = json.loads(r.get("nrs2002_json") or "{}")
+            for codigo, valor in (salvo_nrs.get("respostas") or {}).items():
+                if codigo in self.nrs_respostas:
+                    self.nrs_respostas[codigo].set("—" if valor is None else "Sim" if valor else "Não")
+            if salvo_nrs.get("estado") is not None:
+                self.cb_nrs_estado.set(nrs.ESTADO[int(salvo_nrs["estado"])])
+            if salvo_nrs.get("gravidade") is not None:
+                self.cb_nrs_gravidade.set(nrs.GRAVIDADE[int(salvo_nrs["gravidade"])])
+            salvo_av = json.loads(r.get("avaliacao_json") or "{}")
+            dados_av = salvo_av.get("dados") or {}
+            if dados_av.get("edema") in avaliacao.EDEMA:
+                self.cb_av_edema.set(dados_av["edema"])
+            if dados_av.get("ascite") in avaliacao.ASCITE:
+                self.cb_av_ascite.set(dados_av["ascite"])
+            for nivel, cb in self.av_amputacoes.items():
+                cb.set(str((dados_av.get("amputacoes") or {}).get(nivel, 0)))
+        except (TypeError, ValueError, KeyError):
+            pass
 
     def _fi_mudou(self, valor):
         if valor == "Presente" and not self.e_fi_freq.get().strip():
@@ -1155,6 +1317,10 @@ class FormRegistro(ctk.CTkToplevel):
             "fi_estado": fi, "fi_freq": n(self.e_fi_freq) if fi == "P" else None,
             "fi_dias_ausente": int(dias) if (fi == "A" and dias is not None) else None,
             "suplementos": list(self._suplementos),
+            "nrs2002_json": json.dumps(self._resultado_nrs, ensure_ascii=False),
+            "nrs2002_classificacao": self._resultado_nrs.get("rotulo", ""),
+            "avaliacao_json": json.dumps(self._resultado_avaliacao, ensure_ascii=False),
+            "avaliacao_classificacao": self._resultado_avaliacao.get("classe", ""),
         }
 
     # ---------------------------------------------------------------- cálculos
@@ -1165,15 +1331,60 @@ class FormRegistro(ctk.CTkToplevel):
         if imc is None:
             self.lbl_imc.configure(text="-")
             self.lbl_class.configure(text="")
+            self._recalcular_nrs()
+            self._recalcular_avaliacao()
             return
         self.lbl_imc.configure(text=nc.fmt_num(imc, 1))
         if idade is None:
             self.lbl_class.configure(text="(informe a idade para classificar)")
+            self._recalcular_nrs()
+            self._recalcular_avaliacao()
             return
         cl = nc.classificar_imc(imc, int(idade), {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get()),
                                 int(nc.parse_num(self.e_meses.get()) or 0), self.ui.criterio_idoso, self.ui.lms)
         txt = nc.texto_classificacao(cl)
         self.lbl_class.configure(text=f"({txt})" if txt else "")
+        self._recalcular_nrs()
+        self._recalcular_avaliacao()
+
+    def _recalcular_nrs(self):
+        respostas = {codigo: (None if cb.get() == "—" else cb.get() == "Sim")
+                     for codigo, cb in self.nrs_respostas.items()}
+        estado_txt, gravidade_txt = self.cb_nrs_estado.get(), self.cb_nrs_gravidade.get()
+        estado = int(estado_txt[0]) if estado_txt != "—" else None
+        gravidade = int(gravidade_txt[0]) if gravidade_txt != "—" else None
+        idade = nc.parse_num(self.e_idade.get())
+        try:
+            resultado = nrs.classificar(respostas, estado, gravidade, idade)
+        except ValueError as exc:
+            resultado = {"completo": False, "rotulo": str(exc), "grau": None, "escore": None}
+        self._resultado_nrs = {
+            "respostas": respostas, "estado": estado, "gravidade": gravidade,
+            "idade": idade, **resultado,
+        }
+        self.lbl_nrs_classificacao.configure(
+            text=f"Classificação NRS-2002: {resultado.get('rotulo') or 'Não preenchida'}")
+
+    def _recalcular_avaliacao(self):
+        dados = {
+            "sexo": self.seg_sexo.get(), "cor": self.seg_cor.get(),
+            "idade": self.e_idade.get(), "peso": self.e_peso.get(),
+            "altura": self.e_altura.get(), "aj": self.e_aj.get(), "pb": self.e_pb.get(),
+            "edema": self.cb_av_edema.get(), "ascite": self.cb_av_ascite.get(),
+            "amputacoes": {nivel: int(cb.get() or 0) for nivel, cb in self.av_amputacoes.items()},
+        }
+        try:
+            resultado = avaliacao.calcular(dados, self.ui.lms, self.ui.criterio_idoso)
+            classe = resultado.get("classe") or ""
+            rotulo = classe if classe else "Dados insuficientes para classificar"
+            self._resultado_avaliacao = {
+                "dados": dados, "classe": classe, "imc": resultado.get("imc"),
+                "peso_ajustado": resultado.get("ajustado"), "avisos": resultado.get("avisos", []),
+            }
+        except (ValueError, TypeError) as exc:
+            rotulo = f"Não foi possível classificar: {exc}"
+            self._resultado_avaliacao = {"dados": dados, "classe": "", "erro": str(exc)}
+        self.lbl_avaliacao_classificacao.configure(text=f"Classificação da avaliação: {rotulo}")
 
     def _estimar_altura(self):
         try:
@@ -1250,13 +1461,33 @@ class FormRegistro(ctk.CTkToplevel):
         sexo = nc.norm_sexo(p.get("sexo"))
         if sexo:
             self.seg_sexo.set({"H": "Homem", "M": "Mulher"}[sexo])
-        idade = nc.idade_em_anos(p.get("data_nascimento") or "", datetime.fromisoformat(self.data_iso).date())
-        if idade is not None:
-            _set_entry(self.e_idade, idade)
+        nascimento = p.get("data_nascimento") or ""
+        referencia = datetime.fromisoformat(self.data_iso).date()
+        try:
+            nasc = datetime.strptime(nascimento.strip(), "%d/%m/%Y").date()
+            total_meses = (referencia.year - nasc.year) * 12 + referencia.month - nasc.month
+            if referencia.day < nasc.day:
+                total_meses -= 1
+            if total_meses >= 0:
+                anos, meses = divmod(total_meses, 12)
+                _set_entry(self.e_idade, anos)
+                _set_entry(self.e_meses, meses)
+        except (ValueError, AttributeError):
+            # Sem nascimento válido, preserva a idade que o profissional já informou.
+            pass
         self._recalcular()
         self.focus_force()
 
     # -------------------------------------------------------------------- salvar
+    def _atalho_salvar(self, _evento=None):
+        if not self.somente_leitura:
+            self._salvar()
+        return "break"
+
+    def _atalho_fechar(self, _evento=None):
+        self.destroy()
+        return "break"
+
     def _salvar(self):
         try:
             reg = self._coletar()

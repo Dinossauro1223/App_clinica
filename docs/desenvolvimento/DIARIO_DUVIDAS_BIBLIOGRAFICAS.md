@@ -403,3 +403,36 @@ Também lidos e NÃO usados no catálogo: BRASIL. Anvisa. Resolução RDC nº 21
 - **Testes executados (18/11/2026, Linux, Python 3.13):** `python -m unittest tests.test_condutas_alta_catalogo`: 20 testes, todos OK (o teste dos números renais passou a conferir 1,0 a 1,2 g/kg/dia e a fonte KDIGO 2022 em `REN-01` e `REN-02`; o teste do diário confere o link da KDIGO 2022). Suíte completa (`python -m unittest discover -s tests`, com um pacote `fpdf` vazio só para permitir a importação): 312 testes, OK, 2 pulados (PDF com fpdf2 real e PNG de conferência visual). Eles conferem estrutura, fonte em cada número e registro no diário; não conferem o conteúdo clínico.
 - **Limitações que permanecem:** leitura por janelas, via resumo de ferramenta; potássio, substitutos do sal e desnutrição da KDIGO 2022 em leitura única; a prática de diálise vem de uma diretriz de pessoas com diabetes e DRC; a marcação "Doença renal" do Mapa não distingue estágio, diálise nem diabetes na DRC, então a conferência pede essas informações.
 - **Pendências:** ler a KDOQI 2020 no original; ler o PCDT de DRC e as diretrizes do Ministério da Saúde de 2014; buscar fonte para fósforo, líquidos e energia; a nutricionista responsável decidir o que fazer com os valores de `exames_internos/EXM-TFG-ESTIMADA-EGFR.json`.
+
+
+## REF-2026-11-22-001 — Equações DRI 2023 para necessidade energética de adultos
+
+- **Data/hora (America/Recife):** 2026-11-22
+- **Agente responsável:** ChatGPT
+- **Fase/issue/branch:** Atendimento ambulatorial / `feat/ambulatorial-anamnese-2026-11-22`
+- **Estado:** RESOLVIDA para adultos não gestantes/não lactantes; demais populações fora do escopo desta implementação.
+- **Dúvida original:** quais coeficientes aplicar para estimar a necessidade energética total por equações DRI 2023, comparando-a com uma fórmula de bolso configurável?
+- **Onde apareceu:** nova tela de consulta ambulatorial; `ambulatorial.py`, `main.py`, `tests/test_ambulatorial.py`.
+
+### Fontes consultadas
+
+1. National Academies of Sciences, Engineering, and Medicine. 2023. *Dietary Reference Intakes for Energy*. Washington, DC: The National Academies Press. Capítulo 5, Tabela 5-16 — equações de EER para adultos (19 anos ou mais). DOI: https://doi.org/10.17226/26818.
+   - População/amostra: grupos de estágio de vida descritos no relatório; a tabela utilizada nesta tarefa contém equações específicas para homens e mulheres adultos.
+   - Variáveis/unidades: idade em anos, estatura em centímetros, peso em quilogramas e categoria de nível de atividade física (PAL).
+   - Coeficientes implementados: H inativo (753,07; −10,83; 6,50; 14,10), pouco ativo (581,47; −10,83; 8,30; 14,94), ativo (1004,82; −10,83; 6,52; 15,91), muito ativo (−517,88; −10,83; 15,61; 19,11). M inativo (584,90; −7,01; 5,72; 11,71), pouco ativo (575,77; −7,01; 6,60; 12,14), ativo (710,25; −7,01; 6,54; 12,34), muito ativo (511,83; −7,01; 9,07; 12,56).
+2. Health Canada. *Dietary Reference Intakes: Reference Values for Energy*. Tabelas/quadros de referência das equações de EER e categorias de atividade física. https://www.canada.ca/en/health-canada/services/food-nutrition/healthy-eating/dietary-reference-intakes/tables/reference-values.html.
+   - Uso nesta tarefa: conferência independente das equações adultas e da descrição das categorias de atividade física.
+
+### Decisão e limitações
+
+- Implementar apenas a equação de EER para adultos com 19 anos ou mais. Embora o relatório DRI descreva fórmulas para outras faixas, elas não foram incorporadas nesta tarefa.
+- Não extrapolar a equação adulta para crianças/adolescentes, gestantes ou lactantes. Para essas populações, a interface informa que a equação não está disponível.
+- Exibir EER DRI 2023 em paralelo com fórmula de bolso selecionável entre 25 e 35 kcal/kg/dia; não tratar a fórmula de bolso como parte das DRI.
+- O cálculo proteico requer fator g/kg definido pelo profissional, sem valor automático presumido.
+- As estimativas são apoio à decisão, não prescrição. A homologação das fórmulas e sua adequação ao contexto clínico permanece sob responsabilidade profissional.
+
+### Impacto técnico e verificação
+
+- **Arquivos:** `ambulatorial.py` (equações e validação), `main.py` (interface e atualização automática), `tests/test_ambulatorial.py` (exemplo da publicação e validações), `docs/decisoes/ADR-0007-melhorias-ambulatoriais.md`.
+- **Teste de referência:** mulher, 22 anos, 165 cm, 63 kg, PAL pouco ativo — EER esperado de 2275,37 kcal/dia.
+- **Pendências:** validar clinicamente os rótulos PAL no serviço, revisar a população de aplicação com nutricionista responsável e conferir execução visual/CI em Windows e Linux.

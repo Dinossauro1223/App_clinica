@@ -32,15 +32,17 @@ A análise considera o ZIP `App_clinica-main` enviado para esta conversa. O esta
 | Área | Evidência no código | Situação observada |
 |---|---|---|
 | Aplicação desktop | `main.py`, `CustomTkinter` | Implementada no pacote analisado |
+| Gestão alimentar e consumo da cozinha | `gestao_alimentar_db.py`, `gestao_alimentar_ui.py`, `integracao_mobile.py` | Fichas técnicas, espelho do almoxarifado mobile, importação de retiradas, alocação por preparação e médias observacionais |
 | Pacientes e consultas | `Pacientes`, `Consultas`, telas em `main.py` | Implementado, com dados clínicos em texto livre e campos de consulta |
 | Condutas de alta | `condutas_alta.py`, `condutas_alta_ui.py`, `condutas_alta_export.py`, `condutas_alta/` | Implementada na branch `feat/condutas-de-alta` ([ADR-0006](docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md), seção 2.4); testada com simuladores, falta validar no Windows e homologar o conteúdo clínico |
 | TMB/VET | `main.py` | Há seleção de Harris-Benedict (1919), Mifflin-St Jeor (1990) e Cunningham (1980), com NAF para VET |
 | Mapa por leito | `mapa_ui.py`, `mapa_db.py` | Implementado parcialmente; precisa de validação integrada com o banco principal |
 | Histórico/cópia diária | `mapa_db.py`, `mapa_ui.py` | Há histórico por paciente, navegação de datas e cópia do mapa anterior |
 | PDF/Excel do mapa | `mapa_export.py` | Exportação implementada; precisa de conferência com o modelo institucional real |
-| Gráficos do mapa | `mapa_graficos.py`, `graficos_nativos.py`, `graficos_pintor.py`, `graficos_ui.py`, `graficos_layout.py`, [`GRAFICOS_AGRUPADOS.md`](docs/desenvolvimento/GRAFICOS_AGRUPADOS.md), [ADR-0007](docs/decisoes/ADR-0007-graficos-desenhados-na-tela.md) | 8 gráficos agrupados por assunto (atendimentos, dieta, suplementos, doenças crônicas). Cada grupo é uma faixa que se arrasta para o lado, com setas e pontos; em Configurações do Mapa dá para trocar para a visualização de cima para baixo, também agrupada. Os gráficos são desenhados direto na tela, com animação de entrada e balão com o valor ao passar o mouse; em Configurações também dá para voltar às imagens simples (matplotlib), sem animação. Testado com widgets simulados e, no CI, com Tk real (`tools/verificar_interface_tk.py`) |
+| Gráficos do mapa | `mapa_graficos.py`, `graficos_ui.py`, `graficos_layout.py`, [`GRAFICOS_AGRUPADOS.md`](docs/desenvolvimento/GRAFICOS_AGRUPADOS.md) | 8 gráficos agrupados por assunto (atendimentos, dieta, suplementos, doenças crônicas). Cada grupo é uma faixa que se arrasta para o lado, com setas e pontos; em Configurações do Mapa dá para trocar para a visualização de cima para baixo, também agrupada. Testado com widgets simulados e, no CI, com Tk real (`tools/verificar_interface_tk.py`) |
 | Atalhos de edição | `atalhos_edicao.py`, [`ATALHOS_DE_TECLADO.md`](docs/desenvolvimento/ATALHOS_DE_TECLADO.md) | Ctrl+C/X/V, Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, F4, Ctrl+A, colar de planilha e Ctrl+C nas tabelas, em todas as telas (F1 mostra a lista); testado com widgets simulados |
 | Catálogo inicial de suplementos | `mapa_db.py`, `mapa_ui.py` | Cadastro e manutenção do catálogo implementados; composição técnica inicial está incompleta |
+| Almoxarifado e custos | `almox_db.py`, `almox_ui.py`, `db_migracoes.py` | Itens, preços históricos, movimentos auditáveis, saldo derivado, custos realizados e programação manual por refeição |
 | Estimativas antropométricas | `nutri_calculos.py` | Estatura e peso por equações de Chumlea e IMC por faixa etária parcialmente implementados |
 | IMC infantil/adolescente | `TabelaLMS` em `nutri_calculos.py` | Leitura de CSV LMS implementada; arquivo oficial não veio no pacote |
 | Testes | `tests/test_mapa.py`, `tests/test_ui_smoke.py` | Há testes automatizados, mas parte da interface e do PDF usa simuladores |
@@ -368,9 +370,7 @@ python tools\auditar_repositorio.py
 ├── mapa_ui.py                        # Telas de mapa, gráficos e catálogo de suplementos
 ├── mapa_export.py                    # Exportação PDF/Excel do mapa
 ├── mapa_graficos.py                  # Agregações e gráficos mensais, e os grupos de gráficos por assunto
-├── graficos_ui.py                    # Tela dos gráficos agrupados: faixa que se arrasta, animação de entrada, balão, setas e modo de cima para baixo
-├── graficos_nativos.py               # Desenho dos gráficos como lista de formas (Python puro, testado sem janela)
-├── graficos_pintor.py                # Pintor do tk.Canvas: cria cada forma uma vez e só atualiza o que mudou
+├── graficos_ui.py                    # Tela dos gráficos agrupados: faixa que se arrasta, setas e modo de cima para baixo
 ├── graficos_layout.py                # Contas de posição e encaixe da faixa (Python puro, testado sem janela)
 ├── atalhos_edicao.py                 # Atalhos de edição no estilo do Google Planilhas, em todas as telas
 ├── condutas_alta.py                  # Condutas de alta: catálogo, regras pelo Mapa, decisões e documento (Fase 4)
@@ -378,7 +378,7 @@ python tools\auditar_repositorio.py
 ├── condutas_alta_export.py           # PDF do paciente e do nutricionista, impressão
 ├── db_service.py                     # Serviço único de banco: caminho, conexão, backup e restauração (Fase 0)
 ├── db_migracoes.py                   # Migrações versionadas e reversíveis do SQLite local (Fase 0)
-├── tools/                            # Auditoria de dados sensíveis, verificação de ambiente, diagnóstico de banco, verificação da interface com Tk real e fotos dos gráficos
+├── tools/                            # Auditoria de dados sensíveis, verificação de ambiente e diagnóstico de banco
 ├── requirements.txt                  # Dependências fixadas (+ requirements.lock.txt e requirements-build.txt)
 ├── docs/decisoes/                    # ADRs (decisões de arquitetura)
 ├── .github/workflows/ci.yml          # CI: Windows e Linux
@@ -396,6 +396,13 @@ python tools\auditar_repositorio.py
 As pastas JSON podem ser necessárias ao programa. Não as apagar em massa. Antes de versionar, revisar se contêm apenas conteúdo genérico ou se incluem nomes, diagnósticos, datas de atendimento ou outro dado identificável.
 
 ## 11. Segurança, privacidade e dados reais
+
+### Proteção do banco e recuperação
+
+O aplicativo cria snapshots do banco ao iniciar, a cada 15 minutos e antes do encerramento normal. Eles ficam em `backups/`, ao lado do banco local, e são verificados pelo SQLite. Em caso de falha no backup final, a janela permanece aberta para permitir nova tentativa. A restauração exige procedimento técnico controlado; ainda não há uma tela de seleção/restauração para o usuário.
+
+Consulte o [Guia do usuário — proteção e recuperação dos dados](docs/usuario/GUIA_PROTECAO_E_RECUPERACAO.md) para entender os horários, as mensagens, as limitações e os cuidados necessários.
+
 
 O projeto pode tratar dados pessoais sensíveis de saúde. Portanto:
 
@@ -426,6 +433,17 @@ git ls-files | findstr /i "clinica.db arquivos_pacientes backup .env CONTROLE DE
 - [`docs/desenvolvimento/GUIA_DESENVOLVIMENTO_WINDOWS.md`](docs/desenvolvimento/GUIA_DESENVOLVIMENTO_WINDOWS.md): instalação, testes, auditoria, banco e build no Windows.
 - [`docs/desenvolvimento/NOTAS_DE_ENTREGA_FASE0.md`](docs/desenvolvimento/NOTAS_DE_ENTREGA_FASE0.md): o que a Fase 0 entregou e o que falta.
 
+## Gestão alimentar e consumo da cozinha
+
+- [`gestao_alimentar_db.py`](gestao_alimentar_db.py) e [`gestao_alimentar_ui.py`](gestao_alimentar_ui.py): fichas técnicas e nova aba **Consumo observado**.
+- [`docs/gestao_alimentar_consumo_cozinha.md`](docs/gestao_alimentar_consumo_cozinha.md): fluxo de importação, alocação, médias e limites de interpretação.
+- As retiradas Almoxarifado → Cozinha são importadas pela chave original `(data, id_mobile)`; transferências Cozinha → Copa não são contadas como segunda retirada de ingrediente.
+
 ## 13. Regra de continuidade
 
 O agente principal deve iniciar pela primeira fase incompleta do roadmap, conferir o estado atual do Git, implementar os itens que não dependem de decisão externa e avançar automaticamente para a próxima fase quando os critérios forem atendidos. **Não parar para perguntar se deve continuar.** Dúvidas sobre referências são pesquisadas e registradas no diário. Dúvidas clínicas que não possam ser resolvidas por evidência devem ser isoladas como pendência de validação, enquanto o restante do desenvolvimento prossegue.
+
+
+## Publicação segura e compilação
+
+Consulte [Segurança dos dados e compilação](docs/SEGURANCA_DADOS_E_COMPILACAO.md) para distinguir recursos públicos dos dados locais de pacientes e para gerar o executável Windows sem usar um banco clínico real.

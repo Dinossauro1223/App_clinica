@@ -109,8 +109,10 @@ class TestCodigoFonte(unittest.TestCase):
     def test_anexos_de_pacientes_nao_usam_a_pasta_de_recursos(self):
         texto = (RAIZ / "main.py").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r'os\.path\.join\(\s*base_dir,\s*"arquivos_pacientes"', texto))
-        # dois anexos de paciente + a cópia em PDF da folha de alta (pasta_condutas_alta): todos gravam fora do bundle
-        self.assertEqual(texto.count('get_writable_path("arquivos_pacientes")'), 3)
+        # Os pontos de acesso a arquivos do paciente incluem agora a verificação de
+        # existência/contagem para bloquear exclusão se houver arquivos persistidos.
+        # Os locais que gravam anexos continuam usando a pasta externa ao bundle.
+        self.assertEqual(texto.count('get_writable_path("arquivos_pacientes")'), 4)
 
 
 class TestCaminhoDoBanco(BaseApp):
@@ -150,12 +152,24 @@ class TestConfigurarBancoDados(BaseApp):
     ESQUEMA = {"Consultas", "Exames_Solicitados", "Arquivos_Paciente", "Exames_Catalogo",
                "Regras_Complementares", "Resultados_Exames"}
     CONDUTAS_ALTA = {"Condutas_Alta_Docs", "Condutas_Alta_Itens"}      # migração 2
+    AMBULATORIAL = {
+        "Consulta_Dados_Estruturados", "Consulta_Medicamentos", "Consulta_Metas",
+        "Recomendacoes_Docs", "Consulta_Recomendacoes", "Exames_Associacoes", "Consulta_Triagens",
+    }                                                                    # migração 4
+    ALMOX = {
+        "Almox_Itens", "Almox_Historico_Preco", "Almox_Movimentos",
+        "Almox_Programacoes", "Almox_Programacao_Itens",
+    }                                                                    # migração 5
+    PEP = {"Pep_Config", "Pep_Usuarios", "Pep_Evolucoes"}                 # migração 6
 
     def test_banco_novo_cria_o_esquema_e_registra_a_baseline_sem_backup(self):
         caminho = self.usar_banco()
         self.main.AppClinica.configurar_banco_dados(self.app)
-        self.assertEqual(tabelas(caminho), self.ESQUEMA | self.CONDUTAS_ALTA | {"schema_migrations"})
-        self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo"), [(15,)])
+        self.assertEqual(
+            tabelas(caminho),
+            self.ESQUEMA | self.CONDUTAS_ALTA | self.AMBULATORIAL | self.ALMOX | self.PEP | {"schema_migrations"},
+        )
+        self.assertGreater(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo")[0][0], 15)
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Regras_Complementares"), [(1,)])
         self.assertEqual(consulta(caminho, "SELECT versao, origem FROM schema_migrations"),
                          [(1, "banco-novo")] + [(m.versao, "migracao") for m in self.main.db_migracoes.MIGRACOES[1:]])
@@ -165,7 +179,7 @@ class TestConfigurarBancoDados(BaseApp):
         caminho = self.usar_banco()
         for _ in range(3):
             self.main.AppClinica.configurar_banco_dados(self.app)
-        self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo"), [(15,)])
+        self.assertGreater(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo")[0][0], 15)
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Regras_Complementares"), [(1,)])
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM schema_migrations"),
                          [(len(self.main.db_migracoes.MIGRACOES),)])

@@ -1,0 +1,203 @@
+# -*- coding: utf-8 -*-
+"""Tela enxuta de configurações visuais para o NutriLab."""
+from __future__ import annotations
+
+import json
+import os
+import customtkinter as ctk
+from tkinter import messagebox
+import db_service
+import tema
+import nrs2002 as nrs
+
+CAMINHO = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
+
+def _ler():
+    try:
+        with open(CAMINHO, encoding="utf-8") as f:
+            dados = json.load(f)
+        return dados if isinstance(dados, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+def _salvar(dados):
+    try:
+        os.makedirs(os.path.dirname(CAMINHO), exist_ok=True)
+        with open(CAMINHO, "w", encoding="utf-8") as f:
+            json.dump(dados, f, ensure_ascii=False, indent=2)
+    except OSError:
+        return False
+    return True
+
+class ConfiguracoesUI:
+    """Renderiza opções de aparência e grava a preferência local do usuário."""
+    OPCOES = {"Claro": "Light", "Escuro": "Dark", "Sistema": "System"}
+
+    def __init__(self, app):
+        self.app = app
+
+    def mostrar(self):
+        raiz = self.app.area_principal
+        self.app.limpar_area_principal()
+        ctk.CTkLabel(raiz, text="Configurações", font=tema.fonte(24, "bold"),
+                      text_color=tema.VERDE).pack(anchor="w", padx=24, pady=(22, 8))
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                           border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=12)
+        ctk.CTkLabel(card, text="Aparência do aplicativo", font=tema.fonte(16, "bold"),
+                     text_color=tema.TEXTO).pack(anchor="w", padx=18, pady=(18, 6))
+        ctk.CTkLabel(card, text="Escolha como o NutriLab será exibido. Algumas telas antigas ainda usam cores fixas e não acompanham completamente o modo escuro.",
+                     font=tema.fonte(13), text_color=tema.SUAVE).pack(anchor="w", padx=18, pady=(0, 10))
+        dados = _ler()
+        atual = dados.get("aparencia", "Light")
+        escolha = next((nome for nome, modo in self.OPCOES.items() if modo == atual), "Claro")
+        seletor = ctk.CTkSegmentedButton(
+            card, values=list(self.OPCOES), command=self._aplicar,
+            selected_color=tema.VERDE, selected_hover_color=tema.VERDE_HOVER,
+            unselected_color=tema.BRANCO, unselected_hover_color=tema.BORDA,
+            text_color=tema.TEXTO, text_color_disabled=tema.SUAVE,
+            corner_radius=8, border_width=1, border_color=tema.BORDA
+        )
+        seletor.set(escolha)
+        seletor.pack(anchor="w", padx=18, pady=(0, 16))
+        self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
+        self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
+        self._nrs(raiz)
+        self._backups(raiz)
+        ctk.CTkButton(raiz, text="Voltar ao início", fg_color=tema.VERDE,
+                     hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=24, pady=10)
+
+    def _nrs(self, raiz):
+        """Permite ajustar os intervalos de reavaliação, armazenados no banco oficial do Mapa."""
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                           border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=(4, 12))
+        ctk.CTkLabel(card, text="Reavaliação nutricional (NRS-2002)", font=tema.fonte(16, "bold"),
+                    text_color=tema.TEXTO).pack(anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(card, text="Configure o intervalo para cada classificação. Padrão: 7 dias; permitido: 1–90 dias.",
+                    font=tema.fonte(12), text_color=tema.SUAVE).pack(anchor="w", padx=18, pady=(0, 10))
+        caminho_db = getattr(getattr(self.app, "mapa", None), "db", None)
+        if not caminho_db:
+            ctk.CTkLabel(card, text="Banco de dados do Mapa não disponível nesta sessão.",
+                         text_color=tema.LARANJA_TEXTO).pack(anchor="w", padx=18, pady=(0, 14))
+            return
+        atuais = nrs.ler_intervalos(caminho_db)
+        campos = {}
+        for codigo, rotulo in nrs.GRAUS:
+            linha = ctk.CTkFrame(card, fg_color="transparent")
+            linha.pack(fill="x", padx=18, pady=3)
+            ctk.CTkLabel(linha, text=rotulo, font=tema.fonte(12), text_color=tema.TEXTO,
+                        anchor="w", width=300).pack(side="left")
+            entrada = ctk.CTkEntry(linha, width=65, border_color=tema.BORDA)
+            entrada.insert(0, str(atuais[codigo]))
+            entrada.pack(side="left")
+            ctk.CTkLabel(linha, text="dias", font=tema.fonte(12), text_color=tema.SUAVE).pack(side="left", padx=6)
+            campos[codigo] = entrada
+        status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
+        status.pack(anchor="w", padx=18, pady=(4, 8))
+        def salvar():
+            try:
+                novos = nrs.salvar_intervalos(caminho_db, {codigo: int(entry.get()) for codigo, entry in campos.items()})
+            except (ValueError, KeyError, TypeError):
+                status.configure(text="Informe números inteiros de 1 a 90 em todos os campos.",
+                              text_color=tema.LARANJA_TEXTO)
+                return
+            aviso = " Atenção: a RDC 63/2000 estabelece reavaliação no máximo a cada 10 dias." if max(novos.values()) > nrs.LIMITE_RDC63 else ""
+            status.configure(text="Intervalos salvos no banco do Mapa." + aviso,
+                          text_color=tema.LARANJA_TEXTO if aviso else tema.VERDE)
+        ctk.CTkButton(card, text="Salvar intervalos", command=salvar, fg_color=tema.VERDE,
+                      hover_color=tema.VERDE_HOVER, font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
+
+
+    def _backups(self, raiz):
+        """Lista snapshots locais por data e permite restauração protegida."""
+        caminho_db = db_service.caminho_banco()
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                           border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=(4, 12))
+        ctk.CTkLabel(card, text="Backups e recuperação de dados",
+                     font=tema.fonte(16, "bold"), text_color=tema.TEXTO).pack(
+                         anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(
+            card,
+            text="As cópias ficam na pasta backups, ao lado do banco. Restaurar substitui o banco atual "
+                 "pela cópia escolhida e cria automaticamente uma cópia de segurança do estado atual.",
+            font=tema.fonte(12), text_color=tema.SUAVE, wraplength=760, justify="left"
+        ).pack(anchor="w", padx=18, pady=(0, 10))
+
+        arquivos = list(reversed(db_service.listar_backups(caminho_db)))
+        if not arquivos:
+            ctk.CTkLabel(card, text="Nenhum backup encontrado nesta instalação.",
+                         font=tema.fonte(12), text_color=tema.SUAVE).pack(
+                             anchor="w", padx=18, pady=(0, 14))
+            return
+
+        opcoes = {}
+        for arquivo in arquivos:
+            nome = arquivo.name
+            import re
+            m = re.search(r"\.backup_(\d{8})-(\d{6})_(.+)\.db$", nome)
+            if m:
+                data = f"{m.group(1)[6:8]}/{m.group(1)[4:6]}/{m.group(1)[0:4]}"
+                hora = f"{m.group(2)[0:2]}:{m.group(2)[2:4]}:{m.group(2)[4:6]}"
+                motivo = m.group(3).replace("-", " ")
+                rotulo = f"{data} {hora} — {motivo}"
+            else:
+                rotulo = nome
+            opcoes[rotulo] = arquivo
+
+        seletor = ctk.CTkOptionMenu(card, values=list(opcoes),
+                                    width=360, fg_color=tema.VERDE,
+                                    button_color=tema.VERDE_HOVER)
+        seletor.set(next(iter(opcoes)))
+        seletor.pack(anchor="w", padx=18, pady=(0, 10))
+        status = ctk.CTkLabel(card, text=f"{len(arquivos)} backup(s) disponível(is).",
+                              font=tema.fonte(12), text_color=tema.SUAVE)
+        status.pack(anchor="w", padx=18, pady=(0, 8))
+
+        def restaurar():
+            arquivo = opcoes.get(seletor.get())
+            if arquivo is None:
+                status.configure(text="Selecione um backup válido.", text_color=tema.LARANJA_TEXTO)
+                return
+            if not messagebox.askyesno(
+                "Confirmar restauração",
+                "O banco atual será substituído pelo backup selecionado. "
+                "Uma cópia do estado atual será criada automaticamente antes da troca. "
+                "Deseja continuar?"
+            ):
+                return
+            try:
+                resultado = db_service.restaurar_backup(arquivo, caminho_db)
+            except Exception as erro:
+                messagebox.showerror("Falha na restauração",
+                                     f"A restauração não foi concluída. Se houve falha na troca, use a cópia pre-restauração criada automaticamente.\n\nDetalhe: {erro}")
+                return
+            messagebox.showinfo(
+                "Restauração concluída",
+                f"Backup restaurado com sucesso.\n\nCópia do estado anterior: "
+                f"{resultado.copia_de_seguranca or 'não necessária'}.\n\n"
+                "Feche e abra novamente o NutriLab para recarregar os dados restaurados."
+            )
+            status.configure(text="Restauração concluída. Reinicie o aplicativo.",
+                              text_color=tema.VERDE)
+
+        ctk.CTkButton(card, text="Restaurar backup selecionado", command=restaurar,
+                      fg_color=tema.LARANJA, hover_color=tema.LARANJA_TEXTO,
+                      font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
+
+    def _aplicar(self, nome):
+        modo = self.OPCOES.get(nome, "Light")
+        ctk.set_appearance_mode(modo)
+        # O CustomTkinter atualiza os componentes com cores em tupla; ttk exige reaplicar os estilos.
+        try:
+            tema.aplicar_tema_ttk(self.app)
+        except Exception:
+            pass
+        dados = _ler()
+        dados["aparencia"] = modo
+        if _salvar(dados):
+            if hasattr(self, "lbl_status"):
+                self.lbl_status.configure(text="Aparência salva. A alteração já está aplicada.", text_color=tema.VERDE)
+        elif hasattr(self, "lbl_status"):
+            self.lbl_status.configure(text="Não foi possível salvar a preferência.", text_color=tema.LARANJA_TEXTO)

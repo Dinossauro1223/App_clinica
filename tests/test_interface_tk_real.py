@@ -23,9 +23,7 @@ class TestInterfaceComTkDeVerdade(unittest.TestCase):
     def setUpClass(cls):
         ambiente = dict(os.environ, PYTHONUTF8="1")
         cls.resultado = subprocess.run([sys.executable, SCRIPT], capture_output=True, text=True, encoding="utf-8",
-                                       errors="replace", timeout=480, env=ambiente, cwd=RAIZ)
-        # o relatório do script (cada verificação, com o tempo que levou) vai para o log do CI, passando ou não
-        print("\n--- saída de tools/verificar_interface_tk.py ---\n" + cls.resultado.stdout.strip() + "\n---", flush=True)
+                                       errors="replace", timeout=300, env=ambiente, cwd=RAIZ)
 
     def relatorio(self):
         r = self.resultado

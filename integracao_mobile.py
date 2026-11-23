@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS Mobile_Refeicoes (data TEXT, setor TEXT, refeicao TEX
 CREATE TABLE IF NOT EXISTS Mobile_Estoque_Dia (data TEXT, estoque TEXT, item TEXT, unidade TEXT, qtd REAL, atualizado_em TEXT,
     PRIMARY KEY (data, estoque, item));
 CREATE TABLE IF NOT EXISTS Mobile_Movimentos (data TEXT, id_mobile INTEGER, hora TEXT, origem TEXT, destino TEXT, item TEXT,
-    unidade TEXT, qtd REAL, divergente INTEGER, PRIMARY KEY (data, id_mobile));
+    unidade TEXT, qtd REAL, divergente INTEGER, id_item_mobile INTEGER, por_usuario INTEGER,
+    valor_unitario_snapshot REAL, custo_snapshot REAL, PRIMARY KEY (data, id_mobile));
 """
 
 # Campos do registro do desktop que o mobile conhece (o resto do registro nunca é tocado).
@@ -50,8 +51,14 @@ def _agora():
 
 
 def garantir_tabelas(db):
+    """Garante as tabelas locais e acrescenta metadados às versões antigas sem apagar histórico."""
     with closing(mdb.conectar(db)) as c:
         c.executescript(_SCHEMA)
+        colunas = {r[1] for r in c.execute("PRAGMA table_info(Mobile_Movimentos)")}
+        for nome, tipo in (("id_item_mobile", "INTEGER"), ("por_usuario", "INTEGER"),
+                           ("valor_unitario_snapshot", "REAL"), ("custo_snapshot", "REAL")):
+            if nome not in colunas:
+                c.execute("ALTER TABLE Mobile_Movimentos ADD COLUMN %s %s" % (nome, tipo))
         c.commit()
 
 
@@ -105,6 +112,23 @@ def ler_mobile(mobile_db, data_iso):
         c.close()
 
 
+def ler_produtos_almox(mobile_db):
+    """Lê produtos, preço/embalagem e o saldo mais recente do Almoxarifado, sem misturar outros estoques."""
+    sv, c = _abrir_mobile(mobile_db)
+    try:
+        with sv.LOCK:
+            rows = c.execute("""SELECT i.id AS id_item,i.nome,i.unidade,i.preco_unitario,
+                    i.embalagem_qtd,i.embalagem_un,e.qtd,e.data AS data_base
+                FROM itens i
+                LEFT JOIN estoque_dia e ON e.id_item=i.id AND e.estoque='almox'
+                  AND e.data=(SELECT MAX(e2.data) FROM estoque_dia e2
+                              WHERE e2.id_item=i.id AND e2.estoque='almox')
+                ORDER BY i.nome COLLATE NOCASE""").fetchall()
+            return [dict(row) for row in rows]
+    finally:
+        c.close()
+
+
 # ------------------------------------------------- mapeamento mobile <-> desktop
 def dieta_para_desktop(txt):
     """'Pastosa' -> {'consistencia': 'Pastosa'}; 'Enteral' -> {'via': 'Enteral'}; o resto não tem campo no desktop."""
@@ -138,22 +162,50 @@ def _n(v):
 
 def _mapear(row):
     """Linha do mapa do mobile -> campos equivalentes do registro do desktop."""
+    suplementos = row.get("suplementos")
+    if suplementos is None and row.get("suplementos_json"):
+        try:
+            suplementos = json.loads(row["suplementos_json"])
+        except (TypeError, ValueError):
+            suplementos = []
     m = {"nome_paciente": _t(row.get("nome")), "idade_anos": _n(row.get("idade_anos")), "idade_meses": _n(row.get("idade_meses")),
-         "acompanhante": int(bool(row.get("acompanhante"))), "obs_sim": _t(row.get("pref_sim")), "obs_nao": _t(row.get("pref_nao"))}
-    m.update(dieta_para_desktop(row.get("dieta")))
+         "acompanhante": int(bool(row.get("acompanhante"))), "obs_sim": _t(row.get("pref_sim")),
+         "obs_nao": _t(row.get("pref_nao")), "cor": _t(row.get("cor")),
+         "via": _t(row.get("via")), "consistencia": _t(row.get("consistencia")),
+         "dm": int(bool(row.get("dm"))), "has": int(bool(row.get("has"))),
+         "laxativa": int(bool(row.get("laxativa"))), "constipante": int(bool(row.get("constipante"))),
+         "drc": int(bool(row.get("drc"))), "suplementos": list(suplementos or [])}
+    if not m["via"] and not m["consistencia"]:
+        m.update(dieta_para_desktop(row.get("dieta")))
     return m
 
 
 def _cmp(campo, v):
-    """Valor normalizado, só para comparar."""
-    if campo in ("idade_meses", "acompanhante"):
-        return int(v or 0)
+    """Valor normalizado, só para comparar sem confundir NULL e falso/vazio."""
+    if campo in ("idade_meses", "acompanhante", "dm", "has", "laxativa", "constipante", "drc"):
+        return int(bool(v)) if campo not in ("idade_meses",) else int(v or 0)
     if campo == "idade_anos":
         return _n(v)
+    if campo == "suplementos":
+        campos = ("id_suplemento", "nome", "modulo", "ml_oferta", "agua_ml", "refeicoes", "qtd_dia", "batido_fruta", "unidade")
+        itens = []
+        for s in (v or []):
+            if not isinstance(s, dict):
+                continue
+            refeicoes = s.get("refeicoes")
+            if refeicoes is None:
+                try:
+                    refeicoes = json.loads(s.get("refeicoes_json") or "[]")
+                except (TypeError, ValueError):
+                    refeicoes = []
+            itens.append({k: (refeicoes if k == "refeicoes" else s.get(k)) for k in campos})
+        return json.dumps(itens, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return _t(v).casefold()
 
 
 def _vazio(campo, v):
+    if campo == "suplementos":
+        return not v
     return _cmp(campo, v) in (None, 0, "")
 
 
@@ -329,12 +381,89 @@ def importar_estoque(db, ex):
             nome, un = itens.get(r["id_item"], ("?", ""))
             c.execute("INSERT OR REPLACE INTO Mobile_Estoque_Dia (data, estoque, item, unidade, qtd, atualizado_em) VALUES (?,?,?,?,?,?)",
                       (r["data"], r["estoque"], nome, un, r["qtd"], r.get("atualizado_em") or _agora()))
+        cols_mov = {r[1] for r in c.execute("PRAGMA table_info(Mobile_Movimentos)")}
         for m in ex["movimentos"]:
             nome, un = itens.get(m["id_item"], ("?", ""))
-            c.execute("INSERT OR REPLACE INTO Mobile_Movimentos (data, id_mobile, hora, origem, destino, item, unidade, qtd, divergente) "
-                      "VALUES (?,?,?,?,?,?,?,?,?)", (m["data"], m["id"], m["hora"], m["origem"], m["destino"], nome, un, m["qtd"], m["divergente"]))
+            preco = m.get("preco_unitario_snapshot")
+            custo = m.get("custo_snapshot")
+            if custo is None and preco is not None:
+                custo = float(m["qtd"]) * float(preco)
+            c.execute("""INSERT INTO Mobile_Movimentos
+                (data,id_mobile,hora,origem,destino,item,unidade,qtd,divergente,id_item_mobile,por_usuario,
+                 valor_unitario_snapshot,custo_snapshot)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(data,id_mobile) DO UPDATE SET
+                 hora=excluded.hora,origem=excluded.origem,destino=excluded.destino,item=excluded.item,
+                 unidade=excluded.unidade,qtd=excluded.qtd,divergente=excluded.divergente,
+                 id_item_mobile=excluded.id_item_mobile,por_usuario=excluded.por_usuario,
+                 valor_unitario_snapshot=COALESCE(excluded.valor_unitario_snapshot,Mobile_Movimentos.valor_unitario_snapshot),
+                 custo_snapshot=COALESCE(excluded.custo_snapshot,Mobile_Movimentos.custo_snapshot)""",
+                (m["data"],m["id"],m["hora"],m["origem"],m["destino"],nome,un,m["qtd"],m["divergente"],
+                 m["id_item"],m.get("por_usuario"),preco,custo))
         c.commit()
     return len(ex["estoque"]), len(ex["movimentos"])
+
+
+
+def importar_movimentos_cozinha(db, mobile_db, inicio, fim):
+    """Importa transferências do mobile por intervalo, preservando IDs, usuário e preço histórico.
+
+    A chave (data, id_mobile) torna a operação idempotente. A função não altera o saldo do mobile.
+    """
+    from datetime import date
+    try:
+        inicio = date.fromisoformat(str(inicio)).isoformat()
+        fim = date.fromisoformat(str(fim)).isoformat()
+    except (TypeError, ValueError):
+        raise ErroMobile("Informe as datas no formato AAAA-MM-DD.")
+    if fim < inicio:
+        raise ErroMobile("A data final deve ser igual ou posterior à data inicial.")
+    sv, origem = _abrir_mobile(mobile_db)
+    try:
+        cols_mov = {r[1] for r in origem.execute("PRAGMA table_info(movimentos)")}
+        cols_item = {r[1] for r in origem.execute("PRAGMA table_info(itens)")}
+        if not {"id", "data", "hora", "origem", "destino", "id_item", "qtd"}.issubset(cols_mov):
+            raise ErroMobile("O histórico de movimentações do mobile está incompleto.")
+        preco_select = "i.preco_unitario" if "preco_unitario" in cols_item else "NULL"
+        user_select = "m.por_usuario" if "por_usuario" in cols_mov else "NULL"
+        price_select = "m.preco_unitario_snapshot" if "preco_unitario_snapshot" in cols_mov else "NULL"
+        cost_select = "m.custo_snapshot" if "custo_snapshot" in cols_mov else "NULL"
+        rows = origem.execute(f"""SELECT m.data,m.id,m.hora,m.origem,m.destino,m.id_item,m.qtd,m.divergente,
+                    {user_select} AS por_usuario,COALESCE({price_select},NULL) AS preco_unitario_snapshot,
+                    COALESCE({cost_select},NULL) AS custo_snapshot,i.nome AS item,i.unidade,
+                    {preco_select} AS preco_atual
+                FROM movimentos m LEFT JOIN itens i ON i.id=m.id_item
+                WHERE m.data BETWEEN ? AND ? ORDER BY m.data,m.hora,m.id""", (inicio, fim)).fetchall()
+        preparados = []
+        for r in rows:
+            preco = r["preco_unitario_snapshot"]
+            custo = r["custo_snapshot"]
+            # Só calcula com preço atual quando o registro histórico é anterior ao recurso de snapshot;
+            # o custo resultante fica marcado como estimado pela ausência de valor histórico.
+            if custo is None and preco is not None:
+                custo = float(r["qtd"]) * float(preco)
+            preparados.append((
+                r["data"], r["id"], r["hora"], r["origem"], r["destino"], r["item"] or ("Item #%s" % r["id_item"]),
+                r["unidade"] or "", r["qtd"], int(r["divergente"] or 0), r["id_item"], r["por_usuario"],
+                preco, custo
+            ))
+    finally:
+        origem.close()
+    garantir_tabelas(db)
+    with closing(mdb.conectar(db)) as destino:
+        destino.executemany("""INSERT INTO Mobile_Movimentos
+            (data,id_mobile,hora,origem,destino,item,unidade,qtd,divergente,id_item_mobile,por_usuario,
+             valor_unitario_snapshot,custo_snapshot)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(data,id_mobile) DO UPDATE SET
+             hora=excluded.hora,origem=excluded.origem,destino=excluded.destino,item=excluded.item,
+             unidade=excluded.unidade,qtd=excluded.qtd,divergente=excluded.divergente,
+             id_item_mobile=excluded.id_item_mobile,por_usuario=excluded.por_usuario,
+             valor_unitario_snapshot=COALESCE(excluded.valor_unitario_snapshot,Mobile_Movimentos.valor_unitario_snapshot),
+             custo_snapshot=COALESCE(excluded.custo_snapshot,Mobile_Movimentos.custo_snapshot)""", preparados)
+        destino.commit()
+    return {"importados": len(preparados), "inicio": inicio, "fim": fim,
+            "retiradas_cozinha": sum(1 for x in preparados if str(x[3]).lower()=="almox" and str(x[4]).lower()=="cozinha")}
 
 
 def resumo(db, data_iso):
@@ -350,8 +479,20 @@ def resumo(db, data_iso):
 # ------------------------------------------------------------- enviar: mapa
 def _linha_mobile(reg, vivo):
     """Registro do desktop -> linha do mapa do mobile. Dieta/diagnóstico que o desktop não tem não apagam o do mobile."""
+    suplementos = []
+    for s in reg.get("suplementos") or []:
+        suplementos.append({
+            "id_suplemento": s.get("id_suplemento"), "nome": s.get("nome"), "modulo": s.get("modulo"),
+            "ml_oferta": s.get("ml_oferta"), "agua_ml": s.get("agua_ml"),
+            "refeicoes": s.get("refeicoes") or [], "qtd_dia": s.get("qtd_dia"),
+            "batido_fruta": bool(s.get("batido_fruta")), "unidade": s.get("unidade") or "ml"
+        })
     return {"nome": reg["nome_paciente"], "idade_anos": reg.get("idade_anos"), "idade_meses": reg.get("idade_meses"),
             "acompanhante": bool(reg.get("acompanhante")), "pref_sim": reg.get("obs_sim") or "", "pref_nao": reg.get("obs_nao") or "",
+            "cor": reg.get("cor") or "", "via": reg.get("via") or "", "consistencia": reg.get("consistencia") or "",
+            "dm": bool(reg.get("dm")), "has": bool(reg.get("has")), "laxativa": bool(reg.get("laxativa")),
+            "constipante": bool(reg.get("constipante")), "drc": bool(reg.get("drc")),
+            "suplementos": suplementos,
             "dieta": dieta_para_mobile(reg) or vivo.get("dieta", ""),
             "diagnostico": diagnostico_para_mobile(reg) or vivo.get("diagnostico", "")}
 
@@ -394,9 +535,29 @@ def _enviar_setor(db, sv, c, adm, nome, itens, data_iso, texto):
     return {"setor": nome, "leitos": n}
 
 
+def sincronizar_catalogo_suplementos(db, mobile_db):
+    """Atualiza o catálogo mobile com os suplementos ativos cadastrados no desktop."""
+    sv = _servidor()
+    with sv.LOCK:
+        with closing(sv.conectar(mobile_db)) as c:
+            c.executescript(sv.ESQUEMA)
+            sv.migrar(c)
+            c.execute("DELETE FROM suplementos_catalogo")
+            itens = mdb.listar_suplementos(db, apenas_ativos=True)
+            for s in itens:
+                c.execute("""INSERT INTO suplementos_catalogo
+                    (id_suplemento,nome,modulo,emb_qtd,emb_un,kcal_100,ptn_100,lip_100,carb_100,sod_100,ativo)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,1)""",
+                    (s["id_suplemento"], s["nome"], s.get("modulo"), s.get("emb_qtd"), s.get("emb_un"),
+                     s.get("kcal_100"), s.get("ptn_100"), s.get("lip_100"), s.get("carb_100"), s.get("sod_100")))
+            c.commit()
+    return len(itens)
+
+
 def enviar_mapa(db, mobile_db, data_iso, id_setor=None, texto=None):
     """Envia o mapa do dia do desktop para o mobile e publica para a copa. Devolve [{'setor', 'leitos'}] com os leitos alterados."""
     garantir_tabelas(db)
+    sincronizar_catalogo_suplementos(db, mobile_db)
     sv, c = _abrir_mobile(mobile_db)
     try:
         with sv.LOCK:

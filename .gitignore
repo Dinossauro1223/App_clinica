@@ -6,6 +6,7 @@ dist/
 *.pdf
 # Protecao local AppClinica
 /arquivos_pacientes/
+/recomendacoes_clinicas/
 /clinica.db
 /clinica.db.*
 /clinica.db-*
@@ -22,5 +23,18 @@ __pycache__/
 *.pyc
 Thumbs.db
 
-# fotos da tela geradas por tools/capturar_graficos_tk.py (só servem para conferir, não vão para o Git)
-capturas/
+# Dados locais e artefatos que nunca devem entrar no repositório
+/logs/
+/backups/
+/dados_locais/
+/exports/
+/exportacoes/
+/relatorios_gerados/
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.bak
+*.backup*

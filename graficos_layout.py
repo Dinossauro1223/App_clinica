@@ -20,7 +20,6 @@ ROTULOS_DISPOSICAO = {
     DISPOSICAO_VERTICAL: "Agrupados, de cima para baixo",
 }
 
-# Como cada gráfico é mostrado: desenhado na tela, com animação, ou como imagem simples (matplotlib), igual a antes.
 ESTILO_ANIMADO = "animado"
 ESTILO_IMAGEM = "imagem"
 CHAVE_ESTILO = "graficos_estilo"
@@ -35,9 +34,9 @@ ESPIADA = 56                # pedaço do próximo gráfico que fica à vista, pa
 LARGURA_MIN_CARD = 160
 VELOCIDADE_DE_ARREMESSO = 500.0   # px/s: soltar mais rápido que isso passa para o gráfico seguinte
 DURACAO_ENCAIXE = 0.28            # segundos
-DURACAO_ENTRADA = 0.9             # segundos: tempo da animação com que cada gráfico "entra" (barras crescem, linhas se desenham)
-ATRASO_ENTRE_CARDS = 0.12         # segundos: um gráfico começa um pouquinho depois do anterior
-FRACAO_PARA_ANIMAR = 0.3          # o gráfico começa a animar quando pelo menos essa parte dele aparece na faixa
+DURACAO_ENTRADA = 0.9
+ATRASO_ENTRE_CARDS = 0.12
+FRACAO_PARA_ANIMAR = 0.3
 
 
 def disposicao_valida(valor):
@@ -53,7 +52,6 @@ def rotulo_para_disposicao(rotulo):
 
 
 def estilo_valido(valor):
-    """Valor gravado na configuração -> estilo conhecido (padrão: animado)."""
     return valor if valor in ROTULOS_ESTILO else ESTILO_ANIMADO
 
 

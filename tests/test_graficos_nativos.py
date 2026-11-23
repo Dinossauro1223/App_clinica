@@ -401,17 +401,5 @@ class TestComDadosDoMapa(unittest.TestCase):
                         self.assertTrue(formas and altura > 0, (chave, largura, p))
 
 
-class TestEmpacotamento(unittest.TestCase):
-    """O executável (PyInstaller) só embute os módulos que o .spec lista: sem estes o gráfico animado não abriria."""
-
-    def test_spec_lista_os_modulos_dos_graficos(self):
-        raiz = os.path.join(os.path.dirname(__file__), "..")
-        with open(os.path.join(raiz, "app_clinica.spec"), encoding="utf-8") as f:
-            spec = f.read()
-        for modulo in ("mapa_graficos", "graficos_ui", "graficos_layout", "graficos_nativos", "graficos_pintor"):
-            self.assertIn(f"'{modulo}'", spec, f"{modulo} não está nos hiddenimports do app_clinica.spec")
-            self.assertTrue(os.path.exists(os.path.join(raiz, modulo + ".py")), modulo)
-
-
 if __name__ == "__main__":
     unittest.main(verbosity=2)

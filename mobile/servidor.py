@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import mimetypes
 import re
 import secrets
 import socket
@@ -19,7 +20,7 @@ import traceback
 from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 AQUI = Path(__file__).resolve().parent
 TZ = timezone(timedelta(hours=-3))  # America/Recife (sem horário de verão)
@@ -30,7 +31,8 @@ STAFF = ("admin", "nutricionista")  # escolhem o dia; o que gravam só muda com 
 EST_PERFIL = {"copa": "copa", "estoque_cozinha": "cozinha", "estoque_almox": "almox"}
 # Hierarquia de abastecimento: de quem cada estoque pode receber.
 ORIGENS = {"almox": ["externo"], "cozinha": ["almox"], "copa": ["cozinha", "almox"]}
-CAMPOS = ["nome", "idade_anos", "idade_meses", "dieta", "diagnostico", "pref_sim", "pref_nao", "acompanhante"]
+CAMPOS = ["nome", "idade_anos", "idade_meses", "dieta", "diagnostico", "pref_sim", "pref_nao",
+          "acompanhante", "cor", "consistencia", "via", "dm", "has", "laxativa", "constipante", "drc", "suplementos_json"]
 # Refeições conferidas hoje: almoço e jantar. As demais ficam desligadas até o administrador habilitar (com horário).
 CFG_INICIAL = [("desjejum", 0, None, None), ("colacao", 0, None, None), ("almoco", 1, "09:00", "16:00"),
                ("lanche", 0, None, None), ("jantar", 1, "16:00", "22:00"), ("ceia", 0, None, None)]
@@ -42,10 +44,16 @@ CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, login TEXT UNIQUE NO
   perfil TEXT NOT NULL, id_setor INTEGER, salt TEXT NOT NULL, senha TEXT NOT NULL, ativo INTEGER DEFAULT 1, criado_em TEXT);
 CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL);
 CREATE TABLE IF NOT EXISTS leitos(id INTEGER PRIMARY KEY, id_setor INTEGER NOT NULL, codigo TEXT NOT NULL, UNIQUE(id_setor, codigo));
-CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL,
+  preco_unitario REAL, embalagem_qtd REAL, embalagem_un TEXT);
 CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
   idade_anos INTEGER, idade_meses INTEGER, diagnostico TEXT, pref_sim TEXT, pref_nao TEXT,
+  cor TEXT, consistencia TEXT, via TEXT, dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
+  constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, suplementos_json TEXT DEFAULT '[]',
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, id_leito));
+CREATE TABLE IF NOT EXISTS suplementos_catalogo(
+  id_suplemento INTEGER PRIMARY KEY, nome TEXT NOT NULL, modulo TEXT, emb_qtd REAL, emb_un TEXT,
+  kcal_100 REAL, ptn_100 REAL, lip_100 REAL, carb_100 REAL, sod_100 REAL, ativo INTEGER DEFAULT 1);
 CREATE TABLE IF NOT EXISTS mapa_rascunho(data TEXT, id_leito INTEGER, campos TEXT, por_usuario INTEGER, atualizado_em TEXT,
   PRIMARY KEY(data, id_leito));
 CREATE TABLE IF NOT EXISTS refeicoes_cfg(refeicao TEXT PRIMARY KEY, ativa INTEGER, abre TEXT, fecha TEXT);
@@ -55,13 +63,32 @@ CREATE TABLE IF NOT EXISTS refeicoes_dia(data TEXT, id_setor INTEGER, refeicao T
 CREATE TABLE IF NOT EXISTS estoque_dia(data TEXT, estoque TEXT, id_item INTEGER, qtd REAL,
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, estoque, id_item));
 CREATE TABLE IF NOT EXISTS movimentos(id INTEGER PRIMARY KEY, data TEXT, hora TEXT, origem TEXT, destino TEXT,
-  id_item INTEGER, qtd REAL, por_usuario INTEGER, divergente INTEGER DEFAULT 0);
+  id_item INTEGER, qtd REAL, por_usuario INTEGER, divergente INTEGER DEFAULT 0,
+  preco_unitario_snapshot REAL, custo_snapshot REAL);
 CREATE TABLE IF NOT EXISTS correcoes(id INTEGER PRIMARY KEY, tipo TEXT, data TEXT, chave TEXT, rotulo TEXT, id_setor INTEGER,
   valor_atual TEXT, valor_proposto TEXT, por_usuario INTEGER, criado_em TEXT, status TEXT DEFAULT 'pendente', decidido_em TEXT);
 CREATE TABLE IF NOT EXISTS avisos(id INTEGER PRIMARY KEY, criado_em TEXT, por_usuario INTEGER, tipo TEXT, id_setor INTEGER,
   titulo TEXT, texto TEXT, leitos TEXT);
 CREATE TABLE IF NOT EXISTS avisos_lidos(id_aviso INTEGER, id_usuario INTEGER, lido_em TEXT, PRIMARY KEY(id_aviso, id_usuario));
+CREATE TABLE IF NOT EXISTS orientacoes(id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, titulo TEXT NOT NULL,
+  texto TEXT NOT NULL, ordem INTEGER NOT NULL DEFAULT 0, atualizado_por INTEGER, atualizado_em TEXT NOT NULL);
 """
+
+
+ORIENTACOES_INICIAIS = [
+    ("diluicao", "Diluição de pós e preparo de bebidas",
+     "Antes de preparar, confira o nome do produto, a prescrição, a quantidade de pó e o líquido indicados na ficha técnica ou no rótulo da apresentação utilizada.\n\nNão existe uma proporção universal de pó para água ou suco: medidas, concentração e volume final variam entre produtos. Use balança ou medida exclusiva do produto quando a ficha técnica determinar; não substitua por colher doméstica.\n\nMeça o líquido com recipiente graduado. Quando a orientação definir VOLUME FINAL, dissolva primeiro no volume inicial indicado e complete até o volume final depois de misturar. Não some automaticamente o volume do pó ao volume de água.\n\nUse água como diluente padrão, salvo orientação expressa da prescrição/ficha técnica. Suco de fruta só deve ser usado quando estiver escrito: ele acrescenta carboidratos e pode alterar sabor, acidez e características do preparo. Não acrescente açúcar.\n\nHigienize mãos, bancada e utensílios; misture até homogeneizar; identifique o preparo e siga o prazo, a temperatura e o descarte definidos pelo fabricante e pelo protocolo do serviço. Não reutilize sobras sem autorização.",
+     10),
+    ("intestino", "Frutas, fibras e funcionamento intestinal",
+     "Para auxiliar o trânsito intestinal, prefira a fruta inteira, respeitando a consistência prescrita; mantenha a casca comestível quando estiver higienizada e for permitida. Fibras precisam de líquido adequado, conforme a prescrição e as restrições de cada pessoa.\\n\\nA quantidade de fibras varia conforme a fruta, a variedade, a porção e o preparo. A composição nutricional deve ser conferida na ficha específica do alimento, considerando a parte comestível e a forma de preparo. A quantidade de fibras, isoladamente, não mede o efeito laxativo de uma porção nem substitui avaliação clínica.\\n\\nNão existe uma lista universal de frutas constipantes. A maturação, a presença de casca, o preparo, a porção e a tolerância individual podem alterar a resposta. Suco coado costuma fornecer menos fibra que a fruta inteira.\\n\\nAjuste a escolha à dieta prescrita, à aceitação, à mastigação/deglutição e à tolerância. Não transforme uma orientação laxativa ou constipante em mudança de cardápio sem confirmação da Nutrição. Para consultar valores de composição, use a ficha do alimento na TBCA/USP.",
+     20),
+    ("potassio", "Teor de potássio das frutas",
+     "O teor de potássio depende da fruta, da variedade, da parte comestível, da porção e do preparo. Consulte a ficha do alimento na TBCA/USP para conferir a composição correspondente ao item utilizado pelo serviço.\\n\\nEsta informação não determina, sozinha, o que uma pessoa com doença renal pode comer. A necessidade de restrição depende da função renal, potássio sérico, medicamentos, método de preparo, porção e plano individual. Não proíba nem libere frutas por conta própria; confirme a prescrição da Nutrição.",
+     30),
+    ("diabetes", "Montagem da dieta para diabetes",
+     "Dieta para diabetes não significa retirar todas as frutas ou preparar refeições sem carboidratos. Arroz, feijão, leite, frutas, pães e outros alimentos fornecem carboidratos e precisam entrar na quantidade e na distribuição definidas na prescrição.\\n\\nPrefira fruta inteira, sem açúcar adicionado. Não troque fruta por suco por conta própria: o suco pode concentrar carboidratos em menor volume e geralmente contém menos fibra que a fruta inteira. Não ofereça refresco adoçado, açúcar, mel ou xaropes como rotina.\\n\\nA composição de carboidratos varia conforme a fruta, a variedade, a porção e o preparo. Consulte a ficha específica na TBCA/USP; a consulta não classifica uma fruta como proibida ou liberada. Respeite porção, horário e consistência prescritos. Para pessoas com esquema fixo de insulina, a regularidade da quantidade e do horário de carboidratos é especialmente importante.\\n\\nA equipe da cozinha e da copa deve seguir o cardápio e a identificação da dieta. Dúvidas, substituições, hipoglicemia ou mudança de consistência devem ser encaminhadas à Nutrição/Enfermagem; não ajuste a dieta por iniciativa própria.",
+     40),
+]
 
 
 class Erro(Exception):
@@ -145,13 +172,31 @@ def migrar(c):
     def cols(t):
         return {r[1] for r in c.execute("PRAGMA table_info(%s)" % t)}
     for col, tipo in (("nome", "TEXT"), ("idade_anos", "INTEGER"), ("idade_meses", "INTEGER"),
-                      ("diagnostico", "TEXT"), ("pref_sim", "TEXT"), ("pref_nao", "TEXT")):
+                      ("diagnostico", "TEXT"), ("pref_sim", "TEXT"), ("pref_nao", "TEXT"),
+                      ("cor", "TEXT"), ("consistencia", "TEXT"), ("via", "TEXT"),
+                      ("dm", "INTEGER DEFAULT 0"), ("has", "INTEGER DEFAULT 0"),
+                      ("laxativa", "INTEGER DEFAULT 0"), ("constipante", "INTEGER DEFAULT 0"),
+                      ("drc", "INTEGER DEFAULT 0"), ("suplementos_json", "TEXT")):
         if col not in cols("mapa_dia"):
             c.execute("ALTER TABLE mapa_dia ADD COLUMN %s %s" % (col, tipo))
+    # Metadados comerciais e snapshots de custo são aditivos: bancos antigos mantêm todo o histórico.
+    for col, tipo in (("preco_unitario", "REAL"), ("embalagem_qtd", "REAL"), ("embalagem_un", "TEXT")):
+        if col not in cols("itens"):
+            c.execute("ALTER TABLE itens ADD COLUMN %s %s" % (col, tipo))
+    for col in ("preco_unitario_snapshot", "custo_snapshot"):
+        if col not in cols("movimentos"):
+            c.execute("ALTER TABLE movimentos ADD COLUMN %s REAL" % col)
     if "id_setor" not in cols("correcoes"):
         c.execute("ALTER TABLE correcoes ADD COLUMN id_setor INTEGER")
     c.execute("UPDATE usuarios SET perfil='copa' WHERE perfil IN ('setor','estoque_copa')")
     c.executemany("INSERT OR IGNORE INTO refeicoes_cfg VALUES(?,?,?,?)", CFG_INICIAL)
+    for slug, titulo, texto, ordem in ORIENTACOES_INICIAIS:
+        c.execute("INSERT OR IGNORE INTO orientacoes(slug,titulo,texto,ordem,atualizado_em) VALUES(?,?,?,?,?)",
+                  (slug, titulo, texto, ordem, agora()))
+    for slug, titulo, texto, _ordem in ORIENTACOES_INICIAIS:
+        c.execute("UPDATE orientacoes SET titulo=?, texto=?, atualizado_em=? "
+                  "WHERE slug=? AND atualizado_por IS NULL",
+                  (titulo, texto, agora(), slug))
 
 
 def preparar_banco(db, redefinir=False):
@@ -230,7 +275,7 @@ def dia_alvo(u, pedido):
 
 # --------------------------------------------- mapa: normalização e gravação
 def norm(l):
-    """Padroniza uma linha do mapa. Leito sem nome = leito livre (limpa os demais campos)."""
+    """Normaliza o mapa da Copa e os detalhes estruturados da dieta e suplementação."""
     def t(k, n=120):
         return str(l.get(k) or "").strip()[:n]
 
@@ -245,11 +290,60 @@ def norm(l):
         if not 0 <= x <= mx:
             raise Erro("Idade fora do limite.")
         return x
-    n = {"nome": t("nome"), "idade_anos": i("idade_anos", 130), "idade_meses": i("idade_meses", 11), "dieta": t("dieta", 60),
-         "diagnostico": t("diagnostico", 200), "pref_sim": t("pref_sim", 200), "pref_nao": t("pref_nao", 200),
-         "acompanhante": int(bool(l.get("acompanhante")))}
+
+    def flag(k):
+        return int(bool(l.get(k)))
+
+    consistencias = ("Livre", "Branda", "Pastosa", "Líq/Past", "Líquida")
+    vias = ("Oral", "Enteral", "Zero")
+    cor = t("cor", 4)
+    if cor and cor not in ("B", "N"):
+        raise Erro("Cor inválida.")
+    consistencia = t("consistencia", 40)
+    via = t("via", 20)
+    if consistencia and consistencia not in consistencias:
+        raise Erro("Consistência inválida.")
+    if via and via not in vias:
+        raise Erro("Via de alimentação inválida.")
+
+    suplementos = l.get("suplementos") or []
+    if not isinstance(suplementos, list) or len(suplementos) > 20:
+        raise Erro("Lista de suplementos inválida.")
+    sup_norm = []
+    refeicoes_validas = set(REFEICOES)
+    for s in suplementos:
+        if not isinstance(s, dict):
+            raise Erro("Suplemento inválido.")
+        try:
+            sid = int(s.get("id_suplemento"))
+            ml = float(s.get("ml_oferta") or 0)
+            agua = float(s.get("agua_ml") or 0)
+        except (TypeError, ValueError):
+            raise Erro("Volume do suplemento inválido.")
+        if sid <= 0 or not 0 < ml <= 5000 or not 0 <= agua <= 5000:
+            raise Erro("Confira os volumes do suplemento e da água.")
+        refs = list(dict.fromkeys(str(x) for x in (s.get("refeicoes") or []) if str(x) in refeicoes_validas))
+        if not refs:
+            raise Erro("Selecione ao menos uma refeição para cada suplemento.")
+        sup_norm.append({
+            "id_suplemento": sid, "nome": str(s.get("nome") or "").strip()[:120],
+            "modulo": str(s.get("modulo") or "").strip()[:80],
+            "ml_oferta": ml, "agua_ml": agua, "refeicoes": refs,
+            "ofertas_dia": len(refs), "qtd_dia": ml * len(refs),
+            "batido_fruta": bool(s.get("batido_fruta")), "unidade": "ml"
+        })
+
+    n = {"nome": t("nome"), "idade_anos": i("idade_anos", 130), "idade_meses": i("idade_meses", 11),
+         "dieta": t("dieta", 60), "diagnostico": t("diagnostico", 200),
+         "pref_sim": t("pref_sim", 200), "pref_nao": t("pref_nao", 200),
+         "acompanhante": int(bool(l.get("acompanhante"))), "cor": cor,
+         "consistencia": consistencia, "via": via, "dm": flag("dm"), "has": flag("has"),
+         "laxativa": flag("laxativa"), "constipante": flag("constipante"), "drc": flag("drc"),
+         "suplementos": sup_norm, "suplementos_json": json.dumps(sup_norm, ensure_ascii=False)}
     if not n["nome"]:
-        n.update(idade_anos=None, idade_meses=None, dieta="", diagnostico="", pref_sim="", pref_nao="", acompanhante=0)
+        n.update(idade_anos=None, idade_meses=None, dieta="", diagnostico="", pref_sim="", pref_nao="",
+                 acompanhante=0, cor="", consistencia="", via="", dm=0, has=0, laxativa=0,
+                 constipante=0, drc=0, suplementos=[], suplementos_json="[]")
     n["ocupado"] = int(bool(n["nome"]))
     return n
 
@@ -257,7 +351,11 @@ def norm(l):
 def atual(c, tipo, data, chave):
     if tipo == "mapa":
         r = c.execute("SELECT ocupado,acompanhante,COALESCE(dieta,'') dieta,COALESCE(nome,'') nome,idade_anos,idade_meses,"
-                      "COALESCE(diagnostico,'') diagnostico,COALESCE(pref_sim,'') pref_sim,COALESCE(pref_nao,'') pref_nao,por_perfil "
+                      "COALESCE(diagnostico,'') diagnostico,COALESCE(pref_sim,'') pref_sim,COALESCE(pref_nao,'') pref_nao,"
+                      "COALESCE(cor,'') cor,COALESCE(consistencia,'') consistencia,COALESCE(via,'') via,"
+                      "COALESCE(dm,0) dm,COALESCE(has,0) has,COALESCE(laxativa,0) laxativa,"
+                      "COALESCE(constipante,0) constipante,COALESCE(drc,0) drc,"
+                      "COALESCE(suplementos_json,'[]') suplementos_json,por_perfil "
                       "FROM mapa_dia WHERE data=? AND id_leito=?", (data, int(chave)))
     elif tipo == "refeicao":
         sid, ref = chave.split("|")
@@ -273,13 +371,19 @@ def gravar(c, tipo, data, chave, v, uid, perfil):
     t = agora()
     if tipo == "mapa":
         c.execute("INSERT INTO mapa_dia(data,id_leito,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
-                  "por_usuario,por_perfil,atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
+                  "cor,consistencia,via,dm,has,laxativa,constipante,drc,suplementos_json,por_usuario,por_perfil,atualizado_em) "
+                  "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
                   "ocupado=excluded.ocupado,acompanhante=excluded.acompanhante,dieta=excluded.dieta,nome=excluded.nome,"
                   "idade_anos=excluded.idade_anos,idade_meses=excluded.idade_meses,diagnostico=excluded.diagnostico,"
-                  "pref_sim=excluded.pref_sim,pref_nao=excluded.pref_nao,por_usuario=excluded.por_usuario,"
-                  "por_perfil=excluded.por_perfil,atualizado_em=excluded.atualizado_em",
-                  (data, int(chave), v["ocupado"], v.get("acompanhante", 0), v.get("dieta", ""), v.get("nome", ""), v.get("idade_anos"),
-                   v.get("idade_meses"), v.get("diagnostico", ""), v.get("pref_sim", ""), v.get("pref_nao", ""), uid, perfil, t))
+                  "pref_sim=excluded.pref_sim,pref_nao=excluded.pref_nao,cor=excluded.cor,consistencia=excluded.consistencia,"
+                  "via=excluded.via,dm=excluded.dm,has=excluded.has,laxativa=excluded.laxativa,"
+                  "constipante=excluded.constipante,drc=excluded.drc,suplementos_json=excluded.suplementos_json,"
+                  "por_usuario=excluded.por_usuario,por_perfil=excluded.por_perfil,atualizado_em=excluded.atualizado_em",
+                  (data, int(chave), v["ocupado"], v.get("acompanhante", 0), v.get("dieta", ""), v.get("nome", ""),
+                   v.get("idade_anos"), v.get("idade_meses"), v.get("diagnostico", ""), v.get("pref_sim", ""),
+                   v.get("pref_nao", ""), v.get("cor", ""), v.get("consistencia", ""), v.get("via", ""),
+                   v.get("dm", 0), v.get("has", 0), v.get("laxativa", 0), v.get("constipante", 0), v.get("drc", 0),
+                   v.get("suplementos_json", "[]"), uid, perfil, t))
     else:
         tab, cols = ("refeicoes_dia", "id_setor,refeicao") if tipo == "refeicao" else ("estoque_dia", "estoque,id_item")
         a, b = chave.split("|")
@@ -316,15 +420,27 @@ def pendentes(c, tipo, data):
 def linhas_mapa(c, sid, d, rascunho=False):
     sql = ("SELECT l.id id_leito,l.codigo,COALESCE(h.ocupado,0) ocupado,COALESCE(h.acompanhante,0) acompanhante,COALESCE(h.dieta,'') dieta,"
            "COALESCE(h.nome,'') nome,h.idade_anos,h.idade_meses,COALESCE(h.diagnostico,'') diagnostico,COALESCE(h.pref_sim,'') pref_sim,"
-           "COALESCE(h.pref_nao,'') pref_nao,h.data data_base,h.por_perfil,h.atualizado_em FROM leitos l "
+           "COALESCE(h.pref_nao,'') pref_nao,COALESCE(h.cor,'') cor,COALESCE(h.consistencia,'') consistencia,COALESCE(h.via,'') via,COALESCE(h.dm,0) dm,COALESCE(h.has,0) has,COALESCE(h.laxativa,0) laxativa,COALESCE(h.constipante,0) constipante,COALESCE(h.drc,0) drc,COALESCE(h.suplementos_json,'[]') suplementos_json,h.data data_base,h.por_perfil,h.atualizado_em FROM leitos l "
            "LEFT JOIN mapa_dia h ON h.id_leito=l.id AND h.data=(SELECT MAX(data) FROM mapa_dia WHERE id_leito=l.id AND data<=?) "
            "WHERE l.id_setor=? ORDER BY l.codigo")
-    out = [{**dict(r), "herdado": r["data_base"] not in (None, d), "rascunho": False} for r in c.execute(sql, (d, sid))]
+    out = []
+    for r in c.execute(sql, (d, sid)):
+        item = dict(r)
+        try:
+            item["suplementos"] = json.loads(item.get("suplementos_json", "[]") or "[]")
+        except (TypeError, ValueError):
+            item["suplementos"] = []
+        item.update(herdado=item["data_base"] not in (None, d), rascunho=False)
+        out.append(item)
     if rascunho:  # visão da nutrição: o que está salvo + o que ainda não foi publicado para a copa
         rs = {r["id_leito"]: json.loads(r["campos"]) for r in c.execute("SELECT id_leito,campos FROM mapa_rascunho WHERE data=?", (d,))}
         for l in out:
             if l["id_leito"] in rs:
                 l.update(rs[l["id_leito"]])
+                try:
+                    l["suplementos"] = json.loads(l.get("suplementos_json") or "[]")
+                except (TypeError, ValueError):
+                    l["suplementos"] = []
                 l["rascunho"] = True
     return out
 
@@ -379,9 +495,10 @@ def post_mapa(c, u, s, d, linhas):
         if lid not in cods:
             raise Erro("Leito de outro setor.", 403)
         n = norm(l)
+        n.pop("suplementos", None)  # a forma persistida é o JSON; a leitura decodifica para a interface
         if not staff:
             res[salvar(c, u, "mapa", d, str(lid), "Leito %s (%s)" % (cods[lid], s["nome"]), n, s["id"])] += 1
-        elif all(vivo[lid][k] == v for k, v in n.items()):  # igual ao que a copa já vê: descarta rascunho antigo
+        elif all(vivo[lid].get(k) == v for k, v in n.items() if k != "suplementos_json") and vivo[lid].get("suplementos", []) == json.loads(n["suplementos_json"]):  # igual ao que a copa já vê: descarta rascunho antigo
             c.execute("DELETE FROM mapa_rascunho WHERE data=? AND id_leito=?", (d, lid))
             res["igual"] += 1
         else:
@@ -471,7 +588,8 @@ def mover(c, u, est, iid, qtd, d):
 
 def post_reposicao(c, u, est, b):
     iid, qtd, org, d = int(b["id_item"]), num(b["qtd"], "quantidade"), b.get("origem"), hoje()
-    if qtd <= 0 or not c.execute("SELECT 1 FROM itens WHERE id=?", (iid,)).fetchone():
+    item = c.execute("SELECT * FROM itens WHERE id=?", (iid,)).fetchone()
+    if qtd <= 0 or not item:
         raise Erro("Informe um item e uma quantidade maior que zero.")
     if org not in ORIGENS[est]:
         raise Erro("O estoque da %s só pode receber de: %s." % (est, ", ".join(ORIGENS[est])))
@@ -486,8 +604,12 @@ def post_reposicao(c, u, est, b):
         mover(c, u, org, iid, max(0.0, so - qtd), d)
     novo = saldo(c, est, iid, d) + qtd
     mover(c, u, est, iid, novo, d)
-    c.execute("INSERT INTO movimentos(data,hora,origem,destino,id_item,qtd,por_usuario,divergente) VALUES(?,?,?,?,?,?,?,?)",
-              (d, agora(), org, est, iid, qtd, u["id"], div))
+    preco = item["preco_unitario"]
+    custo = qtd * float(preco) if preco is not None else None
+    c.execute("""INSERT INTO movimentos
+        (data,hora,origem,destino,id_item,qtd,por_usuario,divergente,preco_unitario_snapshot,custo_snapshot)
+        VALUES(?,?,?,?,?,?,?,?,?,?)""",
+        (d, agora(), org, est, iid, qtd, u["id"], div, preco, custo))
     return {"ok": True, "saldo": novo, "divergente": bool(div)}
 
 
@@ -589,7 +711,8 @@ def criar_setor(c, b):
 def exportar(c, d):
     def t(sql, *a):
         return [dict(r) for r in c.execute(sql, a)]
-    return {"esquema": 2, "data": d, "gerado_em": agora(), "setores": t("SELECT * FROM setores"), "leitos": t("SELECT * FROM leitos"),
+    return {"esquema": 3, "data": d, "gerado_em": agora(), "setores": t("SELECT * FROM setores"), "leitos": t("SELECT * FROM leitos"),
+            "suplementos_catalogo": t("SELECT * FROM suplementos_catalogo WHERE ativo=1 ORDER BY nome"),
             "itens": t("SELECT * FROM itens"), "mapa": t("SELECT * FROM mapa_dia WHERE data=?", d),
             "mapa_rascunho": t("SELECT * FROM mapa_rascunho WHERE data=?", d),
             "refeicoes_cfg": t("SELECT * FROM refeicoes_cfg"), "janelas": t("SELECT * FROM janelas"),
@@ -608,7 +731,15 @@ def _rotear(c, ip, m, p, q, b, auth):
     if (m, p) == ("GET", "/api/eu"):
         return {"usuario": pub(u), "hoje": hoje()}
     if (m, p) == ("GET", "/api/itens"):
-        return {"itens": [dict(r) for r in c.execute("SELECT id,nome,unidade FROM itens ORDER BY nome")]}
+        return {"itens": [dict(r) for r in c.execute(
+            "SELECT id,nome,unidade,preco_unitario,embalagem_qtd,embalagem_un FROM itens ORDER BY nome")]}
+    if (m, p) == ("GET", "/api/orientacoes"):
+        return {"orientacoes": [dict(r) for r in c.execute(
+            "SELECT id,slug,titulo,texto,ordem,atualizado_em FROM orientacoes ORDER BY ordem,id")]}
+    if (m, p) == ("GET", "/api/suplementos"):
+        return {"suplementos": [dict(r) for r in c.execute(
+            "SELECT id_suplemento,nome,modulo,emb_qtd,emb_un,kcal_100,ptn_100,lip_100,carb_100,sod_100 "
+            "FROM suplementos_catalogo WHERE ativo=1 ORDER BY nome")]}
     if (m, p) == ("GET", "/api/setores"):
         todos = adm or (perfil == "nutricionista" and not u["id_setor"])
         sql = "SELECT s.id,s.nome,(SELECT COUNT(*) FROM leitos WHERE id_setor=s.id) leitos FROM setores s %s ORDER BY s.nome"
@@ -653,6 +784,24 @@ def _rotear(c, ip, m, p, q, b, auth):
     if p.startswith("/api/admin/"):
         if not adm:
             raise Erro("Somente o administrador.", 403)
+        if (m, p) == ("POST", "/api/admin/orientacoes"):
+            titulo = str(b.get("titulo", "")).strip()
+            texto = str(b.get("texto", "")).strip()
+            if not titulo or len(titulo) > 120:
+                raise Erro("Informe um título com até 120 caracteres.")
+            if not texto or len(texto) > 8000:
+                raise Erro("Informe o texto (máximo de 8.000 caracteres).")
+            if b.get("id") not in (None, ""):
+                cur = c.execute("UPDATE orientacoes SET titulo=?,texto=?,atualizado_por=?,atualizado_em=? WHERE id=?",
+                                (titulo, texto, u["id"], agora(), int(b["id"])))
+                if not cur.rowcount:
+                    raise Erro("Tópico não encontrado.", 404)
+            else:
+                ordem = c.execute("SELECT COALESCE(MAX(ordem),0)+10 FROM orientacoes").fetchone()[0]
+                slug = "extra-" + secrets.token_hex(8)
+                c.execute("INSERT INTO orientacoes(slug,titulo,texto,ordem,atualizado_por,atualizado_em) VALUES(?,?,?,?,?,?)",
+                          (slug, titulo, texto, ordem, u["id"], agora()))
+            return {"ok": True}
         if (m, p) == ("GET", "/api/admin/exportar"):
             return exportar(c, dia_alvo(u, q.get("data")))
         if (m, p) == ("GET", "/api/admin/refeicoes"):
@@ -680,11 +829,33 @@ def _rotear(c, ip, m, p, q, b, auth):
             return {"ok": True}
         if (m, p) == ("POST", "/api/admin/setores"):
             return criar_setor(c, b)
-        if (m, p) == ("POST", "/api/admin/itens"):
-            try:
-                c.execute("INSERT INTO itens(nome,unidade) VALUES(?,?)", (str(b.get("nome", "")).strip(), str(b.get("unidade", "un")).strip() or "un"))
-            except sqlite3.IntegrityError:
-                raise Erro("Esse item já existe.")
+        if (m == "POST" and p == "/api/admin/itens") or (m == "POST" and p.startswith("/api/admin/itens/")):
+            nome = str(b.get("nome", "")).strip()
+            unidade = str(b.get("unidade", "un")).strip() or "un"
+            preco = None if b.get("preco_unitario") in (None, "") else num(b.get("preco_unitario"), "preço unitário")
+            emb_qtd = None if b.get("embalagem_qtd") in (None, "") else num(b.get("embalagem_qtd"), "conteúdo da embalagem")
+            emb_un = str(b.get("embalagem_un") or "").strip().lower() or None
+            unidades = {"g", "kg", "mg", "ml", "l", "un"}
+            if emb_qtd is not None and emb_qtd <= 0:
+                raise Erro("O conteúdo da embalagem precisa ser maior que zero.")
+            if emb_qtd is not None and emb_un not in unidades:
+                raise Erro("Informe a unidade do conteúdo (g, kg, mg, ml, L ou un).")
+            if emb_qtd is None:
+                emb_un = None
+            if p == "/api/admin/itens":
+                if not nome:
+                    raise Erro("Informe o nome do item.")
+                try:
+                    cur = c.execute("INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un) VALUES(?,?,?,?,?)",
+                                    (nome, unidade, preco, emb_qtd, emb_un))
+                except sqlite3.IntegrityError:
+                    raise Erro("Esse item já existe.")
+                return {"ok": True, "id": cur.lastrowid}
+            iid = int(p.rsplit("/", 1)[1])
+            if not c.execute("SELECT 1 FROM itens WHERE id=?", (iid,)).fetchone():
+                raise Erro("Item não encontrado.", 404)
+            c.execute("UPDATE itens SET preco_unitario=?,embalagem_qtd=?,embalagem_un=? WHERE id=?",
+                      (preco, emb_qtd, emb_un, iid))
             return {"ok": True}
     raise Erro("Rota não encontrada.", 404)
 
@@ -724,7 +895,17 @@ class Manipulador(BaseHTTPRequestHandler):
             u = urlparse(self.path)
             q = {k: v[0] for k, v in parse_qs(u.query).items()}
             if m == "GET" and not u.path.startswith("/api/"):
-                return self._enviar(200, (AQUI / "static" / "index.html").read_bytes(), "text/html; charset=utf-8")
+                raiz = (AQUI / "static").resolve()
+                if u.path in ("/", "/index.html"):
+                    return self._enviar(200, (raiz / "index.html").read_bytes(), "text/html; charset=utf-8")
+                if u.path.startswith("/static/"):
+                    nome = unquote(u.path[len("/static/"):])
+                    arquivo = (raiz / nome).resolve()
+                    if raiz not in arquivo.parents or not arquivo.is_file():
+                        raise Erro("Arquivo estático não encontrado.", 404)
+                    tipo = mimetypes.guess_type(arquivo.name)[0] or "application/octet-stream"
+                    return self._enviar(200, arquivo.read_bytes(), tipo)
+                raise Erro("Página não encontrada.", 404)
             b = {}
             if m == "POST":
                 n = min(int(self.headers.get("Content-Length") or 0), 1_000_000)
