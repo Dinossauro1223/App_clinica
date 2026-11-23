@@ -42,7 +42,7 @@ class AlmoxUI:
         for w in self.conteudo.winfo_children():w.destroy()
         {"Resumo e custos":self._resumo,"Itens":self._itens_ui,"Movimentações":self._movimentos,"Programação":self._programacao}[p]()
     def _tree(self,parent,cols,widths=None,height=9):
-        box=ctk.CTkFrame(parent,fg_color="white");box.pack(fill="both",expand=True,pady=6)
+        box=ctk.CTkFrame(parent,fg_color=tema.BRANCO);box.pack(fill="both",expand=True,pady=6)
         t=ttk.Treeview(box,columns=cols,show="headings",height=height)
         for i,col in enumerate(cols):
             t.heading(col,text=col)
