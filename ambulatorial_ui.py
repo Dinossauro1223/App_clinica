@@ -3,6 +3,7 @@
 import os
 import sqlite3
 import subprocess
+from contextlib import closing
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
@@ -279,7 +280,7 @@ class DialogoAssociacoesExames(ctk.CTkFrame):
                      font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE).pack(side="left")
         ctk.CTkButton(cabecalho, text="Fechar guia", width=90,
                       command=self.destroy, fg_color=BOTAO, hover_color=HOVER).pack(side="right")
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             rows = conn.execute("SELECT id_exame, nome_amigavel FROM Exames_Catalogo ORDER BY nome_amigavel").fetchall()
         self.exames = {f"{nome} ({codigo})": codigo for codigo, nome in rows}
         if not self.exames:

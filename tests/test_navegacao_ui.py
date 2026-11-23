@@ -95,12 +95,14 @@ assert pilha.quantidade == 0
 import os
 import sqlite3
 import tempfile
+from contextlib import closing
 from ambulatorial_ui import DialogoAssociacoesExames
 fd, caminho_db = tempfile.mkstemp(suffix=".db")
 os.close(fd)
 try:
-    with sqlite3.connect(caminho_db) as conn:
+    with closing(sqlite3.connect(caminho_db)) as conn:
         conn.execute("CREATE TABLE Exames_Catalogo (id_exame TEXT, nome_amigavel TEXT)")
+        conn.commit()
     dialogo_exames = DialogoAssociacoesExames(app, caminho_db)
     assert pilha.quantidade == 1
     dialogo_exames.destroy()
