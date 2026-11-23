@@ -10,10 +10,15 @@ Um servidor pequeno (`mobile/servidor.py`, só biblioteca padrão do Python) que
 (`mobile/static/index.html`) aos celulares da mesma rede. A página muda de cor e de abas conforme o login. Não toca em `main.py`, `mapa_db.py`
 nem no `clinica.db`.
 
-Como rodar: dois cliques em `mobile/iniciar_servidor.bat` (ou `python mobile/servidor.py`). Na primeira vez mostra a senha do usuário `admin`
-(`--redefinir-admin` gera outra). No computador: `http://localhost:8765`; nos celulares: o endereço `http://IP:8765` mostrado na tela, no **mesmo
-Wi-Fi/rede** (liberar a porta 8765 no Firewall do Windows, rede privada). Qualquer IP que não seja de rede local é recusado. O banco fica em
-`mobile/dados/mobile.db` (não versionar: `*.db` está no `.gitignore`); bancos da primeira entrega são atualizados sozinhos na inicialização.
+No uso normal, o servidor é iniciado automaticamente em segundo plano quando o desktop NutriLab abre; não é necessário abrir o BAT manualmente.
+O painel **Mobile (copa)** mostra se o servidor está ativo e o endereço de rede para o celular. Se precisar iniciar separadamente, use
+`mobile/iniciar_servidor.bat` (ou `python mobile/servidor.py`). O endereço do computador é `http://localhost:8765`; nos celulares use
+`http://IP:8765`, na mesma rede/Wi-Fi (libere a porta 8765 no Firewall do Windows para a rede privada). Qualquer IP que não seja de rede local é recusado.
+
+A primeira conta é `admin`, com senha inicial `123456789`. Em bancos antigos, essa senha é aplicada uma única vez na atualização; depois que o
+administrador alterar a senha, a próxima inicialização não a sobrescreve. Altere a senha inicial após o primeiro acesso. O banco é compartilhado pelo
+servidor e pelo painel desktop: no desenvolvimento fica em `mobile/dados/mobile.db`; no executável instalado fica em
+`%LOCALAPPDATA%\NutriLab\mobile\mobile.db`. Não versionar bancos (`*.db` está no `.gitignore`).
 
 ## 2. Perfis e permissões
 
