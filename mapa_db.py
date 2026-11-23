@@ -51,7 +51,7 @@ SUPLEMENTOS_COMPLEMENTARES = [
     ("Ensure", "Fórmula completa"),
     ("Ensure Protein", "Fórmula completa"),
     ("Ensure Plus Advance", "Fórmula completa"),
-    ("Ensure Advance", "Fórmula completa"),
+    ("Ensure Advance HMB", "Fórmula completa"),
     ("Glucerna", "Fórmula para diabetes"),
     ("Glucerna SR", "Fórmula para diabetes"),
     ("Glucerna 1.5 kcal", "Fórmula para diabetes"),
