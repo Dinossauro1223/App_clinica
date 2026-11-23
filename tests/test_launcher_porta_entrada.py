@@ -68,7 +68,7 @@ class TestLauncherPortaDeEntrada(unittest.TestCase):
         texto = (self.launcher + "\n" + self.atualizador).lower()
         self.assertIn("pyinstaller", texto)
         self.assertRegex(texto, r"gerar_e_abrir_nutrilab\.bat")
-        self.assertRegex(texto, r"start .*nutrilab|start.*executavel")
+        self.assertRegex(texto, r"start(?:-process)? .*nutrilab|start.*executavel")
 
     def test_atualizacao_nao_executa_codigo_remoto_sem_validacao(self):
         texto = (self.launcher + "\n" + self.atualizador).lower()
