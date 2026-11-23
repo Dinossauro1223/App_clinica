@@ -298,6 +298,29 @@ class TestBanco(unittest.TestCase):
         outro = mdb.salvar_suplemento(self.db, dict(nome="Z"))
         self.assertTrue(mdb.remover_suplemento(self.db, outro))
 
+    def test_snapshot_da_ficha_nao_muda_quando_catalogo_e_atualizado(self):
+        sid = mdb.salvar_suplemento(self.db, dict(
+            nome="Fórmula snapshot", modulo="Fórmula completa", emb_un="g",
+            kcal_100=350, ptn_100=20, lip_100=10, carb_100=45, sod_100=120,
+            observacao="Ficha técnica versão A"))
+        reg = registro_base(
+            self.db, self.leitos[0]["id_leito"], "2026-10-25",
+            suplementos=[dict(id_suplemento=sid, nome="Fórmula snapshot", modulo="Fórmula completa",
+                              qtd_dia=50, unidade="g")])
+        mdb.salvar_registro(self.db, reg)
+        antes = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["suplementos"][0]
+        self.assertEqual((antes["kcal_100"], antes["ptn_100"], antes["ficha_observacao"]),
+                         (350.0, 20.0, "Ficha técnica versão A"))
+        self.assertTrue(antes["ficha_snapshot_em"])
+
+        mdb.salvar_suplemento(self.db, dict(
+            id_suplemento=sid, nome="Fórmula snapshot", modulo="Fórmula completa", emb_un="g",
+            kcal_100=200, ptn_100=5, lip_100=3, carb_100=30, sod_100=80,
+            observacao="Ficha técnica versão B"))
+        depois = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["suplementos"][0]
+        self.assertEqual((depois["kcal_100"], depois["ptn_100"], depois["ficha_observacao"]),
+                         (350.0, 20.0, "Ficha técnica versão A"))
+
     def test_config(self):
         self.assertEqual(mdb.obter_config(self.db, "criterio", "lipschitz"), "lipschitz")
         mdb.salvar_config(self.db, "criterio", "opas")
