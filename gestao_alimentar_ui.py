@@ -550,8 +550,8 @@ class FichaDialog:
         self.tela, self.ao_salvar, self.ficha = tela, ao_salvar, ficha
         self.janela = ctk.CTkToplevel(tela.app)
         self.janela.title("Editar ficha técnica" if ficha else "Nova ficha técnica")
-        self.janela.geometry("1160x720")
-        self.janela.minsize(980, 620)
+        self.janela.geometry("1320x720")
+        self.janela.minsize(1080, 620)
         self.janela.transient(tela.app)
         self.janela.grab_set()
         self.rows = []
@@ -587,8 +587,10 @@ class FichaDialog:
         barra.pack(fill="x", padx=16, pady=(4, 2))
         ctk.CTkLabel(barra, text="Ingredientes", font=ctk.CTkFont(size=15, weight="bold"), text_color=VERDE_ESC).pack(side="left")
         _btn(barra, "＋ Adicionar ingrediente", self.adicionar_linha, 175).pack(side="right")
-        ctk.CTkLabel(area, text="Ingrediente: pode selecionar diretamente um alimento importado da TBCA. O vínculo com o Almoxarifado é opcional e associa o ingrediente ao item do estoque.",
-                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1100).pack(anchor="w", padx=17, pady=(0, 2))
+        ctk.CTkLabel(area, text="Selecione o alimento da TBCA para preencher nome e referência nutricional. O vínculo com o Almoxarifado é separado e opcional: associa o ingrediente ao item do estoque e usa seu preço/estoque sincronizados.",
+                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1250).pack(anchor="w", padx=17, pady=(0, 2))
+        ctk.CTkLabel(area, text="Preço manual: R$ por unidade da medida escolhida (g, kg, ml, L ou un). Quando preenchido, prevalece sobre o preço do Almoxarifado.",
+                     text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1250).pack(anchor="w", padx=17, pady=(0, 2))
         ctk.CTkLabel(area, text="Campos por ingrediente: nome · quantidade per capita · unidade · fator de correção · alimento TBCA · medida caseira · NPU · densidade · vínculo Almoxarifado.",
                      text_color="#546e7a", font=ctk.CTkFont(size=10), wraplength=1100).pack(anchor="w", padx=17, pady=(0, 2))
         self.scroll = ctk.CTkScrollableFrame(area, fg_color="#f4f7f5")
@@ -644,11 +646,14 @@ class FichaDialog:
         produto = ctk.CTkComboBox(linha, width=225, values=opcoes)
         produto.set(opcoes[0])
         produto.pack(side="left", padx=2, pady=6)
+        preco = ctk.CTkEntry(linha, width=90, placeholder_text="R$/unid.")
+        preco.pack(side="left", padx=2, pady=6)
         remover = ctk.CTkButton(linha, text="×", width=28, height=28, fg_color="#b71c1c", hover_color="#8e0000",
                                 command=lambda: self._remover_linha(registro))
         remover.pack(side="left", padx=4)
         registro = {"frame": linha, "nome": nome, "qtd": qtd, "unidade": unidade, "fc": fc,
-                    "medida": medida, "tbca": tbca, "npu": npu, "dens": dens, "produto": produto}
+                    "medida": medida, "tbca": tbca, "npu": npu, "dens": dens,
+                    "produto": produto, "preco": preco}
         self.rows.append(registro)
         if item:
             nome.insert(0, item.get("nome") or "")
@@ -668,6 +673,7 @@ class FichaDialog:
                 tbca.set("— selecionar alimento da TBCA —")
             npu.insert(0, str(item.get("npu") if item.get("npu") is not None else ""))
             dens.insert(0, str(item.get("densidade_g_ml") or ""))
+            preco.insert(0, str(item.get("preco_unitario_manual") or ""))
             if item.get("id_produto_mobile") is not None:
                 for op in opcoes[1:]:
                     if op.startswith(str(item["id_produto_mobile"]) + " |"):
@@ -717,6 +723,7 @@ class FichaDialog:
                 ),
                 "npu": linha["npu"].get().strip() or None,
                 "densidade_g_ml": linha["dens"].get().strip() or None,
+                "preco_unitario_manual": linha["preco"].get().strip() or None,
                 "id_produto_mobile": id_produto,
             })
         try:
