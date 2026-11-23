@@ -258,10 +258,14 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
 class DialogoAssociacoesExames(ctk.CTkFrame):
     """Gerencia exames complementares em uma guia lateral, sem abrir Toplevel."""
     def __init__(self, master, db_path):
-        self.app = master
-        self._painel_externo = bool(master and hasattr(master, "abrir_painel_lateral"))
+        try:
+            app = master.winfo_toplevel()
+        except Exception:
+            app = master
+        self.app = app
+        self._painel_externo = bool(app and hasattr(app, "abrir_painel_lateral"))
         if self._painel_externo:
-            self._painel_frame = master.abrir_painel_lateral("Associações de exames", lambda: None)
+            self._painel_frame = app.abrir_painel_lateral("Associações de exames", lambda: None)
             pai = self._painel_frame
         else:
             self._painel_frame = None
