@@ -197,6 +197,12 @@ def inicializar(db_path):
         if c.execute("SELECT COUNT(*) FROM Mapa_Modulos").fetchone()[0] == 0:
             for i, nome in enumerate(MODULOS_PADRAO):
                 c.execute("INSERT INTO Mapa_Modulos (nome, ordem) VALUES (?, ?)", (nome, i))
+        else:
+            # Evoluções do catálogo adicionam módulos sem apagar nem reordenar os existentes.
+            for nome in MODULOS_PADRAO:
+                if not c.execute("SELECT 1 FROM Mapa_Modulos WHERE nome=?", (nome,)).fetchone():
+                    ordem = c.execute("SELECT COALESCE(MAX(ordem), -1) + 1 FROM Mapa_Modulos").fetchone()[0]
+                    c.execute("INSERT INTO Mapa_Modulos (nome, ordem) VALUES (?, ?)", (nome, ordem))
         ja = c.execute("SELECT valor FROM Mapa_Config WHERE chave='seed_suplementos'").fetchone()
         if not ja:
             if c.execute("SELECT COUNT(*) FROM Mapa_Suplementos").fetchone()[0] == 0:
