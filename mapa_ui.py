@@ -1503,8 +1503,12 @@ class FormRegistro(_Janela):
         if txt and qtd is None:
             messagebox.showwarning("Suplementos", "Quantidade inválida.", parent=self)
             return
-        self._suplementos.append({"id_suplemento": s["id_suplemento"], "nome": s["nome"], "modulo": s["modulo"],
-                                  "qtd_dia": qtd, "unidade": s["emb_un"]})
+        self._suplementos.append({
+            "id_suplemento": s["id_suplemento"], "nome": s["nome"], "modulo": s["modulo"],
+            "qtd_dia": qtd, "unidade": s["emb_un"],
+            **{campo: s.get(campo) for campo in ("kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100")},
+            "ficha_observacao": s.get("observacao"),
+        })
         _set_entry(self.e_qtd, "")
         self._atualizar_sup()
         self._recalcular_oferta()
