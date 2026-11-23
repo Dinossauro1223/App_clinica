@@ -324,6 +324,20 @@ class TestBanco(unittest.TestCase):
         finally:
             os.remove(legado)
 
+    def test_migracao_corrige_ficha_nutrison_antiga_conhecida(self):
+        item = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Nutrison Energy 1.5")
+        mdb.salvar_suplemento(self.db, dict(
+            id_suplemento=item["id_suplemento"], nome=item["nome"], modulo="Fórmula enteral",
+            emb_un="ml", kcal_100=151, ptn_100=6, lip_100=5.6, carb_100=19, sod_100=128,
+            observacao="Fonte antiga"))
+        with conexao(self.db) as c:
+            c.execute("DELETE FROM Mapa_Config WHERE chave='seed_suplementos_catalogo_v3'")
+        mdb.inicializar(self.db)
+        atualizado = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Nutrison Energy 1.5")
+        self.assertEqual((atualizado["kcal_100"], atualizado["ptn_100"], atualizado["lip_100"],
+                          atualizado["carb_100"], atualizado["sod_100"]), (149.0, 6.0, 5.8, 18.0, 134.0))
+        self.assertIn("danonenutricia.com.br", atualizado["observacao"])
+
     def test_snapshot_da_ficha_nao_muda_quando_catalogo_e_atualizado(self):
         sid = mdb.salvar_suplemento(self.db, dict(
             nome="Fórmula snapshot", modulo="Fórmula completa", emb_un="g",
