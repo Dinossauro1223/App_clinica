@@ -50,6 +50,20 @@ class TestCalculoOfertaSuplementos(unittest.TestCase):
         self.assertEqual(r["percentual_meta_proteina"], 19.22)
         self.assertTrue(r["completo"])
 
+    def test_formulas_com_indicacao_oral_e_enteral(self):
+        r = sc.calcular_oferta([
+            {"nome": "Nutri R 2.0", "qtd_dia": 100, "unidade": "ml",
+             "kcal_100": 200, "ptn_100": 3.3, "lip_100": 6.7, "carb_100": 32, "sod_100": 131},
+            {"nome": "Nutri Enteral Soya", "qtd_dia": 100, "unidade": "ml",
+             "kcal_100": 120, "ptn_100": 4.4, "lip_100": 4, "carb_100": 17, "sod_100": 55},
+        ], peso_kg=60, meta_kcal=1800, meta_proteina_g=90)
+        self.assertEqual(r["totais"], {
+            "kcal_100": 320, "ptn_100": 7.7, "lip_100": 10.7, "carb_100": 49, "sod_100": 186
+        })
+        self.assertEqual(r["percentual_meta_kcal"], 17.78)
+        self.assertEqual(r["percentual_meta_proteina"], 8.56)
+        self.assertTrue(r["completo"])
+
     def test_modulo_em_gramas_e_soma_de_itens(self):
         r = sc.calcular_oferta([
             {"nome": "Fórmula", "qtd_dia": 200, "unidade": "ml", "kcal_100": 100, "ptn_100": 4,
