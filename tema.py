@@ -14,18 +14,27 @@ from tkinter import ttk
 
 import customtkinter as ctk
 
-BRANCO = "#FFFFFF"
-FUNDO = "#F3F8F5"
-BORDA = "#D6E6DC"
-VERDE_ESC = "#0F3D2E"
-VERDE = "#1E7A4F"
-VERDE_HOVER = "#17633F"
-VERDE_CLARO = "#E3F3EA"
-LARANJA = "#F08A24"
-LARANJA_CLARO = "#FFF1E0"
-LARANJA_TEXTO = "#9A4F00"
-TEXTO = "#1B2B24"
-SUAVE = "#5F7368"
+# Pares (claro, escuro): o CustomTkinter seleciona a cor conforme o modo ativo.
+BRANCO = ("#FFFFFF", "#202A24")
+FUNDO = ("#F3F8F5", "#141C18")
+BORDA = ("#D6E6DC", "#3A5145")
+VERDE_ESC = ("#0F3D2E", "#0A251C")
+VERDE = ("#1E7A4F", "#37A66F")
+VERDE_HOVER = ("#17633F", "#2D8A5B")
+VERDE_CLARO = ("#E3F3EA", "#294235")
+LARANJA = ("#F08A24", "#F6A04D")
+LARANJA_CLARO = ("#FFF1E0", "#3B2D1E")
+LARANJA_TEXTO = ("#9A4F00", "#F6BD79")
+TEXTO = ("#1B2B24", "#E5EEE8")
+SUAVE = ("#5F7368", "#A9B9AF")
+
+
+def cor_atual(paleta, modo=None):
+    """Resolve uma cor (claro, escuro) para APIs Tk/ttk que não aceitam tuplas."""
+    modo = (modo or ctk.get_appearance_mode()).lower()
+    if isinstance(paleta, (tuple, list)) and len(paleta) == 2:
+        return paleta[1] if modo == "dark" else paleta[0]
+    return paleta
 
 def fonte(tamanho: int = 13, peso: str = "normal") -> ctk.CTkFont:
     """Retorna fonte padrão da interface."""
@@ -40,19 +49,33 @@ def data_valida(texto: str) -> bool:
         return False
 
 def aplicar_tema_ttk(root: tk.Misc) -> None:
-    """Aplica estilos ttk neutros e coerentes com o tema verde/branco."""
+    """Aplica a paleta do modo atual também às tabelas e widgets ttk."""
     style = ttk.Style(root)
     try:
         style.theme_use("clam")
     except tk.TclError:
         pass
-    style.configure("NutriLab.TFrame", background=FUNDO)
-    style.configure("NutriLab.TLabel", background=FUNDO, foreground=TEXTO)
+    fundo, branco = cor_atual(FUNDO), cor_atual(BRANCO)
+    borda, texto, suave = cor_atual(BORDA), cor_atual(TEXTO), cor_atual(SUAVE)
+    selecionado, texto_sel = cor_atual(VERDE_CLARO), cor_atual(VERDE_ESC)
+    style.configure("NutriLab.TFrame", background=fundo)
+    style.configure("NutriLab.TLabel", background=fundo, foreground=texto)
     style.configure("NutriLab.TButton", padding=(10, 6))
-    style.configure("NutriLab.Treeview", rowheight=28, background=BRANCO,
-                   fieldbackground=BRANCO, foreground=TEXTO)
-    style.map("NutriLab.Treeview", background=[("selected", VERDE_CLARO)],
-              foreground=[("selected", VERDE_ESC)])
+    for nome in ("Treeview", "NutriLab.Treeview"):
+        style.configure(nome, rowheight=30, background=branco, fieldbackground=branco,
+                        foreground=texto, bordercolor=borda, lightcolor=borda, darkcolor=borda,
+                        borderwidth=1, relief="solid")
+        style.map(nome, background=[("selected", selecionado)],
+                  foreground=[("selected", texto_sel)])
+    style.configure("Treeview.Heading", background=fundo, foreground=texto,
+                    relief="solid", bordercolor=borda)
+    style.map("Treeview.Heading", background=[("active", selecionado)],
+              foreground=[("active", texto)])
+    style.configure("TEntry", fieldbackground=branco, foreground=texto)
+    style.configure("TCombobox", fieldbackground=branco, foreground=texto,
+                    background=fundo, arrowcolor=texto)
+    style.map("TCombobox", fieldbackground=[("readonly", branco)],
+              foreground=[("readonly", texto)])
 
 def configurar_ctk() -> None:
     """Configura tema verde e recupera preferência de aparência do usuário."""
