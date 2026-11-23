@@ -165,8 +165,15 @@ class TestBanco(unittest.TestCase):
 
     def test_seed_e_idempotencia(self):
         mdb.inicializar(self.db)  # chamar de novo não duplica
-        self.assertEqual(len(mdb.listar_suplementos(self.db)), 6)
+        self.assertEqual(len(mdb.listar_suplementos(self.db)),
+                         len(mdb.SUPLEMENTOS_INICIAIS) + len(mdb.SUPLEMENTOS_COMPLEMENTARES))
         self.assertEqual(len(mdb.listar_modulos(self.db)), len(mdb.MODULOS_PADRAO))
+        candidatos = {s["nome"]: s for s in mdb.listar_suplementos(self.db)}
+        self.assertIn("Ensure Plus Advance", candidatos)
+        self.assertIn("Glucerna 1.5 kcal", candidatos)
+        # O seed não inventa composição: fichas específicas precisam ser cadastradas.
+        self.assertIsNone(candidatos["Ensure Plus Advance"]["kcal_100"])
+        self.assertIn("abbottbrasil.com.br", candidatos["Ensure Plus Advance"]["observacao"])
         nomes = {s["nome"]: s["modulo"] for s in mdb.listar_suplementos(self.db)}
         self.assertEqual(nomes["Simbioflora"], "Módulo probiótico/simbiótico")
         self.assertEqual(nomes["Glutamina"], "Módulo de aminoácidos")
@@ -209,6 +216,28 @@ class TestBanco(unittest.TestCase):
         reg["peso_kg"] = 58.0
         mdb.salvar_registro(self.db, reg, criterio_idoso="opas")
         self.assertEqual(mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["imc_class"], "Eutrofia")
+
+    def test_metas_sao_persistidas_e_enteral_nao_e_suplementacao_oral(self):
+        sup = next(s for s in mdb.listar_suplementos(self.db) if s["modulo"] == "Fórmula completa")
+        reg = registro_base(
+            self.db, self.leitos[0]["id_leito"], "2026-10-25", via="Enteral",
+            meta_kcal=1800.0, meta_proteina_g=90.0,
+            suplementos=[dict(id_suplemento=sup["id_suplemento"], nome=sup["nome"],
+                              modulo=sup["modulo"], qtd_dia=500.0, unidade="ml")])
+        mdb.salvar_registro(self.db, reg)
+        salvo = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])
+        self.assertEqual(salvo["via"], "Enteral")
+        self.assertEqual((salvo["meta_kcal"], salvo["meta_proteina_g"]), (1800.0, 90.0))
+        # A separação visual/operacional deriva da via; a fórmula permanece como dieta enteral.
+        self.assertEqual("Dieta enteral" if salvo["via"] == "Enteral" else "Suplementação oral",
+                         "Dieta enteral")
+
+    def test_meta_zero_ou_negativa_e_rejeitada(self):
+        for campo in ("meta_kcal", "meta_proteina_g"):
+            for valor in (0, -1):
+                with self.assertRaises(ValueError):
+                    mdb.salvar_registro(self.db, registro_base(
+                        self.db, self.leitos[0]["id_leito"], "2026-10-25", **{campo: valor}))
 
     def test_validacao(self):
         for extra in ({"nome_paciente": " "}, {"peso_kg": 900}, {"aj_cm": 5}, {"via": "Parenteral"},
