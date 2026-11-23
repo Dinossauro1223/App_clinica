@@ -173,9 +173,9 @@ Essas grafias foram mantidas como aparecem nas planilhas. Não unificar variante
 
 ### 3.5 Como o uso do suplemento é salvo atualmente
 
-`Mapa_Registro_Suplementos` grava `id_registro`, `id_suplemento`, nome, módulo, quantidade diária e unidade. O nome e módulo são copiados para preservar parte do histórico quando o catálogo muda.
+`Mapa_Registro_Suplementos` grava `id_registro`, `id_suplemento`, nome, módulo, quantidade diária e unidade, além de um snapshot dos valores por 100 mL/g (kcal, proteína, lipídios, carboidratos e sódio), observação da ficha e data do snapshot. Assim, atualizar o cadastro do produto não altera o cálculo dos registros novos já salvos.
 
-Ainda falta um snapshot da composição nutricional, da apresentação/embalagem e da versão da ficha técnica utilizada no cálculo. Sem esse snapshot, não é seguro recalcular a contribuição histórica com a ficha atualizada. A Fase 5 deve resolver isso.
+Registros antigos, criados antes da migração, ficam com os campos de snapshot vazios; o programa não deve preencher retroativamente esses valores com a ficha atual, pois isso poderia alterar o histórico sem evidência. A apresentação/embalagem e preço ainda precisam de snapshot próprio na evolução de custos.
 
 ### 3.6 Cálculo de aporte e metas
 
