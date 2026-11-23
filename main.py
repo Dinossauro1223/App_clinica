@@ -363,6 +363,8 @@ class AppClinica(ctk.CTk):
     def fechar_painel_lateral(self, frame):
         """Fecha uma guia específica e restaura a página que ficou ativa."""
         self.area_principal = self._pilha_abas_laterais.fechar(frame)
+        if self._pilha_abas_laterais.quantidade == 0:
+            self.tela_inicial()
         return self.area_principal
 
     def _fechar_ultima_aba_lateral(self, event=None):
@@ -378,6 +380,8 @@ class AppClinica(ctk.CTk):
         if self._pilha_abas_laterais.quantidade == 0:
             return None
         self.area_principal = self._pilha_abas_laterais.fechar_ultima()
+        if self._pilha_abas_laterais.quantidade == 0:
+            self.tela_inicial()
         return "break"
 
     def configurar_banco_dados(self):
