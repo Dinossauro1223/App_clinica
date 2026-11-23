@@ -143,15 +143,16 @@ A tabela `Mapa_Suplementos` e o formulário `DialogSuplemento` já preveem:
 
 1. Fórmula completa
 2. Fórmula para diabetes
-3. Módulo de proteínas
-4. Módulo de aminoácidos
-5. Módulo de carboidratos
-6. Módulo de lipídeos
-7. Módulo de fibras
-8. Módulo probiótico/simbiótico
-9. Módulo de vitaminas e minerais
-10. Espessante
-11. Outro
+3. Fórmula enteral
+4. Módulo de proteínas
+5. Módulo de aminoácidos
+6. Módulo de carboidratos
+7. Módulo de lipídeos
+8. Módulo de fibras
+9. Módulo probiótico/simbiótico
+10. Módulo de vitaminas e minerais
+11. Espessante
+12. Outro
 
 Os módulos são editáveis/ampliáveis por `garantir_modulo()`. A classificação deve ser feita pela finalidade e composição declaradas na ficha técnica, não apenas pelo nome comercial.
 
