@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 460"><defs><linearGradient id="d" x2="1" y2="1"><stop stop-color="#8BD7C1"/><stop offset="1" stop-color="#12A7C5"/></linearGradient></defs><g id="dna" fill="none" stroke="url(#d)" stroke-width="18" stroke-linecap="round"><path d="M55 20C210 90 30 155 185 225C30 295 210 360 55 440"/><path d="M185 20C30 90 210 155 55 225C210 295 30 360 185 440"/><path d="M75 75H165M60 145H180M60 225H180M60 305H180M75 385H165" stroke-width="13"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 460">
+<defs><linearGradient id="d" x2="1" y2="1"><stop stop-color="#8BD7C1"/><stop offset="1" stop-color="#12A7C5"/></linearGradient></defs>
+<g id="dna" fill="none" stroke="url(#d)" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
+<path d="M48 18 C214 82 26 145 192 220 C26 295 214 360 48 442"/>
+<path d="M192 18 C26 82 214 145 48 220 C214 295 26 360 192 442"/>
+<g stroke-width="12">
+<path d="M82 48 L158 48 M49 132 L191 132 M48 220 L192 220 M49 308 L191 308 M82 392 L158 392"/>
+</g></g></svg>
