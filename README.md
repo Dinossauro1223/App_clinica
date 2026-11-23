@@ -108,9 +108,9 @@ python -m unittest tests.test_condutas_alta_catalogo -v
 
 ### 3.1 Itens semeados no código
 
-`mapa_db.py` contém seis itens legados em `SUPLEMENTOS_INICIAIS` e duas cargas aditivas/versionadas: oito candidatos identificados no catálogo oficial Abbott Brasil (Ensure, Ensure Protein, Ensure Plus Advance, Ensure Advance HMB, Glucerna, Glucerna SR, Glucerna 1.5 kcal e PediaSure Complete) e sete fórmulas identificadas pela Danone Nutricia como enterais/de administração por sonda (Nutrison Energy 1.5, Nutrison Energy MF 1.5, Nutrison Protein Plus Energy, Nutrison advanced Diason, Nutrison advanced Cubison, Nutrison Protein Plus Multi Fiber e Nutrison Soya 800G).
+`mapa_db.py` contém seis itens legados em `SUPLEMENTOS_INICIAIS` e três cargas aditivas/versionadas: oito candidatos identificados no catálogo oficial Abbott Brasil (Ensure, Ensure Protein, Ensure Plus Advance, Ensure Advance HMB, Glucerna, Glucerna SR, Glucerna 1.5 kcal e PediaSure Complete) sete fórmulas Danone Nutricia indicadas para sonda (Nutrison Energy 1.5, Nutrison Energy MF 1.5, Nutrison Protein Plus Energy, Nutrison advanced Diason, Nutrison advanced Cubison, Nutrison Protein Plus Multi Fiber e Nutrison Soya 800G) e quatro produtos Danone Nutricia com indicação oral e enteral (Nutri R 2.0, Nutri Enteral Soya, NUTRI FIBER 1.5 e NUTRI HWHEY X).
 
-O catálogo separa o módulo `Fórmula enteral` dos produtos orais e para diabetes. Quatro fórmulas (Nutrison Energy 1.5, Nutrison Protein Plus Energy, Nutrison advanced Diason e Nutrison advanced Cubison) têm kcal, proteína, lipídios, carboidratos e sódio por 100 mL transcritos das respectivas fichas oficiais; os demais candidatos são inseridos sem composição, volume ou preço. A observação registra a fonte e a pendência da ficha específica. A carga é idempotente e não sobrescreve produtos existentes.
+O catálogo separa `Fórmula enteral` (somente sonda) de `Fórmula enteral e oral` e `Módulo oral/enteral` (disponíveis nas duas vias). Glucerna, Glucerna SR e Glucerna 1.5 kcal também são classificados para as duas vias. Quatro fórmulas exclusivas de sonda (Nutrison Energy 1.5, Nutrison Protein Plus Energy, Nutrison advanced Diason e Nutrison advanced Cubison) e duas fórmulas de dupla via (Nutri R 2.0 e Nutri Enteral Soya) têm kcal, proteína, lipídios, carboidratos e sódio por 100 mL transcritos das respectivas fichas oficiais; os demais candidatos são inseridos sem composição, volume ou preço. A observação registra a fonte e a pendência da ficha específica. A carga é idempotente e não sobrescreve produtos existentes.
 
 | Nome no código | Módulo inicial sugerido | Situação da classificação |
 |---|---|---|
@@ -135,7 +135,7 @@ A tabela `Mapa_Suplementos` e o formulário `DialogSuplemento` já preveem:
 - Lipídios (`lip_100`), carboidratos (`carb_100`) e sódio (`sod_100`) por 100 mL/g.
 - Observação e estado ativo/inativo.
 
-**Os seis itens legados e os oito candidatos Abbott são criados sem preços, volumes de embalagem ou valores nutricionais.** Entre as sete fórmulas enterais adicionais, quatro têm composição por 100 mL transcrita das fichas oficiais; as outras três permanecem sem valores nutricionais e sem dados de embalagem/preço. Não há base para afirmar que as demais fichas estejam preenchidas ou validadas. Os valores devem ser transcritos da ficha/rótulo da apresentação efetivamente usada, sem copiar dados de variantes semelhantes.
+**Os seis itens legados e os oito candidatos Abbott são criados sem preços, volumes de embalagem ou valores nutricionais.** Entre as sete fórmulas exclusivas de sonda, quatro têm composição por 100 mL transcrita das fichas oficiais; entre os quatro produtos de dupla via, dois têm composição por 100 mL. Os demais candidatos permanecem sem valores nutricionais e sem dados de embalagem/preço. Não há base para afirmar que as demais fichas estejam preenchidas ou validadas. Os valores devem ser transcritos da ficha/rótulo da apresentação efetivamente usada, sem copiar dados de variantes semelhantes.
 
 ### 3.3 Módulos disponíveis no código
 
@@ -144,15 +144,17 @@ A tabela `Mapa_Suplementos` e o formulário `DialogSuplemento` já preveem:
 1. Fórmula completa
 2. Fórmula para diabetes
 3. Fórmula enteral
-4. Módulo de proteínas
-5. Módulo de aminoácidos
-6. Módulo de carboidratos
-7. Módulo de lipídeos
-8. Módulo de fibras
-9. Módulo probiótico/simbiótico
-10. Módulo de vitaminas e minerais
-11. Espessante
-12. Outro
+4. Fórmula enteral e oral
+5. Módulo oral/enteral
+6. Módulo de proteínas
+7. Módulo de aminoácidos
+8. Módulo de carboidratos
+9. Módulo de lipídeos
+10. Módulo de fibras
+11. Módulo probiótico/simbiótico
+12. Módulo de vitaminas e minerais
+13. Espessante
+14. Outro
 
 Os módulos são editáveis/ampliáveis por `garantir_modulo()`. A classificação deve ser feita pela finalidade e composição declaradas na ficha técnica, não apenas pelo nome comercial.
 
