@@ -106,9 +106,11 @@ python -m unittest tests.test_condutas_alta_catalogo -v
 
 ## 3. Catálogo de suplementos: dados existentes e lacunas
 
-### 3.1 Seis itens semeados no código
+### 3.1 Itens semeados no código
 
-`mapa_db.py` contém a lista `SUPLEMENTOS_INICIAIS`. Quando o catálogo está vazio e a inicialização é executada, são inseridos os itens abaixo:
+`mapa_db.py` contém seis itens legados em `SUPLEMENTOS_INICIAIS` e uma segunda carga aditiva/versionada em `SUPLEMENTOS_COMPLEMENTARES`. Esta segunda carga inclui candidatos identificados no catálogo oficial Abbott Brasil: Ensure, Ensure Protein, Ensure Plus Advance, Ensure Advance, Glucerna, Glucerna SR, Glucerna 1.5 kcal e PediaSure Complete.
+
+Os candidatos novos são inseridos sem composição nutricional, volume ou preço. A observação do cadastro registra a fonte e informa que a ficha da apresentação precisa ser preenchida antes do cálculo. A carga é idempotente e não sobrescreve produtos existentes.
 
 | Nome no código | Módulo inicial sugerido | Situação da classificação |
 |---|---|---|
@@ -133,7 +135,7 @@ A tabela `Mapa_Suplementos` e o formulário `DialogSuplemento` já preveem:
 - Lipídios (`lip_100`), carboidratos (`carb_100`) e sódio (`sod_100`) por 100 mL/g.
 - Observação e estado ativo/inativo.
 
-**No pacote analisado, esses campos existem no modelo, mas os seis itens iniciais são criados sem preços, volumes de embalagem ou valores nutricionais.** Não há base para afirmar que a ficha técnica esteja preenchida ou validada.
+**Os seis itens legados e os oito candidatos adicionais são criados sem preços, volumes de embalagem ou valores nutricionais.** Não há base para afirmar que a ficha técnica esteja preenchida ou validada. Os valores devem ser transcritos da ficha/rótulo da apresentação efetivamente usada, sem copiar dados de variantes semelhantes.
 
 ### 3.3 Módulos disponíveis no código
 
@@ -174,7 +176,13 @@ Essas grafias foram mantidas como aparecem nas planilhas. Não unificar variante
 
 Ainda falta um snapshot da composição nutricional, da apresentação/embalagem e da versão da ficha técnica utilizada no cálculo. Sem esse snapshot, não é seguro recalcular a contribuição histórica com a ficha atualizada. A Fase 5 deve resolver isso.
 
-### 3.6 Cálculos de aporte previstos
+### 3.6 Cálculo de aporte e metas
+
+O módulo `suplementos_calculos.py` calcula o aporte diário de cada item a partir da quantidade administrada e dos valores por 100 mL/g da ficha técnica. Também calcula percentual das metas energéticas e proteicas informadas e proteína em g/kg quando o peso está disponível. O programa não estima nem preenche metas clínicas: elas são informadas pela nutricionista.
+
+Itens sem dose, unidade compatível ou composição suficiente ficam identificados como pendentes. Um total nutricional só é exibido como completo quando todos os itens têm o nutriente correspondente preenchido; não se presume valor a partir do nome comercial.
+
+### 3.7 Cálculos de aporte previstos
 
 O relatório de fórmulas fornecido define a base matemática para integração da ficha técnica:
 
