@@ -97,12 +97,9 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertIn("--release 8", bat)
         self.assertIn('-classpath "%AJAR%"', bat)
         self.assertNotIn("-bootclasspath", bat)
-        # O HTML fonte tem um único arquivo canônico; o APK recebe uma cópia no build.
         asset = ROOT / "mobile" / "apk" / "app" / "assets" / "index.html"
-        self.assertFalse(asset.exists(), "Não manter segunda cópia versionada de index.html")
-        builder = (ROOT / "tools" / "build_apk_ci.py").read_text(encoding="utf-8")
-        self.assertIn("shutil.copy2(STATIC, app / \"assets\" / \"index.html\")", builder)
-        self.assertIn('copy /y "%~dp0..\\static\\index.html" "%APP%\\assets\\index.html"', bat)
+        self.assertTrue(asset.exists())
+        self.assertEqual(asset.read_bytes(), HTML.read_bytes())
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("apk-java:", workflow)
         self.assertIn("android-34", workflow)
