@@ -30,6 +30,15 @@ class WidgetFake:
     def grid_configure(self, **_kwargs):
         pass
 
+    def grid_info(self):
+        return {"row": 0, "column": 1, "sticky": "ns"}
+
+    def grid(self, **kwargs):
+        self.grid_args = kwargs
+
+    def grid_remove(self):
+        self.grid_removed = True
+
 
 class TestNavegacaoV4(unittest.TestCase):
     def test_widgets_reais_customtkinter_em_processo_isolado(self):
@@ -145,6 +154,20 @@ root.destroy()
         self.assertEqual(botao.configs[-1]["text"], "👥")
         self.assertEqual(botao.configs[-1]["anchor"], "center")
         self.assertEqual(titulo.configs[-1]["text"], "•")
+
+
+    def test_scrollbar_nao_desloca_icones_recolhidos_e_reaparece_expandido(self):
+        scrollbar = WidgetFake()
+        barra = SimpleNamespace(
+            aberta=False, itens={}, titulos=[], lbl_titulo=WidgetFake(),
+            lbl_rodape=WidgetFake(), rodape="© NutriLab",
+            rolagem=SimpleNamespace(_scrollbar=scrollbar),
+            _scrollbar_grid={"row": 0, "column": 1, "sticky": "ns"},
+        )
+        BarraLateral._rotular(barra, False)
+        self.assertTrue(scrollbar.grid_removed)
+        BarraLateral._rotular(barra, True)
+        self.assertEqual(scrollbar.grid_args, {"row": 0, "column": 1, "sticky": "ns"})
 
     def test_rotulos_aparecem_alinhados_no_modo_expandido(self):
         botao = WidgetFake()
