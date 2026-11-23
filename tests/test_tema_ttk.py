@@ -60,6 +60,12 @@ class TestTemaTreeview(unittest.TestCase):
             claro["linha_impar"]["foreground"],
             escuro["linha_impar"]["foreground"],
         )
+        self.assertIn("vago", claro)
+        self.assertIn("condpend", claro)
+        self.assertNotEqual(
+            claro["condpend"]["foreground"],
+            escuro["condpend"]["foreground"],
+        )
 
 
 if __name__ == "__main__":

@@ -89,6 +89,9 @@ def aplicar_tema_ttk(root: tk.Misc) -> None:
                     widget.tag_configure(tag, background=fundo, foreground=texto)
                 for tag in ("linha_impar", "tbca_impar"):
                     widget.tag_configure(tag, background=branco, foreground=texto)
+                for tag in ("vago", "inativo"):
+                    widget.tag_configure(tag, foreground=suave)
+                widget.tag_configure("condpend", foreground=cor_atual(LARANJA))
         except (tk.TclError, AttributeError):
             pass
         try:
