@@ -123,7 +123,8 @@ class TelaBoasVindas:
         self.canvas.delete("all")
         self._fotos = []
         self.itens_folhas = []
-        
+        self.particulas = []
+
         # Camadas de fundo: decoração, arco e haste; cada folha é uma imagem RGBA.
         self._imagem("decoracao_inferior", 0, 0, 1533, 1026)
         self._imagem("arco", 815, 120, 570, 570)
@@ -239,7 +240,6 @@ class TelaBoasVindas:
         if origem is None:
             return
         tamanho = random.randint(7, 15)
-        imagem = origem.resize((tamanho, tamanho), Image.Resampling.LANCZOS)
         self.particulas.append({
             "origem": origem, "tamanho": tamanho, "fase": random.uniform(0, math.tau), "frequencia": random.uniform(.08, .22),
             "x": random.uniform(605, 635), "y": random.uniform(385, 465),
