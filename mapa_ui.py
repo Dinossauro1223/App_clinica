@@ -1466,7 +1466,6 @@ class FormRegistro(_Janela):
             self.cb_mod.set("Fórmulas enterais")
         elif zero:
             self._catalogo_visivel = []
-            self._suplementos = []
             self.lbl_sup_tipo.configure(text="VIA ZERO: não registre suplementação oral nem dieta enteral enquanto "
                                              "a via estiver marcada como zero.")
             self.cb_mod.configure(values=["—"])
