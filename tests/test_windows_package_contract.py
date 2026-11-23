@@ -20,7 +20,7 @@ class TestWindowsPackageContract(unittest.TestCase):
             pacote = Path(pasta) / "bom.zip"
             self.criar_zip(pacote, [
                 ("NutriLab.exe", b"exe"),
-                ("_internal/clinica.db", b"modelo"),
+                ("_internal/modelo_banco/clinica.db", b"modelo"),
                 ("_internal/mobile/static/index.html", b"html"),
             ])
             verificar_pacote(pacote)
@@ -29,7 +29,7 @@ class TestWindowsPackageContract(unittest.TestCase):
         with tempfile.TemporaryDirectory() as pasta:
             pacote = Path(pasta) / "banco-duplicado.zip"
             self.criar_zip(pacote, [
-                ("_internal/clinica.db", b"modelo"),
+                ("_internal/modelo_banco/clinica.db", b"modelo"),
                 ("clinica.db", b"banco do usuario"),
                 ("_internal/mobile/static/index.html", b"html"),
             ])
@@ -40,7 +40,7 @@ class TestWindowsPackageContract(unittest.TestCase):
         with tempfile.TemporaryDirectory() as pasta:
             pacote = Path(pasta) / "sidecar.zip"
             self.criar_zip(pacote, [
-                ("_internal/clinica.db", b"modelo"),
+                ("_internal/modelo_banco/clinica.db", b"modelo"),
                 ("clinica.db-wal", b"wal"),
                 ("_internal/mobile/static/index.html", b"html"),
             ])
@@ -51,7 +51,7 @@ class TestWindowsPackageContract(unittest.TestCase):
         with tempfile.TemporaryDirectory() as pasta:
             pacote = Path(pasta) / "html-duplicado.zip"
             self.criar_zip(pacote, [
-                ("_internal/clinica.db", b"modelo"),
+                ("_internal/modelo_banco/clinica.db", b"modelo"),
                 ("_internal/mobile/static/index.html", b"html"),
                 ("_internal/mobile/apk/app/assets/index.html", b"copia"),
             ])
