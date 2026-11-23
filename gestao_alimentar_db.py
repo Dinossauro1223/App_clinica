@@ -269,11 +269,14 @@ def listar_alimentos(db_path, termo="", limite=60):
     termo = (termo or "").strip()
     with _conexao(db_path) as conn:
         if termo:
-            like = "%" + termo.replace("%", "\\%").replace("_", "\\_") + "%"
+            # A busca da TBCA é por prefixo: ao digitar "arroz", lista todos os alimentos
+            # cujo nome começa com "arroz", sem misturar ocorrências no meio do nome.
+            prefixo = termo.replace("%", "\\%").replace("_", "\\_") + "%"
             rows = conn.execute(
                 f"SELECT id_tbca,tipo,npu,fc_referencia,medida_caseira,per_capita,alimento,{','.join(NUTRIENTES)} "
-                f"FROM {TABELA_TBCA} WHERE alimento LIKE ? ESCAPE '\\' OR id_tbca=? ORDER BY alimento LIMIT ?",
-                (like, termo, max(1, min(int(limite), 500)))
+                f"FROM {TABELA_TBCA} WHERE alimento LIKE ? ESCAPE '\\' COLLATE NOCASE OR id_tbca=? "
+                f"ORDER BY CASE WHEN alimento LIKE ? ESCAPE '\\' COLLATE NOCASE THEN 0 ELSE 1 END, alimento COLLATE NOCASE LIMIT ?",
+                (prefixo, termo, prefixo, max(1, min(int(limite), 10000)))
             ).fetchall()
         else:
             rows = conn.execute(

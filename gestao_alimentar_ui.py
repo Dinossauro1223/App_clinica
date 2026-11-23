@@ -171,6 +171,7 @@ class GestaoAlimentarUI:
         busca = ctk.CTkEntry(topo, textvariable=self.var_busca_tbca, width=250, placeholder_text="Buscar alimento ou ID TBCA")
         busca.pack(side="right", padx=(4, 0))
         busca.bind("<Return>", lambda _e: self.buscar_tbca())
+        busca.bind("<KeyRelease>", lambda _e: self.buscar_tbca())
         _btn(topo, "Buscar", self.buscar_tbca, 85, cor=CINZA, hover="#455a64").pack(side="right")
         ctk.CTkLabel(self.tab_tbca,
                      text="Importa a aba ‘TBCA (2024)’ do arquivo de referência. As demais abas de fórmulas da planilha não são executadas pelo aplicativo; a ficha aplica seus próprios cálculos validados.",
@@ -179,6 +180,9 @@ class GestaoAlimentarUI:
             ("id", "ID", 90, "center"), ("alimento", "Alimento", 330, "w"),
             ("kcal", "kcal/100g", 90, "e"), ("proteina", "Proteína/100g", 110, "e"),
             ("carbo", "Carboidrato/100g", 120, "e"), ("lipidio", "Lipídio/100g", 100, "e")], altura=18)
+        self.tbca_tree.configure(selectmode="extended")
+        self.tbca_tree.tag_configure("tbca_par", background="#EDF4EF", foreground="#20372B")
+        self.tbca_tree.tag_configure("tbca_impar", background="#FFFFFF", foreground="#20372B")
         frame.pack(fill="both", expand=True, padx=8, pady=(4, 8))
         self.buscar_tbca()
 
@@ -520,13 +524,23 @@ class GestaoAlimentarUI:
         if not self.tbca_tree:
             return
         termo = self.var_busca_tbca.get().strip()
-        rows = ga.listar_alimentos(self.db, termo=termo, limite=250)
-        for iid in self.tbca_tree.get_children():
-            self.tbca_tree.delete(iid)
-        for item in rows:
-            self.tbca_tree.insert("", "end", values=(item["id_tbca"], item["alimento"],
-                _fmt_num(item.get("kcal")), _fmt_num(item.get("proteina")),
-                _fmt_num(item.get("carboidrato")), _fmt_num(item.get("lipidio"))))
+        rows = ga.listar_alimentos(self.db, termo=termo, limite=10000)
+        self.tbca_tree.delete(*self.tbca_tree.get_children())
+        encontrados = []
+        for indice, item in enumerate(rows):
+            iid = self.tbca_tree.insert("", "end",
+                values=(item["id_tbca"], item["alimento"],
+                    _fmt_num(item.get("kcal")), _fmt_num(item.get("proteina")),
+                    _fmt_num(item.get("carboidrato")), _fmt_num(item.get("lipidio"))),
+                tags=("tbca_par" if indice % 2 == 0 else "tbca_impar",))
+            encontrados.append(iid)
+        # Destaca simultaneamente todos os resultados do prefixo digitado para facilitar a conferência.
+        if termo and encontrados:
+            self.tbca_tree.selection_set(encontrados)
+            self.tbca_tree.focus(encontrados[0])
+            self.tbca_tree.see(encontrados[0])
+        else:
+            self.tbca_tree.selection_remove(self.tbca_tree.selection())
 
 
 class FichaDialog:
