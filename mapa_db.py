@@ -33,6 +33,8 @@ MODULOS_PADRAO = [
     "Fórmula completa",
     "Fórmula para diabetes",
     "Fórmula enteral",
+    "Fórmula enteral e oral",
+    "Módulo oral/enteral",
     "Módulo de proteínas",
     "Módulo de aminoácidos",
     "Módulo de carboidratos",
@@ -52,9 +54,9 @@ SUPLEMENTOS_COMPLEMENTARES = [
     ("Ensure Protein", "Fórmula completa"),
     ("Ensure Plus Advance", "Fórmula completa"),
     ("Ensure Advance HMB", "Fórmula completa"),
-    ("Glucerna", "Fórmula para diabetes"),
-    ("Glucerna SR", "Fórmula para diabetes"),
-    ("Glucerna 1.5 kcal", "Fórmula para diabetes"),
+    ("Glucerna", "Fórmula enteral e oral"),
+    ("Glucerna SR", "Fórmula enteral e oral"),
+    ("Glucerna 1.5 kcal", "Fórmula enteral e oral"),
     ("PediaSure Complete", "Fórmula completa"),
 ]
 # Fórmulas cuja indicação para administração por sonda está descrita pelo fabricante.
@@ -62,7 +64,7 @@ SUPLEMENTOS_COMPLEMENTARES = [
 # das respectivas tabelas oficiais. Nenhum valor é estimado por produto semelhante.
 SUPLEMENTOS_ENTERAIS_COMPLEMENTARES = [
     ("Nutrison Energy 1.5", "Fórmula enteral", 149, 6, 5.8, 18, 134,
-     "https://danonenutricia.com.br/produtos/details/nutrison-energy-1-5"),
+     "https://danonenutricia.com.br/produtos/details/nutrison-energy-15"),
     ("Nutrison Energy MF 1.5", "Fórmula enteral", None, None, None, None, None,
      "https://danonenutricia.com.br/produtos/details/nutrison_energry_mf_15"),
     ("Nutrison Protein Plus Energy", "Fórmula enteral", 150, 7.5, 5.8, 17, 100,
@@ -76,6 +78,15 @@ SUPLEMENTOS_ENTERAIS_COMPLEMENTARES = [
     ("Nutrison Soya 800G", "Fórmula enteral", None, None, None, None, None,
      "https://danonenutricia.com.br/produtos/adultos/alimentacao-por-sonda"),
 ]
+SUPLEMENTOS_DUAS_VIAS_COMPLEMENTARES = [
+    ("Nutri R 2.0", "Fórmula enteral e oral", 200, 3.3, 6.7, 32, 131,
+     "https://danonenutricia.com.br/produtos/details/nutri-R-2-0"),
+    ("Nutri Enteral Soya", "Fórmula enteral e oral", 120, 4.4, 4, 17, 55,
+     "https://danonenutricia.com.br/produtos/details/nutri-enteral-soya"),
+    ("NUTRI FIBER 1.5", "Fórmula enteral e oral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/details/nutri-fiber"),
+    ("NUTRI HWHEY X", "Módulo oral/enteral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/adultos/alimentacao-por-sonda"),
 SUPLEMENTOS_INICIAIS = [
     ("Fresubin", "Fórmula completa"),
     ("Thopic Soya 1,5 kcal/ml", "Fórmula completa"),
@@ -254,6 +265,24 @@ def inicializar(db_path):
                            "https://danonenutricia.com.br/produtos/details/nutrison-energy-15",
                            antiga["id_suplemento"]))
             c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos_catalogo_v3', '1')")
+        versao_v4 = c.execute("SELECT valor FROM Mapa_Config WHERE chave='seed_suplementos_catalogo_v4'").fetchone()
+        if not versao_v4:
+            # Glucerna tem indicação registrada para uso oral e enteral; preserva módulos editados.
+            for nome in ("Glucerna", "Glucerna SR", "Glucerna 1.5 kcal"):
+                c.execute("UPDATE Mapa_Suplementos SET modulo='Fórmula enteral e oral' "
+                          "WHERE nome=? AND modulo='Fórmula para diabetes'", (nome,))
+            for nome, modulo, kcal, ptn, lip, carb, sod, url in SUPLEMENTOS_DUAS_VIAS_COMPLEMENTARES:
+                existe = c.execute("SELECT 1 FROM Mapa_Suplementos WHERE LOWER(nome)=LOWER(?)", (nome,)).fetchone()
+                if not existe:
+                    observacao = ("Fonte oficial do fabricante. Composição por 100 mL transcrita da ficha vigente."
+                                  if kcal is not None else
+                                  "Produto identificado pelo fabricante para uso oral e enteral; ficha nutricional específica pendente.")
+                    observacao += " " + url
+                    c.execute("""INSERT INTO Mapa_Suplementos
+                                 (nome, modulo, kcal_100, ptn_100, lip_100, carb_100, sod_100, observacao)
+                                 VALUES (?,?,?,?,?,?,?,?)""",
+                              (nome, modulo, kcal, ptn, lip, carb, sod, observacao))
+            c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos_catalogo_v4', '1')")
         c.commit()
 
 
