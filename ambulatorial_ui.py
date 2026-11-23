@@ -324,3 +324,17 @@ class DialogoAssociacoesExames(ctk.CTkFrame):
             self.atualizar()
         except (amb.ErroAmbulatorial, sqlite3.Error) as exc:
             messagebox.showerror("Associação não salva", str(exc), parent=self)
+
+    def destroy(self):
+        if getattr(self, "_destroy_em_progresso", False):
+            return super().destroy()
+        if self._painel_externo and self._painel_frame is not None:
+            try:
+                if getattr(self._painel_frame, "_fechando_painel", False):
+                    return super().destroy()
+                self._destroy_em_progresso = True
+                self.app.fechar_painel_lateral(self._painel_frame)
+                return
+            except Exception:
+                pass
+        return super().destroy()
