@@ -110,7 +110,7 @@ python -m unittest tests.test_condutas_alta_catalogo -v
 
 `mapa_db.py` contém seis itens legados em `SUPLEMENTOS_INICIAIS` e duas cargas aditivas/versionadas: oito candidatos identificados no catálogo oficial Abbott Brasil (Ensure, Ensure Protein, Ensure Plus Advance, Ensure Advance, Glucerna, Glucerna SR, Glucerna 1.5 kcal e PediaSure Complete) e sete fórmulas identificadas pela Danone Nutricia como enterais/de administração por sonda (Nutrison Energy 1.5, Nutrison Energy MF 1.5, Nutrison Protein Plus Energy, Nutrison advanced Diason, Nutrison advanced Cubison, Nutrison Protein Plus Multi Fiber e Nutrison Soya 800G).
 
-O catálogo separa o módulo `Fórmula enteral` dos produtos orais e para diabetes. O Nutrison Energy 1.5 tem kcal, proteína, lipídios, carboidratos e sódio por 100 mL transcritos da ficha oficial; os demais candidatos são inseridos sem composição, volume ou preço. A observação registra a fonte e a pendência da ficha específica. A carga é idempotente e não sobrescreve produtos existentes.
+O catálogo separa o módulo `Fórmula enteral` dos produtos orais e para diabetes. Quatro fórmulas (Nutrison Energy 1.5, Nutrison Protein Plus Energy, Nutrison advanced Diason e Nutrison advanced Cubison) têm kcal, proteína, lipídios, carboidratos e sódio por 100 mL transcritos das respectivas fichas oficiais; os demais candidatos são inseridos sem composição, volume ou preço. A observação registra a fonte e a pendência da ficha específica. A carga é idempotente e não sobrescreve produtos existentes.
 
 | Nome no código | Módulo inicial sugerido | Situação da classificação |
 |---|---|---|
@@ -135,7 +135,7 @@ A tabela `Mapa_Suplementos` e o formulário `DialogSuplemento` já preveem:
 - Lipídios (`lip_100`), carboidratos (`carb_100`) e sódio (`sod_100`) por 100 mL/g.
 - Observação e estado ativo/inativo.
 
-**Os seis itens legados e os oito candidatos Abbott são criados sem preços, volumes de embalagem ou valores nutricionais.** Entre as sete fórmulas enterais adicionais, Nutrison Energy 1.5 tem composição por 100 mL transcrita da ficha oficial; as outras seis permanecem sem valores nutricionais e sem dados de embalagem/preço. Não há base para afirmar que as demais fichas estejam preenchidas ou validadas. Os valores devem ser transcritos da ficha/rótulo da apresentação efetivamente usada, sem copiar dados de variantes semelhantes.
+**Os seis itens legados e os oito candidatos Abbott são criados sem preços, volumes de embalagem ou valores nutricionais.** Entre as sete fórmulas enterais adicionais, quatro têm composição por 100 mL transcrita das fichas oficiais; as outras três permanecem sem valores nutricionais e sem dados de embalagem/preço. Não há base para afirmar que as demais fichas estejam preenchidas ou validadas. Os valores devem ser transcritos da ficha/rótulo da apresentação efetivamente usada, sem copiar dados de variantes semelhantes.
 
 ### 3.3 Módulos disponíveis no código
 
