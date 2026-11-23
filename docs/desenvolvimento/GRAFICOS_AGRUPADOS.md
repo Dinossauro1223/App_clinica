@@ -105,21 +105,23 @@ todos os gráficos, em quatro larguras e três momentos da animação.
 O `tools/verificar_interface_tk.py` mede, com Tk de verdade, o tempo de montar a cena e atualizar as formas (campo
 "cena e formas") e o de redesenhar a tela (campo "com redesenho da tela"). São 56 medições: cada um dos 8 gráficos em 7
 momentos da animação. Cada medição é **um gráfico em um quadro**; um quadro em que vários gráficos animam juntos (por
-exemplo os quatro primeiros ao abrir a tela) custa a soma deles. Medido no CI do GitHub em 22/11/2026 (execução 45092882621
-da branch de teste, máquinas virtuais sem placa de vídeo, Python 3.12):
+exemplo os quatro primeiros ao abrir a tela) custa a soma deles. Medido no CI do GitHub em 22 e 23/11/2026 (máquinas
+virtuais sem placa de vídeo, Python 3.12). Os números mudam de uma execução para outra, então vão as duas:
 
-| Sistema | Cena e formas (média / máximo) | Com redesenho da tela (média / máximo) |
-|---|---|---|
-| Linux (Xvfb) | 0,19 ms / 1,13 ms | 0,33 ms / 1,51 ms |
-| Windows | 0,38 ms / 2,16 ms | 1,02 ms / 3,73 ms |
+| Sistema | Execução | Cena e formas (média / máximo) | Com redesenho da tela (média / máximo) |
+|---|---|---|---|
+| Linux (Xvfb) | 45092882621 (22/11) | 0,19 ms / 1,13 ms | 0,33 ms / 1,51 ms |
+| Linux (Xvfb) | 45160683633 (23/11) | 0,37 ms / 1,54 ms | 0,67 ms / 4,45 ms |
+| Windows | 45092882621 (22/11) | 0,38 ms / 2,16 ms | 1,02 ms / 3,73 ms |
+| Windows | 45160683633 (23/11) | 0,52 ms / 3,11 ms | 1,41 ms / 5,06 ms |
 
 Um quadro a 60 por segundo tem 16,7 ms, então sobra muita folga mesmo com quatro gráficos animando juntos. Esses números
 são de máquinas do CI e podem ser maiores em computadores mais fracos; o que a verificação garante é um limite de
 segurança (nenhuma medição acima de 400 ms). A otimização para computadores lentos é a etapa seguinte (veja o ROADMAP).
 
 Também é medido o primeiro desenho: cada uma das 4 faixas se desenha **uma vez só**, já na largura final (966 px na janela
-de 1024 px do Windows e 1182 px na de 1240 px do Linux), com o último desenho aos 200 ms (Windows) e 135 ms (Linux) depois
-de a tela abrir.
+de 1024 px do Windows e 1182 px na de 1240 px do Linux). O último desenho acontece de 135 a 147 ms (Linux) e de 200 a 265 ms
+(Windows) depois de a tela abrir.
 
 ## Como foi verificado
 

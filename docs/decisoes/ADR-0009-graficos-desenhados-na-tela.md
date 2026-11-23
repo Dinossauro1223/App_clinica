@@ -37,7 +37,7 @@
 
 ## Consequências
 
-- **Bom:** animação fluida com custo baixo por quadro. Medido com Tk de verdade no CI do GitHub (máquinas virtuais sem placa de vídeo, execução 45092882621 da branch de teste), em 56 medições (8 gráficos em 7 momentos da animação, cada medição é um gráfico em um quadro): no Linux, cena e formas em média 0,19 ms (máximo 1,13 ms) e, com o redesenho da tela, 0,33 ms (máximo 1,51 ms); no Windows, 0,38 ms (máximo 2,16 ms) e 1,02 ms (máximo 3,73 ms). Um quadro a 60 por segundo tem 16,7 ms, então mesmo quatro gráficos animando juntos cabem com folga.
+- **Bom:** animação fluida com custo baixo por quadro. Medido com Tk de verdade no CI do GitHub (máquinas virtuais sem placa de vídeo), em 56 medições (8 gráficos em 7 momentos da animação, cada medição é um gráfico em um quadro). Em duas execuções (45092882621 e 45160683633), cena e formas ficaram em média entre 0,19 e 0,37 ms no Linux e entre 0,38 e 0,52 ms no Windows (máximo de 3,11 ms); com o redesenho da tela, entre 0,33 e 0,67 ms no Linux e entre 1,02 e 1,41 ms no Windows (máximo de 5,06 ms). Um quadro a 60 por segundo tem 16,7 ms, então mesmo quatro gráficos animando juntos cabem com folga.
 - **Bom:** os testes cobrem a geometria sem Tk e a interface com Tk real no CI.
 - **Limite:** o `tk.Canvas` não suaviza bordas no Windows nem no X11. Diagonais de linha e as bordas da rosca ficam levemente serrilhadas. Atenuação: cantos arredondados (`smooth`), linhas mais grossas, e a opção "Imagens simples" para quem preferir o desenho suave do matplotlib.
 - **Limite:** o texto usa a fonte do CustomTkinter, e as medidas vêm dessa mesma fonte; se o sistema não tiver a fonte, o Tk escolhe outra e a medida acompanha.
