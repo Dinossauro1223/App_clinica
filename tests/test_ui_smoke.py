@@ -489,6 +489,14 @@ class TestInterface(unittest.TestCase):
         linha = self.ui.tree.items[str(self._primeiro_leito()["leito"]["id_leito"])]
         self.assertIn("Dieta enteral", linha[7])
 
+        # Ao retornar para via oral, a fórmula enteral é removida e não reaparece na lista de suplementos.
+        form2 = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self.assertEqual([s["nome"] for s in form2._suplementos], ["Nutrison Energy 1.5"])
+        form2.seg_via.click("Oral")
+        self.assertEqual(form2._suplementos, [])
+        self.assertNotIn("Nutrison Energy 1.5", [s["nome"] for s in form2._catalogo_visivel])
+        self.assertIn("Ensure Plus Advance", [s["nome"] for s in form2._catalogo_visivel])
+
     def test_reabrir_edita_e_vinculo_de_paciente(self):
         self.ui.mostrar_mapa()
         f1 = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
