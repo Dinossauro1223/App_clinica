@@ -18,13 +18,9 @@ function Fail($msg) {
     exit 1
 }
 
-if ($RemoteSha -notmatch "^[0-9a-fA-F]{40}$") {
-    Fail "SHA remoto inválido."
-}
-
+if ($RemoteSha -notmatch "^[0-9a-fA-F]{40}$") { Fail "SHA remoto inválido." }
 New-Item -ItemType Directory -Force -Path $TempRoot,$Extract,$DataBackup | Out-Null
 
-# Garante que nenhuma instância antiga ainda esteja usando o executável.
 $exe = Join-Path $Output "NutriLab.exe"
 for ($i = 0; $i -lt 20; $i++) {
     $processos = Get-CimInstance Win32_Process -Filter "Name = 'NutriLab.exe'" -ErrorAction SilentlyContinue |
@@ -45,12 +41,8 @@ try {
     Expand-Archive -LiteralPath $Zip -DestinationPath $Extract -Force
     $newRoot = Get-ChildItem -LiteralPath $Extract -Directory | Select-Object -First 1
     if (-not $newRoot) { Fail "o arquivo ZIP não contém a pasta do projeto." }
-    if (-not (Test-Path (Join-Path $newRoot.FullName "Gerar_e_Abrir_NutriLab.bat"))) {
-        Fail "o pacote remoto não contém o launcher esperado."
-    }
-    if (-not (Test-Path (Join-Path $newRoot.FullName "app_clinica.spec"))) {
-        Fail "o pacote remoto não contém o arquivo de compilação esperado."
-    }
+    if (-not (Test-Path (Join-Path $newRoot.FullName "Gerar_e_Abrir_NutriLab.bat"))) { Fail "launcher remoto ausente." }
+    if (-not (Test-Path (Join-Path $newRoot.FullName "app_clinica.spec"))) { Fail "arquivo de compilação remoto ausente." }
 
     Write-Host "[3/7] Preservando dados locais do usuário..."
     if (Test-Path $Output) {
@@ -63,7 +55,7 @@ try {
             if (Test-Path $src) { Copy-Item -LiteralPath $src -Destination $DataBackup -Recurse -Force }
         }
     }
-    $mobileDados = Join-Path $Root "mobiledados"
+    $mobileDados = Join-Path $Root "mobile\dados"
     if (Test-Path $mobileDados) {
         Copy-Item -LiteralPath $mobileDados -Destination (Join-Path $DataBackup "mobile-dados") -Recurse -Force
     }
@@ -82,8 +74,6 @@ try {
     Write-Host "[5/7] Recriando o executável com o novo código..."
     $launcher = Join-Path $Root "Gerar_e_Abrir_NutriLab.bat"
     if (-not (Test-Path $launcher)) { Fail "launcher novo não foi encontrado." }
-
-    # O launcher remove/recria a pasta de saída; o banco será restaurado depois.
     $proc = Start-Process -FilePath $env:ComSpec -ArgumentList @("/c","call",$launcher,"/apos-atualizacao") -WorkingDirectory $Root -Wait -PassThru
     if ($proc.ExitCode -ne 0) { Fail "a compilação da versão nova falhou." }
     if (-not (Test-Path (Join-Path $Output "NutriLab.exe"))) { Fail "novo executável não foi criado." }
@@ -99,7 +89,7 @@ try {
     }
     $mobileBackup = Join-Path $DataBackup "mobile-dados"
     if (Test-Path $mobileBackup) {
-        $dest = Join-Path $Root "mobiledados"
+        $dest = Join-Path $Root "mobile\dados"
         New-Item -ItemType Directory -Force -Path $dest | Out-Null
         Copy-Item -Path (Join-Path $mobileBackup "*") -Destination $dest -Recurse -Force
     }
