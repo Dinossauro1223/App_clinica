@@ -94,7 +94,7 @@ jobs:
       - name: Compilar MainActivity.java
         run: |
           mkdir -p build/apk-classes
-          javac -encoding UTF-8 -source 8 -target 8 \
+          javac -encoding UTF-8 --release 8 \
             -classpath "$ANDROID_HOME/platforms/android-34/android.jar" \
             -d build/apk-classes \
             mobile/apk/app/src/br/nutrilab/mobile/MainActivity.java
