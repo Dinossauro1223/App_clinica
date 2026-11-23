@@ -25,7 +25,7 @@ class TestTemaGlobal(unittest.TestCase):
             "gestao_alimentar_ui.py", "mapa_ui.py", "condutas_alta_ui.py",
             "almox_ui.py",
         )
-        padrao = re.compile(r"""(?:fg_color|background)\\s*=\\s*["'](?:white|black)["']""", re.IGNORECASE)
+        padrao = re.compile(r"""(?:fg_color|background)\s*=\s*["'](?:white|black)["']""", re.IGNORECASE)
         for modulo in modulos:
             fonte = (raiz / modulo).read_text(encoding="utf-8")
             self.assertIsNone(padrao.search(fonte), f"{modulo} ainda fixa branco/preto")
