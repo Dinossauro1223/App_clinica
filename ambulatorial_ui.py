@@ -240,15 +240,26 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
         }
 
 
-class DialogoAssociacoesExames(ctk.CTkToplevel):
-    """Gerencia exames complementares e relações com diagnósticos clínicos/nutricionais."""
+class DialogoAssociacoesExames(ctk.CTkFrame):
+    """Gerencia exames complementares em uma guia lateral, sem abrir Toplevel."""
     def __init__(self, master, db_path):
-        super().__init__(master)
-        self.title("Associações de exames")
-        self.geometry("740x540")
+        self.app = master
+        self._painel_externo = bool(master and hasattr(master, "abrir_painel_lateral"))
+        if self._painel_externo:
+            self._painel_frame = master.abrir_painel_lateral("Associações de exames", lambda: None)
+            pai = self._painel_frame
+        else:
+            self._painel_frame = None
+            pai = getattr(master, "area_principal", master)
+        super().__init__(pai, fg_color="transparent")
+        self.pack(fill="both", expand=True)
         self.db_path = db_path
-        self.transient(master)
-        self.grab_set()
+        cabecalho = ctk.CTkFrame(self, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=14, pady=(12, 6))
+        ctk.CTkLabel(cabecalho, text="Associações de exames",
+                     font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE).pack(side="left")
+        ctk.CTkButton(cabecalho, text="Fechar guia", width=90,
+                      command=self.destroy, fg_color=BOTAO, hover_color=HOVER).pack(side="right")
         with sqlite3.connect(db_path) as conn:
             rows = conn.execute("SELECT id_exame, nome_amigavel FROM Exames_Catalogo ORDER BY nome_amigavel").fetchall()
         self.exames = {f"{nome} ({codigo})": codigo for codigo, nome in rows}

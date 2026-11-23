@@ -91,6 +91,18 @@ mapa_dialogo = _Janela(SimpleNamespace(app=app), "Registro do mapa", "860x780")
 assert pilha.quantidade == 1
 mapa_dialogo.destroy()
 assert pilha.quantidade == 0
+# DialogoAssociacoesExames também deve ser uma guia lateral.
+import sqlite3
+import tempfile
+from ambulatorial_ui import DialogoAssociacoesExames
+with tempfile.NamedTemporaryFile(suffix=".db") as arquivo:
+    with sqlite3.connect(arquivo.name) as conn:
+        conn.execute("CREATE TABLE Exames_Catalogo (id_exame TEXT, nome_amigavel TEXT)")
+    dialogo_exames = DialogoAssociacoesExames(app, arquivo.name)
+    assert pilha.quantidade == 1
+    dialogo_exames.destroy()
+    assert pilha.quantidade == 0
+
 root.destroy()
 """
         raiz = Path(__file__).resolve().parents[1]
