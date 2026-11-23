@@ -21,7 +21,7 @@ RENDERIZADOS = IDENTIDADE / "renderizados"
 CAMADAS = (
     "arco", "assinatura", "dna", "facisa_ufrn", "frasco",
     "haste_folhas", "maca", "wordmark", "topo_temas",
-    "boas_vindas", "decoracao_inferior",
+    "boas_vindas", "decoracao_inferior", "folha_marca",
 )
 
 
