@@ -22,7 +22,7 @@ def verificar_pacote(caminho: str | Path) -> None:
     bancos = [nome for nome in nomes if Path(nome).name.casefold() == "clinica.db"]
     if bancos != ["_internal/modelo_banco/clinica.db"]:
         raise ValueError(
-            "O ZIP deve conter somente o modelo _internal/clinica.db; "
+            "O ZIP deve conter somente o modelo _internal/modelo_banco/clinica.db; "
             f"encontrados: {bancos!r}"
         )
     sobras_sqlite = [
