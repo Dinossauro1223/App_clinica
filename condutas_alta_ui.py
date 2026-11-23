@@ -175,22 +175,43 @@ def lembrar_condutas_pendentes(painel, rotulo=None):
 
 
 # --------------------------------------------------------------------------------------------- janela
-class JanelaCondutasAlta(ctk.CTkToplevel):
-    """Confirmação, correção e entrega das condutas de alta de um paciente."""
+class JanelaCondutasAlta(ctk.CTkFrame):
+    """Conteúdo de condutas de alta hospedado em uma guia lateral, sem janela modal."""
 
     def __init__(self, pai, sessao, pasta_saida=None, ao_fechar=None):
-        super().__init__(pai)
+        self.app = pai
+        self._painel_externo = bool(pai and hasattr(pai, "abrir_painel_lateral"))
+        if self._painel_externo:
+            self._painel_frame = pai.abrir_painel_lateral(
+                f"Condutas de alta — {sessao.nome_paciente}", lambda: None
+            )
+            container = self._painel_frame
+        else:
+            self._painel_frame = None
+            container = pai
+        super().__init__(container, fg_color="transparent")
+        self.pack(fill="both", expand=True)
         self.sessao, self.db = sessao, sessao.db
         self.pasta_saida, self.ao_fechar = pasta_saida, ao_fechar
         self._cartoes, self._textos, self._motivos = [], {}, {}
         self._edicoes, self._motivos_digitados, self._abertos = {}, {}, set()
         self._opcoes = {}
-        self.title(f"Condutas de alta  -  {self.sessao.nome_paciente}")
-        self.geometry("1000x720")
-        self.protocol("WM_DELETE_WINDOW", self._fechar)
         self._montar()
         self._atualizar()
-        self.after(200, lambda: _tornar_modal(self))
+
+    def destroy(self):
+        if getattr(self, "_destroy_em_progresso", False):
+            return super().destroy()
+        if self._painel_externo and self._painel_frame is not None:
+            try:
+                if getattr(self._painel_frame, "_fechando_painel", False):
+                    return super().destroy()
+                self._destroy_em_progresso = True
+                self.app.fechar_painel_lateral(self._painel_frame)
+                return
+            except (tk.TclError, AttributeError):
+                pass
+        return super().destroy()
 
     # ------------------------------------------------------------------------------- construção
     def _montar(self):

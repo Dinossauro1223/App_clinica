@@ -239,6 +239,12 @@ class TestPainel(Base):
 
 # ------------------------------------------------------------------------------------------------ janela
 class TestJanela(Base):
+    def test_condutas_usa_container_de_guia_e_nao_janela_modal(self):
+        j = self.janela()
+        self.assertIsInstance(j, cui.ctk.CTkFrame)
+        self.assertFalse(j._painel_externo)
+        self.assertFalse(hasattr(j, "grab_set"))
+
     def test_um_cartao_por_conduta_sugerida(self):
         j = self.janela()
         titulos = [t for q in j.corpo.winfo_children() for t in textos(q) if t.startswith("[")]
