@@ -334,6 +334,21 @@ class TestBanco(unittest.TestCase):
         finally:
             os.remove(legado)
 
+    def test_migracao_adiciona_classificacao_de_dupla_via(self):
+        glucerna = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Glucerna SR")
+        mdb.salvar_suplemento(self.db, dict(
+            id_suplemento=glucerna["id_suplemento"], nome="Glucerna SR",
+            modulo="Fórmula para diabetes", emb_un="ml"))
+        with conexao(self.db) as c:
+            c.execute("DELETE FROM Mapa_Config WHERE chave='seed_suplementos_catalogo_v4'")
+            c.execute("DELETE FROM Mapa_Suplementos WHERE nome='Nutri R 2.0'")
+        mdb.inicializar(self.db)
+        glucerna_atual = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Glucerna SR")
+        nutri_r = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Nutri R 2.0")
+        self.assertEqual(glucerna_atual["modulo"], "Fórmula enteral e oral")
+        self.assertEqual(nutri_r["modulo"], "Fórmula enteral e oral")
+        self.assertEqual(nutri_r["kcal_100"], 200)
+
     def test_migracao_corrige_ficha_nutrison_antiga_conhecida(self):
         item = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Nutrison Energy 1.5")
         mdb.salvar_suplemento(self.db, dict(
