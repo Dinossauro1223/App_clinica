@@ -19,6 +19,21 @@ class TestCalculoOfertaSuplementos(unittest.TestCase):
         self.assertEqual(r["proteina_g_kg"], 0.4)
         self.assertTrue(r["completo"])
 
+    def test_nutrison_energy_15_composicao_oficial_por_100ml(self):
+        # Dados transcritos da página/ficha oficial Danone Nutricia, sem conversão de apresentação.
+        r = sc.calcular_oferta([
+            {"nome": "Nutrison Energy 1.5", "qtd_dia": 250, "unidade": "ml",
+             "kcal_100": 151, "ptn_100": 6, "lip_100": 5.6, "carb_100": 19, "sod_100": 128}
+        ], peso_kg=60, meta_kcal=1800, meta_proteina_g=90)
+        self.assertEqual(r["totais"]["kcal_100"], 377.5)
+        self.assertEqual(r["totais"]["ptn_100"], 15)
+        self.assertEqual(r["totais"]["lip_100"], 14)
+        self.assertEqual(r["totais"]["carb_100"], 47.5)
+        self.assertEqual(r["totais"]["sod_100"], 320)
+        self.assertEqual(r["percentual_meta_kcal"], 20.97)
+        self.assertEqual(r["percentual_meta_proteina"], 16.67)
+        self.assertTrue(r["completo"])
+
     def test_modulo_em_gramas_e_soma_de_itens(self):
         r = sc.calcular_oferta([
             {"nome": "Fórmula", "qtd_dia": 200, "unidade": "ml", "kcal_100": 100, "ptn_100": 4,
