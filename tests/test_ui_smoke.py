@@ -869,9 +869,10 @@ class TestInterface(unittest.TestCase):
         self.ui._mover_celula(0, 1)
         self.assertEqual(self.ui._celula_selecionada, (iid, 3))
         self.ui._enter_celula()
-        self.assertEqual(self.ui._celula_selecionada, (iid, 3))
+        segundo_iid = str(self.ui.tree.get_children()[1])
+        self.assertEqual(self.ui._celula_selecionada, (segundo_iid, 3))
         self.ui._tab_celula()
-        self.assertEqual(self.ui._celula_selecionada, (iid, 4))
+        self.assertEqual(self.ui._celula_selecionada, (segundo_iid, 4))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
