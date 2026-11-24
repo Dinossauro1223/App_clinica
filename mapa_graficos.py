@@ -356,7 +356,8 @@ def _png_barras_h(spec):
     nomes = [i["nome"] for i in itens][::-1]
     vals = [i["valor"] for i in itens][::-1]
     fig, ax = _plt().subplots(figsize=(9, max(2.2, 0.42 * len(itens) + 1.3)))
-    barras = ax.barh(nomes, vals, color=spec["cor"], height=0.62)
+    cores = [i.get("cor", spec["cor"]) for i in itens][::-1]
+    barras = ax.barh(nomes, vals, color=cores, height=0.62)
     for b, v in zip(barras, vals):
         ax.text(v + 0.01 * max(vals), b.get_y() + b.get_height() / 2, f"{v}  ({100.0 * v / total:.0f}%)",
                 va="center", fontsize=8)
