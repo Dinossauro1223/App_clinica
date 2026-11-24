@@ -41,19 +41,27 @@ class TestNRS2002(unittest.TestCase):
             with self.assertRaises(ValueError):
                 nrs.classificar({**NAO, "imc": invalida})
 
+    def test_intervalos_padrao_por_escore_nrs(self):
+        # Escores 1 e 2: 30 dias; escores 3, 4 e 5+: 7 dias.
+        self.assertEqual(nrs.dias_para("sem_risco", {}), 30)
+        self.assertEqual(nrs.dias_para("risco", {}), 7)
+        self.assertEqual(nrs.dias_para("alto_risco", {}), 7)
+        self.assertEqual(nrs.dias_para("triagem_negativa", {}), 30)
+
     def test_data_reavaliacao(self):
         base = date(2026, 11, 16)
-        self.assertEqual(nrs.proxima_reavaliacao(base, "sem_risco"), date(2026, 11, 23))
+        self.assertEqual(nrs.proxima_reavaliacao(base, "sem_risco"), date(2026, 12, 16))
+        self.assertEqual(nrs.proxima_reavaliacao(base, "risco"), date(2026, 11, 23))
+        self.assertEqual(nrs.proxima_reavaliacao(base, "alto_risco"), date(2026, 11, 23))
         self.assertEqual(nrs.proxima_reavaliacao(base, "risco", {"risco": 3}), date(2026, 11, 19))
-        self.assertEqual(nrs.dias_para("alto_risco", {}), 7)
 
     def test_persistencia_intervalos_config(self):
         with tempfile.TemporaryDirectory() as d:
             db = os.path.join(d, "nrs.db")
             self.assertEqual(nrs.ler_intervalos(db), nrs.DIAS_PADRAO)
-            salvo = nrs.salvar_intervalos(db, {"triagem_negativa": 7, "sem_risco": 7, "risco": 5, "alto_risco": 3})
-            self.assertEqual(nrs.ler_intervalos(db)["alto_risco"], 3)
-            self.assertEqual(salvo["risco"], 5)
+            salvo = nrs.salvar_intervalos(db, {"triagem_negativa": 30, "sem_risco": 30, "risco": 7, "alto_risco": 7})
+            self.assertEqual(nrs.ler_intervalos(db), {"triagem_negativa": 30, "sem_risco": 30, "risco": 7, "alto_risco": 7})
+            self.assertEqual(salvo["risco"], 7)
             with self.assertRaises(ValueError):
                 nrs.salvar_intervalos(db, {"triagem_negativa": 7, "sem_risco": 7, "risco": 0, "alto_risco": 3})
 

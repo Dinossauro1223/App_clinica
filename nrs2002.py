@@ -32,7 +32,12 @@ GRAUS = (
     ("alto_risco", "Alto risco nutricional (escore >= 5)"),
 )
 ROTULO = dict(GRAUS)
-DIAS_PADRAO = {codigo: 7 for codigo, _ in GRAUS}
+DIAS_PADRAO = {
+    "triagem_negativa": 30,
+    "sem_risco": 30,  # escores NRS 1 e 2 (faixa sem risco)
+    "risco": 7,       # escores NRS 3 e 4
+    "alto_risco": 7,  # escore NRS 5 ou superior
+}
 LIMITE_RDC63 = 10
 CHAVE_CONFIG = "nrs_dias_reavaliacao"
 
