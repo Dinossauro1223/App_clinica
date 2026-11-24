@@ -501,7 +501,9 @@ def _linha_mobile(reg, vivo):
             "constipante": bool(reg.get("constipante")), "drc": bool(reg.get("drc")),
             "suplementos": suplementos,
             "dieta": dieta_para_mobile(reg) or vivo.get("dieta", ""),
-            "diagnostico": diagnostico_para_mobile(reg) or vivo.get("diagnostico", "")}
+            "diagnostico": diagnostico_para_mobile(reg) or vivo.get("diagnostico", ""),
+            "atualizado_em": reg.get("atualizado_em"),
+            "alta_em": reg.get("alta_em")}
 
 
 def _enviar_setor(db, sv, c, adm, nome, itens, data_iso, texto):
@@ -519,14 +521,18 @@ def _enviar_setor(db, sv, c, adm, nome, itens, data_iso, texto):
         if reg:
             linhas.append({"id_leito": lid, **_linha_mobile(reg, vivo.get(lid, {}))})
             marcas.append((cod, lid, 1))
-        elif enviados.get((nome, cod)):  # foi o desktop que pôs o paciente aí e agora o leito está vazio: libera na copa
-            linhas.append({"id_leito": lid})
+        else:
+            # Envio completo: até leitos vazios entram na fotografia. Sem timestamp, o servidor não
+            # sobrescreve um estado que possa ter sido criado pela copa.
+            ultimo = mdb.ultimo_registro_leito(db, lid, data_iso)
+            linhas.append({"id_leito": lid, "nome": "", "ocupado": 0,
+                           "atualizado_em": (ultimo or {}).get("atualizado_em"),
+                           "alta_em": (ultimo or {}).get("alta_em")})
             marcas.append((cod, lid, 0))
-        # leito vazio no desktop e nunca preenchido por ele: pode ter dado novo da copa; não mexe
     if not linhas:
         return {"setor": nome, "leitos": 0}
     s = {"id": sid, "nome": nome}
-    sv.post_mapa(c, adm, s, data_iso, linhas)
+    sv.post_mapa(c, adm, s, data_iso, linhas, completo=True)
     try:
         n = sv.publicar(c, adm, s, data_iso, texto)["leitos"]
     except sv.Erro as e:
