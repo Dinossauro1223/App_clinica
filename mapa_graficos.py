@@ -49,8 +49,10 @@ GRUPO_OUTROS = {"id": "outros", "titulo": "Outros gráficos", "cor": CINZA, "des
 def agregar_mes(registros, ano, mes):
     """Resume os registros de um mês (lista de dicts de mapa_db.registros_do_mes)."""
     n = calendar.monthrange(ano, mes)[1]
-    dias = {d: {"total": 0, "pastosa": 0, "acomp": 0, "oral_sem_suplemento": 0,\n                 "oral_com_suplemento": 0, "enteral": 0} for d in range(1, n + 1)}
-    consist, via, acomp, supl_sn = Counter(), Counter(), Counter(), Counter()\n    classificacao_terapia = Counter()
+    dias = {d: {"total": 0, "pastosa": 0, "acomp": 0, "oral_sem_suplemento": 0,
+                 "oral_com_suplemento": 0, "enteral": 0} for d in range(1, n + 1)}
+    consist, via, acomp, supl_sn = Counter(), Counter(), Counter(), Counter()
+    classificacao_terapia = Counter()
     sup_nome, sup_mod, carac = Counter(), Counter(), Counter()
     cronicas, dieta_carac = Counter(), Counter()
     pacientes = set()
@@ -64,11 +66,14 @@ def agregar_mes(registros, ano, mes):
         sups = r.get("suplementos") or []
         via_registro = r.get("via") or "Não informada"
         if via_registro == "Enteral":
-            classificacao_terapia["Dieta enteral"] += 1\n            dias[d]["enteral"] += 1
+            classificacao_terapia["Dieta enteral"] += 1
+            dias[d]["enteral"] += 1
         elif via_registro == "Oral" and sups:
-            classificacao_terapia["Via oral com suplementação"] += 1\n            dias[d]["oral_com_suplemento"] += 1
+            classificacao_terapia["Via oral com suplementação"] += 1
+            dias[d]["oral_com_suplemento"] += 1
         elif via_registro == "Oral":
-            classificacao_terapia["Via oral sem suplementação"] += 1\n            dias[d]["oral_sem_suplemento"] += 1
+            classificacao_terapia["Via oral sem suplementação"] += 1
+            dias[d]["oral_sem_suplemento"] += 1
         elif via_registro == "Zero":
             classificacao_terapia["Via zero"] += 1
         else:
@@ -112,7 +117,8 @@ def agregar_mes(registros, ano, mes):
     for k in ("pastosa", "acompanhante", "com_suplemento", "oral_sem_suplemento", "oral_com_suplemento", "enteral"):
         kpis[k + "_pct"] = pct(kpis[k])
     return {"ano": ano, "mes": mes, "dias": dias, "consist": consist, "via": via, "acomp": acomp,
-            "supl_sn": supl_sn, "classificacao_terapia": classificacao_terapia,\n            "sup_nome": sup_nome, "sup_mod": sup_mod, "carac": carac,
+            "supl_sn": supl_sn, "classificacao_terapia": classificacao_terapia,
+            "sup_nome": sup_nome, "sup_mod": sup_mod, "carac": carac,
             "cronicas": cronicas, "dieta_carac": dieta_carac, "kpis": kpis}
 
 
@@ -151,7 +157,10 @@ def spec_perfil_dia(agg):
         return _vazio(agg, titulo)
     dias = sorted(agg["dias"])
     definicao = [("total", "Total atendidos", CINZA, True), ("pastosa", "Dieta pastosa", LARANJA, False),
-                 ("acomp", "Com acompanhante", AZUL, False),\n                 ("oral_sem_suplemento", "Via oral sem suplemento", VERDE_CLARO, False),\n                 ("oral_com_suplemento", "Via oral com suplemento", VERDE_ESC, False),\n                 ("enteral", "Dieta enteral", AZUL, False)]
+                 ("acomp", "Com acompanhante", AZUL, False),
+                 ("oral_sem_suplemento", "Via oral sem suplemento", VERDE_CLARO, False),
+                 ("oral_com_suplemento", "Via oral com suplemento", VERDE_ESC, False),
+                 ("enteral", "Dieta enteral", AZUL, False)]
     series = [{"nome": nome, "cor": cor, "tracejado": trac, "valores": [agg["dias"][d][chave] for d in dias]}
               for chave, nome, cor, trac in definicao]
     return {"tipo": "linhas", "titulo": titulo, "periodo": _periodo(agg), "x": dias, "series": series,
