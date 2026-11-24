@@ -6,9 +6,8 @@ Regras e tabelas: docs/mobile/INTEGRACAO_DESKTOP.md. A tela também abre sozinha
 """
 import os
 import socket
-import sqlite3
 import webbrowser
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
