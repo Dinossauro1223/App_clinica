@@ -33,7 +33,7 @@ COLUNAS = [
 
 def _colunas(setor_nome):
     """Acrescenta a identificação do setor na exportação da visão geral."""
-    if setor_nome != "Todos_os_setores":
+    if setor_nome != "Todos_os_setores" and not str(setor_nome).startswith("Grupo_"):
         return COLUNAS
     ajustes = {"paciente": -6, "via": -2, "supl": -6, "obs": -10}
     base = [(k, t, w + ajustes.get(k, 0), ex + ajustes.get(k, 0)) for k, t, w, ex in COLUNAS]
@@ -195,7 +195,9 @@ def exportar_excel(caminho, linhas_mapa, data_iso, setor_nome, abreviar=False, i
         rico = False
 
     colunas = _colunas(setor_nome)
-    titulo_setor = "Todos os setores" if setor_nome == "Todos_os_setores" else setor_nome
+    titulo_setor = ("Todos os setores" if setor_nome == "Todos_os_setores" else
+                    "Setores internos" if setor_nome == "Grupo_Internos" else
+                    "Setores externos" if setor_nome == "Grupo_Externos" else setor_nome)
     wb = Workbook()
     ws = wb.active
     ws.title = "Mapa"
