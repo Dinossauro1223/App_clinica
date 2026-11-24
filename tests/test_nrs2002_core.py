@@ -55,6 +55,11 @@ class TestNRS2002(unittest.TestCase):
         self.assertEqual(nrs.proxima_reavaliacao(base, "alto_risco"), date(2026, 11, 23))
         self.assertEqual(nrs.proxima_reavaliacao(base, "risco", {"risco": 3}), date(2026, 11, 19))
 
+    def test_dias_para_respeita_intervalo_personalizado(self):
+        self.assertEqual(nrs.dias_para("sem_risco", {"sem_risco": 45}), 45)
+        self.assertEqual(nrs.dias_para("risco", {"risco": 14}), 14)
+        self.assertEqual(nrs.dias_para("alto_risco", {"alto_risco": 21}), 21)
+
     def test_persistencia_intervalos_config(self):
         with tempfile.TemporaryDirectory() as d:
             db = os.path.join(d, "nrs.db")
