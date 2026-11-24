@@ -435,7 +435,9 @@ class TestBanco(unittest.TestCase):
 def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
     """Cria um mês de registros verossímeis (para testes e para o QA visual)."""
     rnd = random.Random(semente)
-    setor = mdb.listar_setores(db)[0]["id_setor"]
+    setor = next((x["id_setor"] for x in mdb.listar_setores(db) if x["nome"] == "Setor de demonstração"), None)
+    if setor is None:
+        setor = mdb.criar_setor(db, "Setor de demonstração")
     mdb.criar_leitos_sequencia(db, setor, "L", 1, n_leitos)
     leitos = mdb.listar_leitos(db, setor)
     sups = mdb.listar_suplementos(db)
