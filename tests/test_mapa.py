@@ -384,15 +384,12 @@ class TestBanco(unittest.TestCase):
             self.assertTrue({"kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
                              "ficha_observacao", "ficha_snapshot_em"}.issubset(colunas))
         finally:
-            for _ in range(10):
-                try:
-                    os.remove(legado)
-                    break
-                except PermissionError:
-                    gc.collect()
-                    time.sleep(0.2)
-            else:
+            try:
                 os.remove(legado)
+            except PermissionError:
+                # SQLite pode manter o arquivo temporariamente aberto no Windows;
+                # como o banco é descartável, o runner fará a limpeza ao encerrar.
+                pass
 
     def test_migracao_adiciona_classificacao_de_dupla_via(self):
         glucerna = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Glucerna SR")
