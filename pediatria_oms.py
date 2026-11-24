@@ -28,8 +28,48 @@ def calcular_escore_z(valor, l, m, s):
     if x <= 0 or m_ <= 0 or s_ <= 0:
         raise ValueError("Valor observado, M e S devem ser maiores que zero.")
     if l_ == 0:
-        return math.log(x / m_) / s_
-    return (((x / m_) ** l_) - 1.0) / (l_ * s_)
+        z = math.log(x / m_) / s_
+    else:
+        z = (((x / m_) ** l_) - 1.0) / (l_ * s_)
+
+    # Correção OMS das caudas: não extrapolar LMS além de +/-3 DP.
+    if z > 3:
+        sd2 = _valor_lms_no_z(2, l_, m_, s_)
+        sd3 = _valor_lms_no_z(3, l_, m_, s_)
+        return 3.0 + (x - sd3) / (sd3 - sd2)
+    if z < -3:
+        sd_menos2 = _valor_lms_no_z(-2, l_, m_, s_)
+        sd_menos3 = _valor_lms_no_z(-3, l_, m_, s_)
+        return -3.0 + (x - sd_menos3) / (sd_menos2 - sd_menos3)
+    return z
+
+
+def _valor_lms_no_z(z, l_, m_, s_):
+    """Valor observado correspondente a um escore-z LMS teórico."""
+    base = 1.0 + l_ * s_ * z
+    if l_ == 0:
+        return m_ * math.exp(s_ * z)
+    if base <= 0:
+        raise ValueError("Parâmetros LMS não permitem calcular a cauda solicitada.")
+    return m_ * (base ** (1.0 / l_))
+
+
+def interpolar_lms(idade, tabela):
+    """Interpola L, M e S linearmente; não extrapola além das idades fornecidas."""
+    if isinstance(idade, bool) or not isinstance(idade, int):
+        raise ValueError("Idade deve ser um número inteiro.")
+    if not tabela:
+        return None
+    pontos = sorted(tabela.items())
+    if idade in tabela:
+        return tuple(float(v) for v in tabela[idade])
+    if idade < pontos[0][0] or idade > pontos[-1][0]:
+        return None
+    for (idade_a, parametros_a), (idade_b, parametros_b) in zip(pontos, pontos[1:]):
+        if idade_a < idade < idade_b:
+            proporcao = (idade - idade_a) / (idade_b - idade_a)
+            return tuple(float(a) + (float(b) - float(a)) * proporcao for a, b in zip(parametros_a, parametros_b))
+    return None
 
 
 def calcular_idade_meses(nascimento, referencia):
@@ -45,6 +85,18 @@ def calcular_idade_meses(nascimento, referencia):
     if ref.day < nasc.day:
         meses -= 1
     return meses
+
+
+def calcular_idade_dias(nascimento, referencia):
+    """Retorna dias corridos entre datas ISO (AAAA-MM-DD), sem arredondar."""
+    try:
+        nasc = date.fromisoformat(str(nascimento))
+        ref = date.fromisoformat(str(referencia))
+    except (TypeError, ValueError):
+        raise ValueError("Informe datas válidas no formato AAAA-MM-DD.")
+    if ref < nasc:
+        raise ValueError("A data de referência não pode anteceder o nascimento.")
+    return (ref - nasc).days
 
 
 def _referencia_para(indicador, idade_meses):
