@@ -68,6 +68,9 @@ class W:
     def icursor(self, *args):
         pass
 
+    def place(self, **_kwargs):
+        self.placed = True
+
     def winfo_width(self):
         return 1300
 
@@ -205,6 +208,15 @@ class Tree(W):
     def see(self, _iid):
         pass
 
+    def identify_row(self, _y):
+        return getattr(self, "_identified_row", "")
+
+    def identify_column(self, _x):
+        return getattr(self, "_identified_column", "#1")
+
+    def bbox(self, _iid, _col):
+        return (10, 10, 120, 28)
+
     def clipboard_clear(self):
         self._clipboard = ""
 
@@ -213,7 +225,7 @@ class Tree(W):
 
     def clipboard_get(self):
         if not hasattr(self, "_clipboard"):
-            raise RuntimeError("clipboard vazio")
+            raise sys.modules["tkinter"].TclError("clipboard vazio")
         return self._clipboard
 
 
@@ -873,6 +885,35 @@ class TestInterface(unittest.TestCase):
         self.assertEqual(self.ui._celula_selecionada, (segundo_iid, 3))
         self.ui._tab_celula()
         self.assertEqual(self.ui._celula_selecionada, (segundo_iid, 4))
+
+
+    def test_clique_simples_seleciona_celula_e_f2_abre_editor(self):
+        self.ui.mostrar_mapa()
+        form = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self._preencher_form(form, nome="Paciente de teste")
+        form._salvar()
+        iid = str(self._primeiro_leito()["leito"]["id_leito"])
+        self.ui.tree._identified_row = iid
+        self.ui.tree._identified_column = "#4"
+        self.ui._selecionar_celula(__import__("types").SimpleNamespace(x=90, y=12))
+        self.assertEqual(self.ui._celula_selecionada, (iid, 3))
+        self.assertIsNone(self.ui._celula_editor)
+        self.ui._tecla_celula(__import__("types").SimpleNamespace(keysym="F2", char="", state=0))
+        self.assertIsNotNone(self.ui._celula_editor)
+        self.ui._cancelar_edicao_celula()
+        self.assertIsNone(self.ui._celula_editor)
+
+    def test_control_v_paste_valida_e_grava_na_celula_selecionada(self):
+        self.ui.mostrar_mapa()
+        form = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self._preencher_form(form, nome="Paciente de teste")
+        form._salvar()
+        iid = str(self._primeiro_leito()["leito"]["id_leito"])
+        self.ui._celula_selecionada = (iid, 3)
+        self.ui.tree._clipboard = "74"
+        self.assertEqual(self.ui._colar_celula(), "break")
+        depois = mdb.mapa_do_dia(self.db, self.ui.data.isoformat())[0]["registro"]
+        self.assertEqual(depois["idade_anos"], 74)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
