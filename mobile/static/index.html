@@ -384,8 +384,18 @@ async function vMapa(){
   j.linhas.map(l=>leito(l,j.pendentes)).join('')+(j.linhas.length?barra('salvaMapa',st?'Salvar rascunho':'Salvar mapa de '+br(j.data)):'<div class=cartao>Este setor ainda não tem leitos.</div>');
 }
 const salvaMapa=tenta(async()=>{
-  const r=await api('/api/mapa',{setor:S.setor,data:S.data,linhas:coleta()});await vMapa();
-  aviso(ehStaff()?`Rascunho salvo (${r.rascunho} leito(s) com mudanças). Publique para a copa receber.`:'Mapa salvo.'+(r.pendente?` ${r.pendente} leito(s) já atualizado(s) pela nutrição: aguardando a autorização dela.`:''),0);
+  const linhas=coleta();
+  const url='/api/mapa?setor='+encodeURIComponent(S.setor)+'&data='+encodeURIComponent(S.data);
+  let base={};
+  try{const j=JSON.parse(read('GET:'+url)||'{}');for(const l of j.linhas||[])base[l.id_leito]=l}catch(e){}
+  const agora=new Date().toISOString();
+  for(const l of linhas){
+    const anterior=base[l.id_leito];
+    if(!anterior||snapshot(anterior)!==snapshot(l))l.atualizado_em=agora;
+    else l.atualizado_em=anterior.atualizado_em||agora;
+  }
+  const r=await api('/api/mapa',{setor:S.setor,data:S.data,linhas,completo:!ehStaff()});await vMapa();
+  aviso(ehStaff()?'Rascunho salvo ('+r.rascunho+' leito(s) com mudanças). Publique para a copa receber.':'Mapa completo salvo localmente.'+(r.ignorados?' '+r.ignorados+' leito(s) sem alteração de origem foram preservados.':''),0);
 });
 const publica=tenta(async()=>{
   const t=$('#pt').value;await api('/api/mapa',{setor:S.setor,data:S.data,linhas:coleta()});
