@@ -265,7 +265,7 @@ class TestBanco(unittest.TestCase):
         self.assertEqual(mdb.criar_leitos_sequencia(self.db, self.setor, "L", 4, 7), 2)  # só L06 e L07
 
     def test_registro_completo(self):
-        sup = mdb.listar_suplementos(self.db)[0]
+        sup = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Fresubin")
         reg = registro_base(self.db, self.leitos[0]["id_leito"], "2026-10-25",
                             suplementos=[dict(id_suplemento=sup["id_suplemento"], nome=sup["nome"],
                                               modulo=sup["modulo"], qtd_dia=400.0, unidade="ml")])
