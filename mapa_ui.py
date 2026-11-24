@@ -465,6 +465,23 @@ class MapaUI:
                     # Mesma regra do formulário: trocar o nome desvincula o paciente anterior.
                     reg["id_paciente"] = None
                 reg[campo] = texto
+                if not reg.get("id_paciente"):
+                    iguais = [p for p in mdb.listar_pacientes(self.db, texto)
+                              if p["nome"].strip().casefold() == texto.casefold()]
+                    if iguais:
+                        paciente = iguais[0]
+                        extra = f" (há {len(iguais)} cadastros com esse nome)" if len(iguais) > 1 else ""
+                        resposta = messagebox.askyesnocancel(
+                            "Paciente já cadastrado",
+                            f"Já existe '{paciente['nome']}' no cadastro (nascimento: "
+                            f"{paciente.get('data_nascimento') or 'não informado'}){extra}.\\n\\n"
+                            "Sim: vincular este registro a ele\\n"
+                            "Não: criar um novo cadastro\\n"
+                            "Cancelar: voltar")
+                        if resposta is None:
+                            return False
+                        if resposta:
+                            reg["id_paciente"] = paciente["id_paciente"]
             elif campo == "idade_anos":
                 numero = nc.parse_num(texto) if texto else None
                 if numero is not None and not float(numero).is_integer():
