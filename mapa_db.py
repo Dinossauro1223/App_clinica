@@ -691,6 +691,7 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
             cur = c.execute(f"INSERT INTO Mapa_Registros ({cols}) VALUES ({marc})",
                             [reg["data"], reg["id_leito"]] + valores + [_agora(), _agora()])
             id_reg = cur.lastrowid
+        c.execute("DELETE FROM Mapa_Liberacoes WHERE data=? AND id_leito=?", (reg["data"], reg["id_leito"]))
         c.execute("DELETE FROM Mapa_Registro_Suplementos WHERE id_registro=?", (id_reg,))
         for s in reg.get("suplementos") or []:
             ficha = None
