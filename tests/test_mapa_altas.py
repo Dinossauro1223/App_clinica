@@ -23,10 +23,8 @@ class TestAltasMapa(unittest.TestCase):
         self.assertIsNotNone(mdb.obter_registro(self.db, "2026-11-23", self.leito))
         self.assertEqual(mdb.listar_leitos(self.db)[0]["ativo"], 1)
         self.assertIsNone(mdb.obter_registro(self.db, "2026-11-23", self.leito).get("alta_em"))
-        print("DEBUG_ULTIMO", mdb.ultimo_registro_leito(self.db, self.leito, "2026-11-24"))
         debug_mapa = mdb.mapa_do_dia(self.db, "2026-11-24")
-        print("DEBUG_MAPA_ALTAS", debug_mapa)
-        r = debug_mapa[0]["registro"]
+        r = next(x["registro"] for x in debug_mapa if x["leito"]["id_leito"] == self.leito)
         self.assertEqual(r["nome_paciente"], "Maria")
         self.assertEqual(r["data"], "2026-11-23")
         self.assertEqual(r["data_exibicao"], "2026-11-24")
@@ -34,9 +32,9 @@ class TestAltasMapa(unittest.TestCase):
     def test_alta_remove_do_mapa_mas_preserva_historico(self):
         mdb.salvar_registro(self.db, {"data": "2026-11-23", "id_leito": self.leito,
                                       "nome_paciente": "Maria", "idade_anos": 50})
-        r = mdb.mapa_do_dia(self.db, "2026-11-24")[0]["registro"]
+        r = next(x["registro"] for x in mdb.mapa_do_dia(self.db, "2026-11-24") if x["leito"]["id_leito"] == self.leito)
         mdb.registrar_alta(self.db, r, por="teste", quando="2026-11-24 09:30:00")
-        self.assertIsNone(mdb.mapa_do_dia(self.db, "2026-11-24")[0]["registro"])
+        self.assertIsNone(next(x["registro"] for x in mdb.mapa_do_dia(self.db, "2026-11-24") if x["leito"]["id_leito"] == self.leito))
         hist = mdb.historico_paciente(self.db, nome="Maria")
         self.assertEqual(hist[0]["alta_em"], "2026-11-24 09:30:00")
         self.assertEqual(hist[0]["alta_por"], "teste")
