@@ -116,6 +116,9 @@ CREATE TABLE IF NOT EXISTS Mapa_Setores (
 CREATE TABLE IF NOT EXISTS Mapa_Leitos (
     id_leito INTEGER PRIMARY KEY AUTOINCREMENT, id_setor INTEGER NOT NULL, codigo TEXT NOT NULL,
     ordem INTEGER DEFAULT 0, ativo INTEGER DEFAULT 1, UNIQUE(id_setor, codigo));
+CREATE TABLE IF NOT EXISTS Mapa_Liberacoes (
+    data TEXT NOT NULL, id_leito INTEGER NOT NULL, atualizado_em TEXT NOT NULL, por TEXT, motivo TEXT,
+    PRIMARY KEY(data, id_leito));
 CREATE TABLE IF NOT EXISTS Mapa_Modulos (
     id_modulo INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL UNIQUE, ordem INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS Mapa_Suplementos (
@@ -742,9 +745,18 @@ def obter_registro(db_path, data_iso, id_leito):
 
 
 def remover_registro(db_path, id_registro):
+    """Remove o registro do dia, mas cria um tombstone para impedir a herança automática do paciente."""
     with closing(conectar(db_path)) as c:
+        r = c.execute("SELECT data,id_leito FROM Mapa_Registros WHERE id_registro=?", (id_registro,)).fetchone()
+        if not r:
+            return
+        agora = _agora()
         c.execute("DELETE FROM Mapa_Registro_Suplementos WHERE id_registro=?", (id_registro,))
         c.execute("DELETE FROM Mapa_Registros WHERE id_registro=?", (id_registro,))
+        c.execute("INSERT INTO Mapa_Liberacoes(data,id_leito,atualizado_em,por,motivo) VALUES(?,?,?,?,?) "
+                  "ON CONFLICT(data,id_leito) DO UPDATE SET atualizado_em=excluded.atualizado_em,por=excluded.por,motivo=excluded.motivo",
+                  (r["data"], r["id_leito"], agora, os.environ.get("USERNAME") or os.environ.get("USER") or "usuário local",
+                   "remoção manual do mapa"))
         c.commit()
 
 
@@ -776,11 +788,15 @@ def resumo_altas(db_path, ano, mes, id_setor=None):
 
 
 def ultimo_registro_leito(db_path, id_leito, data_iso):
-    """Último registro físico do leito até a data, inclusive registros já encerrados por alta."""
+    """Último estado físico do leito, incluindo alta ou liberação manual para sincronização."""
     with closing(conectar(db_path)) as c:
         rows = _rows(c.execute(_SEL_REG + "WHERE R.id_leito=? AND R.data<=? ORDER BY R.data DESC, R.id_registro DESC LIMIT 1",
                                (id_leito, data_iso)))
-        return _anexar_suplementos(c, rows)[0] if rows else None
+        reg = _anexar_suplementos(c, rows)[0] if rows else None
+        lib = c.execute("SELECT * FROM Mapa_Liberacoes WHERE id_leito=? AND data=?", (id_leito, data_iso)).fetchone()
+        if lib and (not reg or reg["data"] < data_iso):
+            return {"id_leito": id_leito, "data": data_iso, "atualizado_em": lib["atualizado_em"], "alta_em": lib["atualizado_em"]}
+        return reg
 
 
 def mapa_do_dia(db_path, data_iso, id_setor=None):
@@ -811,6 +827,13 @@ def mapa_do_dia(db_path, data_iso, id_setor=None):
             r["data_exibicao"] = data_iso
             por_leito[r["id_leito"]] = r
         por_leito = {k: v for k, v in por_leito.items() if v is not None}
+        # Uma remoção manual é um estado explícito de "vago" para aquele dia e impede
+        # que o paciente do dia anterior reapareça, sem criar um falso registro clínico.
+        liberacoes = _rows(c.execute("SELECT * FROM Mapa_Liberacoes WHERE data=?", (data_iso,)))
+        for lib in liberacoes:
+            atual = por_leito.get(lib["id_leito"])
+            if atual is None or atual.get("data") != data_iso:
+                por_leito[lib["id_leito"]] = None
         q = ("SELECT L.*, S.nome AS setor, S.sigla AS sigla_setor, S.grupo AS grupo_setor, "
          "S.ordem_apresentacao AS ordem_setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
              "WHERE (L.ativo=1 OR L.id_leito IN (%s))" % ",".join(str(i) for i in por_leito) if por_leito else
