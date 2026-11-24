@@ -3,7 +3,9 @@
 
     python -m unittest discover -s tests -v
 """
+import gc
 import os
+import time
 import random
 import sqlite3
 import sys
@@ -382,7 +384,15 @@ class TestBanco(unittest.TestCase):
             self.assertTrue({"kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
                              "ficha_observacao", "ficha_snapshot_em"}.issubset(colunas))
         finally:
-            os.remove(legado)
+            for _ in range(10):
+                try:
+                    os.remove(legado)
+                    break
+                except PermissionError:
+                    gc.collect()
+                    time.sleep(0.2)
+            else:
+                os.remove(legado)
 
     def test_migracao_adiciona_classificacao_de_dupla_via(self):
         glucerna = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Glucerna SR")
