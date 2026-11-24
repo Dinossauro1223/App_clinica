@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
     obs_sim TEXT, obs_nao TEXT, fi_estado TEXT, fi_freq REAL, fi_dias_ausente INTEGER,
     nrs2002_json TEXT, nrs2002_classificacao TEXT,
     avaliacao_json TEXT, avaliacao_classificacao TEXT,
-    criado_em TEXT, atualizado_em TEXT, UNIQUE(data, id_leito));
+    criado_em TEXT, atualizado_em TEXT, alta_em TEXT, alta_por TEXT, alta_motivo TEXT, UNIQUE(data, id_leito));
 CREATE TABLE IF NOT EXISTS Mapa_Registro_Suplementos (
     id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL, id_suplemento INTEGER,
     nome TEXT NOT NULL, modulo TEXT, qtd_dia REAL, unidade TEXT,
@@ -154,6 +154,7 @@ _CAMPOS_REG = [
     "dm", "has", "laxativa", "constipante", "drc", "condicoes", "consistencia", "obs_sim", "obs_nao",
     "fi_estado", "fi_freq", "fi_dias_ausente",
     "nrs2002_json", "nrs2002_classificacao", "avaliacao_json", "avaliacao_classificacao",
+    "alta_em", "alta_por", "alta_motivo",
 ]
 
 # --------------------------------------------------------------------- utilidades
@@ -214,6 +215,7 @@ def inicializar(db_path):
         for nome, tipo in (("meta_kcal", "REAL"), ("meta_proteina_g", "REAL")):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
+        for nome, tipo in (("alta_em", "TEXT"), ("alta_por", "TEXT"), ("alta_motivo", "TEXT")):\n            if nome not in colunas:\n                c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
         colunas_sup = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
         for nome, tipo in (("ml_oferta", "REAL"), ("agua_ml", "REAL"),
                            ("refeicoes_json", "TEXT DEFAULT '[]'"), ("batido_fruta", "INTEGER DEFAULT 0"),
@@ -744,18 +746,57 @@ def remover_registro(db_path, id_registro):
         c.commit()
 
 
+def registrar_alta(db_path, reg, por=None, motivo=None, quando=None):
+    """Marca a alta sem apagar o histórico do paciente."""
+    if not reg or not reg.get("id_registro"):
+        raise ValueError("Registro do paciente não encontrado.")
+    quando = quando or _agora()
+    with closing(conectar(db_path)) as c:
+        c.execute("UPDATE Mapa_Registros SET alta_em=?, alta_por=?, alta_motivo=?, atualizado_em=? WHERE id_registro=?",
+                  (quando, por or "usuário local", (motivo or "").strip() or None, quando, reg["id_registro"]))
+        c.commit()
+    return quando
+
+
+def resumo_altas(db_path, ano, mes, id_setor=None):
+    ini = date(ano, mes, 1).isoformat()
+    fim = date(ano, mes, calendar.monthrange(ano, mes)[1]).isoformat()
+    with closing(conectar(db_path)) as c:
+        par = [ini + " 00:00:00", fim + " 23:59:59"]
+        sql = """SELECT substr(alta_em,1,10) AS data, COUNT(*) AS total
+                 FROM Mapa_Registros R JOIN Mapa_Leitos L ON L.id_leito=R.id_leito
+                 WHERE alta_em IS NOT NULL AND alta_em BETWEEN ? AND ?"""
+        if id_setor:
+            sql += " AND L.id_setor=?"
+            par.append(id_setor)
+        sql += " GROUP BY substr(alta_em,1,10) ORDER BY data"
+        return _rows(c.execute(sql, par))
+
+
 def mapa_do_dia(db_path, data_iso, id_setor=None):
-    """Lista [{'leito': {...}, 'registro': dict|None}] na ordem dos leitos do setor.
-    Inclui leitos desativados que tenham registro nesse dia."""
+    """Lista o estado de cada leito na data solicitada, herdando o último paciente até a alta."""
     with closing(conectar(db_path)) as c:
         par = [data_iso]
         filtro = ""
         if id_setor:
             filtro = " AND L.id_setor=?"
             par.append(id_setor)
-        regs = _rows(c.execute(_SEL_REG + "WHERE R.data=?" + filtro, par))
+        regs = _rows(c.execute(
+            _SEL_REG + """WHERE R.id_registro IN (
+                SELECT R2.id_registro FROM Mapa_Registros R2
+                WHERE R2.id_leito=R.id_leito AND R2.data<=?
+                ORDER BY R2.data DESC, R2.id_registro DESC
+                LIMIT 1
+            )""" + filtro, par))
         _anexar_suplementos(c, regs)
-        por_leito = {r["id_leito"]: r for r in regs}
+        por_leito = {}
+        for r in regs:
+            alta = (r.get("alta_em") or "")
+            if alta and alta[:10] <= data_iso:
+                continue
+            r = dict(r)
+            r["data_exibicao"] = data_iso
+            por_leito[r["id_leito"]] = r
         q = ("SELECT L.*, S.nome AS setor, S.sigla AS sigla_setor, S.grupo AS grupo_setor, "
          "S.ordem_apresentacao AS ordem_setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
              "WHERE (L.ativo=1 OR L.id_leito IN (%s))" % ",".join(str(i) for i in por_leito) if por_leito else
