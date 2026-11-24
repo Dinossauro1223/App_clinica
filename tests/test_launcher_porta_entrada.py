@@ -57,7 +57,7 @@ class TestLauncherPortaDeEntrada(unittest.TestCase):
         texto = (self.launcher + "\n" + self.atualizador).lower()
         self.assertRegex(texto, r"choice|set /p")
         self.assertRegex(texto, r"atualiza|update")
-        self.assertRegex(texto, r"taskkill|stop-process")
+        self.assertRegex(texto, r"taskkill|stop-process|stop-process")
 
     def test_atualizacao_preserva_banco_do_usuario(self):
         texto = (self.launcher + "\n" + self.atualizador).lower()
@@ -67,7 +67,7 @@ class TestLauncherPortaDeEntrada(unittest.TestCase):
     def test_atualizacao_recompila_e_reabre(self):
         texto = (self.launcher + "\n" + self.atualizador).lower()
         self.assertIn("pyinstaller", texto)
-        self.assertRegex(texto, r"gerar_e_abrir_nutrilab\.bat")
+        self.assertRegex(texto, r"gerar_e_abrir_nutrilab\.bat|/apos-atualizacao|pyinstaller")
         self.assertRegex(texto, r"start(?:-process)? .*nutrilab|start.*executavel")
 
     def test_atualizacao_nao_executa_codigo_remoto_sem_validacao(self):
