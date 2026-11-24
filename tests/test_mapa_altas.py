@@ -23,6 +23,7 @@ class TestAltasMapa(unittest.TestCase):
         self.assertIsNotNone(mdb.obter_registro(self.db, "2026-11-23", self.leito))
         self.assertEqual(mdb.listar_leitos(self.db)[0]["ativo"], 1)
         self.assertIsNone(mdb.obter_registro(self.db, "2026-11-23", self.leito).get("alta_em"))
+        print("DEBUG_ULTIMO", mdb.ultimo_registro_leito(self.db, self.leito, "2026-11-24"))
         debug_mapa = mdb.mapa_do_dia(self.db, "2026-11-24")
         print("DEBUG_MAPA_ALTAS", debug_mapa)
         r = debug_mapa[0]["registro"]
