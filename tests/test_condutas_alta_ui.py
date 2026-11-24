@@ -251,8 +251,7 @@ class TestJanela(Base):
         self.assertEqual(titulos, ["[TST-01] Enteral", "[TST-02] Renal com diabetes", "[TST-03] Respiratória ou TB"])
         self.assertIn("3 condutas de alta pendentes", j.lbl_status.opts["text"])
         self.assertIn("Cada conduta abaixo é uma sugestão", j.lbl_doencas.opts["text"])
-        self.assertEqual(j._textos["TST-01"].get("1.0", "end-1c"), "- Dieta: ______
-- Lave as mãos.")
+        self.assertEqual(j._textos["TST-01"].get("1.0", "end-1c"), "- Dieta: ______\n- Lave as mãos.")
         self.assertTrue(any(t.startswith("1 campo em branco (____)") for t in textos(cartao(j, "TST-01"))))
         self.assertIn("nenhuma conduta confirmada", j.lbl_paginas.opts["text"])
 
@@ -273,13 +272,11 @@ class TestJanela(Base):
 
     def test_confirmar_com_texto_corrigido(self):
         j = self.janela()
-        digitar(j._textos["TST-01"], "- Dieta: 1500 mL em 6 horários.
-- Lave as mãos.")
+        digitar(j._textos["TST-01"], "- Dieta: 1500 mL em 6 horários.\n- Lave as mãos.")
         clicar(cartao(j, "TST-01"), "Confirmar com este texto")
         item = self.sessao().itens["TST-01"]
         self.assertEqual((item["decisao"], item["editado"]), ("confirmada", 1))
-        self.assertEqual(item["texto_paciente"], "- Dieta: 1500 mL em 6 horários.
-- Lave as mãos.")
+        self.assertEqual(item["texto_paciente"], "- Dieta: 1500 mL em 6 horários.\n- Lave as mãos.")
         self.assertIn("CONFIRMADA  |  texto editado", textos(cartao(j, "TST-01")))
         self.assertEqual(j.lbl_msg.opts["text"], "TST-01 confirmada.")
         self.assertIn("2 condutas de alta pendentes", j.lbl_status.opts["text"])
@@ -644,8 +641,7 @@ class TestMapa(Base):
         self.assertTrue(mdb.obter_registro(self.db, DATA.isoformat(), self.reg["id_leito"]))
         with mock.patch.object(caixa, "askyesnocancel", return_value=False):
             self.ui._remover()                                                # Não: remove mesmo assim
-        self.assertTrue(mdb.obter_registro(self.db, DATA.isoformat(), self.reg["id_leito"])["alta_em"])
-        self.assertIsNone(next(l["registro"] for l in self.ui.linhas if l["leito"]["id_leito"] == self.reg["id_leito"]))
+        self.assertTrue(mdb.obter_registro(self.db, DATA.isoformat(), self.reg["id_leito"])["alta_em"])\n        self.assertIsNone(next(l["registro"] for l in self.ui.linhas if l["leito"]["id_leito"] == self.reg["id_leito"]))
 
     def test_remover_sem_pendencia_nao_pergunta_das_condutas(self):
         outro = registrar(self.db, nome="Sem Doença", leito="L02", via="Oral")
@@ -653,8 +649,7 @@ class TestMapa(Base):
         self.ui.tree.selection_set(str(outro["id_leito"]))
         self.ui._remover()
         self.assertEqual(self.caixa_mapa("askyesnocancel"), [])
-        self.assertTrue(mdb.obter_registro(self.db, DATA.isoformat(), outro["id_leito"])["alta_em"])
-        self.assertIsNone(next(l["registro"] for l in self.ui.linhas if l["leito"]["id_leito"] == outro["id_leito"]))
+        self.assertTrue(mdb.obter_registro(self.db, DATA.isoformat(), outro["id_leito"])["alta_em"])\n        self.assertIsNone(next(l["registro"] for l in self.ui.linhas if l["leito"]["id_leito"] == outro["id_leito"]))
 
     def test_formulario_grava_e_reabre_as_doencas_relatadas(self):
         id_setor = mdb.listar_setores(self.db)[0]["id_setor"]
@@ -696,8 +691,7 @@ class TestLigacaoNoMain(unittest.TestCase):
     def corpo(self, metodo):
         """Texto do método `metodo` (até o próximo método da classe)."""
         ini = self.texto.index(f"    def {metodo}(")
-        fim = re.search(r"
-    def \w+\(", self.texto[ini + 10:])
+        fim = re.search(r"\n    def \w+\(", self.texto[ini + 10:])
         return self.texto[ini: ini + 10 + fim.start()] if fim else self.texto[ini:]
 
     def test_painel_fica_na_parte_clinica_da_consulta_logo_depois_da_conduta(self):
