@@ -403,7 +403,7 @@ class MapaUI:
 
     # ------------------------------------------------------------------- exportações
     def _nome_setor(self):
-        return next((s["nome"] for s in self.setores if s["id_setor"] == self.id_setor), "Todos_os_setores")
+        return next((mdb.rotulo_setor(s) for s in self.setores if s["id_setor"] == self.id_setor), "Todos_os_setores")
 
     def _exportar(self, extensao, rotulo, funcao):
         if not self.linhas:
@@ -754,10 +754,10 @@ class DialogLeitos(_Janela):
         topo = ctk.CTkFrame(self, fg_color="transparent")
         topo.pack(fill="x", padx=16, pady=(14, 4))
         ctk.CTkLabel(topo, text="Setor:").pack(side="left")
-        self.cb_setor = ctk.CTkComboBox(topo, values=[s["nome"] for s in self.setores], width=200, state="readonly",
+        self.cb_setor = ctk.CTkComboBox(topo, values=[mdb.rotulo_setor(s) for s in self.setores], width=200, state="readonly",
                                         command=lambda v: self._recarregar())
         self.cb_setor.pack(side="left", padx=6)
-        atual = next((s["nome"] for s in self.setores if s["id_setor"] == ui.id_setor), self.setores[0]["nome"])
+        atual = next((mdb.rotulo_setor(s) for s in self.setores if s["id_setor"] == ui.id_setor),\n                      mdb.rotulo_setor(self.setores[0]))
         self.cb_setor.set(atual)
         self.e_novo_setor = ctk.CTkEntry(topo, width=130, placeholder_text="Novo setor")
         self.e_novo_setor.pack(side="left", padx=(12, 4))
@@ -797,7 +797,7 @@ class DialogLeitos(_Janela):
         self._recarregar()
 
     def _id_setor(self):
-        return next(s["id_setor"] for s in self.setores if s["nome"] == self.cb_setor.get())
+        return next(s["id_setor"] for s in self.setores if mdb.rotulo_setor(s) == self.cb_setor.get())
 
     def _recarregar(self):
         self.tree.delete(*self.tree.get_children())
@@ -819,7 +819,7 @@ class DialogLeitos(_Janela):
             messagebox.showwarning("Setor", str(e), parent=self)
             return
         self.setores = mdb.listar_setores(self.ui.db)
-        self.cb_setor.configure(values=[s["nome"] for s in self.setores])
+        self.cb_setor.configure(values=[mdb.rotulo_setor(s) for s in self.setores])
         self.cb_setor.set(self.e_novo_setor.get().strip())
         _set_entry(self.e_novo_setor, "")
         self._recarregar()
