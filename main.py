@@ -820,16 +820,24 @@ class AppClinica(ctk.CTk):
         self.carregar_tabela_pacientes()
 
     # --- PERFIL DO PACIENTE ---
-    def abrir_perfil_paciente(self, event=None, _painel_aberto=False):
+    def abrir_perfil_paciente(self, event=None, _painel_aberto=False, _valores=None):
         if not _painel_aberto:
+            selecao = self.tree.selection()
+            if not selecao:
+                return
+            # Capture os dados antes de trocar a página: a tabela de origem será destruída.
+            valores = self.tree.item(selecao[0])['values']
             self.abrir_pagina_principal(
                 "Perfil do paciente",
-                lambda: self.abrir_perfil_paciente(event, _painel_aberto=True)
+                lambda: self.abrir_perfil_paciente(event, _painel_aberto=True, _valores=valores)
             )
             return
-        selecao = self.tree.selection()
-        if not selecao: return
-        valores = self.tree.item(selecao[0])['values']
+        valores = _valores
+        if valores is None:
+            selecao = self.tree.selection()
+            if not selecao:
+                return
+            valores = self.tree.item(selecao[0])['values']
         self.paciente_atual_id, self.paciente_atual_nome, nasc, sexo = valores
         self.paciente_atual_nasc = nasc
         self.paciente_atual_sexo = sexo
