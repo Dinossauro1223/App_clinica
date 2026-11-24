@@ -70,7 +70,8 @@ class _PainelJanela(ctk.CTkFrame):
         self.app = app
         self._painel_externo = bool(app and hasattr(app, "abrir_painel_lateral"))
         if self._painel_externo:
-            self._painel_frame = app.abrir_painel_lateral(titulo, lambda: None)
+            abrir = getattr(app, "abrir_painel_modal", app.abrir_painel_lateral)
+            self._painel_frame = abrir(titulo, lambda: None)
             pai = self._painel_frame
         else:
             self._painel_frame = None
