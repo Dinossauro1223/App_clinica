@@ -9,6 +9,7 @@ Layout pedido: uma linha por leito; a célula do paciente tem 4 divisões:
 No PDF todos os títulos são abreviados (legenda no rodapé de cada página).
 """
 import math
+import json
 import unicodedata
 from datetime import datetime
 
@@ -28,12 +29,23 @@ COLUNAS = [
     ("supl", "Suplementos", 34, 24),
     ("obs", "Obs. (Sim/Não)", 46, 32),
     ("fi", "F. Int.", 18, 12),
+    # Colunas institucionais adicionais; as onze primeiras preservam a API/layout legado.
+    ("cons_LV", "LV", 6, 6),
+    ("cons_BR", "BR", 6, 6),
+    ("cons_PAS", "PAS", 6, 6),
+    ("cons_LPAS", "LÍQ. PAS", 8, 9),
+    ("cons_LIQ", "LÍQ", 6, 6),
+    ("via_inst", "Via ALM.", 13, 12),
+    ("supl_inst", "Suplementação / Dieta enteral", 36, 32),
+    ("preferencias", "Preferências", 24, 24),
+    ("observacoes", "Observações", 22, 22),
+    ("diagnosticos", "Diagnósticos", 20, 20),
 ]
 
 
 def _colunas(setor_nome):
     """Acrescenta a identificação do setor na exportação da visão geral."""
-    if setor_nome != "Todos_os_setores":
+    if setor_nome != "Todos_os_setores" and not str(setor_nome).startswith("Grupo_"):
         return COLUNAS
     ajustes = {"paciente": -6, "via": -2, "supl": -6, "obs": -10}
     base = [(k, t, w + ajustes.get(k, 0), ex + ajustes.get(k, 0)) for k, t, w, ex in COLUNAS]
@@ -112,51 +124,134 @@ def linhas_paciente(reg, abreviar=True):
     return [[(nome, "nome")], [(l2, "normal")], [(l3, "normal")], l4]
 
 
+def _fmt_data(valor):
+    if not valor:
+        return ""
+    try:
+        return datetime.strptime(str(valor)[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+    except (TypeError, ValueError):
+        return str(valor)
+
+
+def _fmt_num_pt(valor, casas=1, milhar=False):
+    if valor is None or valor == "":
+        return ""
+    try:
+        numero = float(valor)
+    except (TypeError, ValueError):
+        return str(valor)
+    texto = f"{numero:,.{casas}f}" if milhar else f"{numero:.{casas}f}"
+    texto = texto.replace(",", "#").replace(".", ",").replace("#", ".")
+    if casas and texto.endswith("," + "0" * casas):
+        texto = texto[:-(casas + 1)]
+    return texto
+
+
+def _consistencias(reg):
+    valor = (reg.get("consistencia") or "").strip().lower()
+    mapa = {"livre":"LV", "branda":"BR", "pastosa":"PAS",
+            "líq/past":"LÍQ. PAS", "liq/past":"LÍQ. PAS",
+            "líquida":"LÍQ", "liquida":"LÍQ"}
+    selecionada = mapa.get(valor, "")
+    return {chave: ("X" if chave == selecionada else "")
+            for chave in ("LV", "BR", "PAS", "LÍQ. PAS", "LÍQ")}
+
+
+def _reavaliacao(reg):
+    data_base = reg.get("data")
+    classificacao = reg.get("nrs2002_classificacao")
+    if not classificacao and reg.get("nrs2002_json"):
+        try:
+            classificacao = json.loads(reg["nrs2002_json"]).get("grau")
+        except (TypeError, ValueError, AttributeError):
+            classificacao = None
+    if not data_base or not classificacao:
+        return _fmt_data(reg.get("data_reavaliacao"))
+    try:
+        import nrs2002
+        try:
+            intervalos = nrs2002.ler_intervalos()
+        except TypeError:
+            intervalos = None
+        dias = nrs2002.dias_para(classificacao, intervalos)
+        base = datetime.strptime(str(data_base)[:10], "%Y-%m-%d").date()
+        from datetime import timedelta
+        return (base + timedelta(days=dias)).strftime("%d/%m/%Y")
+    except (ImportError, ValueError, TypeError, KeyError):
+        return _fmt_data(reg.get("data_reavaliacao"))
+
+
 def textos_linha(leito, reg, abreviar=True):
-    """Textos de todas as colunas de uma linha. `reg` None = leito vago."""
-    nome_setor = leito.get("setor", "")
+    """Prepara os campos clínicos do mapa; registro None representa leito vago."""
     sigla = leito.get("sigla_setor")
-    grupo = leito.get("grupo_setor")
-    setor_rotulo = f"{nome_setor} ({sigla})" if sigla else nome_setor
-    if grupo and grupo != "Outros":
-        setor_rotulo = f"{grupo} · {setor_rotulo}"
-    t = {"leito": str(leito["codigo"]), "setor": setor_rotulo}
+    t = {"leito": (f"{sigla} {leito['codigo']}" if sigla else str(leito["codigo"]))}
+    if setor := leito.get("setor"):
+        t["setor"] = setor
     if reg is None:
-        t.update(paciente=None, acomp="", idade="", reav="", via="", carac="", consist="", supl=[], obs=[], fi="")
+        t.update(acomp="", paciente=None, idade="", reav="", via="",
+                 consistencias={k: "" for k in ("LV", "BR", "PAS", "LÍQ. PAS", "LÍQ")},
+                 carac="", fi="", supl="", preferencias="", obs="", diagnosticos="")
         return t
-    t["paciente"] = linhas_paciente(reg, abreviar)
-    t["acomp"] = "Sim" if reg.get("acompanhante") else "Não"
-    t["idade"] = _idade_txt(reg)
-    t["reav"] = mdb.iso_para_br(reg.get("data_reavaliacao"))
-    t["via"] = reg.get("via") or ""
-    nomes = [(sig if abreviar else nome) for campo, sig, nome in mdb.CARACTERISTICAS if reg.get(campo)]
-    t["carac"] = ", ".join(nomes)
-    t["consist"] = reg.get("consistencia") or ""
-    supl = []
-    nomes_refeicoes = {"desjejum": "desjejum", "colacao": "lanche da manhã", "almoco": "almoço",
-                       "lanche": "lanche da tarde", "jantar": "jantar", "ceia": "ceia"}
+
+    nome = (reg.get("nome_paciente") or "").strip()
+    primeira = f"{nome} — {_fmt_data(reg.get('data'))}" if nome and reg.get("data") else (nome or _fmt_data(reg.get("data")))
+    partes = [primeira]
+    if reg.get("sexo"):
+        partes.append(f"Sexo: {reg['sexo']}")
+    if reg.get("cor"):
+        partes.append(f"Cor: {reg['cor']}")
+    if not (reg.get("altura_origem") == "M" and reg.get("peso_origem") == "M"):
+        for campo, rotulo in (("aj_cm", "AJ (cm)"), ("pp_cm", "PP (cm)"), ("pb_cm", "PB")):
+            if reg.get(campo) is not None:
+                partes.append(f"{rotulo}: {_fmt_num_pt(reg[campo], 1)}")
+    origem_alt = "A" if reg.get("altura_origem") == "M" else (reg.get("altura_origem") or "")
+    if reg.get("altura_cm") is not None:
+        partes.append(f"ALT ({origem_alt}): {_fmt_num_pt(reg['altura_cm'], 2)}")
+    if reg.get("peso_kg") is not None:
+        partes.append(f"Peso ({'A' if reg.get('peso_origem') == 'M' else (reg.get('peso_origem') or '')}): {_fmt_num_pt(reg['peso_kg'], 1)} Kg")
+    if reg.get("imc") is not None:
+        partes.append(f"IMC (Kg/m²): {_fmt_num_pt(reg['imc'], 1)}" +
+                      (f" ({reg['imc_class']})" if reg.get("imc_class") else ""))
+    if reg.get("meta_kcal") is not None:
+        partes.append(f"Kcal: {_fmt_num_pt(reg['meta_kcal'], 0, True)}")
+    if reg.get("meta_proteina_g") is not None:
+        partes.append(f"Proteínas: {_fmt_num_pt(reg['meta_proteina_g'], 2)} g")
+    paciente = "\n".join(partes)
+
+    carac = []
+    for campo, sigla_c, _nome in mdb.CARACTERISTICAS:
+        if reg.get(campo):
+            carac.append({"Lax.": "LAX", "Const.": "CONST"}.get(sigla_c, sigla_c))
+    nomes_refeicoes = {"desjejum":"Desj", "colacao":"Col", "almoco":"ALM",
+                       "lanche":"Lanche", "jantar":"Jant", "ceia":"Ceia"}
+    suplementos = []
     for s in reg.get("suplementos") or []:
-        txt = s["nome"]
-        if s.get("ml_oferta") is not None:
-            refs = s.get("refeicoes") or []
-            txt += f" {_n(s['ml_oferta'])} mL/oferta × {len(refs)} = {_n(s.get('qtd_dia'))} mL/d"
-            if refs:
-                txt += " (" + ", ".join(nomes_refeicoes.get(r, r) for r in refs) + ")"
-            if s.get("agua_ml"):
-                txt += f"; água: {_n(s['agua_ml'])} mL/oferta"
-        elif s.get("qtd_dia"):
-            txt += f" {_n(s['qtd_dia'])} {s.get('unidade') or ''}/d".rstrip()
-        if s.get("batido_fruta"):
-            txt += " (batido com fruta)"
-        supl.append(txt)
-    t["supl"] = supl
-    obs = []
+        qtd = s.get("qtd_dia")
+        texto = f"{s.get('nome') or ''}: {_fmt_num_pt(qtd, 0)} {s.get('unidade') or 'mL'}/Etapa" if qtd is not None else (s.get("nome") or "")
+        refeicoes = [nomes_refeicoes.get(x, x) for x in (s.get("refeicoes") or [])]
+        if refeicoes:
+            texto += " (" + ", ".join(refeicoes) + ")"
+        suplementos.append(texto)
+    preferencias = []
     if (reg.get("obs_sim") or "").strip():
-        obs.append("Sim: " + reg["obs_sim"].strip())
+        preferencias.append("Sim: " + reg["obs_sim"].strip())
     if (reg.get("obs_nao") or "").strip():
-        obs.append("Não: " + reg["obs_nao"].strip())
-    t["obs"] = obs
-    t["fi"] = _fi_txt(reg, abreviar)
+        preferencias.append("Não: " + reg["obs_nao"].strip())
+    diagnosticos = (reg.get("condicoes") or "").strip()
+    if reg.get("diagnosticos"):
+        diagnosticos = ", ".join(x for x in (diagnosticos, str(reg["diagnosticos"])) if x)
+    fi = ""
+    if reg.get("fi_estado") == "P":
+        fi = f"P. {_fmt_num_pt(reg.get('fi_freq') or 1, 0)}x/dia"
+    elif reg.get("fi_estado") == "A":
+        fi = f"A. {reg.get('fi_dias_ausente') or '?'} dia(s)"
+    t.update(acomp="X" if reg.get("acompanhante") else "", paciente=paciente,
+             idade=_idade_txt(reg), reav=_reavaliacao(reg), via=reg.get("via") or "",
+             consistencias=_consistencias(reg), carac=", ".join(carac), fi=fi,
+             supl="\n".join(suplementos), supl_inst="\n".join(suplementos),
+             via_inst=reg.get("via") or "", preferencias="\n".join(preferencias),
+             observacoes="\n".join(preferencias), obs="\n".join(preferencias),
+             diagnosticos=diagnosticos)
     return t
 
 
@@ -164,108 +259,89 @@ def _filtrar(linhas_mapa, incluir_vagos):
     return [l for l in linhas_mapa if incluir_vagos or l["registro"] is not None]
 
 
+
+def filtrar_para_impressao(linhas_mapa, grupo="Ambos", incluir_vagos=True):
+    """Aplica os filtros exclusivos da impressão, sem modificar a lista original.
+
+    grupo: "Ambos" (Internos + Externos), "Internos" ou "Externos".
+    Setores legados classificados como "Outros" não entram nos grupos solicitados.
+    """
+    if grupo not in ("Ambos", "Internos", "Externos"):
+        raise ValueError("Grupo de impressão inválido.")
+    permitidos = {"Internos", "Externos"} if grupo == "Ambos" else {grupo}
+    return [item for item in linhas_mapa
+            if (item["leito"].get("grupo_setor") or "Outros") in permitidos
+            and (incluir_vagos or item.get("registro") is not None)]
+
+
 # ------------------------------------------------------------------------- Excel
 
 
 def exportar_excel(caminho, linhas_mapa, data_iso, setor_nome, abreviar=False, incluir_vagos=True):
-    """Gera o .xlsx do mapa (uma linha de Excel por leito)."""
+    """Exporta o mapa institucional em XLSX, com cabeçalho hierárquico e colunas clínicas."""
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.worksheet.page import PageMargins
     from openpyxl.worksheet.properties import PageSetupProperties
-    try:
-        from openpyxl.cell.rich_text import CellRichText, TextBlock
-        from openpyxl.cell.text import InlineFont
-        rico = True
-    except ImportError:  # openpyxl < 3.1
-        rico = False
 
     colunas = _colunas(setor_nome)
-    titulo_setor = "Todos os setores" if setor_nome == "Todos_os_setores" else setor_nome
     wb = Workbook()
     ws = wb.active
     ws.title = "Mapa"
-    n_col = len(colunas)
-    ultima = chr(ord("A") + n_col - 1)
+    ultima = ws.cell(row=1, column=len(colunas)).column_letter
     borda = Side(style="thin", color="808080")
     caixa = Border(left=borda, right=borda, top=borda, bottom=borda)
-
     ws.merge_cells(f"A1:{ultima}1")
-    ws["A1"] = f"MAPA NUTRICIONAL  -  {titulo_setor}  -  {mdb.iso_para_br(data_iso)}"
-    ws["A1"].font = Font(name="Arial", size=12, bold=True)
-    ws["A1"].alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[1].height = 22
+    ws["A1"] = "SETOR DE NUTRIÇÃO"
+    ws["A1"].font = Font(name="Arial", size=14, bold=True)
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 25
     ws.merge_cells(f"A2:{ultima}2")
-    ws["A2"] = "Gerado em " + datetime.now().strftime("%d/%m/%Y %H:%M") + " pelo NutriLab"
-    ws["A2"].font = Font(name="Arial", size=8, italic=True, color="666666")
+    ws["A2"] = "MAPA DE DIETAS - SETOR GERAL"
+    ws["A2"].font = Font(name="Arial", size=11, bold=True)
+    ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[2].height = 22
+    ws.merge_cells(f"A3:{ultima}3")
+    ws["A3"] = "IMPRESSO EM " + _fmt_data(data_iso)
+    ws["A3"].font = Font(name="Arial", size=8, italic=True)
+    ws["A3"].alignment = Alignment(horizontal="right", vertical="center")
+    ws.row_dimensions[3].height = 18
+    for i, (key, title, _wp, width_xl) in enumerate(colunas, 1):
+        cell = ws.cell(row=4, column=i, value=title)
+        cell.font = Font(name="Arial", size=8, bold=True)
+        cell.fill = PatternFill("solid", fgColor="C8E6C9")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = caixa
+        ws.column_dimensions[cell.column_letter].width = width_xl
+    ws.row_dimensions[4].height = 28
 
-    for i, (_, titulo, _, larg) in enumerate(colunas, start=1):
-        c = ws.cell(row=3, column=i, value=titulo)
-        c.font = Font(name="Arial", size=8, bold=True)
-        c.fill = PatternFill("solid", fgColor="C8E6C9")
-        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        c.border = caixa
-        ws.column_dimensions[chr(ord("A") + i - 1)].width = larg
-    ws.row_dimensions[3].height = 20
-
-    f8 = Font(name="Arial", size=8)
-    linha = 4
-    for item in _filtrar(linhas_mapa, incluir_vagos):
+    for row_idx, item in enumerate(_filtrar(linhas_mapa, incluir_vagos), start=5):
         t = textos_linha(item["leito"], item["registro"], abreviar)
-        altura_pt = 48.0
-        for i, (chave, _, _, larg) in enumerate(colunas, start=1):
-            c = ws.cell(row=linha, column=i)
-            c.border = caixa
-            c.font = f8
-            centro = chave in ("leito", "acomp", "idade", "reav", "via", "consist", "fi")
-            c.alignment = Alignment(horizontal="center" if centro else "left", vertical="center" if centro else "top",
-                                    wrap_text=True)
-            if chave == "leito":
-                c.value = t["leito"]
-                c.font = Font(name="Arial", size=9, bold=True)
-            elif chave == "paciente":
-                if t["paciente"] is None:
-                    c.value = "Vago"
-                    c.font = Font(name="Arial", size=8, italic=True, color="808080")
-                elif rico:
-                    blocos = []
-                    for k, seg_linha in enumerate(t["paciente"]):
-                        for texto, estilo in seg_linha:
-                            fonte = InlineFont(rFont="Arial", sz=10 if estilo == "nome" else 8,
-                                               b=(estilo == "nome"),
-                                               color="FFFF0000" if estilo == "alerta" else "FF000000")
-                            blocos.append(TextBlock(fonte, texto))
-                        if k < len(t["paciente"]) - 1:
-                            blocos.append(TextBlock(InlineFont(rFont="Arial", sz=8), "\n"))
-                    c.value = CellRichText(*blocos)
-                else:
-                    c.value = "\n".join("".join(s for s, _ in seg) for seg in t["paciente"])
-            elif chave in ("supl", "obs"):
-                linhas_txt = t[chave]
-                c.value = "\n".join(linhas_txt) if linhas_txt else None
-                est = sum(max(1, math.ceil(len(x) / (larg * 1.05))) for x in linhas_txt)
-                altura_pt = max(altura_pt, est * 11.0 + 4)
-            elif chave == "carac":
-                c.value = t["carac"] or None
-                altura_pt = max(altura_pt, math.ceil(len(t["carac"]) / (larg * 1.05)) * 11.0 + 4)
+        for col_idx, (key, _title, _wp, _wx) in enumerate(colunas, 1):
+            if key.startswith("cons_"):
+                codigo = {"cons_LV":"LV", "cons_BR":"BR", "cons_PAS":"PAS",
+                          "cons_LPAS":"LÍQ. PAS", "cons_LIQ":"LÍQ"}[key]
+                value = t["consistencias"].get(codigo, "")
             else:
-                c.value = t[chave] or None
-        ws.row_dimensions[linha].height = min(altura_pt, 400)
-        linha += 1
+                value = t.get(key, "")
+            cell = ws.cell(row=row_idx, column=col_idx, value=value or None)
+            cell.font = Font(name="Arial", size=8)
+            central = key in ("leito", "acomp", "idade", "reav") or key.startswith("cons_")
+            cell.alignment = Alignment(horizontal="center" if central else "left",
+                                       vertical="top", wrap_text=True)
+            cell.border = caixa
+            if key == "supl" and value:
+                cell.fill = PatternFill("solid", fgColor="FCE4D6")
+        ws.row_dimensions[row_idx].height = 66 if item["registro"] else 28
 
-    ws.merge_cells(f"A{linha + 1}:{ultima}{linha + 3}")
-    ws[f"A{linha + 1}"] = "Legenda: " + LEGENDA
-    ws[f"A{linha + 1}"].font = Font(name="Arial", size=7, color="444444")
-    ws[f"A{linha + 1}"].alignment = Alignment(wrap_text=True, vertical="top")
-
-    ws.freeze_panes = "A4"
-    ws.print_title_rows = "3:3"
+    ws.freeze_panes = "A5"
+    ws.print_title_rows = "1:4"
     ws.page_setup.orientation = "landscape"
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
     ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
-    ws.page_margins = PageMargins(left=0.3, right=0.3, top=0.4, bottom=0.5)
+    ws.page_margins = PageMargins(left=0.25, right=0.25, top=0.35, bottom=0.4)
     ws.print_options.horizontalCentered = True
     ws.oddFooter.center.text = "Página &P de &N"
     ws.oddFooter.left.text = "NutriLab"
@@ -322,143 +398,74 @@ _CAP_LINHAS = 9
 
 
 def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True, pdf_factory=None):
-    """Gera o PDF do mapa (A4 paisagem, títulos abreviados, 4 divisões na célula do paciente)."""
+    """Gera o mapa institucional em PDF A4 paisagem."""
     if pdf_factory is None:
         from fpdf import FPDF as pdf_factory
     pdf = pdf_factory(orientation="L", unit="mm", format="A4")
     pdf.set_auto_page_break(False)
-    pdf.set_margins(_MARG, _MARG, _MARG)
+    pdf.set_margins(5, 5, 5)
     colunas = _colunas(setor_nome)
-    titulo_setor = "Todos os setores" if setor_nome == "Todos_os_setores" else setor_nome
-
-    larguras = [c[2] for c in colunas]
-    xs = [_MARG]
+    total = sum(c[2] for c in colunas)
+    escala = min(1.0, 287.0 / total)
+    larguras = [c[2] * escala for c in colunas]
+    xs = [5.0]
     for w in larguras[:-1]:
         xs.append(xs[-1] + w)
-    idx = {c[0]: i for i, c in enumerate(colunas)}
-
-    # 1) mede as linhas (precisa da fonte definida para get_string_width)
     itens = []
     for item in _filtrar(linhas_mapa, incluir_vagos):
-        t = textos_linha(item["leito"], item["registro"], abreviar=True)
-        pdf.set_font("Arial", "", 8)
-        blocos = {}
-        for chave in ("supl", "obs"):
-            ls = []
-            for x in t[chave]:
-                ls.extend(_quebrar(pdf, x, larguras[idx[chave]] - 2.0))
-            if len(ls) > _CAP_LINHAS:
-                ls = ls[:_CAP_LINHAS - 1] + [ls[_CAP_LINHAS - 1].rstrip() + ".."]
-            blocos[chave] = ls
-        blocos["carac"] = _quebrar(pdf, t["carac"], larguras[idx["carac"]] - 2.0) if t["carac"] else []
-        blocos["fi"] = _quebrar(pdf, t["fi"], larguras[idx["fi"]] - 2.0) if t["fi"] else []
-        altura = max(_H_MIN, *(len(v) * _LIN + 1.4 for v in blocos.values()))
-        itens.append((t, blocos, min(altura, 45.0)))
+        t = textos_linha(item["leito"], item["registro"], True)
+        valores = []
+        for key, _title, _w, _x in colunas:
+            if key.startswith("cons_"):
+                cod = {"cons_LV":"LV","cons_BR":"BR","cons_PAS":"PAS",
+                       "cons_LPAS":"LÍQ. PAS","cons_LIQ":"LÍQ"}[key]
+                value = t["consistencias"].get(cod, "")
+            else:
+                value = t.get(key, "")
+            valores.append("" if value is None else str(value))
+        itens.append((t, valores))
 
-    # 2) pagina
-    paginas, atual, y = [], [], _Y_CAB + _H_CAB
-    for it in itens:
-        if atual and y + it[2] > _Y_MAX:
-            paginas.append(atual)
-            atual, y = [], _Y_CAB + _H_CAB
-        atual.append(it)
-        y += it[2]
-    paginas.append(atual)
-
-    def baseline(y_topo, h, pt):
-        return y_topo + h / 2.0 + pt * 0.3528 * 0.30
-
-    def cabecalho(n_pag):
+    def cabecalho():
         pdf.set_text_color(0, 0, 0)
         pdf.set_font("Arial", "B", 12)
-        pdf.text(_MARG, 13, _l1(f"MAPA NUTRICIONAL - {titulo_setor}"))
+        pdf.text(5, 10, "SETOR DE NUTRICAO")
         pdf.set_font("Arial", "B", 10)
-        dt = _l1("Data: " + mdb.iso_para_br(data_iso))
-        pdf.text(297 - _MARG - pdf.get_string_width(dt), 13, dt)
+        titulo = "MAPA DE DIETAS - SETOR GERAL"
+        pdf.text(5, 15, titulo)
         pdf.set_font("Arial", "", 7)
-        pdf.text(_MARG, 16.6, _l1("Gerado em " + datetime.now().strftime("%d/%m/%Y %H:%M") + " - NutriLab"))
-        pg = _l1(f"Pág. {n_pag}/{len(paginas)}")
-        pdf.text(297 - _MARG - pdf.get_string_width(pg), 16.6, pg)
+        pdf.text(5, 19, _l1("IMPRESSO EM " + _fmt_data(data_iso)))
         pdf.set_fill_color(200, 230, 201)
         pdf.set_draw_color(90, 90, 90)
-        pdf.set_line_width(0.2)
-        pdf.set_font("Arial", "B", 7)
-        for (chave, titulo, w, _), x in zip(colunas, xs):
-            pdf.rect(x, _Y_CAB, w, _H_CAB, "FD")
-            tt = _l1(titulo)
-            pdf.text(x + (w - pdf.get_string_width(tt)) / 2.0, baseline(_Y_CAB, _H_CAB, 7), tt)
+        pdf.set_font("Arial", "B", 5)
+        for (_key, title, _w, _x), x, w in zip(colunas, xs, larguras):
+            pdf.rect(x, 23, w, 8, "FD")
+            titulo_pdf = {"Preferências": "Preferencias", "Observações": "Observacoes",
+                          "Diagnósticos": "Diagnosticos"}.get(title, _l1(title))
+            pdf.text(x + 0.5, 28, titulo_pdf[:max(2, int(w * 1.1))])
 
-    def rodape():
-        pdf.set_text_color(70, 70, 70)
-        pdf.set_font("Arial", "", 6)
-        pdf.set_font("Arial", "", 6)
-        ls = _quebrar(pdf, "Legenda: " + LEGENDA, 297 - 2 * _MARG)
-        y0 = 210 - _MARG - len(ls[:4]) * 2.6 + 2.0
-        for k, l in enumerate(ls[:4]):
-            pdf.text(_MARG, y0 + k * 2.6, l)
-        pdf.set_text_color(0, 0, 0)
-
-    for n_pag, grupo in enumerate(paginas, start=1):
-        pdf.add_page()
-        cabecalho(n_pag)
-        y = _Y_CAB + _H_CAB
-        for t, blocos, h in grupo:
-            pdf.set_draw_color(90, 90, 90)
-            pdf.set_line_width(0.2)
-            for (chave, _, w, _), x in zip(colunas, xs):
-                pdf.rect(x, y, w, h, "D")
-            # leito, acompanhante, idade, reav., via, consistência: texto centralizado
+    pdf.add_page()
+    cabecalho()
+    y = 31
+    for t, values in itens:
+        altura = 17 if t["paciente"] else 9
+        if y + altura > 198:
+            pdf.add_page()
+            cabecalho()
+            y = 31
+        pdf.set_draw_color(130, 130, 130)
+        for x, w in zip(xs, larguras):
+            pdf.rect(x, y, w, altura, "D")
+        for i, value in enumerate(values):
+            if not value:
+                continue
+            key = colunas[i][0]
             pdf.set_text_color(0, 0, 0)
-            for chave, bold in (("leito", True), ("setor", False), ("acomp", False), ("idade", False), ("reav", False),
-                                ("via", False), ("consist", False)):
-                if chave not in idx or not t[chave]:
-                    continue
-                pdf.set_font("Arial", "B" if bold else "", 9 if bold else 8)
-                tx = _l1(t[chave])
-                i = idx[chave]
-                pdf.text(xs[i] + (larguras[i] - pdf.get_string_width(tx)) / 2.0, baseline(y, h, 8), tx)
-            # paciente: 4 divisões
-            xp = xs[idx["paciente"]]
-            wp = larguras[idx["paciente"]]
-            if t["paciente"] is None:
-                pdf.set_font("Arial", "I", 8)
-                pdf.set_text_color(120, 120, 120)
-                pdf.text(xp + 1.2, baseline(y, h, 8), "Vago")
-                pdf.set_text_color(0, 0, 0)
-            else:
-                yy = y
-                pdf.set_draw_color(150, 150, 150)
-                pdf.set_line_width(0.15)
-                for k, seg_linha in enumerate(t["paciente"]):
-                    hl = _H_LIN_PAC[k]
-                    if k > 0:
-                        pdf.line(xp, yy, xp + wp, yy)
-                    cx = xp + 1.2
-                    for texto, estilo in seg_linha:
-                        if estilo == "nome":
-                            pdf.set_font("Arial", "B", 10)
-                            pdf.set_text_color(0, 0, 0)
-                        else:
-                            pdf.set_font("Arial", "", 8)
-                            pdf.set_text_color(*(VERMELHO_PDF if estilo == "alerta" else (0, 0, 0)))
-                        tx = _l1(texto)
-                        # nunca ultrapassa a célula: corta com '..' se preciso
-                        while len(tx) > 3 and cx + pdf.get_string_width(tx) > xp + wp - 0.8:
-                            tx = tx[:-3] + ".."
-                        pdf.text(cx, baseline(yy, hl + 0.2, 10 if estilo == "nome" else 8), tx)
-                        cx += pdf.get_string_width(tx)
-                    yy += hl
-                pdf.set_text_color(0, 0, 0)
-            # suplementos, observações, características, função intestinal
-            pdf.set_font("Arial", "", 8)
-            pdf.set_text_color(0, 0, 0)
-            for chave in ("carac", "supl", "obs", "fi"):
-                i = idx[chave]
-                ls = blocos[chave]
-                topo = y + (h - len(ls) * _LIN) / 2.0  # bloco centralizado verticalmente
-                for k, l in enumerate(ls):
-                    pdf.text(xs[i] + 1.0, topo + (k + 1) * _LIN - 0.75, l)
-            y += h
-        rodape()
+            pdf.set_font("Arial", "B" if key == "leito" else "", 5 if key != "paciente" else 6)
+            linhas = _l1(value).splitlines() or [""]
+            max_linhas = max(1, int((altura - 1) / 2.4))
+            for j, line in enumerate(linhas[:max_linhas]):
+                limite = max(2, int(larguras[i] * 1.3))
+                pdf.text(xs[i] + 0.5, y + 3 + j * 2.3, line[:limite])
+        y += altura
     pdf.output(caminho)
     return caminho
