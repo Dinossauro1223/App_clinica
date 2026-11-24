@@ -417,11 +417,12 @@ class MapaUI:
             if resp:
                 self._abrir_condutas(it)
                 return
-        if messagebox.askyesno("Remover do mapa",
-                               f"Remover {r['nome_paciente']} do leito {it['leito']['codigo']} em "
-                               f"{self.data.strftime('%d/%m/%Y')}?\n\nUse para alta ou transferência. "
-                               "Os registros de outros dias são mantidos."):
-            mdb.remover_registro(self.db, r["id_registro"])
+        if messagebox.askyesno("Liberar leito",
+                               f"Dar alta/liberar {r['nome_paciente']} do leito {it['leito']['codigo']} em "
+                               f"{self.data.strftime('%d/%m/%Y')}?\n\nO histórico será preservado e o leito não "
+                               "voltará a herdar este paciente nos próximos dias."):
+            por = os.environ.get("USERNAME") or os.environ.get("USER") or "usuário local"
+            mdb.registrar_alta(self.db, r, por=por)
             self._recarregar()
 
     def _copiar_ultimo(self):
