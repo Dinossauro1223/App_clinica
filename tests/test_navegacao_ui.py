@@ -203,6 +203,7 @@ root.destroy()
     def test_pilha_fecha_somente_a_pagina_principal_atual(self):
         base, pagina = WidgetFake(), WidgetFake()
         pilha = SimpleNamespace(_ativa=pagina, _base=base, _titulo="Mapa")
+        pilha.fechar = lambda frame: PilhaAbasLaterais.fechar(pilha, frame)
         resultado = PilhaAbasLaterais.fechar_ultima(pilha)
         self.assertIs(resultado, base)
         self.assertTrue(pagina.destroyed)
@@ -218,6 +219,17 @@ root.destroy()
         self.assertNotIn("self._abas", classe)
         self.assertIn("Substitui a página principal atual", classe)
 
+
+
+    def test_painel_edicao_tem_largura_minima_e_modal_restauravel(self):
+        from pathlib import Path
+        raiz = Path(__file__).resolve().parents[1]
+        fonte = (raiz / "main.py").read_text(encoding="utf-8")
+        self.assertIn("ttk.Panedwindow", fonte)
+        self.assertIn("minsize=320", fonte)
+        self.assertIn("def abrir_painel_modal", fonte)
+        self.assertIn("self._painel_edicao_pilha.append", fonte)
+        self.assertIn("anterior.pack(fill=\"both\", expand=True)", fonte)
 
 if __name__ == "__main__":
     unittest.main()
