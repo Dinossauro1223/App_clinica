@@ -254,6 +254,7 @@ def spec_resumo(agg):
 # chave -> (título curto, função que monta a especificação). A ordem de exibição vem de GRUPOS.
 GRAFICOS = {
     "atendimentos_dia": ("Pacientes atendidos por dia", spec_atendimentos_dia),
+    "altas_dia": ("Altas dadas por dia", spec_altas_dia),
     "perfil_dia": ("Perfil por dia", spec_perfil_dia),
     "resumo": ("Via e acompanhante", spec_resumo),
     "classificacao_terapia": ("Classificação da terapia nutricional", spec_classificacao_terapia),
