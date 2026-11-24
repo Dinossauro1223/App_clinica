@@ -474,11 +474,11 @@ class TestInterface(unittest.TestCase):
         # Selecionar via enteral substitui a suplementação oral e restringe a lista a fórmulas.
         form.seg_via.click("Enteral")
         self.assertEqual(form._suplementos, [])
-        self.assertEqual(form.cb_mod.get(), "Fórmulas enterais")
+        self.assertEqual(form.cb_mod.get(), "Todos os módulos")
         self.assertTrue(form._catalogo_visivel)
         self.assertTrue(all(s["modulo"] in ("Fórmula enteral", "Fórmula enteral e oral", "Módulo oral/enteral")
                             for s in form._catalogo_visivel))
-        self.assertNotIn("Ensure Plus Advance", [s["nome"] for s in form._catalogo_visivel])
+        self.assertIn("Ensure Plus Advance", [s["nome"] for s in form._catalogo_visivel])
         self.assertIn("Glucerna SR", [s["nome"] for s in form._catalogo_visivel])
         self.assertIn("Nutri R 2.0", [s["nome"] for s in form._catalogo_visivel])
         form.cb_sup.set("Nutrison Energy 1.5")
@@ -665,7 +665,7 @@ class TestInterface(unittest.TestCase):
         d._fechar()
         self.assertEqual(len(self.ui.tree.items), 4)  # mapa passou a mostrar o setor UTI (U01..U03 + U10)
         self.ui.mostrar_suplementos()
-        self.assertEqual(len(self.ui.tree_sup.items), 6)
+        self.assertEqual(len(self.ui.tree_sup.items), 25)
         ds = mapa_ui.DialogSuplemento(self.ui, None)
         ds.e["nome"].insert(0, "Módulo de fibra X")
         ds.cb_mod.set("Módulo de fibras")
@@ -673,7 +673,7 @@ class TestInterface(unittest.TestCase):
         ds.e["preco"].insert(0, "19,9")
         ds.cb_un.set("g")
         ds._salvar()
-        self.assertEqual(len(self.ui.tree_sup.items), 7)
+        self.assertEqual(len(self.ui.tree_sup.items), 26)
         novo = [v for v in self.ui.tree_sup.items.values() if v[0] == "Módulo de fibra X"][0]
         self.assertEqual((novo[1], novo[3], novo[8]), ("Módulo de fibras", "200,5", "19,90"))
         dc = mapa_ui.DialogConfig(self.ui)
@@ -698,14 +698,14 @@ class TestInterface(unittest.TestCase):
         popular_mes(self.db, n_leitos=6)
         self.ui.mostrar_graficos()
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (8, 0, 0))   # padrão: desenhados na tela
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (9, 0, 0))   # padrão: desenhados na tela
         self.assertEqual(self.ui.cb_mes.get(), "Outubro")
         self.ui.cb_mes.set("Fevereiro")
         self.ui._gerar_graficos()  # mês sem dados: gráficos vazios, sem erro
-        self.assertEqual(len(self._cartas()[0]), 8)
+        self.assertEqual(len(self._cartas()[0]), 9)
         FD.pasta = tempfile.mkdtemp()
         self.ui._salvar_graficos()   # exportar as imagens PNG continua igual (o matplotlib só entra aqui)
-        self.assertEqual(len(os.listdir(FD.pasta)), 8)
+        self.assertEqual(len(os.listdir(FD.pasta)), 9)
 
     def test_graficos_agrupados_lado_a_lado_e_de_cima_para_baixo(self):
         from unittest import mock
@@ -727,7 +727,7 @@ class TestInterface(unittest.TestCase):
             gerar.assert_not_called()
         self.assertEqual(self.ui._painel.disposicao, mapa_ui.gl.DISPOSICAO_VERTICAL)
         self.assertEqual(self.ui._painel.faixas, [])
-        self.assertEqual(len(self.ui._painel.faixas_empilhadas), 8)        # um gráfico por faixa, de cima para baixo
+        self.assertEqual(len(self.ui._painel.faixas_empilhadas), 9)        # um gráfico por faixa, de cima para baixo
         self.assertEqual(len(self.ui.quadro_graf.winfo_children()), 4)    # continua agrupado: uma seção por grupo
         # a escolha vale também na próxima vez que a tela de gráficos é aberta
         self.ui.mostrar_graficos()
@@ -755,7 +755,7 @@ class TestInterface(unittest.TestCase):
             espec.assert_not_called()
             render.assert_called_once()
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (0, 8, 8))
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (0, 9, 9))
         self.assertEqual(self.ui.estilo_graficos, gl.ESTILO_IMAGEM)
         # mudar só a disposição não desenha os PNG de novo (ficam guardados)
         dc = mapa_ui.DialogConfig(self.ui)
@@ -764,19 +764,19 @@ class TestInterface(unittest.TestCase):
         with mock.patch.object(self.ui._mgr, "renderizar_grupos") as render:
             dc._salvar()
             render.assert_not_called()
-        self.assertEqual((self.ui._painel.faixas, self.ui._painel.faixas_empilhadas, len(self.ui._imagens)), ([], [], 8))
+        self.assertEqual((self.ui._painel.faixas, self.ui._painel.faixas_empilhadas, len(self.ui._imagens)), ([], [], 9))
         # novo mês: as imagens antigas são descartadas, as novas valem para o mês novo
         antigos = self.ui._grupos_png
         self.ui.cb_mes.set("Fevereiro")
         self.ui._gerar_graficos()
         self.assertIsNot(self.ui._grupos_png, antigos)
-        self.assertEqual(len(self.ui._imagens), 8)
+        self.assertEqual(len(self.ui._imagens), 9)
         # volta para animado
         dc = mapa_ui.DialogConfig(self.ui)
         dc.cb_estilo.set(gl.ROTULOS_ESTILO[gl.ESTILO_ANIMADO])
         dc._salvar()
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (8, 0, 0))
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (9, 0, 0))
         # valor desconhecido na configuração volta para o padrão
         mapa_ui.mdb.salvar_config(self.db, gl.CHAVE_ESTILO, "qualquer coisa")
         self.assertEqual(self.ui.estilo_graficos, gl.ESTILO_ANIMADO)
@@ -797,7 +797,7 @@ class TestInterface(unittest.TestCase):
         self.assertNotIn("\\n", avisos[0][2])          # quebra de linha de verdade, não a barra e o n escritos
         self.assertIn("\n", avisos[0][2])
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens)), (8, 0))     # a tela não fica em branco
+        self.assertEqual((len(nativas), len(imagens)), (9, 0))     # a tela não fica em branco
 
     def test_exportar_imagens_sem_matplotlib_avisa_em_vez_de_quebrar(self):
         from unittest import mock
