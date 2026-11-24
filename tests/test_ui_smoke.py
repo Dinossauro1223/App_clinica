@@ -766,7 +766,7 @@ class TestInterface(unittest.TestCase):
         with mock.patch.object(self.ui._mgr, "renderizar_grupos") as render:
             dc._salvar()
             render.assert_not_called()
-        self.assertEqual((self.ui._painel.faixas, self.ui._painel.faixas_empilhadas, len(self.ui._imagens)), ([], [], 9))
+        self.assertEqual((self.ui._painel.faixas, self.ui._painel.faixas_empilhadas, len(self.ui._imagens)), ([], [], 10))
         # novo mês: as imagens antigas são descartadas, as novas valem para o mês novo
         antigos = self.ui._grupos_png
         self.ui.cb_mes.set("Fevereiro")
