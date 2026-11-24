@@ -248,8 +248,15 @@ def inicializar(db_path):
                     if not existe:
                         c.execute("INSERT INTO Mapa_Leitos (id_setor, codigo, ordem, ativo) "
                                   "VALUES (?,?,?,1)", (id_setor, codigo, numero - inicio))
-            c.execute("UPDATE Mapa_Setores SET ordem_apresentacao=1000 "
-                      "WHERE grupo='Outros' AND ordem_apresentacao=999")
+            # O antigo setor genérico vazio não deve poluir a lista inicial; se tiver leitos,
+            # permanece ativo para preservar o histórico existente.
+            c.execute("UPDATE Mapa_Setores SET ativo=0 WHERE nome='Setor geral' AND NOT EXISTS "
+                      "(SELECT 1 FROM Mapa_Leitos L WHERE L.id_setor=Mapa_Setores.id_setor)")
+            outros = _rows(c.execute("SELECT id_setor FROM Mapa_Setores WHERE grupo='Outros' "
+                                     "ORDER BY ordem_apresentacao, nome"))
+            for pos, item in enumerate(outros, start=1000):
+                c.execute("UPDATE Mapa_Setores SET ordem_apresentacao=? WHERE id_setor=?",
+                          (pos, item["id_setor"]))
             c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_mapa_setores_v1', '1')")
         if c.execute("SELECT COUNT(*) FROM Mapa_Setores").fetchone()[0] == 0:
             c.execute("INSERT INTO Mapa_Setores (nome, grupo, ordem_apresentacao) VALUES (?, 'Outros', 1000)",
@@ -392,8 +399,11 @@ def criar_setor(db_path, nome):
     if not nome:
         raise ValueError("Informe o nome do setor.")
     with closing(conectar(db_path)) as c:
+        ordem = c.execute("SELECT COALESCE(MAX(ordem_apresentacao), 999) + 1 "
+                          "FROM Mapa_Setores WHERE COALESCE(grupo,'Outros')='Outros'").fetchone()[0]
         try:
-            cur = c.execute("INSERT INTO Mapa_Setores (nome) VALUES (?)", (nome,))
+            cur = c.execute("INSERT INTO Mapa_Setores (nome, grupo, ordem_apresentacao) VALUES (?, 'Outros', ?)",
+                            (nome, ordem))
         except sqlite3.IntegrityError:
             raise ValueError("Já existe um setor com esse nome.")
         c.commit()
