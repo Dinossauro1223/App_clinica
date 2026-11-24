@@ -574,7 +574,7 @@ class TestGraficos(unittest.TestCase):
             self.assertEqual(sum(v["total"] for v in agg["dias"].values()), len(regs))
             self.assertEqual(k["pastosa"], sum(1 for r in regs if r["consistencia"] == "Pastosa"))
             self.assertEqual(k["acompanhante"], sum(1 for r in regs if r["acompanhante"]))
-            self.assertEqual(k["com_suplemento"], sum(1 for r in regs if r["suplementos"]))
+            self.assertEqual(k["com_suplemento"], sum(1 for r in regs if r["via"] == "Oral" and r["suplementos"]))
             self.assertEqual(sum(agg["sup_nome"].values()), sum(len(r["suplementos"]) for r in regs))
             self.assertLessEqual(k["pacientes_unicos"], k["atendimentos"])
             self.assertEqual(len(agg["dias"]), 31)
@@ -588,7 +588,7 @@ class TestGraficos(unittest.TestCase):
                 self.assertEqual(destino[nome], esperado, nome)
                 self.assertEqual(outro[nome], 0, nome)
             pngs = mgr.gerar_todos(agg)
-            self.assertEqual(len(pngs), 8)
+            self.assertEqual(len(pngs), 9)
             self.assertEqual([c for c, _, _ in pngs], mgr.ordem_de_exibicao())
             for chave, _, b in pngs:
                 self.assertEqual(b[:8], b"\x89PNG\r\n\x1a\n", chave)
@@ -603,6 +603,34 @@ class TestGraficos(unittest.TestCase):
                 shutil.rmtree(pasta_graficos, ignore_errors=True)
         finally:
             os.remove(db)
+
+    def test_classificacao_separa_oral_sem_suplemento_oral_com_suplemento_e_enteral(self):
+        registros = [
+            {"data": "2026-11-01", "via": "Oral", "suplementos": [], "id_paciente": 1,
+             "nome_paciente": "Paciente A", "acompanhante": False},
+            {"data": "2026-11-01", "via": "Oral", "suplementos": [{"nome": "Produto oral", "modulo": "Fórmula completa"}],
+             "id_paciente": 2, "nome_paciente": "Paciente B", "acompanhante": False},
+            {"data": "2026-11-01", "via": "Enteral", "suplementos": [{"nome": "Fórmula enteral", "modulo": "Fórmula enteral"}],
+             "id_paciente": 3, "nome_paciente": "Paciente C", "acompanhante": False},
+            {"data": "2026-11-01", "via": "Zero", "suplementos": [], "id_paciente": 4,
+             "nome_paciente": "Paciente D", "acompanhante": False},
+        ]
+        agg = mgr.agregar_mes(registros, 2026, 11)
+        self.assertEqual(agg["classificacao_terapia"], {
+            "Via oral sem suplementação": 1, "Via oral com suplementação": 1,
+            "Dieta enteral": 1, "Via zero": 1})
+        self.assertEqual(agg["kpis"]["oral_sem_suplemento"], 1)
+        self.assertEqual(agg["kpis"]["oral_com_suplemento"], 1)
+        self.assertEqual(agg["kpis"]["com_suplemento"], 1)
+        self.assertEqual(agg["kpis"]["enteral"], 1)
+        self.assertEqual(agg["dias"][1]["oral_sem_suplemento"], 1)
+        self.assertEqual(agg["dias"][1]["oral_com_suplemento"], 1)
+        self.assertEqual(agg["dias"][1]["enteral"], 1)
+        spec = mgr.spec_classificacao_terapia(agg)
+        self.assertEqual([(i["nome"], i["valor"]) for i in spec["itens"]], [
+            ("Via oral sem suplementação", 1), ("Via oral com suplementação", 1), ("Dieta enteral", 1)])
+        self.assertEqual(mgr.spec_perfil_dia(agg)["series"][-1]["nome"], "Dieta enteral")
+        self.assertEqual(mgr.spec_resumo(agg)["titulo"], "Via da dieta e acompanhante")
 
     def test_grupos_cobrem_todos_os_graficos_sem_repetir(self):
         ids = [g["id"] for g in mgr.GRUPOS]
@@ -636,7 +664,7 @@ class TestGraficos(unittest.TestCase):
             agg = mgr.agregar_mes(mdb.registros_do_mes(db, 2026, 10), 2026, 10)
             grupos = mgr.gerar_por_grupo(agg)
             self.assertEqual([g["id"] for g in grupos], ["atendimentos", "dieta", "suplementos", "cronicas"])
-            self.assertEqual(sum(len(g["graficos"]) for g in grupos), 8)
+            self.assertEqual(sum(len(g["graficos"]) for g in grupos), 9)
             for g in grupos:
                 for chave, titulo, png in g["graficos"]:
                     self.assertTrue(titulo and png[:4] == b"\x89PNG", chave)
