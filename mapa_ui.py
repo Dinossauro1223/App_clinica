@@ -140,7 +140,7 @@ class MapaUI:
 
         acoes = ctk.CTkFrame(area, fg_color="transparent")
         acoes.pack(fill="x", padx=20, pady=4)
-        _btn(acoes, "Registrar / Editar", self._editar, 150).pack(side="left", padx=(0, 6))
+        _btn(acoes, "Preencher leito", self._editar, 140).pack(side="left", padx=(0, 6))
         _btn(acoes, "Histórico", self._historico, 100, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(0, 6))
         _btn(acoes, "Condutas de alta", self._condutas_alta, 140, LARANJA, tema.LARANJA).pack(side="left", padx=(0, 6))
         _btn(acoes, "Copiar último mapa", self._copiar_ultimo, 150, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(0, 6))
@@ -154,25 +154,32 @@ class MapaUI:
                                          anchor="w", justify="left")
         self.lbl_condutas.pack(fill="x", padx=22, pady=(0, 0), anchor="w")
 
+        self.lbl_inicio = ctk.CTkLabel(
+            area, text="Selecione um leito vazio e clique em 'Preencher leito' para iniciar.",
+            text_color=tema.SUAVE, anchor="w", justify="left")
+        self.lbl_inicio.pack(fill="x", padx=22, pady=(2, 0), anchor="w")
         quadro = ctk.CTkFrame(area, fg_color=tema.BRANCO)
         quadro.pack(fill="both", expand=True, padx=20, pady=6)
-        colunas = [("leito", "Leito", 60, "center"), ("acomp", "Acomp.", 60, "center"), ("paciente", "Paciente", 220, "w"),
-                   ("idade", "Idade", 50, "center"), ("imc", "IMC (classificação)", 170, "w"),
-                   ("via", "Via", 70, "center"), ("consist", "Consistência", 85, "center"),
+        colunas = [("leito", "Leito", 60, "center"), ("grupo", "Grupo", 85, "center"),
+                   ("setor", "Setor", 180, "w"), ("acomp", "Acomp.", 60, "center"),
+                   ("paciente", "Paciente", 220, "w"), ("idade", "Idade", 50, "center"),
+                   ("imc", "IMC (classificação)", 170, "w"), ("via", "Via", 70, "center"),
+                   ("consist", "Consistência", 85, "center"),
                    ("supl", "Terapia nutricional", 210, "w"), ("fi", "Função intestinal", 110, "center"),
-                   ("condutas", "Condutas de alta", 120, "center"), ("grupo", "Grupo", 90, "center"),
-                   ("setor", "Setor", 190, "w")]
+                   ("condutas", "Condutas de alta", 120, "center")]
         self.tree = ttk.Treeview(quadro, columns=[c[0] for c in colunas], show="headings", style=ESTILO_TREE,
                                  selectmode="browse")
         for chave, titulo, larg, anc in colunas:
             self.tree.heading(chave, text=titulo)
-            self.tree.column(chave, width=larg, anchor=anc, stretch=chave in ("paciente", "supl"))
+            self.tree.column(chave, width=larg, anchor=anc, stretch=chave in ("paciente", "supl", "setor"))
         self.tree.tag_configure("vago", foreground=tema.cor_atual(tema.SUAVE))
         self.tree.tag_configure("condpend", foreground=tema.cor_atual(tema.LARANJA))
         rolagem = ttk.Scrollbar(quadro, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=rolagem.set)
-        self.tree.pack(side="left", fill="both", expand=True, padx=(6, 0), pady=6)
+        rolagem_x = ttk.Scrollbar(quadro, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=rolagem.set, xscrollcommand=rolagem_x.set)
+        self.tree.pack(side="top", fill="both", expand=True, padx=(6, 0), pady=(6, 0))
         rolagem.pack(side="right", fill="y", pady=6)
+        rolagem_x.pack(side="bottom", fill="x", padx=6, pady=(0, 6))
         self.tree.bind("<Double-1>", lambda e: self._editar())
         # Ações frequentes também ficam disponíveis pelo teclado, sem depender dos botões.
         self.tree.bind("<Return>", self._atalho_editar)
@@ -219,9 +226,9 @@ class MapaUI:
         for it in self.linhas:
             l, r = it["leito"], it["registro"]
             if r is None:
-                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "", "",
-                        l.get("grupo_setor") or "Outros",
-                        f"{l.get('setor', '')} - {l.get('sigla_setor')}" if l.get("sigla_setor") else l.get("setor", ""))
+                vals = (l["codigo"], l.get("grupo_setor") or "Outros",
+                        f"{l.get('setor', '')} - {l.get('sigla_setor')}" if l.get("sigla_setor") else l.get("setor", ""),
+                        "", "— vago —", "", "", "", "", "", "", "")
                 tag = ("vago",)
             else:
                 ocupados += 1
@@ -244,16 +251,24 @@ class MapaUI:
                     itens_terapia = "Via zero"
                 elif itens_terapia:
                     itens_terapia = "Suplementação oral: " + itens_terapia
-                vals = (l["codigo"], "Sim" if r.get("acompanhante") else "Não", r["nome_paciente"],
+                vals = (l["codigo"], r.get("grupo_setor") or "Outros",
+                        f"{r.get('setor', '')} - {r.get('sigla_setor')}" if r.get("sigla_setor") else r.get("setor", ""),
+                        "Sim" if r.get("acompanhante") else "Não", r["nome_paciente"],
                         "" if r.get("idade_anos") is None else r["idade_anos"], imc, r.get("via") or "",
-                        r.get("consistencia") or "", itens_terapia,
-                        self._fi_txt(r), cond.get("texto", ""), r.get("grupo_setor") or "Outros",
-                        f"{r.get('setor', '')} - {r.get('sigla_setor')}" if r.get("sigla_setor") else r.get("setor", ""))
+                        r.get("consistencia") or "", itens_terapia, self._fi_txt(r), cond.get("texto", ""))
                 tag = ("condpend",) if cond.get("estado") == "pendente" else ()
                 com_pendencia += cond.get("estado") == "pendente"
             self.tree.insert("", "end", iid=str(l["id_leito"]), values=vals, tags=tag)
         self._mostrar_aviso_condutas(com_pendencia)
         total = len(self.linhas)
+        if ocupados == 0 and total:
+            self.lbl_inicio.configure(text="Primeiro preenchimento: selecione um leito vazio e clique em 'Preencher leito'. "
+                                           "Você também pode dar duplo clique na linha.")
+        elif total:
+            self.lbl_inicio.configure(text="Para atualizar um paciente, selecione o leito e clique em 'Preencher leito' "
+                                           "ou dê duplo clique na linha.")
+        else:
+            self.lbl_inicio.configure(text="Adicione os leitos do setor para começar.")
         if not total:
             self.lbl_resumo.configure(text="Nenhum leito cadastrado neste setor. Use '+ Adicionar leitos' para começar.")
         else:
