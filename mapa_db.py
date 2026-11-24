@@ -773,6 +773,14 @@ def resumo_altas(db_path, ano, mes, id_setor=None):
         return _rows(c.execute(sql, par))
 
 
+def ultimo_registro_leito(db_path, id_leito, data_iso):
+    """Último registro físico do leito até a data, inclusive registros já encerrados por alta."""
+    with closing(conectar(db_path)) as c:
+        rows = _rows(c.execute(_SEL_REG + "WHERE R.id_leito=? AND R.data<=? ORDER BY R.data DESC, R.id_registro DESC LIMIT 1",
+                               (id_leito, data_iso)))
+        return _anexar_suplementos(c, rows)[0] if rows else None
+
+
 def mapa_do_dia(db_path, data_iso, id_setor=None):
     """Lista o estado de cada leito na data solicitada, herdando o último paciente até a alta."""
     with closing(conectar(db_path)) as c:
