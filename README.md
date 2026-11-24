@@ -36,16 +36,33 @@ A análise considera o ZIP `App_clinica-main` enviado para esta conversa. O esta
 | Pacientes e consultas | `Pacientes`, `Consultas`, telas em `main.py` | Implementado, com dados clínicos em texto livre e campos de consulta |
 | Condutas de alta | `condutas_alta.py`, `condutas_alta_ui.py`, `condutas_alta_export.py`, `condutas_alta/` | Implementada na branch `feat/condutas-de-alta` ([ADR-0006](docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md), seção 2.4); testada com simuladores, falta validar no Windows e homologar o conteúdo clínico |
 | TMB/VET | `main.py` | Há seleção de Harris-Benedict (1919), Mifflin-St Jeor (1990) e Cunningham (1980), com NAF para VET |
-| Mapa por leito | `mapa_ui.py`, `mapa_db.py` | Implementado parcialmente; precisa de validação integrada com o banco principal |
+| Mapa por leito | `mapa_ui.py`, `mapa_db.py` | Cadastro inicial de 8 setores e 46 leitos; grupos Internos/Externos; inclusão simplificada de leitos; ordem ajustável no mapa geral e refletida em PDF/Excel. Migração aditiva preserva setores e histórico anteriores |
 | Histórico/cópia diária | `mapa_db.py`, `mapa_ui.py` | Há histórico por paciente, navegação de datas e cópia do mapa anterior |
 | PDF/Excel do mapa | `mapa_export.py` | Exportação implementada; precisa de conferência com o modelo institucional real |
-| Gráficos do mapa | `mapa_graficos.py`, `graficos_nativos.py`, `graficos_pintor.py`, `graficos_ui.py`, `graficos_layout.py`, [`GRAFICOS_AGRUPADOS.md`](docs/desenvolvimento/GRAFICOS_AGRUPADOS.md), [ADR-0009](docs/decisoes/ADR-0009-graficos-desenhados-na-tela.md) | 8 gráficos agrupados por assunto (atendimentos, dieta, suplementos, doenças crônicas). Cada grupo é uma faixa que se arrasta para o lado, com setas e pontos; em Configurações do Mapa dá para trocar para a visualização de cima para baixo, também agrupada. Os gráficos são desenhados direto na tela, com animação de entrada e balão com o valor ao passar o mouse; em Configurações também dá para voltar às imagens simples (matplotlib), sem animação. Testado com widgets simulados e, no CI, com Tk real (`tools/verificar_interface_tk.py`) |
+| Gráficos do mapa | `mapa_graficos.py`, `graficos_nativos.py`, `graficos_pintor.py`, `graficos_ui.py`, `graficos_layout.py`, [`GRAFICOS_AGRUPADOS.md`](docs/desenvolvimento/GRAFICOS_AGRUPADOS.md), [ADR-0009](docs/decisoes/ADR-0009-graficos-desenhados-na-tela.md) | 9 gráficos agrupados por assunto (atendimentos, dieta, suplementos, doenças crônicas). Cada grupo é uma faixa que se arrasta para o lado, com setas e pontos; em Configurações do Mapa dá para trocar para a visualização de cima para baixo, também agrupada. Os gráficos são desenhados direto na tela, com animação de entrada e balão com o valor ao passar o mouse; em Configurações também dá para voltar às imagens simples (matplotlib), sem animação. Testado com widgets simulados e, no CI, com Tk real (`tools/verificar_interface_tk.py`) |
 | Atalhos de edição | `atalhos_edicao.py`, [`ATALHOS_DE_TECLADO.md`](docs/desenvolvimento/ATALHOS_DE_TECLADO.md) | Ctrl+C/X/V, Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, F4, Ctrl+A, colar de planilha e Ctrl+C nas tabelas, em todas as telas (F1 mostra a lista); testado com widgets simulados |
 | Catálogo inicial de suplementos | `mapa_db.py`, `mapa_ui.py` | Cadastro e manutenção do catálogo implementados; composição técnica inicial está incompleta |
 | Almoxarifado e custos | `almox_db.py`, `almox_ui.py`, `db_migracoes.py` | Itens, preços históricos, movimentos auditáveis, saldo derivado, custos realizados e programação manual por refeição |
 | Estimativas antropométricas | `nutri_calculos.py` | Estatura e peso por equações de Chumlea e IMC por faixa etária parcialmente implementados |
 | IMC infantil/adolescente | `TabelaLMS` em `nutri_calculos.py` | Leitura de CSV LMS implementada; arquivo oficial não veio no pacote |
 | Testes | `tests/test_mapa.py`, `tests/test_ui_smoke.py` | Há testes automatizados, mas parte da interface e do PDF usa simuladores |
+
+### 2.1.1 Organização inicial dos setores e leitos
+
+Na primeira inicialização após a migração, o Mapa cadastra os seguintes setores e leitos, sem duplicar registros já existentes:
+
+| Grupo | Setor | Sigla | Leitos |
+|---|---|---|---:|
+| Internos | Operação | OP | 1–9 |
+| Internos | Clínica médica | CM | 16–33 |
+| Internos | Psiquiatria | PSI | 46–48 |
+| Internos | Isolamento | ISO | 1–2 |
+| Externos | Sala vermelha Adulto | SVA | 1–3 |
+| Externos | Sala de observação adulto | SAU | 4–9 |
+| Externos | Sala vermelha Pediatria | SVP | 1–2 |
+| Externos | Observação da Pediatria | PED | 1–3 |
+
+O botão **Adicionar leitos** aceita um número isolado ou uma faixa numérica e preserva leitos já cadastrados. **Ordem do mapa geral** permite mover setores para cima ou para baixo dentro do próprio grupo; a ordenação é persistida e usada pela visão geral e pelas exportações PDF/Excel. Setores antigos com registros permanecem preservados e são exibidos em **Outros**; o antigo setor genérico vazio é desativado para não confundir o primeiro uso.
 
 ### 2.2 Mapa Nutricional: campos já modelados
 
@@ -106,9 +123,11 @@ python -m unittest tests.test_condutas_alta_catalogo -v
 
 ## 3. Catálogo de suplementos: dados existentes e lacunas
 
-### 3.1 Seis itens semeados no código
+### 3.1 Itens semeados no código
 
-`mapa_db.py` contém a lista `SUPLEMENTOS_INICIAIS`. Quando o catálogo está vazio e a inicialização é executada, são inseridos os itens abaixo:
+`mapa_db.py` contém seis itens legados em `SUPLEMENTOS_INICIAIS` e três cargas aditivas/versionadas: oito candidatos identificados no catálogo oficial Abbott Brasil (Ensure, Ensure Protein, Ensure Plus Advance, Ensure Advance HMB, Glucerna, Glucerna SR, Glucerna 1.5 kcal e PediaSure Complete) sete fórmulas Danone Nutricia indicadas para sonda (Nutrison Energy 1.5, Nutrison Energy MF 1.5, Nutrison Protein Plus Energy, Nutrison advanced Diason, Nutrison advanced Cubison, Nutrison Protein Plus Multi Fiber e Nutrison Soya 800G) e quatro produtos Danone Nutricia com indicação oral e enteral (Nutri R 2.0, Nutri Enteral Soya, NUTRI FIBER 1.5 e NUTRI HWHEY X).
+
+O catálogo separa `Fórmula enteral` (somente sonda) de `Fórmula enteral e oral` e `Módulo oral/enteral` (disponíveis nas duas vias). Glucerna e Glucerna SR são classificados para as duas vias conforme registro Anvisa; Glucerna 1.5 kcal permanece na seleção oral até confirmação da via na apresentação brasileira específica. Quatro fórmulas exclusivas de sonda (Nutrison Energy 1.5, Nutrison Protein Plus Energy, Nutrison advanced Diason e Nutrison advanced Cubison) e duas fórmulas de dupla via (Nutri R 2.0 e Nutri Enteral Soya) têm kcal, proteína, lipídios, carboidratos e sódio por 100 mL transcritos das respectivas fichas oficiais; os demais candidatos são inseridos sem composição, volume ou preço. A observação registra a fonte e a pendência da ficha específica. A carga é idempotente e não sobrescreve produtos existentes.
 
 | Nome no código | Módulo inicial sugerido | Situação da classificação |
 |---|---|---|
@@ -133,7 +152,7 @@ A tabela `Mapa_Suplementos` e o formulário `DialogSuplemento` já preveem:
 - Lipídios (`lip_100`), carboidratos (`carb_100`) e sódio (`sod_100`) por 100 mL/g.
 - Observação e estado ativo/inativo.
 
-**No pacote analisado, esses campos existem no modelo, mas os seis itens iniciais são criados sem preços, volumes de embalagem ou valores nutricionais.** Não há base para afirmar que a ficha técnica esteja preenchida ou validada.
+**Os seis itens legados e os oito candidatos Abbott são criados sem preços, volumes de embalagem ou valores nutricionais.** Entre as sete fórmulas exclusivas de sonda, quatro têm composição por 100 mL transcrita das fichas oficiais; entre os quatro produtos de dupla via, dois têm composição por 100 mL. Os demais candidatos permanecem sem valores nutricionais e sem dados de embalagem/preço. Não há base para afirmar que as demais fichas estejam preenchidas ou validadas. Os valores devem ser transcritos da ficha/rótulo da apresentação efetivamente usada, sem copiar dados de variantes semelhantes.
 
 ### 3.3 Módulos disponíveis no código
 
@@ -141,15 +160,18 @@ A tabela `Mapa_Suplementos` e o formulário `DialogSuplemento` já preveem:
 
 1. Fórmula completa
 2. Fórmula para diabetes
-3. Módulo de proteínas
-4. Módulo de aminoácidos
-5. Módulo de carboidratos
-6. Módulo de lipídeos
-7. Módulo de fibras
-8. Módulo probiótico/simbiótico
-9. Módulo de vitaminas e minerais
-10. Espessante
-11. Outro
+3. Fórmula enteral
+4. Fórmula enteral e oral
+5. Módulo oral/enteral
+6. Módulo de proteínas
+7. Módulo de aminoácidos
+8. Módulo de carboidratos
+9. Módulo de lipídeos
+10. Módulo de fibras
+11. Módulo probiótico/simbiótico
+12. Módulo de vitaminas e minerais
+13. Espessante
+14. Outro
 
 Os módulos são editáveis/ampliáveis por `garantir_modulo()`. A classificação deve ser feita pela finalidade e composição declaradas na ficha técnica, não apenas pelo nome comercial.
 
@@ -170,11 +192,17 @@ Essas grafias foram mantidas como aparecem nas planilhas. Não unificar variante
 
 ### 3.5 Como o uso do suplemento é salvo atualmente
 
-`Mapa_Registro_Suplementos` grava `id_registro`, `id_suplemento`, nome, módulo, quantidade diária e unidade. O nome e módulo são copiados para preservar parte do histórico quando o catálogo muda.
+`Mapa_Registro_Suplementos` grava `id_registro`, `id_suplemento`, nome, módulo, quantidade diária e unidade, além de um snapshot dos valores por 100 mL/g (kcal, proteína, lipídios, carboidratos e sódio), observação da ficha e data do snapshot. Assim, atualizar o cadastro do produto não altera o cálculo dos registros novos já salvos.
 
-Ainda falta um snapshot da composição nutricional, da apresentação/embalagem e da versão da ficha técnica utilizada no cálculo. Sem esse snapshot, não é seguro recalcular a contribuição histórica com a ficha atualizada. A Fase 5 deve resolver isso.
+Registros antigos, criados antes da migração, ficam com os campos de snapshot vazios; o programa não deve preencher retroativamente esses valores com a ficha atual, pois isso poderia alterar o histórico sem evidência. A apresentação/embalagem e preço ainda precisam de snapshot próprio na evolução de custos.
 
-### 3.6 Cálculos de aporte previstos
+### 3.6 Cálculo de aporte e metas
+
+O módulo `suplementos_calculos.py` calcula o aporte diário de cada item a partir da quantidade administrada e dos valores por 100 mL/g da ficha técnica. Também calcula percentual das metas energéticas e proteicas informadas e proteína em g/kg quando o peso está disponível. O programa não estima nem preenche metas clínicas: elas são informadas pela nutricionista.
+
+Itens sem dose, unidade compatível ou composição suficiente ficam identificados como pendentes. Um total nutricional só é exibido como completo quando todos os itens têm o nutriente correspondente preenchido; não se presume valor a partir do nome comercial.
+
+### 3.7 Cálculos de aporte previstos
 
 O relatório de fórmulas fornecido define a base matemática para integração da ficha técnica:
 
