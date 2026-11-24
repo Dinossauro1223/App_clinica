@@ -23,7 +23,8 @@ class TestPersistenciaMapaEntreDias(unittest.TestCase):
         mdb.salvar_registro(self.db, {"data": D1, "id_leito": self.leitos["A01"], "nome_paciente": "Paciente de ontem", "idade_anos": 40})
         hoje = mdb.mapa_do_dia(self.db, D2, None)
         a01 = next(x for x in hoje if x["leito"]["codigo"] == "A01")
-        self.assertIsNotNone(a01["registro"])\n        self.assertEqual(a01["registro"]["nome_paciente"], "Paciente de ontem")
+        self.assertIsNotNone(a01["registro"])
+        self.assertEqual(a01["registro"]["nome_paciente"], "Paciente de ontem")
 
     def test_alta_libera_o_leito_a_partir_da_data_da_alta(self):
         mdb.salvar_registro(self.db, {"data": D1, "id_leito": self.leitos["A01"], "nome_paciente": "Paciente de ontem", "idade_anos": 40})
