@@ -345,7 +345,9 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
     pdf.set_auto_page_break(False)
     pdf.set_margins(_MARG, _MARG, _MARG)
     colunas = _colunas(setor_nome)
-    titulo_setor = "Todos os setores" if setor_nome == "Todos_os_setores" else setor_nome
+    titulo_setor = ("Todos os setores" if setor_nome == "Todos_os_setores" else
+                    "Setores internos" if setor_nome == "Grupo_Internos" else
+                    "Setores externos" if setor_nome == "Grupo_Externos" else setor_nome)
 
     larguras = [c[2] for c in colunas]
     xs = [_MARG]
