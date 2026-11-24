@@ -479,10 +479,10 @@ class MapaUI:
         self.cb_ano.pack(side="left", padx=6)
         self.cb_ano.set(str(ano))
         ctk.CTkLabel(barra, text="Setor:").pack(side="left", padx=(8, 0))
-        self.cb_setor_g = ctk.CTkComboBox(barra, values=["Visão geral (Internos e Externos)"] + [s["nome"] for s in self.setores],
+        self.cb_setor_g = ctk.CTkComboBox(barra, values=["Visão geral (Internos e Externos)"] + [mdb.rotulo_setor(s) for s in self.setores],
                                           width=180, state="readonly")
         self.cb_setor_g.pack(side="left", padx=6)
-        self.cb_setor_g.set("Todos os setores")
+        self.cb_setor_g.set("Visão geral (Internos e Externos)")
         _btn(barra, "Gerar", self._gerar_graficos, 90).pack(side="left", padx=(10, 6))
         _btn(barra, "Salvar imagens", self._salvar_graficos, 130, CINZA_BTN, CINZA_HOVER).pack(side="left")
         _btn(barra, "Configurações", self._abrir_config, 120, CINZA_BTN, CINZA_HOVER).pack(side="right")
@@ -498,7 +498,7 @@ class MapaUI:
         mes = [m.capitalize() for m in self._mgr.MESES].index(self.cb_mes.get()) + 1
         ano = int(self.cb_ano.get())
         nome = self.cb_setor_g.get()
-        id_setor = next((s["id_setor"] for s in self.setores if s["nome"] == nome), None)
+        id_setor = next((s["id_setor"] for s in self.setores if mdb.rotulo_setor(s) == nome), None)
         return ano, mes, id_setor
 
     def _gerar_graficos(self):
