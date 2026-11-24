@@ -368,10 +368,11 @@ class TestInterface(unittest.TestCase):
         fd, self.db = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         mdb.inicializar(self.db)
-        self.setor = mdb.listar_setores(self.db)[0]["id_setor"]
+        self.setor = mdb.criar_setor(self.db, "Setor de teste")
         mdb.criar_leitos_sequencia(self.db, self.setor, "L", 1, 4)
         self.app = AppFalso()
         self.ui = mapa_ui.MapaUI(self.app, self.db, os.path.dirname(self.db))
+        self.ui.id_setor = self.setor
         MB.chamadas.clear()
         MB.resposta = True
 
@@ -619,6 +620,29 @@ class TestInterface(unittest.TestCase):
             abrir.assert_called_once_with(FD.destino)
         finally:
             mex.exportar_pdf = original
+
+    def test_adicionar_leitos_por_fluxo_simples(self):
+        self.ui.mostrar_mapa()
+        dialogo = mapa_ui.DialogAdicionarLeitos(self.ui)
+        dialogo.cb_setor.set("Operação - OP")
+        dialogo.e_de.insert(0, "10")
+        dialogo.e_ate.insert(0, "12")
+        dialogo._adicionar()
+        setor_op = next(x for x in mdb.listar_setores(self.db) if x["sigla"] == "OP")
+        codigos = [x["codigo"] for x in mdb.listar_leitos(self.db, setor_op["id_setor"])]
+        self.assertEqual(codigos, [str(x) for x in range(1, 13)])
+        self.assertEqual(self.ui.id_setor, setor_op["id_setor"])
+
+    def test_dialogo_de_ordem_move_setor_sem_misturar_grupos(self):
+        dialogo = mapa_ui.DialogOrdemSetores(self.ui)
+        setores = mdb.listar_setores(self.db)
+        cm = next(x for x in setores if x["sigla"] == "CM")
+        dialogo.tree.selection_set(str(cm["id_setor"]))
+        dialogo._subir()
+        atuais = mdb.listar_setores(self.db)
+        self.assertEqual([x["sigla"] for x in atuais if x["grupo"] == "Internos"],
+                         ["CM", "OP", "PSI", "ISO"])
+        dialogo.destroy()
 
     def test_leitos_suplementos_config(self):
         self.ui.mostrar_mapa()
