@@ -156,12 +156,50 @@ class TestCalculos(unittest.TestCase):
 class TestBanco(unittest.TestCase):
     def setUp(self):
         self.db = novo_banco()
-        self.setor = mdb.listar_setores(self.db)[0]["id_setor"]
+        self.setor = mdb.criar_setor(self.db, "Setor de teste")
         mdb.criar_leitos_sequencia(self.db, self.setor, "L", 1, 5)
         self.leitos = mdb.listar_leitos(self.db, self.setor)
 
     def tearDown(self):
         os.remove(self.db)
+
+    def test_setores_e_leitos_iniciais_na_ordem_solicitada(self):
+        setores = mdb.listar_setores(self.db)
+        esperados = [
+            ("Internos", "Operação", "OP", list(range(1, 10))),
+            ("Internos", "Clínica médica", "CM", list(range(16, 34))),
+            ("Internos", "Psiquiatria", "PSI", [46, 47, 48]),
+            ("Internos", "Isolamento", "ISO", [1, 2]),
+            ("Externos", "Sala vermelha Adulto", "SVA", [1, 2, 3]),
+            ("Externos", "Sala de observação adulto", "SAU", [4, 5, 6, 7, 8, 9]),
+            ("Externos", "Sala vermelha Pediatria", "SVP", [1, 2]),
+            ("Externos", "Observação da Pediatria", "PED", [1, 2, 3]),
+        ]
+        obtidos = []
+        for grupo, nome, sigla, codigos in esperados:
+            setor = next(x for x in setores if x["nome"] == nome)
+            self.assertEqual((setor["grupo"], setor["sigla"]), (grupo, sigla))
+            leitos = mdb.listar_leitos(self.db, setor["id_setor"])
+            self.assertEqual([int(x["codigo"]) for x in leitos], codigos)
+            obtidos.append((setor["grupo"], setor["nome"], setor["sigla"]))
+        self.assertEqual(obtidos, [(g, n, s) for g, n, s, _ in esperados])
+        mdb.inicializar(self.db)
+        self.assertEqual(len([x for x in mdb.listar_setores(self.db) if x.get("sigla")]), 8)
+
+    def test_reordenacao_persistente_dentro_do_grupo(self):
+        setores = mdb.listar_setores(self.db)
+        cm = next(x for x in setores if x["sigla"] == "CM")
+        op = next(x for x in setores if x["sigla"] == "OP")
+        self.assertEqual([x["sigla"] for x in setores if x["grupo"] == "Internos"],
+                         ["OP", "CM", "PSI", "ISO"])
+        self.assertTrue(mdb.alterar_ordem_setor(self.db, cm["id_setor"], -1))
+        atual = mdb.listar_setores(self.db)
+        self.assertEqual([x["sigla"] for x in atual if x["grupo"] == "Internos"],
+                         ["CM", "OP", "PSI", "ISO"])
+        self.assertFalse(mdb.alterar_ordem_setor(self.db, cm["id_setor"], -1))
+        # A ordenação de um grupo não desloca setores do outro grupo.
+        self.assertEqual([x["sigla"] for x in atual if x["grupo"] == "Externos"],
+                         ["SVA", "SAU", "SVP", "PED"])
 
     def test_seed_e_idempotencia(self):
         mdb.inicializar(self.db)  # chamar de novo não duplica
