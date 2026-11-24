@@ -179,7 +179,8 @@ class PainelConsultaEstruturada(ctk.CTkFrame):
         app = self.winfo_toplevel()
         painel_externo = hasattr(app, "abrir_painel_lateral")
         if painel_externo:
-            container = app.abrir_painel_lateral("Cadastrar recomendação DOCX", lambda: None)
+            abrir = getattr(app, "abrir_painel_modal", app.abrir_painel_lateral)
+            container = abrir("Cadastrar recomendação DOCX", lambda: None)
         else:
             container = self
         painel = ctk.CTkFrame(container, fg_color="transparent")
@@ -268,7 +269,8 @@ class DialogoAssociacoesExames(ctk.CTkFrame):
         self.app = app
         self._painel_externo = bool(app and hasattr(app, "abrir_painel_lateral"))
         if self._painel_externo:
-            self._painel_frame = app.abrir_painel_lateral("Associações de exames", lambda: None)
+            abrir = getattr(app, "abrir_painel_modal", app.abrir_painel_lateral)
+            self._painel_frame = abrir("Associações de exames", lambda: None)
             pai = self._painel_frame
         else:
             self._painel_frame = None
