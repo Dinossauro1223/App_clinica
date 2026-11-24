@@ -321,7 +321,7 @@ def _barras_h(c, spec, minima):
         w = largura_max * v / maior * pi
         c.texto(pad, yc, cortar_texto(c.medir, item["nome"], c.px(TAM_TEXTO + 1), False, largura_nome - 10 * e),
                 TAM_TEXTO + 1, TEXTO, False, "w")
-        cor_barra = _escurecer_se_ha_mais_de_um(cor, [i["valor"] for i in itens]) if k == maior_pos else cor
+        cor_barra = item.get("cor") or (_escurecer_se_ha_mais_de_um(cor, [i["valor"] for i in itens]) if k == maior_pos else cor)
         dica = f"{item['nome']}: {v} ({porcentagem(v, total):.0f}%)"
         visivel = w >= 0.5
         r = min(5 * e, h / 2, w / 2)
