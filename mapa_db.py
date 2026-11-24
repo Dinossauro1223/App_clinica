@@ -215,7 +215,9 @@ def inicializar(db_path):
         for nome, tipo in (("meta_kcal", "REAL"), ("meta_proteina_g", "REAL")):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
-        for nome, tipo in (("alta_em", "TEXT"), ("alta_por", "TEXT"), ("alta_motivo", "TEXT")):\n            if nome not in colunas:\n                c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
+        for nome, tipo in (("alta_em", "TEXT"), ("alta_por", "TEXT"), ("alta_motivo", "TEXT")):
+            if nome not in colunas:
+                c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
         colunas_sup = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
         for nome, tipo in (("ml_oferta", "REAL"), ("agua_ml", "REAL"),
                            ("refeicoes_json", "TEXT DEFAULT '[]'"), ("batido_fruta", "INTEGER DEFAULT 0"),
