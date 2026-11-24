@@ -187,6 +187,35 @@ class Tree(W):
     def selection_set(self, i):
         self._sel = [i]
 
+    def item(self, iid, option=None, **_kwargs):
+        if option == "values":
+            return self.items.get(iid, ())
+        if option == "tags":
+            return self.tags.get(iid, ())
+        return {"values": self.items.get(iid, ()), "tags": self.tags.get(iid, ())}
+
+    def focus(self, iid=None):
+        if iid is not None:
+            self._focus = iid
+        return getattr(self, "_focus", "")
+
+    def focus_set(self):
+        pass
+
+    def see(self, _iid):
+        pass
+
+    def clipboard_clear(self):
+        self._clipboard = ""
+
+    def clipboard_append(self, texto):
+        self._clipboard = str(texto)
+
+    def clipboard_get(self):
+        if not hasattr(self, "_clipboard"):
+            raise RuntimeError("clipboard vazio")
+        return self._clipboard
+
 
 class Canvas(W):
     """tk.Canvas falso: guarda as imagens e as formas desenhadas e a posição da rolagem horizontal."""
@@ -799,6 +828,50 @@ class TestInterface(unittest.TestCase):
         self.assertEqual(form.e_meses.get(), "6")
         self.assertEqual(form.seg_sexo.get(), "Mulher")
         self.assertEqual(form.e_nome.get(), "Paciente Teste")
+
+
+    def test_edicao_de_celula_preserva_todos_os_demais_dados_do_registro(self):
+        self.ui.mostrar_mapa()
+        form = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self._preencher_form(form, nome="Paciente de teste")
+        form._salvar()
+        item = self._primeiro_leito()
+        iid = str(item["leito"]["id_leito"])
+        antes = dict(item["registro"])
+        self.assertTrue(self.ui._salvar_valor_celula(iid, 3, "73"))
+        depois = mdb.mapa_do_dia(self.db, self.ui.data.isoformat())[0]["registro"]
+        self.assertEqual(depois["idade_anos"], 73)
+        for campo in ("peso_kg", "altura_cm", "via", "consistencia", "suplementos",
+                      "obs_sim", "obs_nao", "fi_estado", "fi_freq", "fi_dias_ausente"):
+            self.assertEqual(depois.get(campo), antes.get(campo), campo)
+
+    def test_edicao_de_celula_rejeita_idade_fora_do_intervalo_sem_gravar(self):
+        self.ui.mostrar_mapa()
+        form = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self._preencher_form(form, nome="Paciente de teste")
+        form._salvar()
+        item = self._primeiro_leito()
+        iid = str(item["leito"]["id_leito"])
+        idade_original = item["registro"]["idade_anos"]
+        self.assertFalse(self.ui._salvar_valor_celula(iid, 3, "121"))
+        depois = mdb.mapa_do_dia(self.db, self.ui.data.isoformat())[0]["registro"]
+        self.assertEqual(depois["idade_anos"], idade_original)
+
+    def test_copiar_celula_e_navegacao_por_setas_enter_e_tab(self):
+        self.ui.mostrar_mapa()
+        form = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
+        self._preencher_form(form, nome="Paciente de teste")
+        form._salvar()
+        iid = str(self._primeiro_leito()["leito"]["id_leito"])
+        self.ui._celula_selecionada = (iid, 2)
+        self.assertEqual(self.ui._copiar_celula(), "break")
+        self.assertEqual(self.ui._celula_clipboard, "Paciente de teste")
+        self.ui._mover_celula(0, 1)
+        self.assertEqual(self.ui._celula_selecionada, (iid, 3))
+        self.ui._enter_celula()
+        self.assertEqual(self.ui._celula_selecionada, (iid, 3))
+        self.ui._tab_celula()
+        self.assertEqual(self.ui._celula_selecionada, (iid, 4))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
