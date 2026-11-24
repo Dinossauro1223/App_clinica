@@ -422,7 +422,8 @@ class MapaUI:
                                f"{self.data.strftime('%d/%m/%Y')}?\n\nO histórico será preservado e o leito não "
                                "voltará a herdar este paciente nos próximos dias."):
             por = os.environ.get("USERNAME") or os.environ.get("USER") or "usuário local"
-            mdb.registrar_alta(self.db, r, por=por)
+            quando = f"{self.data.isoformat()} {datetime.now().strftime('%H:%M:%S')}"
+            mdb.registrar_alta(self.db, r, por=por, quando=quando)
             self._recarregar()
 
     def _copiar_ultimo(self):
@@ -1818,7 +1819,8 @@ class FormRegistro(_Janela):
             mdb.salvar_registro(self.ui.db, reg, self.ui.criterio_idoso, self.ui.lms)
             atual = mdb.obter_registro(self.ui.db, self.data_iso, self.leito["id_leito"])
             por = os.environ.get("USERNAME") or os.environ.get("USER") or "usuário local"
-            mdb.registrar_alta(self.ui.db, atual, por=por)
+            quando = f"{self.data_iso} {datetime.now().strftime('%H:%M:%S')}"
+            mdb.registrar_alta(self.ui.db, atual, por=por, quando=quando)
         except ValueError as e:
             messagebox.showwarning("Alta", str(e), parent=self)
             return
