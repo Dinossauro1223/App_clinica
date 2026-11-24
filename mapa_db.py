@@ -475,7 +475,13 @@ def remover_leito(db_path, id_leito):
     with closing(conectar(db_path)) as c:
         usado = c.execute("SELECT COUNT(*) FROM Mapa_Registros WHERE id_leito=?", (id_leito,)).fetchone()[0]
         if usado:
+            agora = _agora()
             c.execute("UPDATE Mapa_Leitos SET ativo=0 WHERE id_leito=?", (id_leito,))
+            c.execute("""UPDATE Mapa_Registros SET alta_em=?, alta_por=?, alta_motivo=?, atualizado_em=?
+                         WHERE id_registro=(SELECT id_registro FROM Mapa_Registros
+                         WHERE id_leito=? ORDER BY data DESC, id_registro DESC LIMIT 1)""",
+                      (agora, os.environ.get("USERNAME") or os.environ.get("USER") or "usuário local",
+                       "leito desativado", agora, id_leito))
             c.commit()
             return False
         c.execute("DELETE FROM Mapa_Leitos WHERE id_leito=?", (id_leito,))
@@ -818,9 +824,6 @@ def mapa_do_dia(db_path, data_iso, id_setor=None):
             # Como a consulta está ordenada do mais novo para o mais antigo, o primeiro
             # registro encontrado para cada leito é o estado que vale para a data.
             if r["id_leito"] in por_leito:
-                continue
-            # Leito desativado só aparece no dia em que possui registro explícito; não herda estado futuro.
-            if r.get("leito_ativo") == 0 and r["data"] != data_iso:
                 continue
             alta = (r.get("alta_em") or "")
             if alta and alta[:10] <= data_iso:
