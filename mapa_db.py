@@ -380,6 +380,13 @@ def alterar_ordem_setor(db_path, id_setor, direcao):
         return True
 
 
+def rotulo_setor(setor):
+    """Rótulo amigável com sigla, mantendo o nome canônico para persistência."""
+    nome = setor.get("nome", "")
+    sigla = setor.get("sigla")
+    return f"{nome} - {sigla}" if sigla else nome
+
+
 def criar_setor(db_path, nome):
     nome = (nome or "").strip()
     if not nome:
@@ -708,7 +715,8 @@ def _anexar_suplementos(c, registros):
     return registros
 
 
-_SEL_REG = ("SELECT R.*, L.codigo AS leito_codigo, L.id_setor AS id_setor, S.nome AS setor "
+_SEL_REG = ("SELECT R.*, L.codigo AS leito_codigo, L.id_setor AS id_setor, S.nome AS setor, "
+            "S.sigla AS sigla_setor, S.grupo AS grupo_setor, S.ordem_apresentacao AS ordem_setor "
             "FROM Mapa_Registros R JOIN Mapa_Leitos L ON L.id_leito = R.id_leito "
             "JOIN Mapa_Setores S ON S.id_setor = L.id_setor ")
 
