@@ -213,6 +213,7 @@ class PilhaAbasLaterais(ctk.CTkFrame):
 
     def abrir(self, titulo):
         """Substitui a página principal atual; nunca cria uma guia de histórico."""
+        self._ativa.pack_forget()
         if self._ativa is not self._base:
             try:
                 self._ativa._fechando_painel = True
