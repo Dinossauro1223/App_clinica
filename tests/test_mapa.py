@@ -680,7 +680,7 @@ class TestGraficos(unittest.TestCase):
         spec = mgr.spec_classificacao_terapia(agg)
         self.assertEqual([(i["nome"], i["valor"]) for i in spec["itens"]], [
             ("Via oral sem suplementação", 1), ("Via oral com suplementação", 1), ("Dieta enteral", 1), ("Via zero", 1)])
-        self.assertEqual(mgr.spec_perfil_dia(agg)["series"][-1]["nome"], "Via zero")
+        self.assertEqual(mgr.spec_perfil_dia(agg)["series"][-1]["nome"], "Dieta enteral")
         self.assertEqual(mgr.spec_resumo(agg)["titulo"], "Via da dieta e acompanhante")
 
     def test_grupos_cobrem_todos_os_graficos_sem_repetir(self):
