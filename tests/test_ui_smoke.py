@@ -187,6 +187,9 @@ class Tree(W):
     def selection_set(self, i):
         self._sel = [i]
 
+    def xview(self, *a):
+        pass
+
 
 class Canvas(W):
     """tk.Canvas falso: guarda as imagens e as formas desenhadas e a posição da rolagem horizontal."""
@@ -385,7 +388,8 @@ class TestInterface(unittest.TestCase):
     def test_mapa_lista_leitos_e_vagos(self):
         self.ui.mostrar_mapa()
         self.assertEqual(len(self.ui.tree.items), 4)
-        self.assertTrue(all(v[2] == "— vago —" for v in self.ui.tree.items.values()))
+        self.assertTrue(all(v[4] == "— vago —" for v in self.ui.tree.items.values()))
+        self.assertIn("Primeiro preenchimento", self.ui.lbl_inicio.opts["text"])
         self.assertIn("0 de 4 leitos", self.ui.lbl_resumo.opts["text"])
 
     def _preencher_form(self, form, nome="Maria de Souza"):
@@ -448,8 +452,8 @@ class TestInterface(unittest.TestCase):
         self.assertEqual(reg["suplementos"][0]["qtd_dia"], 1.0)
         # a lista do mapa foi atualizada
         linha = self.ui.tree.items[str(self._primeiro_leito()["leito"]["id_leito"])]
-        self.assertEqual(linha[2], "Maria de Souza")
-        self.assertIn("Sobrepeso", linha[4])
+        self.assertEqual(linha[4], "Maria de Souza")
+        self.assertIn("Sobrepeso", linha[6])
         self.assertIn("1 de 4 leitos", self.ui.lbl_resumo.opts["text"])
         self.assertIn("1 em dieta pastosa", self.ui.lbl_resumo.opts["text"])
         self.assertIn("1 com acompanhante", self.ui.lbl_resumo.opts["text"])
@@ -493,7 +497,7 @@ class TestInterface(unittest.TestCase):
         self.assertIn("1 em dieta enteral", self.ui.lbl_resumo.opts["text"])
         self.assertIn("0 com suplementação oral", self.ui.lbl_resumo.opts["text"])
         linha = self.ui.tree.items[str(self._primeiro_leito()["leito"]["id_leito"])]
-        self.assertIn("Dieta enteral", linha[7])
+        self.assertIn("Dieta enteral", linha[9])
 
         # Ao retornar para via oral, a fórmula enteral é removida e não reaparece na lista de suplementos.
         form2 = mapa_ui.FormRegistro(self.ui, self._primeiro_leito())
