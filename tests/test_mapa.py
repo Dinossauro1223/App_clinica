@@ -265,7 +265,7 @@ class TestBanco(unittest.TestCase):
         self.assertEqual(mdb.criar_leitos_sequencia(self.db, self.setor, "L", 4, 7), 2)  # só L06 e L07
 
     def test_registro_completo(self):
-        sup = mdb.listar_suplementos(self.db)[0]
+        sup = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Fresubin")
         reg = registro_base(self.db, self.leitos[0]["id_leito"], "2026-10-25",
                             suplementos=[dict(id_suplemento=sup["id_suplemento"], nome=sup["nome"],
                                               modulo=sup["modulo"], qtd_dia=400.0, unidade="ml")])
@@ -370,14 +370,14 @@ class TestBanco(unittest.TestCase):
         fd, legado = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         try:
-            with sqlite3.connect(legado) as c:
+            with conexao(legado) as c:
                 c.execute("""CREATE TABLE Mapa_Registro_Suplementos (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL,
                     id_suplemento INTEGER, nome TEXT NOT NULL, modulo TEXT, qtd_dia REAL,
                     unidade TEXT, ml_oferta REAL, agua_ml REAL,
                     refeicoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0)""")
             mdb.inicializar(legado)
-            with sqlite3.connect(legado) as c:
+            with conexao(legado) as c:
                 colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
             self.assertTrue({"kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
                              "ficha_observacao", "ficha_snapshot_em"}.issubset(colunas))

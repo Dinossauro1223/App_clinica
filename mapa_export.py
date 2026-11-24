@@ -33,7 +33,7 @@ COLUNAS = [
 
 def _colunas(setor_nome):
     """Acrescenta a identificação do setor na exportação da visão geral."""
-    if setor_nome != "Todos_os_setores":
+    if setor_nome != "Todos_os_setores" and not str(setor_nome).startswith("Grupo_"):
         return COLUNAS
     ajustes = {"paciente": -6, "via": -2, "supl": -6, "obs": -10}
     base = [(k, t, w + ajustes.get(k, 0), ex + ajustes.get(k, 0)) for k, t, w, ex in COLUNAS]
@@ -164,6 +164,20 @@ def _filtrar(linhas_mapa, incluir_vagos):
     return [l for l in linhas_mapa if incluir_vagos or l["registro"] is not None]
 
 
+def filtrar_para_impressao(linhas_mapa, grupo="Ambos", incluir_vagos=True):
+    """Aplica os filtros exclusivos da impressão, sem modificar a lista original.
+
+    grupo: "Ambos" (Internos + Externos), "Internos" ou "Externos".
+    Setores legados classificados como "Outros" não entram nos grupos solicitados.
+    """
+    if grupo not in ("Ambos", "Internos", "Externos"):
+        raise ValueError("Grupo de impressão inválido.")
+    permitidos = {"Internos", "Externos"} if grupo == "Ambos" else {grupo}
+    return [item for item in linhas_mapa
+            if (item["leito"].get("grupo_setor") or "Outros") in permitidos
+            and (incluir_vagos or item.get("registro") is not None)]
+
+
 # ------------------------------------------------------------------------- Excel
 
 
@@ -181,7 +195,9 @@ def exportar_excel(caminho, linhas_mapa, data_iso, setor_nome, abreviar=False, i
         rico = False
 
     colunas = _colunas(setor_nome)
-    titulo_setor = "Todos os setores" if setor_nome == "Todos_os_setores" else setor_nome
+    titulo_setor = ("Todos os setores" if setor_nome == "Todos_os_setores" else
+                    "Setores internos" if setor_nome == "Grupo_Internos" else
+                    "Setores externos" if setor_nome == "Grupo_Externos" else setor_nome)
     wb = Workbook()
     ws = wb.active
     ws.title = "Mapa"
@@ -329,7 +345,9 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
     pdf.set_auto_page_break(False)
     pdf.set_margins(_MARG, _MARG, _MARG)
     colunas = _colunas(setor_nome)
-    titulo_setor = "Todos os setores" if setor_nome == "Todos_os_setores" else setor_nome
+    titulo_setor = ("Todos os setores" if setor_nome == "Todos_os_setores" else
+                    "Setores internos" if setor_nome == "Grupo_Internos" else
+                    "Setores externos" if setor_nome == "Grupo_Externos" else setor_nome)
 
     larguras = [c[2] for c in colunas]
     xs = [_MARG]

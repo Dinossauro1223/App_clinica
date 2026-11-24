@@ -147,6 +147,7 @@ class MapaUI:
         _btn(acoes, "Remover do mapa", self._remover, 130, VERMELHO, VERMELHO_HOVER).pack(side="left", padx=(0, 6))
         _btn(acoes, "Excel", self._exportar_excel, 80, tema.AZUL, tema.AZUL_HOVER).pack(side="right")
         _btn(acoes, "PDF", self._exportar_pdf, 70, tema.AZUL, tema.AZUL_HOVER).pack(side="right", padx=6)
+        _btn(acoes, "Imprimir", self._abrir_impressao, 100, tema.AZUL, tema.AZUL_HOVER).pack(side="right", padx=6)
 
         self.lbl_aviso = ctk.CTkLabel(area, text="", text_color=LARANJA, font=ctk.CTkFont(size=12, weight="bold"))
         self.lbl_aviso.pack(fill="x", padx=22, pady=(2, 0), anchor="w")
@@ -453,6 +454,92 @@ class MapaUI:
         import mapa_export as mex
         self._exportar(".xlsx", "Excel",
                        lambda c: mex.exportar_excel(c, self.linhas, self.data.isoformat(), self._nome_setor()))
+
+    def _abrir_impressao(self):
+        """Mostra os filtros de impressão dentro da própria tela do mapa."""
+        painel_existente = getattr(self, "_painel_impressao", None)
+        if painel_existente is not None and painel_existente.winfo_exists():
+            self._fechar_painel_impressao()
+            return
+
+        painel = ctk.CTkFrame(self.app.area_principal, fg_color=tema.BRANCO,
+                              corner_radius=10, border_width=1)
+        painel.pack(fill="x", padx=20, pady=(4, 10))
+        self._painel_impressao = painel
+
+        cabecalho = ctk.CTkFrame(painel, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=16, pady=(12, 4))
+        _titulo(cabecalho, "Preparar impressão").pack(side="left")
+        _btn(cabecalho, "Fechar", self._fechar_painel_impressao, 80,
+             CINZA_BTN, CINZA_HOVER).pack(side="right")
+
+        ctk.CTkLabel(painel, text="Escolha quais leitos devem aparecer no documento.",
+                     text_color=tema.SUAVE).pack(anchor="w", padx=18, pady=(0, 8))
+        self._grupo_impressao = tk.StringVar(master=painel, value="Ambos")
+        self._vagos_impressao = tk.BooleanVar(master=painel, value=True)
+        linha = ctk.CTkFrame(painel, fg_color="transparent")
+        linha.pack(fill="x", padx=16, pady=4)
+        for texto, valor in (("Ambos (Internos e Externos)", "Ambos"),
+                             ("Somente Internos", "Internos"),
+                             ("Somente Externos", "Externos")):
+            ctk.CTkRadioButton(linha, text=texto, variable=self._grupo_impressao,
+                               value=valor).pack(side="left", padx=(0, 14))
+        ctk.CTkCheckBox(painel, text="Incluir leitos vazios",
+                        variable=self._vagos_impressao).pack(anchor="w", padx=18, pady=6)
+        ctk.CTkLabel(
+            painel,
+            text="Depois de preparar, o PDF será aberto no visualizador padrão. Use Imprimir ou Ctrl+P para selecionar a impressora e as páginas.",
+            text_color=tema.SUAVE, wraplength=900, justify="left"
+        ).pack(anchor="w", padx=18, pady=(2, 8))
+        _btn(painel, "Preparar impressão", self._preparar_impressao, 175).pack(
+            anchor="e", padx=16, pady=(0, 12))
+
+    def _fechar_painel_impressao(self):
+        painel = getattr(self, "_painel_impressao", None)
+        if painel is not None:
+            try:
+                painel.destroy()
+            except tk.TclError:
+                pass
+        self._painel_impressao = None
+
+    def _preparar_impressao(self):
+        import tempfile
+        import mapa_export as mex
+
+        grupo = self._grupo_impressao.get()
+        todas_linhas = mdb.mapa_do_dia(self.db, self.data.isoformat(), None)
+        linhas = mex.filtrar_para_impressao(
+            todas_linhas, grupo, self._vagos_impressao.get()
+        )
+        if not linhas:
+            messagebox.showinfo(
+                "Imprimir mapa",
+                "Não há leitos que correspondam aos filtros selecionados.",
+                parent=self.app,
+            )
+            return
+
+        fd, caminho = tempfile.mkstemp(prefix="NutriLab_Mapa_", suffix=".pdf")
+        os.close(fd)
+        try:
+            nome = self._nome_setor() if grupo == "Ambos" else "Grupo_" + grupo
+            mex.exportar_pdf(caminho, linhas, self.data.isoformat(), nome, incluir_vagos=True)
+            if not hasattr(os, "startfile"):
+                raise OSError("A abertura automática do visualizador de PDF está disponível no Windows.")
+            os.startfile(caminho)
+            self._arquivo_impressao = caminho
+            self._fechar_painel_impressao()
+        except Exception as erro:
+            try:
+                os.remove(caminho)
+            except OSError:
+                pass
+            messagebox.showerror(
+                "Imprimir mapa",
+                f"Não foi possível preparar a impressão:\\n{erro}",
+                parent=self.app,
+            )
 
     # ----------------------------------------------------------------------- diálogos
     def _abrir_leitos(self):
@@ -1595,17 +1682,28 @@ class FormRegistro(_Janela):
         if self._via_anterior != nova_via and not preservar:
             self._suplementos = []
         self._via_anterior = nova_via
-        # A via classifica o paciente e o tipo de terapia no mapa; não deve esconder produtos
-        # do catálogo. A indicação de uso de cada produto continua registrada no seu módulo/ficha.
-        self._catalogo_visivel = list(self._catalogo)
-        modulos = ["Todos os módulos"] + mdb.listar_modulos(self.ui.db)
-        self.cb_mod.configure(values=modulos)
-        self.cb_mod.set("Todos os módulos")
+        if enteral:
+            # Para dieta enteral, oferece apenas fórmulas e módulos compatíveis com administração
+            # enteral; produtos exclusivamente orais não devem aparecer como opção de seleção.
+            modulos_enterais = {"Fórmula enteral", "Fórmula enteral e oral", "Módulo oral/enteral"}
+            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") in modulos_enterais]
+            self.cb_mod.configure(values=["Fórmulas enterais"])
+            self.cb_mod.set("Fórmulas enterais")
+        elif zero:
+            self._catalogo_visivel = []
+            self.cb_mod.configure(values=["Nenhum produto"])
+            self.cb_mod.set("Nenhum produto")
+        else:
+            # Na via oral, oculta as fórmulas classificadas exclusivamente para administração enteral.
+            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") != "Fórmula enteral"]
+            modulos_visiveis = sorted({s["modulo"] for s in self._catalogo_visivel if s.get("modulo")})
+            self.cb_mod.configure(values=["Todos os módulos"] + modulos_visiveis)
+            self.cb_mod.set("Todos os módulos")
         if enteral:
             self.lbl_sup_tipo.configure(
                 text="DIETA ENTERAL: paciente classificado separadamente como enteral. "
-                     "A seleção de via substitui a suplementação anterior; todos os produtos permanecem "
-                     "visíveis no catálogo. Confira a indicação e a via de administração na ficha técnica.")
+                     "A seleção de via substitui a suplementação anterior. A lista mostra apenas fórmulas "
+                     "compatíveis com administração enteral.")
         elif zero:
             self.lbl_sup_tipo.configure(text="VIA ZERO: paciente classificado em via zero. "
                                              "Não registre oferta enquanto essa via estiver selecionada.")
@@ -1621,7 +1719,7 @@ class FormRegistro(_Janela):
         modulo = self.cb_mod.get()
         catalogo = self._catalogo_visivel
         nomes = [s["nome"] for s in catalogo
-                 if self.seg_via.get() == "Enteral" or modulo == "Todos os módulos" or s["modulo"] == modulo]
+                 if modulo in ("Todos os módulos", "Fórmulas enterais") or s["modulo"] == modulo]
         self.cb_sup.configure(values=nomes)
         self.cb_sup.set(nomes[0] if len(nomes) == 1 else "")
 

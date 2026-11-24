@@ -577,7 +577,7 @@ class TestMapa(Base):
     def test_catalogo_invalido_nao_derruba_o_mapa(self):
         with mock.patch.object(ca, "carregar_catalogo", side_effect=ca.ErroCatalogo(["g.json: erro de teste"])):
             self.ui.mostrar_mapa()
-        self.assertEqual(len(self.ui.tree.items), 1)
+        self.assertIn(self.iid, self.ui.tree.items)
         self.assertEqual(self.ui.tree.items[self.iid][-1], "")
         self.assertIn("Condutas de alta indisponíveis", self.ui.lbl_condutas.opts["text"])
         self.assertIn("erro de teste", self.ui.lbl_condutas.opts["text"])
@@ -592,7 +592,9 @@ class TestMapa(Base):
             ui = mapa_ui.MapaUI(self.app, sem_migracao, os.path.dirname(sem_migracao))
             ui.data = DATA
             ui.mostrar_mapa()
-            self.assertEqual(len(ui.tree.items), 1)
+            linhas = list(ui.tree.items.values())
+            self.assertTrue(any(linha[4] == "Sem Migração" for linha in linhas))
+            self.assertEqual(len(linhas), len(mdb.mapa_do_dia(sem_migracao, DATA.isoformat())))
             self.assertIn("migração 2", ui.lbl_condutas.opts["text"])
             self.assertEqual(ui.lbl_condutas.opts["text_color"], mapa_ui.VERMELHO)
         finally:
