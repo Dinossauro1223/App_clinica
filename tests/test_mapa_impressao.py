@@ -51,6 +51,10 @@ class TestFiltrosImpressao(unittest.TestCase):
         with self.assertRaises(ValueError):
             mex.filtrar_para_impressao(self.linhas, "Pediatria", True)
 
+    def test_pdf_filtrado_mantem_coluna_de_setor(self):
+        chaves = [c[0] for c in mex._colunas("Grupo_Internos")]
+        self.assertIn("setor", chaves)
+
 
 if __name__ == "__main__":
     unittest.main()
