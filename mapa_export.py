@@ -37,7 +37,7 @@ def _colunas(setor_nome):
         return COLUNAS
     ajustes = {"paciente": -6, "via": -2, "supl": -6, "obs": -10}
     base = [(k, t, w + ajustes.get(k, 0), ex + ajustes.get(k, 0)) for k, t, w, ex in COLUNAS]
-    base.insert(1, ("setor", "Setor", 20, 16))
+    base.insert(1, ("setor", "Setor / grupo", 30, 24))
     return base
 
 
