@@ -436,12 +436,20 @@ class AppClinica(ctk.CTk):
             self._layout_principal.sashpos(0, self._largura_painel_edicao)
         except tk.TclError:
             self._layout_principal.add(self._painel_edicao_host, weight=0)
+        area_anterior = self.area_principal
         try:
+            # Telas legadas que recebem o app constroem seus widgets em area_principal.
+            # Durante a montagem, essa referência aponta para o painel; ao retornar,
+            # a tela principal volta a ser a referência ativa sem perder seus widgets.
+            self.area_principal = frame
             comando()
         except Exception as erro:
+            self.area_principal = area_anterior
             self.fechar_painel_lateral(frame)
             self._mostrar_falha_tela(titulo, erro)
             return None
+        finally:
+            self.area_principal = area_anterior
         return frame
 
     def fechar_painel_lateral(self, frame):
