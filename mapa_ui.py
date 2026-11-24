@@ -1812,7 +1812,9 @@ class DialogImpressaoMapa(ctk.CTkToplevel):
         import tempfile
         import mapa_export as mex
         grupo = self.grupo.get()
-        linhas = mex.filtrar_para_impressao(self.ui.linhas, grupo, self.incluir_vagos.get())
+        # A impressão parte sempre da visão geral do dia, mesmo que a tela esteja filtrada em um setor.
+        todas_linhas = mdb.mapa_do_dia(self.ui.db, self.ui.data.isoformat(), None)
+        linhas = mex.filtrar_para_impressao(todas_linhas, grupo, self.incluir_vagos.get())
         if not linhas:
             messagebox.showinfo("Imprimir mapa", "Não há leitos que correspondam aos filtros selecionados.", parent=self)
             return
