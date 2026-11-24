@@ -757,7 +757,8 @@ class DialogLeitos(_Janela):
         self.cb_setor = ctk.CTkComboBox(topo, values=[mdb.rotulo_setor(s) for s in self.setores], width=200, state="readonly",
                                         command=lambda v: self._recarregar())
         self.cb_setor.pack(side="left", padx=6)
-        atual = next((mdb.rotulo_setor(s) for s in self.setores if s["id_setor"] == ui.id_setor),\n                      mdb.rotulo_setor(self.setores[0]))
+        atual = next((mdb.rotulo_setor(s) for s in self.setores if s["id_setor"] == ui.id_setor),
+                      mdb.rotulo_setor(self.setores[0]))
         self.cb_setor.set(atual)
         self.e_novo_setor = ctk.CTkEntry(topo, width=130, placeholder_text="Novo setor")
         self.e_novo_setor.pack(side="left", padx=(12, 4))
