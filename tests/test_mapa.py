@@ -156,17 +156,99 @@ class TestCalculos(unittest.TestCase):
 class TestBanco(unittest.TestCase):
     def setUp(self):
         self.db = novo_banco()
-        self.setor = mdb.listar_setores(self.db)[0]["id_setor"]
+        self.setor = mdb.criar_setor(self.db, "Setor de teste")
         mdb.criar_leitos_sequencia(self.db, self.setor, "L", 1, 5)
         self.leitos = mdb.listar_leitos(self.db, self.setor)
 
     def tearDown(self):
         os.remove(self.db)
 
+    def test_setores_e_leitos_iniciais_na_ordem_solicitada(self):
+        setores = mdb.listar_setores(self.db)
+        esperados = [
+            ("Internos", "Operação", "OP", list(range(1, 10))),
+            ("Internos", "Clínica médica", "CM", list(range(16, 34))),
+            ("Internos", "Psiquiatria", "PSI", [46, 47, 48]),
+            ("Internos", "Isolamento", "ISO", [1, 2]),
+            ("Externos", "Sala vermelha Adulto", "SVA", [1, 2, 3]),
+            ("Externos", "Sala de observação adulto", "SAU", [4, 5, 6, 7, 8, 9]),
+            ("Externos", "Sala vermelha Pediatria", "SVP", [1, 2]),
+            ("Externos", "Observação da Pediatria", "PED", [1, 2, 3]),
+        ]
+        obtidos = []
+        for grupo, nome, sigla, codigos in esperados:
+            setor = next(x for x in setores if x["nome"] == nome)
+            self.assertEqual((setor["grupo"], setor["sigla"]), (grupo, sigla))
+            leitos = mdb.listar_leitos(self.db, setor["id_setor"])
+            self.assertEqual([int(x["codigo"]) for x in leitos], codigos)
+            obtidos.append((setor["grupo"], setor["nome"], setor["sigla"]))
+        self.assertEqual(obtidos, [(g, n, s) for g, n, s, _ in esperados])
+        mdb.inicializar(self.db)
+        self.assertEqual(len([x for x in mdb.listar_setores(self.db) if x.get("sigla")]), 8)
+
+    def test_reordenacao_persistente_dentro_do_grupo(self):
+        setores = mdb.listar_setores(self.db)
+        cm = next(x for x in setores if x["sigla"] == "CM")
+        op = next(x for x in setores if x["sigla"] == "OP")
+        self.assertEqual([x["sigla"] for x in setores if x["grupo"] == "Internos"],
+                         ["OP", "CM", "PSI", "ISO"])
+        self.assertTrue(mdb.alterar_ordem_setor(self.db, cm["id_setor"], -1))
+        atual = mdb.listar_setores(self.db)
+        self.assertEqual([x["sigla"] for x in atual if x["grupo"] == "Internos"],
+                         ["CM", "OP", "PSI", "ISO"])
+        self.assertFalse(mdb.alterar_ordem_setor(self.db, cm["id_setor"], -1))
+        # A ordenação de um grupo não desloca setores do outro grupo.
+        self.assertEqual([x["sigla"] for x in atual if x["grupo"] == "Externos"],
+                         ["SVA", "SAU", "SVP", "PED"])
+
+    def test_mapa_geral_respeita_grupos_ordem_e_identificacao(self):
+        linhas = mdb.mapa_do_dia(self.db, "2026-11-24")
+        setores = [x["leito"] for x in linhas]
+        self.assertEqual([(x["grupo_setor"], x["sigla_setor"], x["codigo"]) for x in setores[:9]],
+                         [("Internos", "OP", str(n)) for n in range(1, 10)])
+        self.assertEqual([(x["grupo_setor"], x["sigla_setor"], x["codigo"]) for x in setores[9:27]],
+                         [("Internos", "CM", str(n)) for n in range(16, 34)])
+        self.assertEqual([(x["grupo_setor"], x["sigla_setor"], x["codigo"]) for x in setores[27:30]],
+                         [("Internos", "PSI", str(n)) for n in (46, 47, 48)])
+        self.assertEqual(mex.textos_linha(setores[0], None)["setor"], "Internos · Operação (OP)")
+
     def test_seed_e_idempotencia(self):
         mdb.inicializar(self.db)  # chamar de novo não duplica
-        self.assertEqual(len(mdb.listar_suplementos(self.db)), 6)
+        self.assertEqual(len(mdb.listar_suplementos(self.db)),
+                         len(mdb.SUPLEMENTOS_INICIAIS) + len(mdb.SUPLEMENTOS_COMPLEMENTARES) + len(mdb.SUPLEMENTOS_ENTERAIS_COMPLEMENTARES) + len(mdb.SUPLEMENTOS_DUAS_VIAS_COMPLEMENTARES))
         self.assertEqual(len(mdb.listar_modulos(self.db)), len(mdb.MODULOS_PADRAO))
+        candidatos = {s["nome"]: s for s in mdb.listar_suplementos(self.db)}
+        self.assertIn("Ensure Plus Advance", candidatos)
+        self.assertIn("Glucerna 1.5 kcal", candidatos)
+        self.assertIn("Nutrison Energy 1.5", candidatos)
+        # As quatro composições preenchidas foram transcritas das respectivas fichas oficiais por 100 mL.
+        fichas = {
+            "Nutrison Energy 1.5": (149, 6, 5.8, 18, 134),
+            "Nutrison Protein Plus Energy": (150, 7.5, 5.8, 17, 100),
+            "Nutrison advanced Diason": (102, 4.3, 4.2, 11, 100),
+            "Nutrison advanced Cubison": (103, 5.5, 3.3, 13, 100),
+        }
+        for nome, valores in fichas.items():
+            item = candidatos[nome]
+            self.assertEqual((item["kcal_100"], item["ptn_100"], item["lip_100"],
+                              item["carb_100"], item["sod_100"]), valores)
+            self.assertIn("danonenutricia.com.br", item["observacao"])
+            self.assertEqual(item["modulo"], "Fórmula enteral")
+        # Os demais candidatos não recebem valores inferidos.
+        self.assertIsNone(candidatos["Ensure Plus Advance"]["kcal_100"])
+        self.assertIn("abbottbrasil.com.br", candidatos["Ensure Plus Advance"]["observacao"])
+        self.assertIsNone(candidatos["Nutrison Energy MF 1.5"]["kcal_100"])
+        self.assertEqual(candidatos["Glucerna 1.5 kcal"]["modulo"], "Fórmula para diabetes")
+        self.assertEqual(candidatos["Glucerna SR"]["modulo"], "Fórmula enteral e oral")
+        self.assertEqual(candidatos["Nutri R 2.0"]["modulo"], "Fórmula enteral e oral")
+        self.assertEqual((candidatos["Nutri R 2.0"]["kcal_100"], candidatos["Nutri R 2.0"]["ptn_100"],
+                          candidatos["Nutri R 2.0"]["lip_100"], candidatos["Nutri R 2.0"]["carb_100"],
+                          candidatos["Nutri R 2.0"]["sod_100"]), (200, 3.3, 6.7, 32, 131))
+        self.assertEqual((candidatos["Nutri Enteral Soya"]["kcal_100"], candidatos["Nutri Enteral Soya"]["ptn_100"],
+                          candidatos["Nutri Enteral Soya"]["lip_100"], candidatos["Nutri Enteral Soya"]["carb_100"],
+                          candidatos["Nutri Enteral Soya"]["sod_100"]), (120, 4.4, 4, 17, 55))
+        self.assertIsNone(candidatos["NUTRI FIBER 1.5"]["kcal_100"])
+        self.assertEqual(candidatos["NUTRI HWHEY X"]["modulo"], "Módulo oral/enteral")
         nomes = {s["nome"]: s["modulo"] for s in mdb.listar_suplementos(self.db)}
         self.assertEqual(nomes["Simbioflora"], "Módulo probiótico/simbiótico")
         self.assertEqual(nomes["Glutamina"], "Módulo de aminoácidos")
@@ -209,6 +291,28 @@ class TestBanco(unittest.TestCase):
         reg["peso_kg"] = 58.0
         mdb.salvar_registro(self.db, reg, criterio_idoso="opas")
         self.assertEqual(mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["imc_class"], "Eutrofia")
+
+    def test_metas_sao_persistidas_e_enteral_nao_e_suplementacao_oral(self):
+        sup = next(s for s in mdb.listar_suplementos(self.db) if s["modulo"] == "Fórmula completa")
+        reg = registro_base(
+            self.db, self.leitos[0]["id_leito"], "2026-10-25", via="Enteral",
+            meta_kcal=1800.0, meta_proteina_g=90.0,
+            suplementos=[dict(id_suplemento=sup["id_suplemento"], nome=sup["nome"],
+                              modulo=sup["modulo"], qtd_dia=500.0, unidade="ml")])
+        mdb.salvar_registro(self.db, reg)
+        salvo = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])
+        self.assertEqual(salvo["via"], "Enteral")
+        self.assertEqual((salvo["meta_kcal"], salvo["meta_proteina_g"]), (1800.0, 90.0))
+        # A separação visual/operacional deriva da via; a fórmula permanece como dieta enteral.
+        self.assertEqual("Dieta enteral" if salvo["via"] == "Enteral" else "Suplementação oral",
+                         "Dieta enteral")
+
+    def test_meta_zero_ou_negativa_e_rejeitada(self):
+        for campo in ("meta_kcal", "meta_proteina_g"):
+            for valor in (0, -1):
+                with self.assertRaises(ValueError):
+                    mdb.salvar_registro(self.db, registro_base(
+                        self.db, self.leitos[0]["id_leito"], "2026-10-25", **{campo: valor}))
 
     def test_validacao(self):
         for extra in ({"nome_paciente": " "}, {"peso_kg": 900}, {"aj_cm": 5}, {"via": "Parenteral"},
@@ -262,6 +366,76 @@ class TestBanco(unittest.TestCase):
         outro = mdb.salvar_suplemento(self.db, dict(nome="Z"))
         self.assertTrue(mdb.remover_suplemento(self.db, outro))
 
+    def test_migracao_adiciona_colunas_de_snapshot_em_banco_antigo(self):
+        fd, legado = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            with sqlite3.connect(legado) as c:
+                c.execute("""CREATE TABLE Mapa_Registro_Suplementos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL,
+                    id_suplemento INTEGER, nome TEXT NOT NULL, modulo TEXT, qtd_dia REAL,
+                    unidade TEXT, ml_oferta REAL, agua_ml REAL,
+                    refeicoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0)""")
+            mdb.inicializar(legado)
+            with sqlite3.connect(legado) as c:
+                colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
+            self.assertTrue({"kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
+                             "ficha_observacao", "ficha_snapshot_em"}.issubset(colunas))
+        finally:
+            os.remove(legado)
+
+    def test_migracao_adiciona_classificacao_de_dupla_via(self):
+        glucerna = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Glucerna SR")
+        mdb.salvar_suplemento(self.db, dict(
+            id_suplemento=glucerna["id_suplemento"], nome="Glucerna SR",
+            modulo="Fórmula para diabetes", emb_un="ml"))
+        with conexao(self.db) as c:
+            c.execute("DELETE FROM Mapa_Config WHERE chave='seed_suplementos_catalogo_v4'")
+            c.execute("DELETE FROM Mapa_Suplementos WHERE nome='Nutri R 2.0'")
+        mdb.inicializar(self.db)
+        glucerna_atual = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Glucerna SR")
+        nutri_r = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Nutri R 2.0")
+        self.assertEqual(glucerna_atual["modulo"], "Fórmula enteral e oral")
+        self.assertEqual(nutri_r["modulo"], "Fórmula enteral e oral")
+        self.assertEqual(nutri_r["kcal_100"], 200)
+
+    def test_migracao_corrige_ficha_nutrison_antiga_conhecida(self):
+        item = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Nutrison Energy 1.5")
+        mdb.salvar_suplemento(self.db, dict(
+            id_suplemento=item["id_suplemento"], nome=item["nome"], modulo="Fórmula enteral",
+            emb_un="ml", kcal_100=151, ptn_100=6, lip_100=5.6, carb_100=19, sod_100=128,
+            observacao="Fonte antiga"))
+        with conexao(self.db) as c:
+            c.execute("DELETE FROM Mapa_Config WHERE chave='seed_suplementos_catalogo_v3'")
+        mdb.inicializar(self.db)
+        atualizado = next(s for s in mdb.listar_suplementos(self.db) if s["nome"] == "Nutrison Energy 1.5")
+        self.assertEqual((atualizado["kcal_100"], atualizado["ptn_100"], atualizado["lip_100"],
+                          atualizado["carb_100"], atualizado["sod_100"]), (149.0, 6.0, 5.8, 18.0, 134.0))
+        self.assertIn("danonenutricia.com.br", atualizado["observacao"])
+
+    def test_snapshot_da_ficha_nao_muda_quando_catalogo_e_atualizado(self):
+        sid = mdb.salvar_suplemento(self.db, dict(
+            nome="Fórmula snapshot", modulo="Fórmula completa", emb_un="g",
+            kcal_100=350, ptn_100=20, lip_100=10, carb_100=45, sod_100=120,
+            observacao="Ficha técnica versão A"))
+        reg = registro_base(
+            self.db, self.leitos[0]["id_leito"], "2026-10-25",
+            suplementos=[dict(id_suplemento=sid, nome="Fórmula snapshot", modulo="Fórmula completa",
+                              qtd_dia=50, unidade="g")])
+        mdb.salvar_registro(self.db, reg)
+        antes = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["suplementos"][0]
+        self.assertEqual((antes["kcal_100"], antes["ptn_100"], antes["ficha_observacao"]),
+                         (350.0, 20.0, "Ficha técnica versão A"))
+        self.assertTrue(antes["ficha_snapshot_em"])
+
+        mdb.salvar_suplemento(self.db, dict(
+            id_suplemento=sid, nome="Fórmula snapshot", modulo="Fórmula completa", emb_un="g",
+            kcal_100=200, ptn_100=5, lip_100=3, carb_100=30, sod_100=80,
+            observacao="Ficha técnica versão B"))
+        depois = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["suplementos"][0]
+        self.assertEqual((depois["kcal_100"], depois["ptn_100"], depois["ficha_observacao"]),
+                         (350.0, 20.0, "Ficha técnica versão A"))
+
     def test_config(self):
         self.assertEqual(mdb.obter_config(self.db, "criterio", "lipschitz"), "lipschitz")
         mdb.salvar_config(self.db, "criterio", "opas")
@@ -272,7 +446,9 @@ class TestBanco(unittest.TestCase):
 def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
     """Cria um mês de registros verossímeis (para testes e para o QA visual)."""
     rnd = random.Random(semente)
-    setor = mdb.listar_setores(db)[0]["id_setor"]
+    setor = next((x["id_setor"] for x in mdb.listar_setores(db) if x["nome"] == "Setor de demonstração"), None)
+    if setor is None:
+        setor = mdb.criar_setor(db, "Setor de demonstração")
     mdb.criar_leitos_sequencia(db, setor, "L", 1, n_leitos)
     leitos = mdb.listar_leitos(db, setor)
     sups = mdb.listar_suplementos(db)
@@ -318,7 +494,7 @@ class TestExportacao(unittest.TestCase):
     def setUpClass(cls):
         cls.db = novo_banco()
         cls.leitos = popular_mes(cls.db, n_leitos=24)
-        cls.setor = mdb.listar_setores(cls.db)[0]
+        cls.setor = next(x for x in mdb.listar_setores(cls.db) if x["id_setor"] == cls.leitos[0]["id_setor"])
         cls.dia = mdb.mapa_do_dia(cls.db, "2026-10-14", cls.setor["id_setor"])
         # um caso extremo: textos longos
         cls.longo = registro_base(cls.db, cls.leitos[0]["id_leito"], "2026-10-14",
@@ -449,7 +625,7 @@ class TestGraficos(unittest.TestCase):
             self.assertEqual(sum(v["total"] for v in agg["dias"].values()), len(regs))
             self.assertEqual(k["pastosa"], sum(1 for r in regs if r["consistencia"] == "Pastosa"))
             self.assertEqual(k["acompanhante"], sum(1 for r in regs if r["acompanhante"]))
-            self.assertEqual(k["com_suplemento"], sum(1 for r in regs if r["suplementos"]))
+            self.assertEqual(k["com_suplemento"], sum(1 for r in regs if r["via"] == "Oral" and r["suplementos"]))
             self.assertEqual(sum(agg["sup_nome"].values()), sum(len(r["suplementos"]) for r in regs))
             self.assertLessEqual(k["pacientes_unicos"], k["atendimentos"])
             self.assertEqual(len(agg["dias"]), 31)
@@ -463,7 +639,7 @@ class TestGraficos(unittest.TestCase):
                 self.assertEqual(destino[nome], esperado, nome)
                 self.assertEqual(outro[nome], 0, nome)
             pngs = mgr.gerar_todos(agg)
-            self.assertEqual(len(pngs), 8)
+            self.assertEqual(len(pngs), 9)
             self.assertEqual([c for c, _, _ in pngs], mgr.ordem_de_exibicao())
             for chave, _, b in pngs:
                 self.assertEqual(b[:8], b"\x89PNG\r\n\x1a\n", chave)
@@ -478,6 +654,34 @@ class TestGraficos(unittest.TestCase):
                 shutil.rmtree(pasta_graficos, ignore_errors=True)
         finally:
             os.remove(db)
+
+    def test_classificacao_separa_oral_sem_suplemento_oral_com_suplemento_e_enteral(self):
+        registros = [
+            {"data": "2026-11-01", "via": "Oral", "suplementos": [], "id_paciente": 1,
+             "nome_paciente": "Paciente A", "acompanhante": False},
+            {"data": "2026-11-01", "via": "Oral", "suplementos": [{"nome": "Produto oral", "modulo": "Fórmula completa"}],
+             "id_paciente": 2, "nome_paciente": "Paciente B", "acompanhante": False},
+            {"data": "2026-11-01", "via": "Enteral", "suplementos": [{"nome": "Fórmula enteral", "modulo": "Fórmula enteral"}],
+             "id_paciente": 3, "nome_paciente": "Paciente C", "acompanhante": False},
+            {"data": "2026-11-01", "via": "Zero", "suplementos": [], "id_paciente": 4,
+             "nome_paciente": "Paciente D", "acompanhante": False},
+        ]
+        agg = mgr.agregar_mes(registros, 2026, 11)
+        self.assertEqual(agg["classificacao_terapia"], {
+            "Via oral sem suplementação": 1, "Via oral com suplementação": 1,
+            "Dieta enteral": 1, "Via zero": 1})
+        self.assertEqual(agg["kpis"]["oral_sem_suplemento"], 1)
+        self.assertEqual(agg["kpis"]["oral_com_suplemento"], 1)
+        self.assertEqual(agg["kpis"]["com_suplemento"], 1)
+        self.assertEqual(agg["kpis"]["enteral"], 1)
+        self.assertEqual(agg["dias"][1]["oral_sem_suplemento"], 1)
+        self.assertEqual(agg["dias"][1]["oral_com_suplemento"], 1)
+        self.assertEqual(agg["dias"][1]["enteral"], 1)
+        spec = mgr.spec_classificacao_terapia(agg)
+        self.assertEqual([(i["nome"], i["valor"]) for i in spec["itens"]], [
+            ("Via oral sem suplementação", 1), ("Via oral com suplementação", 1), ("Dieta enteral", 1)])
+        self.assertEqual(mgr.spec_perfil_dia(agg)["series"][-1]["nome"], "Dieta enteral")
+        self.assertEqual(mgr.spec_resumo(agg)["titulo"], "Via da dieta e acompanhante")
 
     def test_grupos_cobrem_todos_os_graficos_sem_repetir(self):
         ids = [g["id"] for g in mgr.GRUPOS]
@@ -511,7 +715,7 @@ class TestGraficos(unittest.TestCase):
             agg = mgr.agregar_mes(mdb.registros_do_mes(db, 2026, 10), 2026, 10)
             grupos = mgr.gerar_por_grupo(agg)
             self.assertEqual([g["id"] for g in grupos], ["atendimentos", "dieta", "suplementos", "cronicas"])
-            self.assertEqual(sum(len(g["graficos"]) for g in grupos), 8)
+            self.assertEqual(sum(len(g["graficos"]) for g in grupos), 9)
             for g in grupos:
                 for chave, titulo, png in g["graficos"]:
                     self.assertTrue(titulo and png[:4] == b"\x89PNG", chave)
