@@ -471,13 +471,15 @@ class TestInterface(unittest.TestCase):
         form._add_sup()
         self.assertEqual(len(form._suplementos), 1)
 
-        # Selecionar via enteral substitui a suplementação oral e restringe a lista a fórmulas.
+        # Selecionar via enteral substitui a suplementação oral, mas o catálogo permanece integralmente visível.
         form.seg_via.click("Enteral")
         self.assertEqual(form._suplementos, [])
         self.assertEqual(form.cb_mod.get(), "Todos os módulos")
         self.assertTrue(form._catalogo_visivel)
-        self.assertTrue(all(s["modulo"] in ("Fórmula enteral", "Fórmula enteral e oral", "Módulo oral/enteral")
-                            for s in form._catalogo_visivel))
+        nomes = [s["nome"] for s in form._catalogo_visivel]
+        self.assertIn("Nutrison Energy 1.5", nomes)
+        self.assertIn("Ensure Plus Advance", nomes)
+        self.assertIn("Glucerna SR", nomes)
         self.assertIn("Ensure Plus Advance", [s["nome"] for s in form._catalogo_visivel])
         self.assertIn("Glucerna SR", [s["nome"] for s in form._catalogo_visivel])
         self.assertIn("Nutri R 2.0", [s["nome"] for s in form._catalogo_visivel])
