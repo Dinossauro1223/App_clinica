@@ -874,14 +874,17 @@ class MapaUI:
 class _Janela(ctk.CTkFrame):
     """Conteúdo de uma guia lateral; não cria janela Toplevel nem captura o foco."""
 
-    def __init__(self, ui, titulo, geometria):
+    def __init__(self, ui, titulo, geometria, preservar=False):
         self.ui = ui
         self.app = getattr(ui, "app", None)
         if self.app is None and hasattr(ui, "ui"):
             self.app = getattr(ui.ui, "app", None)
         self._painel_externo = bool(self.app and hasattr(self.app, "abrir_painel_lateral"))
         if self._painel_externo:
-            self._painel_frame = self.app.abrir_painel_lateral(titulo, lambda: None)
+            abrir = getattr(self.app, "abrir_painel_modal", None) if preservar else None
+            if abrir is None:
+                abrir = self.app.abrir_painel_lateral
+            self._painel_frame = abrir(titulo, lambda: None)
             pai = self._painel_frame
         else:
             self._painel_frame = None
@@ -1134,7 +1137,7 @@ class DialogBuscarPaciente(_Janela):
     """Escolhe um paciente já cadastrado para vincular ao registro (histórico unificado)."""
 
     def __init__(self, ui, ao_escolher):
-        super().__init__(ui, "Buscar paciente cadastrado", "560x440")
+        super().__init__(ui, "Buscar paciente cadastrado", "560x440", preservar=True)
         self.ao_escolher = ao_escolher
         topo = ctk.CTkFrame(self, fg_color="transparent")
         topo.pack(fill="x", padx=16, pady=(14, 4))
