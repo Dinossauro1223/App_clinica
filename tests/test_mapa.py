@@ -494,7 +494,7 @@ class TestExportacao(unittest.TestCase):
     def setUpClass(cls):
         cls.db = novo_banco()
         cls.leitos = popular_mes(cls.db, n_leitos=24)
-        cls.setor = mdb.listar_setores(cls.db)[0]
+        cls.setor = next(x for x in mdb.listar_setores(cls.db) if x["id_setor"] == cls.leitos[0]["id_setor"])
         cls.dia = mdb.mapa_do_dia(cls.db, "2026-10-14", cls.setor["id_setor"])
         # um caso extremo: textos longos
         cls.longo = registro_base(cls.db, cls.leitos[0]["id_leito"], "2026-10-14",
