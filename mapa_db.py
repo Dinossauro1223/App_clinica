@@ -800,6 +800,9 @@ def mapa_do_dia(db_path, data_iso, id_setor=None):
             # registro encontrado para cada leito é o estado que vale para a data.
             if r["id_leito"] in por_leito:
                 continue
+            # Leito desativado só aparece no dia em que possui registro explícito; não herda estado futuro.
+            if r.get("leito_ativo") == 0 and r["data"] != data_iso:
+                continue
             alta = (r.get("alta_em") or "")
             if alta and alta[:10] <= data_iso:
                 por_leito[r["id_leito"]] = None
