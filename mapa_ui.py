@@ -335,6 +335,10 @@ class MapaUI:
             self._celula_selecionada = (iid, indice)
             self.tree.selection_set(iid)
             self.tree.focus(iid)
+            if indice == 0:
+                # O clique no identificador do leito abre o editor completo no painel lateral.
+                self._editar()
+                return "break"
         except (AttributeError, ValueError, tk.TclError):
             return
 
@@ -376,8 +380,9 @@ class MapaUI:
 
     def _editar_celula_mouse(self, evento):
         self._selecionar_celula(evento)
-        if self._celula_selecionada is not None:
-            self._iniciar_edicao_celula()
+        if self._celula_selecionada is not None and self._celula_selecionada[1] != 0:
+            if not self._iniciar_edicao_celula():
+                self._editar()
         return "break"
 
     def _iniciar_edicao_celula(self, texto_inicial=None):
