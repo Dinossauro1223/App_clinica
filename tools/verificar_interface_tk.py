@@ -431,6 +431,9 @@ class Graficos:
         bombear(self.raiz, 0.2)
         if self.raiz.focus_get() is not c:
             raise Pulou("a janela de teste não recebeu o foco do teclado")
+        while faixa.ativo < faixa.n_posicoes - 1:
+            faixa.proximo()
+            bombear(self.raiz, 0.3)
         c.event_generate("<Left>")
         bombear(self.raiz, 0.6)
         self.na_posicao(faixa, faixa.n_posicoes - 2, "seta esquerda")
