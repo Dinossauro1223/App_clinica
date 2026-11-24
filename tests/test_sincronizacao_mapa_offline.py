@@ -19,22 +19,22 @@ class TestPersistenciaMapaEntreDias(unittest.TestCase):
         mdb.criar_leitos_sequencia(self.db, sid, "A", 1, 2)
         self.leitos = {x["codigo"]: x["id_leito"] for x in mdb.listar_leitos(self.db, sid)}
 
-    def test_main_atual_nao_herda_automaticamente_o_dia_anterior(self):
+    def test_main_atual_herda_o_dia_anterior_enquanto_nao_houver_alta(self):
         mdb.salvar_registro(self.db, {"data": D1, "id_leito": self.leitos["A01"], "nome_paciente": "Paciente de ontem", "idade_anos": 40})
         hoje = mdb.mapa_do_dia(self.db, D2, None)
         a01 = next(x for x in hoje if x["leito"]["codigo"] == "A01")
+        self.assertIsNotNone(a01["registro"])\n        self.assertEqual(a01["registro"]["nome_paciente"], "Paciente de ontem")
+
+    def test_alta_libera_o_leito_a_partir_da_data_da_alta(self):
+        mdb.salvar_registro(self.db, {"data": D1, "id_leito": self.leitos["A01"], "nome_paciente": "Paciente de ontem", "idade_anos": 40})
+        hoje = mdb.mapa_do_dia(self.db, D2, None)
+        a01 = next(x for x in hoje if x["leito"]["codigo"] == "A01")
+        mdb.registrar_alta(self.db, a01["registro"], por="teste", quando="2026-11-24 10:00:00")
+        depois = mdb.mapa_do_dia(self.db, D2, None)
+        a01 = next(x for x in depois if x["leito"]["codigo"] == "A01")
         self.assertIsNone(a01["registro"])
 
-    @unittest.expectedFailure
-    def test_novo_dia_deve_partir_do_ultimo_estado_do_leito(self):
-        mdb.salvar_registro(self.db, {"data": D1, "id_leito": self.leitos["A01"], "nome_paciente": "Paciente de ontem", "idade_anos": 40})
-        hoje = mdb.mapa_do_dia(self.db, D2, None)
-        a01 = next(x for x in hoje if x["leito"]["codigo"] == "A01")
-        self.assertIsNotNone(a01["registro"])
-        self.assertEqual(a01["registro"]["nome_paciente"], "Paciente de ontem")
-
 class TestContratoDeSincronizacao(unittest.TestCase):
-    @unittest.expectedFailure
     def test_estado_completo_precisa_conter_todos_os_leitos(self):
         estado = [
             {"leito": "A01", "nome": "Paciente", "atualizado_em": "2026-11-24T08:00:00-03:00"},
