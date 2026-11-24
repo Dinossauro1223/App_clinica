@@ -772,7 +772,7 @@ class TestInterface(unittest.TestCase):
         self.ui.cb_mes.set("Fevereiro")
         self.ui._gerar_graficos()
         self.assertIsNot(self.ui._grupos_png, antigos)
-        self.assertEqual(len(self.ui._imagens), 9)
+        self.assertEqual(len(self.ui._imagens), 10)
         # volta para animado
         dc = mapa_ui.DialogConfig(self.ui)
         dc.cb_estilo.set(gl.ROTULOS_ESTILO[gl.ESTILO_ANIMADO])
