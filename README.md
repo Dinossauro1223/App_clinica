@@ -36,7 +36,7 @@ A análise considera o ZIP `App_clinica-main` enviado para esta conversa. O esta
 | Pacientes e consultas | `Pacientes`, `Consultas`, telas em `main.py` | Implementado, com dados clínicos em texto livre e campos de consulta |
 | Condutas de alta | `condutas_alta.py`, `condutas_alta_ui.py`, `condutas_alta_export.py`, `condutas_alta/` | Implementada na branch `feat/condutas-de-alta` ([ADR-0006](docs/decisoes/ADR-0006-condutas-de-alta-na-consulta.md), seção 2.4); testada com simuladores, falta validar no Windows e homologar o conteúdo clínico |
 | TMB/VET | `main.py` | Há seleção de Harris-Benedict (1919), Mifflin-St Jeor (1990) e Cunningham (1980), com NAF para VET |
-| Mapa por leito | `mapa_ui.py`, `mapa_db.py` | Implementado parcialmente; precisa de validação integrada com o banco principal |
+| Mapa por leito | `mapa_ui.py`, `mapa_db.py` | Cadastro inicial de 8 setores e 46 leitos; grupos Internos/Externos; inclusão simplificada de leitos; ordem ajustável no mapa geral e refletida em PDF/Excel. Migração aditiva preserva setores e histórico anteriores |
 | Histórico/cópia diária | `mapa_db.py`, `mapa_ui.py` | Há histórico por paciente, navegação de datas e cópia do mapa anterior |
 | PDF/Excel do mapa | `mapa_export.py` | Exportação implementada; precisa de conferência com o modelo institucional real |
 | Gráficos do mapa | `mapa_graficos.py`, `graficos_nativos.py`, `graficos_pintor.py`, `graficos_ui.py`, `graficos_layout.py`, [`GRAFICOS_AGRUPADOS.md`](docs/desenvolvimento/GRAFICOS_AGRUPADOS.md), [ADR-0009](docs/decisoes/ADR-0009-graficos-desenhados-na-tela.md) | 8 gráficos agrupados por assunto (atendimentos, dieta, suplementos, doenças crônicas). Cada grupo é uma faixa que se arrasta para o lado, com setas e pontos; em Configurações do Mapa dá para trocar para a visualização de cima para baixo, também agrupada. Os gráficos são desenhados direto na tela, com animação de entrada e balão com o valor ao passar o mouse; em Configurações também dá para voltar às imagens simples (matplotlib), sem animação. Testado com widgets simulados e, no CI, com Tk real (`tools/verificar_interface_tk.py`) |
@@ -46,6 +46,23 @@ A análise considera o ZIP `App_clinica-main` enviado para esta conversa. O esta
 | Estimativas antropométricas | `nutri_calculos.py` | Estatura e peso por equações de Chumlea e IMC por faixa etária parcialmente implementados |
 | IMC infantil/adolescente | `TabelaLMS` em `nutri_calculos.py` | Leitura de CSV LMS implementada; arquivo oficial não veio no pacote |
 | Testes | `tests/test_mapa.py`, `tests/test_ui_smoke.py` | Há testes automatizados, mas parte da interface e do PDF usa simuladores |
+
+### 2.1.1 Organização inicial dos setores e leitos
+
+Na primeira inicialização após a migração, o Mapa cadastra os seguintes setores e leitos, sem duplicar registros já existentes:
+
+| Grupo | Setor | Sigla | Leitos |
+|---|---|---|---:|
+| Internos | Operação | OP | 1–9 |
+| Internos | Clínica médica | CM | 16–33 |
+| Internos | Psiquiatria | PSI | 46–48 |
+| Internos | Isolamento | ISO | 1–2 |
+| Externos | Sala vermelha Adulto | SVA | 1–3 |
+| Externos | Sala de observação adulto | SAU | 4–9 |
+| Externos | Sala vermelha Pediatria | SVP | 1–2 |
+| Externos | Observação da Pediatria | PED | 1–3 |
+
+O botão **Adicionar leitos** aceita um número isolado ou uma faixa numérica e preserva leitos já cadastrados. **Ordem do mapa geral** permite mover setores para cima ou para baixo dentro do próprio grupo; a ordenação é persistida e usada pela visão geral e pelas exportações PDF/Excel. Setores antigos com registros permanecem preservados e são exibidos em **Outros**; o antigo setor genérico vazio é desativado para não confundir o primeiro uso.
 
 ### 2.2 Mapa Nutricional: campos já modelados
 
