@@ -915,5 +915,19 @@ class TestInterface(unittest.TestCase):
         depois = mdb.mapa_do_dia(self.db, self.ui.data.isoformat())[0]["registro"]
         self.assertEqual(depois["idade_anos"], 74)
 
+
+    def test_clique_unico_no_identificador_do_leito_abre_editor_lateral(self):
+        from unittest import mock
+        self.ui.mostrar_mapa()
+        iid = str(self._primeiro_leito()["leito"]["id_leito"])
+        self.ui.tree._identified_row = iid
+        self.ui.tree._identified_column = "#1"
+        with mock.patch.object(self.ui, "_editar") as abrir:
+            resultado = self.ui._selecionar_celula(
+                __import__("types").SimpleNamespace(x=10, y=12)
+            )
+        self.assertEqual(resultado, "break")
+        abrir.assert_called_once()
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
