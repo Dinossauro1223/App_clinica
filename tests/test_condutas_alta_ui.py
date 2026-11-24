@@ -641,7 +641,7 @@ class TestMapa(Base):
         self.assertTrue(mdb.obter_registro(self.db, DATA.isoformat(), self.reg["id_leito"]))
         with mock.patch.object(caixa, "askyesnocancel", return_value=False):
             self.ui._remover()                                                # Não: remove mesmo assim
-        self.assertTrue(mdb.obter_registro(self.db, DATA.isoformat(), self.reg["id_leito"])["alta_em"])\n        self.assertIsNone(self.ui.linhas[0]["registro"])
+        self.assertTrue(mdb.obter_registro(self.db, DATA.isoformat(), self.reg["id_leito"])["alta_em"])\n        self.assertIsNone(next(l["registro"] for l in self.ui.linhas if l["leito"]["id_leito"] == self.reg["id_leito"]))
 
     def test_remover_sem_pendencia_nao_pergunta_das_condutas(self):
         outro = registrar(self.db, nome="Sem Doença", leito="L02", via="Oral")
