@@ -532,13 +532,14 @@ def _enviar_setor(db, sv, c, adm, nome, itens, data_iso, texto):
     if not linhas:
         return {"setor": nome, "leitos": 0}
     s = {"id": sid, "nome": nome}
-    sv.post_mapa(c, adm, s, data_iso, linhas, completo=True)
-    try:
-        n = sv.publicar(c, adm, s, data_iso, texto)["leitos"]
-    except sv.Erro as e:
-        if "Não há alterações" not in e.msg:
-            raise
-        n = 0
+    sync = sv.post_mapa(c, adm, s, data_iso, linhas, completo=True)
+    n = sync.get("ok", 0)
+    if n:
+        mud = [{"leito": cod, "tipo": "alterado" if com else "liberado"} for cod, _, com in marcas]
+        c.execute("INSERT INTO avisos(criado_em,por_usuario,tipo,id_setor,titulo,texto,leitos) VALUES(?,?,?,?,?,?,?)",
+                  (sv.agora(), adm["id"], "mapa", sid,
+                   "Mapa de %s/%s sincronizado" % (data_iso[8:10], data_iso[5:7]),
+                   str(texto or "").strip()[:300], json.dumps(mud, ensure_ascii=False)))
     depois = {l["id_leito"]: l for l in sv.linhas_mapa(c, sid, data_iso)}
     with closing(mdb.conectar(db)) as d:  # o que acabou de ser enviado não volta como "novidade do mobile"
         for cod, lid, com in marcas:
