@@ -37,7 +37,7 @@ GRUPOS = (
      "descricao": "Consistência da dieta e características como laxativa e constipante",
      "graficos": ("consistencia", "caracteristicas")},
     {"id": "suplementos", "titulo": "Suplementos", "cor": VERDE_ESC,
-     "descricao": "Quais suplementos e módulos foram mais usados",
+     "descricao": "Produtos registrados em suplementação oral e em dieta enteral, sem misturar a classificação dos pacientes",
      "graficos": ("suplementos", "modulos")},
     {"id": "cronicas", "titulo": "Doenças crônicas", "cor": AZUL,
      "descricao": "Diabetes, hipertensão e doença renal entre os pacientes atendidos",
@@ -203,7 +203,7 @@ def spec_suplementos(agg):
 
 
 def spec_modulos(agg):
-    return _spec_barras_h(agg, "Uso por módulo de suplemento", agg["sup_mod"], cor=VERDE)
+    return _spec_barras_h(agg, "Uso por módulo (oral e enteral)", agg["sup_mod"], cor=VERDE)
 
 
 def _ordem_das_caracteristicas(cronicas):
