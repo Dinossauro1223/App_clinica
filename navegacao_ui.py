@@ -192,21 +192,16 @@ class BarraLateral(ctk.CTkFrame):
 
 
 class PilhaAbasLaterais(ctk.CTkFrame):
-    """Mantém páginas abertas em sequência; ESC remove a última e restaura a anterior."""
+    """Hospeda somente a página principal ativa; não mantém histórico de telas."""
 
     def __init__(self, master):
         super().__init__(master, fg_color="transparent", corner_radius=0)
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
-        self._nav = ctk.CTkScrollableFrame(self, width=180, fg_color=tema.FUNDO)
         self._conteudo = ctk.CTkFrame(self, fg_color=tema.FUNDO, corner_radius=8)
-        self._conteudo.grid(row=0, column=0, columnspan=2, sticky="nsew")
-        self._conteudo.grid_rowconfigure(0, weight=1)
-        self._conteudo.grid_columnconfigure(0, weight=1)
+        self._conteudo.pack(fill="both", expand=True)
         self._base = ctk.CTkFrame(self._conteudo, fg_color="transparent")
         self._base.pack(fill="both", expand=True)
-        self._abas = []
         self._ativa = self._base
+        self._titulo = ""
 
     @property
     def pagina_atual(self):
@@ -214,82 +209,54 @@ class PilhaAbasLaterais(ctk.CTkFrame):
 
     @property
     def quantidade(self):
-        return len(self._abas)
+        return int(self._ativa is not self._base)
 
     def abrir(self, titulo):
-        self._ativa.pack_forget()
-        if not self._abas:
-            self._nav.grid(row=0, column=0, sticky="ns", padx=(0, 8))
-            self._conteudo.grid_configure(column=1, columnspan=1)
+        """Substitui a página principal atual; nunca cria uma guia de histórico."""
+        if self._ativa is not self._base:
+            try:
+                self._ativa._fechando_painel = True
+            except Exception:
+                pass
+            self._ativa.destroy()
         frame = ctk.CTkFrame(self._conteudo, fg_color="transparent")
         frame.pack(fill="both", expand=True)
-        aba = {"titulo": str(titulo), "frame": frame, "botao": None}
-        botao = ctk.CTkButton(
-            self._nav, text=str(titulo), height=38, width=166,
-            corner_radius=8, fg_color=tema.VERDE_CLARO,
-            hover_color=tema.BORDA, text_color=tema.TEXTO,
-            anchor="w", font=ctk.CTkFont(size=12),
-            command=lambda alvo=aba: self.selecionar(alvo)
-        )
-        botao.pack(fill="x", padx=4, pady=3)
-        aba["botao"] = botao
-        self._abas.append(aba)
         self._ativa = frame
-        self._atualizar_abas()
+        self._titulo = str(titulo)
         return frame
 
-    def selecionar(self, aba):
-        if self._ativa is not None:
-            self._ativa.pack_forget()
-        aba["frame"].pack(fill="both", expand=True)
-        self._ativa = aba["frame"]
-        self._atualizar_abas()
+    def selecionar(self, _aba):
+        """Compatibilidade: não há páginas secundárias para selecionar."""
+        return self._ativa
 
     def fechar(self, frame):
-        indice = next((i for i, aba in enumerate(self._abas) if aba["frame"] is frame), None)
-        if indice is None:
+        if frame is not self._ativa or frame is self._base:
             return self._ativa
-        aba = self._abas.pop(indice)
-        era_ativa = self._ativa is frame
         try:
             frame._fechando_painel = True
         except Exception:
             pass
-        aba["botao"].destroy()
         frame.destroy()
-        if era_ativa:
-            self._ativa = self._abas[-1]["frame"] if self._abas else self._base
-            self._ativa.pack(fill="both", expand=True)
-        if not self._abas:
-            self._nav.grid_remove()
-            self._conteudo.grid_configure(column=0, columnspan=2)
-        self._atualizar_abas()
+        self._ativa = self._base
+        self._base.pack(fill="both", expand=True)
+        self._titulo = ""
         return self._ativa
 
     def fechar_ultima(self):
-        if not self._abas:
+        if self._ativa is self._base:
             return self._base
-        return self.fechar(self._abas[-1]["frame"])
+        return self.fechar(self._ativa)
 
     def limpar(self):
-        for aba in self._abas:
+        if self._ativa is not self._base:
             try:
-                aba["frame"]._fechando_painel = True
+                self._ativa._fechando_painel = True
             except Exception:
                 pass
-            aba["botao"].destroy()
-            aba["frame"].destroy()
-        self._abas.clear()
+            self._ativa.destroy()
+        for filho in self._base.winfo_children():
+            filho.destroy()
         self._ativa = self._base
         self._base.pack(fill="both", expand=True)
-        self._nav.grid_remove()
-        self._conteudo.grid_configure(column=0, columnspan=2)
+        self._titulo = ""
         return self._base
-
-    def _atualizar_abas(self):
-        for aba in self._abas:
-            ativo = aba["frame"] is self._ativa
-            aba["botao"].configure(
-                fg_color=tema.VERDE if ativo else tema.VERDE_CLARO,
-                text_color="#FFFFFF" if ativo else tema.TEXTO
-            )
