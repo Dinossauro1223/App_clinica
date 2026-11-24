@@ -792,21 +792,22 @@ def mapa_do_dia(db_path, data_iso, id_setor=None):
             filtro = " AND L.id_setor=?"
             par.append(id_setor)
         regs = _rows(c.execute(
-            _SEL_REG + """WHERE R.id_registro IN (
-                SELECT R2.id_registro FROM Mapa_Registros R2
-                WHERE R2.id_leito=R.id_leito AND R2.data<=?
-                ORDER BY R2.data DESC, R2.id_registro DESC
-                LIMIT 1
-            )""" + filtro, par))
+            _SEL_REG + "WHERE R.data<=?" + filtro + " ORDER BY R.data DESC, R.id_registro DESC", par))
         _anexar_suplementos(c, regs)
         por_leito = {}
         for r in regs:
+            # Como a consulta está ordenada do mais novo para o mais antigo, o primeiro
+            # registro encontrado para cada leito é o estado que vale para a data.
+            if r["id_leito"] in por_leito:
+                continue
             alta = (r.get("alta_em") or "")
             if alta and alta[:10] <= data_iso:
+                por_leito[r["id_leito"]] = None
                 continue
             r = dict(r)
             r["data_exibicao"] = data_iso
             por_leito[r["id_leito"]] = r
+        por_leito = {k: v for k, v in por_leito.items() if v is not None}
         q = ("SELECT L.*, S.nome AS setor, S.sigla AS sigla_setor, S.grupo AS grupo_setor, "
          "S.ordem_apresentacao AS ordem_setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
              "WHERE (L.ativo=1 OR L.id_leito IN (%s))" % ",".join(str(i) for i in por_leito) if por_leito else
