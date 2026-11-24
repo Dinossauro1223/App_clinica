@@ -168,10 +168,21 @@ class MapaUI:
         self.tree.configure(yscrollcommand=rolagem.set)
         self.tree.pack(side="left", fill="both", expand=True, padx=(6, 0), pady=6)
         rolagem.pack(side="right", fill="y", pady=6)
-        self.tree.bind("<Double-1>", lambda e: self._editar())
-        # Ações frequentes também ficam disponíveis pelo teclado, sem depender dos botões.
-        self.tree.bind("<Return>", self._atalho_editar)
-        self.tree.bind("<F2>", self._atalho_editar)
+        # A grade usa navegação por células no estilo de planilhas.
+        self._celula_selecionada = None
+        self._celula_editor = None
+        self._celula_clipboard = ""
+        self._colunas_celula = ("leito", "acomp", "paciente", "idade", "imc", "via",
+                                "consist", "supl", "fi", "condutas")
+        self.tree.bind("<Button-1>", self._selecionar_celula, add="+")
+        self.tree.bind("<Double-1>", self._editar_celula_mouse)
+        self.tree.bind("<KeyPress>", self._tecla_celula, add="+")
+        self.tree.bind("<Return>", self._enter_celula)
+        self.tree.bind("<Tab>", self._tab_celula)
+        self.tree.bind("<Control-c>", self._copiar_celula)
+        self.tree.bind("<Control-C>", self._copiar_celula)
+        self.tree.bind("<Control-v>", self._colar_celula)
+        self.tree.bind("<Control-V>", self._colar_celula)
         self.tree.bind("<Control-h>", self._atalho_historico)
         self.tree.bind("<Control-H>", self._atalho_historico)
 
@@ -310,6 +321,247 @@ class MapaUI:
             messagebox.showinfo("Mapa", "Selecione um leito na lista.")
             return None
         return next((it for it in self.linhas if str(it["leito"]["id_leito"]) == sel[0]), None)
+
+    def _selecionar_celula(self, evento):
+        """Um clique seleciona uma célula, sem abrir uma nova tela ou alterar dados."""
+        try:
+            iid = self.tree.identify_row(evento.y)
+            coluna = self.tree.identify_column(evento.x)
+            if not iid or not coluna:
+                return
+            indice = int(coluna.lstrip("#")) - 1
+            if indice < 0 or indice >= len(self._colunas_celula):
+                return
+            self._celula_selecionada = (iid, indice)
+            self.tree.selection_set(iid)
+            self.tree.focus(iid)
+            if indice == 0:
+                # O clique no identificador do leito abre o editor completo no painel lateral.
+                self._editar()
+                return "break"
+        except (AttributeError, ValueError, tk.TclError):
+            return
+
+    def _mover_celula(self, linhas=0, colunas=0):
+        itens = list(self.tree.get_children())
+        if not itens:
+            return "break"
+        if self._celula_selecionada is None:
+            atual = (itens[0], 0)
+        else:
+            atual = self._celula_selecionada
+        try:
+            li = itens.index(atual[0])
+        except ValueError:
+            li = 0
+        ci = atual[1]
+        alvo = li + linhas
+        coluna = ci + colunas
+        while coluna >= len(self._colunas_celula):
+            coluna -= len(self._colunas_celula)
+            alvo += 1
+        while coluna < 0:
+            coluna += len(self._colunas_celula)
+            alvo -= 1
+        alvo = max(0, min(len(itens) - 1, alvo))
+        self._celula_selecionada = (itens[alvo], coluna)
+        self.tree.selection_set(itens[alvo])
+        self.tree.focus(itens[alvo])
+        self.tree.focus_set()
+        try:
+            self.tree.see(itens[alvo])
+        except (AttributeError, tk.TclError):
+            pass
+        return "break"
+
+    def _valor_celula(self, iid, indice):
+        valores = self.tree.item(iid, "values")
+        return str(valores[indice]) if indice < len(valores) else ""
+
+    def _editar_celula_mouse(self, evento):
+        self._selecionar_celula(evento)
+        if self._celula_selecionada is not None and self._celula_selecionada[1] != 0:
+            if not self._iniciar_edicao_celula():
+                self._editar()
+        return "break"
+
+    def _iniciar_edicao_celula(self, texto_inicial=None):
+        if self._celula_selecionada is None or self._celula_editor is not None:
+            return False
+        iid, indice = self._celula_selecionada
+        campos = {1: "acompanhante", 2: "nome_paciente", 3: "idade_anos", 5: "via", 6: "consistencia"}
+        if indice not in campos:
+            return False  # IMC, suplementos, função intestinal e condutas são calculados/estruturados.
+        item = next((it for it in self.linhas if str(it["leito"]["id_leito"]) == iid), None)
+        if not item or not item.get("registro"):
+            return False
+        try:
+            caixa = self.tree.bbox(iid, f"#{indice + 1}")
+            if not caixa:
+                return False
+            x, y, largura, altura = caixa
+            valor = self._valor_celula(iid, indice) if texto_inicial is None else texto_inicial
+            editor = ctk.CTkEntry(self.tree, height=max(24, altura - 2), font=ctk.CTkFont(size=12))
+            editor.insert(0, valor)
+            editor.place(x=x, y=y, width=largura, height=altura)
+            editor.bind("<Return>", lambda _e: self._finalizar_edicao_celula((1, 0)))
+            editor.bind("<Tab>", lambda _e: self._finalizar_edicao_celula((0, 1)))
+            editor.bind("<Shift-Tab>", lambda _e: self._finalizar_edicao_celula((0, -1)))
+            editor.bind("<Escape>", self._cancelar_edicao_celula)
+            editor.bind("<FocusOut>", lambda _e: self._finalizar_edicao_celula())
+            self._celula_editor = editor
+            editor.focus_set()
+            return True
+        except (AttributeError, tk.TclError):
+            return False
+
+    def _cancelar_edicao_celula(self, _evento=None):
+        editor, self._celula_editor = self._celula_editor, None
+        if editor is not None:
+            try:
+                editor.destroy()
+            except tk.TclError:
+                pass
+        self.tree.focus_set()
+        return "break"
+
+    def _finalizar_edicao_celula(self, mover=None):
+        editor, self._celula_editor = self._celula_editor, None
+        if editor is None:
+            return "break"
+        try:
+            valor = editor.get()
+        finally:
+            try:
+                editor.destroy()
+            except tk.TclError:
+                pass
+        if self._celula_selecionada is not None:
+            iid, indice = self._celula_selecionada
+            salvo = self._salvar_valor_celula(iid, indice, valor)
+            if salvo and mover:
+                return self._mover_celula(*mover)
+        self.tree.focus_set()
+        return "break"
+
+    def _salvar_valor_celula(self, iid, indice, valor):
+        """Atualiza um único campo usando validação e persistência oficiais do mapa."""
+        campos = {1: "acompanhante", 2: "nome_paciente", 3: "idade_anos", 5: "via", 6: "consistencia"}
+        campo = campos.get(indice)
+        if campo is None:
+            return False
+        item = next((it for it in self.linhas if str(it["leito"]["id_leito"]) == str(iid)), None)
+        if not item or not item.get("registro"):
+            return False
+        reg = dict(item["registro"])
+        reg["data"] = self.data.isoformat()
+        reg["id_leito"] = item["leito"]["id_leito"]
+        texto = str(valor).strip()
+        try:
+            if campo == "acompanhante":
+                opcoes = {"sim": 1, "não": 0, "nao": 0, "s": 1, "n": 0}
+                if texto.casefold() not in opcoes:
+                    raise ValueError("Acompanhante deve ser Sim ou Não.")
+                reg[campo] = opcoes[texto.casefold()]
+            elif campo == "nome_paciente":
+                if not texto:
+                    raise ValueError("O nome do paciente não pode ficar vazio.")
+                if texto.casefold() != str(reg.get(campo) or "").strip().casefold():
+                    # Mesma regra do formulário: trocar o nome desvincula o paciente anterior.
+                    reg["id_paciente"] = None
+                reg[campo] = texto
+                if not reg.get("id_paciente"):
+                    iguais = [p for p in mdb.listar_pacientes(self.db, texto)
+                              if p["nome"].strip().casefold() == texto.casefold()]
+                    if iguais:
+                        paciente = iguais[0]
+                        extra = f" (há {len(iguais)} cadastros com esse nome)" if len(iguais) > 1 else ""
+                        resposta = messagebox.askyesnocancel(
+                            "Paciente já cadastrado",
+                            f"Já existe '{paciente['nome']}' no cadastro (nascimento: "
+                            f"{paciente.get('data_nascimento') or 'não informado'}){extra}.\\n\\n"
+                            "Sim: vincular este registro a ele\\n"
+                            "Não: criar um novo cadastro\\n"
+                            "Cancelar: voltar")
+                        if resposta is None:
+                            return False
+                        if resposta:
+                            reg["id_paciente"] = paciente["id_paciente"]
+            elif campo == "idade_anos":
+                numero = nc.parse_num(texto) if texto else None
+                if numero is not None and not float(numero).is_integer():
+                    raise ValueError("A idade deve ser informada em anos completos.")
+                reg[campo] = int(numero) if numero is not None else None
+            elif campo in ("via", "consistencia"):
+                opcoes = mdb.VIAS if campo == "via" else mdb.CONSISTENCIAS
+                correspondencia = next((op for op in opcoes if op.casefold() == texto.casefold()), None)
+                if texto and correspondencia is None:
+                    raise ValueError("Valor inválido. Use uma das opções disponíveis no formulário do paciente.")
+                reg[campo] = correspondencia or None
+            mdb.salvar_registro(self.db, reg, self.criterio_idoso, self.lms)
+        except ValueError as erro:
+            messagebox.showwarning("Edição da célula", str(erro))
+            return False
+        except sqlite3.Error as erro:
+            messagebox.showerror("Edição da célula", f"Não foi possível salvar a alteração: {erro}")
+            return False
+        self._recarregar()
+        self._celula_selecionada = (str(iid), indice)
+        try:
+            self.tree.selection_set(str(iid))
+            self.tree.focus(str(iid))
+        except tk.TclError:
+            pass
+        return True
+
+    def _copiar_celula(self, _evento=None):
+        if self._celula_selecionada is None:
+            return "break"
+        iid, indice = self._celula_selecionada
+        texto = self._valor_celula(iid, indice)
+        self._celula_clipboard = texto
+        try:
+            self.tree.clipboard_clear()
+            self.tree.clipboard_append(texto)
+        except tk.TclError:
+            pass
+        return "break"
+
+    def _colar_celula(self, _evento=None):
+        if self._celula_selecionada is None:
+            return "break"
+        texto = self._celula_clipboard
+        try:
+            texto = self.tree.clipboard_get()
+        except tk.TclError:
+            pass
+        iid, indice = self._celula_selecionada
+        self._salvar_valor_celula(iid, indice, texto)
+        return "break"
+
+    def _enter_celula(self, _evento=None):
+        if self._celula_editor is not None:
+            return self._finalizar_edicao_celula((1, 0))
+        return self._mover_celula(1, 0)
+
+    def _tab_celula(self, _evento=None):
+        if self._celula_editor is not None:
+            return self._finalizar_edicao_celula((0, 1))
+        return self._mover_celula(0, 1)
+
+    def _tecla_celula(self, evento):
+        if self._celula_editor is not None:
+            return None
+        movimentos = {"Up": (-1, 0), "Down": (1, 0), "Left": (0, -1), "Right": (0, 1)}
+        if evento.keysym in movimentos:
+            return self._mover_celula(*movimentos[evento.keysym])
+        if evento.keysym == "F2":
+            self._iniciar_edicao_celula()
+            return "break"
+        if evento.char and evento.char.isprintable() and not (evento.state & 0x4):
+            self._iniciar_edicao_celula(evento.char)
+            return "break"
+        return None
 
     def _editar(self):
         it = self._selecionado()
@@ -627,14 +879,17 @@ class MapaUI:
 class _Janela(ctk.CTkFrame):
     """Conteúdo de uma guia lateral; não cria janela Toplevel nem captura o foco."""
 
-    def __init__(self, ui, titulo, geometria):
+    def __init__(self, ui, titulo, geometria, preservar=False):
         self.ui = ui
         self.app = getattr(ui, "app", None)
         if self.app is None and hasattr(ui, "ui"):
             self.app = getattr(ui.ui, "app", None)
         self._painel_externo = bool(self.app and hasattr(self.app, "abrir_painel_lateral"))
         if self._painel_externo:
-            self._painel_frame = self.app.abrir_painel_lateral(titulo, lambda: None)
+            abrir = getattr(self.app, "abrir_painel_modal", None) if preservar else None
+            if abrir is None:
+                abrir = self.app.abrir_painel_lateral
+            self._painel_frame = abrir(titulo, lambda: None)
             pai = self._painel_frame
         else:
             self._painel_frame = None
@@ -887,7 +1142,7 @@ class DialogBuscarPaciente(_Janela):
     """Escolhe um paciente já cadastrado para vincular ao registro (histórico unificado)."""
 
     def __init__(self, ui, ao_escolher):
-        super().__init__(ui, "Buscar paciente cadastrado", "560x440")
+        super().__init__(ui, "Buscar paciente cadastrado", "560x440", preservar=True)
         self.ao_escolher = ao_escolher
         topo = ctk.CTkFrame(self, fg_color="transparent")
         topo.pack(fill="x", padx=16, pady=(14, 4))

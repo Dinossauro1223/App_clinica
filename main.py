@@ -162,32 +162,43 @@ class AppClinica(ctk.CTk):
         self.calculos_ambulatoriais = {}
         self.painel_consulta_estruturada = None
 
-        # --- NAVEGAÇÃO V4 + PILHA DE ABAS LATERAIS ---
+        # --- NAVEGAÇÃO PRINCIPAL + PAINEL DE EDIÇÃO REDIMENSIONÁVEL ---
         self.area_principal_host = ctk.CTkFrame(self, corner_radius=10, fg_color=tema.FUNDO)
         self.area_principal_host.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
-        self._pilha_abas_laterais = PilhaAbasLaterais(self.area_principal_host)
+        self._layout_principal = ttk.Panedwindow(self.area_principal_host, orient=tk.HORIZONTAL)
+        self._layout_principal.pack(fill="both", expand=True)
+        self._pagina_host = ctk.CTkFrame(self._layout_principal, fg_color="transparent")
+        self._painel_edicao_host = ctk.CTkFrame(self._layout_principal, fg_color=tema.FUNDO, width=380)
+        self._painel_edicao_host.pack_propagate(False)
+        self._pilha_abas_laterais = PilhaAbasLaterais(self._pagina_host)
         self._pilha_abas_laterais.pack(fill="both", expand=True)
+        self._layout_principal.add(self._pagina_host, weight=1)
+        self._painel_edicao_frame = None
+        self._painel_edicao_shell = None
+        self._painel_edicao_pilha = []
+        self._largura_painel_edicao = 380
+        self._layout_principal.bind("<ButtonRelease-1>", self._guardar_largura_painel_edicao, add="+")
         self.area_principal = self._pilha_abas_laterais.pagina_atual
 
         secoes_menu = [
             ("CLÍNICA", [
-                ("👥", "Pacientes", lambda: self.abrir_painel_lateral("Pacientes", self.tela_pacientes)),
-                ("🧪", "Catálogo de Exames", lambda: self.abrir_painel_lateral("Catálogo de Exames", self.tela_exames)),
+                ("👥", "Pacientes", lambda: self.abrir_pagina_principal("Pacientes", self.tela_pacientes)),
+                ("🧪", "Catálogo de Exames", lambda: self.abrir_pagina_principal("Catálogo de Exames", self.tela_exames)),
             ]),
             ("MAPA NUTRICIONAL", [
-                ("🗺️", "Mapa Nutricional", lambda: self.abrir_painel_lateral("Mapa Nutricional", self.tela_mapa)),
-                ("📊", "Gráficos do Mês", lambda: self.abrir_painel_lateral("Gráficos do Mês", self.tela_mapa_graficos)),
-                ("🥣", "Suplementos", lambda: self.abrir_painel_lateral("Suplementos", self.tela_suplementos)),
-                ("📦", "Almoxarifado", lambda: self.abrir_painel_lateral("Almoxarifado", self.tela_almoxarifado)),
-                ("📱", "Mobile (copa)", lambda: self.abrir_painel_lateral("Mobile (copa)", self.tela_mobile)),
+                ("🗺️", "Mapa Nutricional", lambda: self.abrir_pagina_principal("Mapa Nutricional", self.tela_mapa)),
+                ("📊", "Gráficos do Mês", lambda: self.abrir_pagina_principal("Gráficos do Mês", self.tela_mapa_graficos)),
+                ("🥣", "Suplementos", lambda: self.abrir_pagina_principal("Suplementos", self.tela_suplementos)),
+                ("📦", "Almoxarifado", lambda: self.abrir_pagina_principal("Almoxarifado", self.tela_almoxarifado)),
+                ("📱", "Mobile (copa)", lambda: self.abrir_pagina_principal("Mobile (copa)", self.tela_mobile)),
             ]),
             ("GESTÃO", [
-                ("🍲", "Fichas e consumo da cozinha", lambda: self.abrir_painel_lateral("Fichas e consumo", self.tela_gestao_alimentar_fichas)),
+                ("🍲", "Fichas e consumo da cozinha", lambda: self.abrir_pagina_principal("Fichas e consumo", self.tela_gestao_alimentar_fichas)),
             ]),
         ]
         self.menu_lateral = BarraLateral(
             self, secoes=secoes_menu,
-            config=("⚙️", "Configurações", lambda: self.abrir_painel_lateral("Configurações", self.tela_configuracoes)),
+            config=("⚙️", "Configurações", lambda: self.abrir_pagina_principal("Configurações", self.tela_configuracoes)),
             rodape="© 2026 Neis Bila de Alencar. Todos os direitos reservados."
         )
         self.bind("<Escape>", self._fechar_ultima_aba_lateral, add="+")
@@ -350,57 +361,169 @@ class AppClinica(ctk.CTk):
         """Fixa ou solta a barra lateral v4."""
         return self.menu_lateral.alternar()
 
-    def abrir_painel_lateral(self, titulo, comando):
-        """Abre uma nova guia lateral sem destruir as anteriores."""
+    def _guardar_largura_painel_edicao(self, _evento=None):
+        """Guarda a largura escolhida ao arrastar a divisória do painel."""
+        try:
+            if self._painel_edicao_frame is not None:
+                largura = int(self._layout_principal.sashpos(0))
+                if largura >= 320:
+                    self._largura_painel_edicao = min(760, largura)
+        except (tk.TclError, ValueError, AttributeError):
+            pass
+
+    def _descartar_paineis_edicao(self):
+        """Descarta o editor atual e qualquer diálogo pai suspenso, sem manter histórico visível."""
+        shells = []
+        if self._painel_edicao_shell is not None:
+            shells.append(self._painel_edicao_shell)
+        shells.extend(item[0] for item in self._painel_edicao_pilha)
+        self._painel_edicao_shell = None
+        self._painel_edicao_frame = None
+        self._painel_edicao_pilha.clear()
+        for shell in shells:
+            try:
+                shell.destroy()
+            except tk.TclError:
+                pass
+        try:
+            self._layout_principal.forget(self._painel_edicao_host)
+        except tk.TclError:
+            pass
+
+    def _mostrar_falha_tela(self, titulo, erro):
+        detalhe = f"{type(erro).__name__}: {erro}"
+        try:
+            import traceback
+            pasta_logs = os.path.join(os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__)), "logs")
+            os.makedirs(pasta_logs, exist_ok=True)
+            with open(os.path.join(pasta_logs, "erros_interface.log"), "a", encoding="utf-8") as registro:
+                registro.write(f"\\n[{datetime.now().isoformat(timespec='seconds')}] Falha ao abrir {titulo}\\n")
+                registro.write(traceback.format_exc())
+                registro.write("\\n")
+        except OSError:
+            pass
+        messagebox.showerror(
+            "Não foi possível abrir a tela",
+            f'A tela "{titulo}" não pôde ser aberta.\\n\\n{detalhe}\\n\\n'
+            "O erro técnico foi registrado em logs/erros_interface.log, quando possível."
+        )
+
+    def abrir_pagina_principal(self, titulo, comando):
+        """Troca a tela central sem criar histórico lateral."""
+        self._descartar_paineis_edicao()
         frame = self._pilha_abas_laterais.abrir(titulo)
         self.area_principal = frame
         try:
             comando()
         except Exception as erro:
-            self.area_principal = self._pilha_abas_laterais.fechar_ultima()
-            # O executável é compilado sem console; não deixe falhas de importação/renderização
-            # desaparecerem silenciosamente quando o usuário abre uma tela pelo menu.
-            detalhe = f"{type(erro).__name__}: {erro}"
-            try:
-                import traceback
-                pasta_logs = os.path.join(os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__)), "logs")
-                os.makedirs(pasta_logs, exist_ok=True)
-                with open(os.path.join(pasta_logs, "erros_interface.log"), "a", encoding="utf-8") as registro:
-                    registro.write(f"\\n[{datetime.now().isoformat(timespec='seconds')}] Falha ao abrir {titulo}\\n")
-                    registro.write(traceback.format_exc())
-                    registro.write("\\n")
-            except OSError:
-                pass
-            messagebox.showerror(
-                "Não foi possível abrir a tela",
-                f'A tela "{titulo}" não pôde ser aberta.\\n\\n{detalhe}\\n\\n'
-                "O erro técnico foi registrado em logs/erros_interface.log, quando possível."
-            )
+            self.area_principal = self._pilha_abas_laterais.fechar(frame)
+            self._mostrar_falha_tela(titulo, erro)
             return None
         return frame
 
+    def abrir_painel_lateral(self, titulo, comando, _preservar_pai=False):
+        """Abre um único editor; novas edições substituem o anterior, sem barra de histórico."""
+        if not _preservar_pai:
+            self._descartar_paineis_edicao()
+
+        shell = ctk.CTkFrame(self._painel_edicao_host, fg_color=tema.FUNDO, corner_radius=0)
+        shell.pack(fill="both", expand=True)
+        topo = ctk.CTkFrame(shell, fg_color="transparent", height=42)
+        topo.pack(fill="x", padx=12, pady=(8, 4))
+        topo.pack_propagate(False)
+        ctk.CTkLabel(topo, text=str(titulo), anchor="w",
+                     font=ctk.CTkFont(size=14, weight="bold"),
+                     text_color=tema.TEXTO).pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(topo, text="×", width=30, height=28, fg_color="transparent",
+                      hover_color=tema.VERDE_CLARO, text_color=tema.TEXTO,
+                      command=lambda: self.fechar_painel_lateral(self._painel_edicao_frame)
+                      ).pack(side="right")
+        frame = ctk.CTkFrame(shell, fg_color="transparent", corner_radius=0)
+        frame.pack(fill="both", expand=True)
+        self._painel_edicao_shell = shell
+        self._painel_edicao_frame = frame
+        try:
+            self._layout_principal.insert(0, self._painel_edicao_host, weight=0)
+            self._layout_principal.pane(self._painel_edicao_host, minsize=320, weight=0)
+            self.update_idletasks()
+            self._layout_principal.sashpos(0, self._largura_painel_edicao)
+        except tk.TclError:
+            self._layout_principal.add(self._painel_edicao_host, weight=0)
+        area_anterior = self.area_principal
+        try:
+            # Telas legadas que recebem o app constroem seus widgets em area_principal.
+            # Durante a montagem, essa referência aponta para o painel; ao retornar,
+            # a tela principal volta a ser a referência ativa sem perder seus widgets.
+            self.area_principal = frame
+            comando()
+        except Exception as erro:
+            self.area_principal = area_anterior
+            self.fechar_painel_lateral(frame)
+            self._mostrar_falha_tela(titulo, erro)
+            return None
+        finally:
+            self.area_principal = area_anterior
+        return frame
+
+    def abrir_painel_modal(self, titulo, comando):
+        """Abre um diálogo temporário e restaura o formulário pai ao fechá-lo."""
+        if self._painel_edicao_shell is not None:
+            self._painel_edicao_shell.pack_forget()
+            self._painel_edicao_pilha.append(
+                (self._painel_edicao_shell, self._painel_edicao_frame, self._largura_painel_edicao)
+            )
+            self._painel_edicao_shell = None
+            self._painel_edicao_frame = None
+            try:
+                self._layout_principal.forget(self._painel_edicao_host)
+            except tk.TclError:
+                pass
+        return self.abrir_painel_lateral(titulo, comando, _preservar_pai=True)
+
     def fechar_painel_lateral(self, frame):
-        """Fecha uma guia específica e restaura a página que ficou ativa."""
-        self.area_principal = self._pilha_abas_laterais.fechar(frame)
-        if self._pilha_abas_laterais.quantidade == 0 and not getattr(self, "_encerrando_app", False):
-            self.tela_inicial()
+        """Fecha o diálogo atual e, se houver, restaura o formulário pai suspenso."""
+        if frame is not None and frame is not self._painel_edicao_frame:
+            return self.area_principal
+        shell = self._painel_edicao_shell
+        self._painel_edicao_frame = None
+        self._painel_edicao_shell = None
+        if shell is not None:
+            try:
+                shell.destroy()
+            except tk.TclError:
+                pass
+        try:
+            self._layout_principal.forget(self._painel_edicao_host)
+        except tk.TclError:
+            pass
+        if self._painel_edicao_pilha:
+            anterior, frame_anterior, largura = self._painel_edicao_pilha.pop()
+            self._painel_edicao_shell = anterior
+            self._painel_edicao_frame = frame_anterior
+            self._largura_painel_edicao = largura
+            anterior.pack(fill="both", expand=True)
+            try:
+                self._layout_principal.insert(0, self._painel_edicao_host, weight=0)
+                self._layout_principal.pane(self._painel_edicao_host, minsize=320, weight=0)
+                self.update_idletasks()
+                self._layout_principal.sashpos(0, largura)
+            except tk.TclError:
+                self._layout_principal.add(self._painel_edicao_host, weight=0)
         return self.area_principal
 
     def _fechar_ultima_aba_lateral(self, event=None):
-        """ESC fecha somente a última guia lateral aberta e restaura a anterior."""
+        """ESC fecha o editor lateral atual sem trocar a tela principal."""
         if getattr(self, "_tela_inicial_ativa", False):
             return None
         try:
             foco = self.focus_get()
             if foco is not None and foco.winfo_toplevel() is not self:
-                return None  # um diálogo modal tem prioridade sobre a pilha de páginas
+                return None
         except (tk.TclError, AttributeError):
             pass
-        if self._pilha_abas_laterais.quantidade == 0:
+        if self._painel_edicao_frame is None:
             return None
-        self.area_principal = self._pilha_abas_laterais.fechar_ultima()
-        if self._pilha_abas_laterais.quantidade == 0 and not getattr(self, "_encerrando_app", False):
-            self.tela_inicial()
+        self.fechar_painel_lateral(self._painel_edicao_frame)
         return "break"
 
     def configurar_banco_dados(self):
@@ -434,9 +557,10 @@ class AppClinica(ctk.CTk):
 
     def tela_inicial(self):
         """Apresentação inicial em camadas; a navegação é exibida após a escolha da área."""
+        self._descartar_paineis_edicao()
         self._pilha_abas_laterais.limpar()
         self.area_principal = self._pilha_abas_laterais.pagina_atual
-        self._pilha_abas_laterais.pack_forget()
+        self._layout_principal.pack_forget()
         self.limpar_area_principal()
         self._tela_inicial_ativa = True
         self._timer_areas_iniciais = None
@@ -513,7 +637,7 @@ class AppClinica(ctk.CTk):
             minsize=self.menu_lateral.EXPANDIDA if self.menu_lateral.fixa else self.menu_lateral.RECOLHIDA
         )
         self.grid_columnconfigure(1, weight=1, minsize=0)
-        self._pilha_abas_laterais.pack(fill="both", expand=True)
+        self._layout_principal.pack(fill="both", expand=True)
 
         destinos = {
             "clinica": ("Pacientes", self.tela_pacientes),
@@ -521,7 +645,7 @@ class AppClinica(ctk.CTk):
             "alimentar": ("Almoxarifado", self.tela_almoxarifado),
         }
         titulo, comando = destinos.get(destino, destinos["clinica"])
-        self.abrir_painel_lateral(titulo, comando)
+        self.abrir_pagina_principal(titulo, comando)
 
     def _confirmar_saida_inicial(self, event=None):
         if getattr(self, "_tela_inicial_ativa", False):
@@ -736,22 +860,30 @@ class AppClinica(ctk.CTk):
         self.carregar_tabela_pacientes()
 
     # --- PERFIL DO PACIENTE ---
-    def abrir_perfil_paciente(self, event=None, _painel_aberto=False):
+    def abrir_perfil_paciente(self, event=None, _painel_aberto=False, _valores=None):
         if not _painel_aberto:
-            self.abrir_painel_lateral(
+            selecao = self.tree.selection()
+            if not selecao:
+                return
+            # Capture os dados antes de trocar a página: a tabela de origem será destruída.
+            valores = self.tree.item(selecao[0])['values']
+            self.abrir_pagina_principal(
                 "Perfil do paciente",
-                lambda: self.abrir_perfil_paciente(event, _painel_aberto=True)
+                lambda: self.abrir_perfil_paciente(event, _painel_aberto=True, _valores=valores)
             )
             return
-        selecao = self.tree.selection()
-        if not selecao: return
-        valores = self.tree.item(selecao[0])['values']
+        valores = _valores
+        if valores is None:
+            selecao = self.tree.selection()
+            if not selecao:
+                return
+            valores = self.tree.item(selecao[0])['values']
         self.paciente_atual_id, self.paciente_atual_nome, nasc, sexo = valores
         self.paciente_atual_nasc = nasc
         self.paciente_atual_sexo = sexo
         
         self.limpar_area_principal()
-        ctk.CTkButton(self.area_principal, text="← Voltar", width=80, fg_color=tema.VERDE_CLARO, hover_color=tema.BORDA, text_color=tema.TEXTO, border_width=1, border_color=tema.VERDE, font=ctk.CTkFont(size=15), command=self._fechar_ultima_aba_lateral).pack(anchor="nw", pady=10, padx=10)
+        ctk.CTkButton(self.area_principal, text="← Voltar", width=80, fg_color=tema.VERDE_CLARO, hover_color=tema.BORDA, text_color=tema.TEXTO, border_width=1, border_color=tema.VERDE, font=ctk.CTkFont(size=15), command=lambda: self.abrir_pagina_principal("Pacientes", self.tela_pacientes)).pack(anchor="nw", pady=10, padx=10)
         ctk.CTkLabel(self.area_principal, text=f"Perfil Clínico: {self.paciente_atual_nome}", font=ctk.CTkFont(size=26, weight="bold"), text_color=tema.TEXTO).pack(pady=(0, 5))
         ctk.CTkLabel(self.area_principal, text=f"ID: {self.paciente_atual_id}  |  Nascimento: {nasc}  |  Sexo: {sexo}", font=ctk.CTkFont(size=17), text_color=tema.TEXTO).pack(pady=5)
 
@@ -1400,7 +1532,7 @@ class AppClinica(ctk.CTk):
             "exames": "Importar Análise e Valores de Referência",
         }
         titulo = titulos.get(alvo, "Importar padrões")
-        painel = self.abrir_painel_lateral(titulo, lambda: None)
+        painel = self.abrir_painel_modal(titulo, lambda: None)
         cabecalho = ctk.CTkFrame(painel, fg_color="transparent")
         cabecalho.pack(fill="x", padx=12, pady=(10, 4))
         ctk.CTkLabel(cabecalho, text=titulo, font=ctk.CTkFont(size=18, weight="bold"),
@@ -1810,7 +1942,7 @@ class AppClinica(ctk.CTk):
                 self.lbl_msg_consulta.configure(text="Adicione exames à solicitação antes de lançar resultados.", text_color=tema.LARANJA)
             return
 
-        modal = self.abrir_painel_lateral("Lançar Resultados Laboratoriais", lambda: None)
+        modal = self.abrir_painel_modal("Lançar Resultados Laboratoriais", lambda: None)
         cabecalho_resultados = ctk.CTkFrame(modal, fg_color="transparent")
         cabecalho_resultados.pack(fill="x", padx=12, pady=(10, 2))
         ctk.CTkLabel(cabecalho_resultados, text="Lançamento de Resultados",
@@ -1940,7 +2072,7 @@ class AppClinica(ctk.CTk):
 
     def _abrir_select_exame(self):
         """Abre o catálogo de exames em uma guia lateral com filtro e rolagem."""
-        painel = self.abrir_painel_lateral("Selecionar exame", lambda: None)
+        painel = self.abrir_painel_modal("Selecionar exame", lambda: None)
         self._painel_select_exame = painel
         cabecalho = ctk.CTkFrame(painel, fg_color="transparent")
         cabecalho.pack(fill="x", padx=12, pady=(10, 2))

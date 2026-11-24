@@ -200,40 +200,36 @@ root.destroy()
         self.assertTrue(salvar.call_args.args[0]["barra_fixa"])
         barra._abrir.assert_called_once_with(True)
 
-    def test_esc_remove_guias_em_ordem_reversa(self):
-        base, primeira, segunda = WidgetFake(), WidgetFake(), WidgetFake()
-        pilha = SimpleNamespace(
-            _abas=[
-                {"frame": primeira, "botao": WidgetFake()},
-                {"frame": segunda, "botao": WidgetFake()},
-            ],
-            _ativa=segunda, _base=base, _nav=WidgetFake(),
-            _conteudo=WidgetFake(), _atualizar_abas=Mock(),
-        )
+    def test_pilha_fecha_somente_a_pagina_principal_atual(self):
+        base, pagina = WidgetFake(), WidgetFake()
+        pilha = SimpleNamespace(_ativa=pagina, _base=base, _titulo="Mapa")
         pilha.fechar = lambda frame: PilhaAbasLaterais.fechar(pilha, frame)
-        self.assertIs(PilhaAbasLaterais.fechar_ultima(pilha), primeira)
-        self.assertEqual(len(pilha._abas), 1)
-        self.assertTrue(segunda.destroyed)
-        self.assertIs(PilhaAbasLaterais.fechar_ultima(pilha), base)
-        self.assertEqual(len(pilha._abas), 0)
-        self.assertTrue(primeira.destroyed)
+        resultado = PilhaAbasLaterais.fechar_ultima(pilha)
+        self.assertIs(resultado, base)
+        self.assertTrue(pagina.destroyed)
         self.assertTrue(base.packed)
+        self.assertEqual(PilhaAbasLaterais.quantidade.fget(pilha), 0)
 
-    def test_fechar_guia_especifica_preserva_a_guia_ativa(self):
-        primeira, segunda, base = WidgetFake(), WidgetFake(), WidgetFake()
-        pilha = SimpleNamespace(
-            _abas=[
-                {"frame": primeira, "botao": WidgetFake()},
-                {"frame": segunda, "botao": WidgetFake()},
-            ],
-            _ativa=segunda, _base=base, _nav=WidgetFake(),
-            _conteudo=WidgetFake(), _atualizar_abas=Mock(),
-        )
-        self.assertIs(PilhaAbasLaterais.fechar(pilha, primeira), segunda)
-        self.assertEqual(len(pilha._abas), 1)
-        self.assertTrue(primeira.destroyed)
-        self.assertFalse(segunda.destroyed)
+    def test_pilha_nao_expoe_navegacao_de_historico(self):
+        from pathlib import Path
+        raiz = Path(__file__).resolve().parents[1]
+        fonte = (raiz / "navegacao_ui.py").read_text(encoding="utf-8")
+        classe = fonte[fonte.index("class PilhaAbasLaterais"):]
+        self.assertNotIn("self._nav", classe)
+        self.assertNotIn("self._abas", classe)
+        self.assertIn("Substitui a página principal atual", classe)
 
+
+
+    def test_painel_edicao_tem_largura_minima_e_modal_restauravel(self):
+        from pathlib import Path
+        raiz = Path(__file__).resolve().parents[1]
+        fonte = (raiz / "main.py").read_text(encoding="utf-8")
+        self.assertIn("ttk.Panedwindow", fonte)
+        self.assertIn("minsize=320", fonte)
+        self.assertIn("def abrir_painel_modal", fonte)
+        self.assertIn("self._painel_edicao_pilha.append", fonte)
+        self.assertIn("anterior.pack(fill=\"both\", expand=True)", fonte)
 
 if __name__ == "__main__":
     unittest.main()

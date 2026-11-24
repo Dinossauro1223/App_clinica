@@ -183,7 +183,8 @@ class JanelaCondutasAlta(ctk.CTkFrame):
         self.app = pai
         self._painel_externo = bool(pai and hasattr(pai, "abrir_painel_lateral"))
         if self._painel_externo:
-            self._painel_frame = pai.abrir_painel_lateral(
+            abrir = getattr(pai, "abrir_painel_modal", pai.abrir_painel_lateral)
+            self._painel_frame = abrir(
                 f"Condutas de alta — {sessao.nome_paciente}", lambda: None
             )
             container = self._painel_frame
