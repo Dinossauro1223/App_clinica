@@ -778,7 +778,7 @@ class TestInterface(unittest.TestCase):
         dc.cb_estilo.set(gl.ROTULOS_ESTILO[gl.ESTILO_ANIMADO])
         dc._salvar()
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (9, 0, 0))
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (10, 0, 0))
         # valor desconhecido na configuração volta para o padrão
         mapa_ui.mdb.salvar_config(self.db, gl.CHAVE_ESTILO, "qualquer coisa")
         self.assertEqual(self.ui.estilo_graficos, gl.ESTILO_ANIMADO)
