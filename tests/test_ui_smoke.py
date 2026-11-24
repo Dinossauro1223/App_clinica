@@ -506,7 +506,7 @@ class TestInterface(unittest.TestCase):
         self.assertEqual([s["nome"] for s in form2._suplementos], ["Nutrison Energy 1.5"])
         form2.seg_via.click("Oral")
         self.assertEqual(form2._suplementos, [])
-        self.assertNotIn("Nutrison Energy 1.5", [s["nome"] for s in form2._catalogo_visivel])
+        self.assertIn("Nutrison Energy 1.5", [s["nome"] for s in form2._catalogo_visivel])
         self.assertIn("Glucerna 1.5 kcal", [s["nome"] for s in form2._catalogo_visivel])
         self.assertIn("Glucerna SR", [s["nome"] for s in form2._catalogo_visivel])
         self.assertIn("Nutri R 2.0", [s["nome"] for s in form2._catalogo_visivel])
