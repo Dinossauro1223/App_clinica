@@ -60,8 +60,8 @@ class TestNRS2002(unittest.TestCase):
             db = os.path.join(d, "nrs.db")
             self.assertEqual(nrs.ler_intervalos(db), nrs.DIAS_PADRAO)
             salvo = nrs.salvar_intervalos(db, {"triagem_negativa": 30, "sem_risco": 30, "risco": 7, "alto_risco": 7})
-            self.assertEqual(nrs.ler_intervalos(db)["alto_risco"], 3)
-            self.assertEqual(salvo["risco"], 5)
+            self.assertEqual(nrs.ler_intervalos(db), {"triagem_negativa": 30, "sem_risco": 30, "risco": 7, "alto_risco": 7})
+            self.assertEqual(salvo["risco"], 7)
             with self.assertRaises(ValueError):
                 nrs.salvar_intervalos(db, {"triagem_negativa": 7, "sem_risco": 7, "risco": 0, "alto_risco": 3})
 
