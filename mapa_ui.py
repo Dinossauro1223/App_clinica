@@ -1455,29 +1455,24 @@ class FormRegistro(_Janela):
         if self._via_anterior != nova_via and not preservar:
             self._suplementos = []
         self._via_anterior = nova_via
+        # A via classifica o paciente e o tipo de terapia no mapa; não deve esconder produtos
+        # do catálogo. A indicação de uso de cada produto continua registrada no seu módulo/ficha.
+        self._catalogo_visivel = list(self._catalogo)
+        modulos = ["Todos os módulos"] + mdb.listar_modulos(self.ui.db)
+        self.cb_mod.configure(values=modulos)
+        self.cb_mod.set("Todos os módulos")
         if enteral:
-            # Registros antigos podem conter fórmulas cadastradas antes da classificação enteral.
-            # Preservá-las ao abrir evita perda de histórico; novas escolhas vêm apenas do módulo enteral.
-            modulos_enterais = ("Fórmula enteral", "Fórmula enteral e oral", "Módulo oral/enteral")
-            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") in modulos_enterais]
             self.lbl_sup_tipo.configure(
-                text="DIETA ENTERAL: selecione fórmula ou módulo com indicação do fabricante para uso por sonda. "
-                     "A suplementação oral anterior é substituída; itens exclusivos da via oral não aparecem nesta lista.")
-            self.cb_mod.configure(values=["Fórmulas enterais"])
-            self.cb_mod.set("Fórmulas enterais")
+                text="DIETA ENTERAL: paciente classificado separadamente como enteral. "
+                     "A seleção de via substitui a suplementação anterior; todos os produtos permanecem "
+                     "visíveis no catálogo. Confira a indicação e a via de administração na ficha técnica.")
         elif zero:
-            self._catalogo_visivel = []
-            self.lbl_sup_tipo.configure(text="VIA ZERO: não registre suplementação oral nem dieta enteral enquanto "
-                                             "a via estiver marcada como zero.")
-            self.cb_mod.configure(values=["—"])
-            self.cb_mod.set("—")
+            self.lbl_sup_tipo.configure(text="VIA ZERO: paciente classificado em via zero. "
+                                             "Não registre oferta enquanto essa via estiver selecionada.")
         else:
-            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") != "Fórmula enteral"]
             self.lbl_sup_tipo.configure(
-                text="SUPLEMENTAÇÃO ORAL: complemento da alimentação pela boca; o paciente continua classificado "
-                     "como via oral, mesmo quando recebe suplemento.")
-            self.cb_mod.configure(values=["Todos os módulos"] + mdb.listar_modulos(self.ui.db))
-            self.cb_mod.set("Todos os módulos")
+                text="SUPLEMENTAÇÃO ORAL: complemento da alimentação pela boca. "
+                     "O paciente permanece classificado como via oral com suplementação, separado dos pacientes enterais.")
         self._filtrar_sup()
         self._atualizar_sup()
         self._recalcular_oferta()
