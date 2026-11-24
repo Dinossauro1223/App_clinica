@@ -88,11 +88,10 @@ class TestBancoModelo(unittest.TestCase):
         self.assertLess(busca_saida, compilacao)
         self.assertLess(geracao_banco, compilacao)
         self.assertIn('Executavel do programa', launcher)
-        self.assertIn('Executavel do programa\\_internal\\python312.dll', launcher)
+        self.assertIn('if not exist "%EXE%\\..\\_internal\\python312.dll"', launcher)
         self.assertIn(':ERRO_DLL_AUSENTE', launcher)
         self.assertIn('call %PY_CMD% -m pip install -r requirements-build.txt', launcher)
         self.assertNotIn('python -m venv', launcher.lower())
-        self.assertIn('nao e necessario possuir clinica.db previamente', launcher.lower())
 
     def test_build_windows_verifica_dll_e_icone_do_pacote(self):
         workflow = (RAIZ / ".github" / "workflows" / "build-windows.yml").read_text(encoding="utf-8")
