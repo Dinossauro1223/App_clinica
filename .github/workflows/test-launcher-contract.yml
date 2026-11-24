@@ -3,7 +3,7 @@ name: Teste temporario do launcher
 on:
   push:
     branches:
-      - feat/launcher-universal-atualizacao-2026-11-23
+      - fix/launcher-update-tests-2026-11-24
   pull_request:
     branches: [main]
 
