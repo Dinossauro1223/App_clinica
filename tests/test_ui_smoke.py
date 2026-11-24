@@ -700,7 +700,7 @@ class TestInterface(unittest.TestCase):
         popular_mes(self.db, n_leitos=6)
         self.ui.mostrar_graficos()
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (9, 0, 0))   # padrão: desenhados na tela
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (10, 0, 0))   # padrão: desenhados na tela
         self.assertEqual(self.ui.cb_mes.get(), "Outubro")
         self.ui.cb_mes.set("Fevereiro")
         self.ui._gerar_graficos()  # mês sem dados: gráficos vazios, sem erro
@@ -729,7 +729,7 @@ class TestInterface(unittest.TestCase):
             gerar.assert_not_called()
         self.assertEqual(self.ui._painel.disposicao, mapa_ui.gl.DISPOSICAO_VERTICAL)
         self.assertEqual(self.ui._painel.faixas, [])
-        self.assertEqual(len(self.ui._painel.faixas_empilhadas), 9)        # um gráfico por faixa, de cima para baixo
+        self.assertEqual(len(self.ui._painel.faixas_empilhadas), 10)        # um gráfico por faixa, de cima para baixo
         self.assertEqual(len(self.ui.quadro_graf.winfo_children()), 4)    # continua agrupado: uma seção por grupo
         # a escolha vale também na próxima vez que a tela de gráficos é aberta
         self.ui.mostrar_graficos()
@@ -757,7 +757,7 @@ class TestInterface(unittest.TestCase):
             espec.assert_not_called()
             render.assert_called_once()
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (0, 9, 9))
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (0, 10, 10))
         self.assertEqual(self.ui.estilo_graficos, gl.ESTILO_IMAGEM)
         # mudar só a disposição não desenha os PNG de novo (ficam guardados)
         dc = mapa_ui.DialogConfig(self.ui)
@@ -799,7 +799,7 @@ class TestInterface(unittest.TestCase):
         self.assertNotIn("\\n", avisos[0][2])          # quebra de linha de verdade, não a barra e o n escritos
         self.assertIn("\n", avisos[0][2])
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens)), (9, 0))     # a tela não fica em branco
+        self.assertEqual((len(nativas), len(imagens)), (10, 0))     # a tela não fica em branco
 
     def test_exportar_imagens_sem_matplotlib_avisa_em_vez_de_quebrar(self):
         from unittest import mock
