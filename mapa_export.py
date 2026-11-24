@@ -164,6 +164,20 @@ def _filtrar(linhas_mapa, incluir_vagos):
     return [l for l in linhas_mapa if incluir_vagos or l["registro"] is not None]
 
 
+def filtrar_para_impressao(linhas_mapa, grupo="Ambos", incluir_vagos=True):
+    """Aplica os filtros exclusivos da impressão, sem modificar a lista original.
+
+    grupo: "Ambos" (Internos + Externos), "Internos" ou "Externos".
+    Setores legados classificados como "Outros" não entram nos grupos solicitados.
+    """
+    if grupo not in ("Ambos", "Internos", "Externos"):
+        raise ValueError("Grupo de impressão inválido.")
+    permitidos = {"Internos", "Externos"} if grupo == "Ambos" else {grupo}
+    return [item for item in linhas_mapa
+            if (item["leito"].get("grupo_setor") or "Outros") in permitidos
+            and (incluir_vagos or item.get("registro") is not None)]
+
+
 # ------------------------------------------------------------------------- Excel
 
 
