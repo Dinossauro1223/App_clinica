@@ -185,8 +185,10 @@ def textos_linha(leito, reg, abreviar=True):
     """Prepara os campos clínicos do mapa; registro None representa leito vago."""
     sigla = leito.get("sigla_setor")
     t = {"leito": (f"{sigla} {leito['codigo']}" if sigla else str(leito["codigo"]))}
-    if setor := leito.get("setor"):
-        t["setor"] = setor
+    setor = leito.get("setor")
+    grupo = leito.get("grupo_setor")
+    if setor:
+        t["setor"] = f"{grupo} · {setor} ({sigla})" if grupo and sigla else setor
     if reg is None:
         t.update(acomp="", paciente=None, idade="", reav="", via="",
                  consistencias={k: "" for k in ("LV", "BR", "PAS", "LÍQ. PAS", "LÍQ")},
