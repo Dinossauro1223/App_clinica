@@ -704,10 +704,10 @@ class TestInterface(unittest.TestCase):
         self.assertEqual(self.ui.cb_mes.get(), "Outubro")
         self.ui.cb_mes.set("Fevereiro")
         self.ui._gerar_graficos()  # mês sem dados: gráficos vazios, sem erro
-        self.assertEqual(len(self._cartas()[0]), 9)
+        self.assertEqual(len(self._cartas()[0]), 10)
         FD.pasta = tempfile.mkdtemp()
         self.ui._salvar_graficos()   # exportar as imagens PNG continua igual (o matplotlib só entra aqui)
-        self.assertEqual(len(os.listdir(FD.pasta)), 9)
+        self.assertEqual(len(os.listdir(FD.pasta)), 10)
 
     def test_graficos_agrupados_lado_a_lado_e_de_cima_para_baixo(self):
         from unittest import mock
