@@ -1689,15 +1689,21 @@ class FormRegistro(_Janela):
             self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") in modulos_enterais]
             self.cb_mod.configure(values=["Fórmulas enterais"])
             self.cb_mod.set("Fórmulas enterais")
+        elif zero:
+            self._catalogo_visivel = []
+            self.cb_mod.configure(values=["Nenhum produto"])
+            self.cb_mod.set("Nenhum produto")
         else:
-            self._catalogo_visivel = list(self._catalogo)
-            self.cb_mod.configure(values=["Todos os módulos"] + mdb.listar_modulos(self.ui.db))
+            # Na via oral, oculta as fórmulas classificadas exclusivamente para administração enteral.
+            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") != "Fórmula enteral"]
+            modulos_visiveis = sorted({s["modulo"] for s in self._catalogo_visivel if s.get("modulo")})
+            self.cb_mod.configure(values=["Todos os módulos"] + modulos_visiveis)
             self.cb_mod.set("Todos os módulos")
         if enteral:
             self.lbl_sup_tipo.configure(
                 text="DIETA ENTERAL: paciente classificado separadamente como enteral. "
-                     "A seleção de via substitui a suplementação anterior; todos os produtos permanecem "
-                     "visíveis no catálogo. Confira a indicação e a via de administração na ficha técnica.")
+                     "A seleção de via substitui a suplementação anterior. A lista mostra apenas fórmulas "
+                     "compatíveis com administração enteral.")
         elif zero:
             self.lbl_sup_tipo.configure(text="VIA ZERO: paciente classificado em via zero. "
                                              "Não registre oferta enquanto essa via estiver selecionada.")

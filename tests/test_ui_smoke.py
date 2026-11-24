@@ -677,7 +677,7 @@ class TestInterface(unittest.TestCase):
         ds.e["preco"].insert(0, "19,9")
         ds.cb_un.set("g")
         ds._salvar()
-        self.assertEqual(len(self.ui.tree_sup.items), 7)
+        self.assertEqual(len(self.ui.tree_sup.items), len(mdb.listar_suplementos(self.db)))
         novo = [v for v in self.ui.tree_sup.items.values() if v[0] == "Módulo de fibra X"][0]
         self.assertEqual((novo[1], novo[3], novo[8]), ("Módulo de fibras", "200,5", "19,90"))
         dc = mapa_ui.DialogConfig(self.ui)

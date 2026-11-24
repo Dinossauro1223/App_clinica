@@ -377,7 +377,7 @@ class TestBanco(unittest.TestCase):
                     unidade TEXT, ml_oferta REAL, agua_ml REAL,
                     refeicoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0)""")
             mdb.inicializar(legado)
-            with sqlite3.connect(legado) as c:
+            with conexao(legado) as c:
                 colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
             self.assertTrue({"kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
                              "ficha_observacao", "ficha_snapshot_em"}.issubset(colunas))
