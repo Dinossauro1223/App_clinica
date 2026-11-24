@@ -22,6 +22,7 @@ class TestAltasMapa(unittest.TestCase):
                                       "nome_paciente": "Maria", "idade_anos": 50})
         self.assertIsNotNone(mdb.obter_registro(self.db, "2026-11-23", self.leito))
         self.assertEqual(mdb.listar_leitos(self.db)[0]["ativo"], 1)
+        self.assertIsNone(mdb.obter_registro(self.db, "2026-11-23", self.leito).get("alta_em"))
         r = mdb.mapa_do_dia(self.db, "2026-11-24")[0]["registro"]
         self.assertEqual(r["nome_paciente"], "Maria")
         self.assertEqual(r["data"], "2026-11-23")
