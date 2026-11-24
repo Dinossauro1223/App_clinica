@@ -183,8 +183,7 @@ class TestComServidor(_Base):
     def copa_salva(self, linhas):
         c = sv.conectar(self.mdb)
         try:
-            setor = sv.criar_setor(c, {"nome": "Clinica A", "codigos": ["A01"]})
-            sid = setor["id"]
+            sid = c.execute("SELECT id FROM setores WHERE nome='Clinica A'").fetchone()["id"]
             ids = {l["codigo"]: l["id"] for l in c.execute("SELECT id, codigo FROM leitos WHERE id_setor=?", (sid,))}
             u = c.execute("SELECT * FROM usuarios WHERE login='copa1'").fetchone()
             if u is None:  # a correção só aparece com um usuário de verdade (o painel mostra quem pediu)
@@ -200,7 +199,8 @@ class TestComServidor(_Base):
     def test_snapshot_completo_respeita_o_mais_recente(self):
         c = sv.conectar(self.mdb)
         try:
-            sid = c.execute("SELECT id FROM setores WHERE nome='Clinica A'").fetchone()["id"]
+            setor = sv.criar_setor(c, {"nome": "Clinica A", "codigos": ["A01"]})
+            sid = setor["id"]
             lid = c.execute("SELECT id FROM leitos WHERE id_setor=? AND codigo='A01'", (sid,)).fetchone()["id"]
             u = dict(c.execute("SELECT * FROM usuarios WHERE perfil='admin' ORDER BY id LIMIT 1").fetchone())
             base = {"id_leito": lid, "nome": "Copa", "idade_anos": 70, "atualizado_em": "2026-11-12T10:00:00-03:00"}
