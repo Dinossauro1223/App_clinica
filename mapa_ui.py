@@ -118,7 +118,9 @@ class MapaUI:
         topo.pack(fill="x", padx=20, pady=(15, 5))
         _titulo(topo, "Mapa Nutricional").pack(side="left")
         _btn(topo, "Configurações", self._abrir_config, 120, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=(6, 0))
-        _btn(topo, "Leitos", self._abrir_leitos, 90, CINZA_BTN, CINZA_HOVER).pack(side="right")
+        _btn(topo, "Ordem do mapa geral", self._abrir_ordem_setores, 150, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=6)
+        _btn(topo, "Gerenciar setores", self._abrir_leitos, 125, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=6)
+        _btn(topo, "+ Adicionar leitos", self._abrir_adicionar_leitos, 145, VERDE_ESC, VERDE_ESC).pack(side="right", padx=6)
 
         barra = ctk.CTkFrame(area, fg_color="transparent")
         barra.pack(fill="x", padx=20, pady=4)
@@ -128,12 +130,13 @@ class MapaUI:
         self.e_data.bind("<Return>", lambda e: self._aplicar_data())
         _btn(barra, "▶", lambda: self._mudar_dia(1), 40).pack(side="left")
         _btn(barra, "Hoje", self._ir_hoje, 70, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(8, 16))
-        ctk.CTkLabel(barra, text="Setor:").pack(side="left")
-        self.cb_setor = ctk.CTkComboBox(barra, values=["Visão geral (todos os setores)"] + [s["nome"] for s in self.setores],
-                                        width=190, state="readonly", command=self._trocar_setor)
+        ctk.CTkLabel(barra, text="Visualizar:").pack(side="left")
+        self.cb_setor = ctk.CTkComboBox(
+            barra, values=["Visão geral (Internos e Externos)"] + [mdb.rotulo_setor(s) for s in self.setores],
+            width=245, state="readonly", command=self._trocar_setor)
         self.cb_setor.pack(side="left", padx=6)
-        self.cb_setor.set(next((s["nome"] for s in self.setores if s["id_setor"] == self.id_setor),
-                               "Visão geral (todos os setores)"))
+        self.cb_setor.set(next((mdb.rotulo_setor(s) for s in self.setores if s["id_setor"] == self.id_setor),
+                               "Visão geral (Internos e Externos)"))
 
         acoes = ctk.CTkFrame(area, fg_color="transparent")
         acoes.pack(fill="x", padx=20, pady=4)
@@ -157,7 +160,7 @@ class MapaUI:
                    ("idade", "Idade", 50, "center"), ("imc", "IMC (classificação)", 170, "w"),
                    ("via", "Via", 70, "center"), ("consist", "Consistência", 85, "center"),
                    ("supl", "Terapia nutricional", 210, "w"), ("fi", "Função intestinal", 110, "center"),
-                   ("condutas", "Condutas de alta", 120, "center")]
+                   ("condutas", "Condutas de alta", 120, "center"), ("grupo", "Grupo", 90, "center"),\n                   ("setor", "Setor", 190, "w")]
         self.tree = ttk.Treeview(quadro, columns=[c[0] for c in colunas], show="headings", style=ESTILO_TREE,
                                  selectmode="browse")
         for chave, titulo, larg, anc in colunas:
@@ -181,7 +184,7 @@ class MapaUI:
         self._recarregar()
 
     def _trocar_setor(self, nome):
-        self.id_setor = next((s["id_setor"] for s in self.setores if s["nome"] == nome), None)
+        self.id_setor = next((s["id_setor"] for s in self.setores if mdb.rotulo_setor(s) == nome), None)
         self._recarregar()
 
     def _mudar_dia(self, delta):
@@ -215,7 +218,7 @@ class MapaUI:
         for it in self.linhas:
             l, r = it["leito"], it["registro"]
             if r is None:
-                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "", "", l.get("setor", ""))
+                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "", "",\n                        l.get("grupo_setor") or "Outros",\n                        f"{l.get('setor', '')} - {l.get('sigla_setor')}" if l.get("sigla_setor") else l.get("setor", ""))
                 tag = ("vago",)
             else:
                 ocupados += 1
@@ -241,14 +244,15 @@ class MapaUI:
                 vals = (l["codigo"], "Sim" if r.get("acompanhante") else "Não", r["nome_paciente"],
                         "" if r.get("idade_anos") is None else r["idade_anos"], imc, r.get("via") or "",
                         r.get("consistencia") or "", itens_terapia,
-                        self._fi_txt(r), cond.get("texto", ""))
+                        self._fi_txt(r), cond.get("texto", ""), r.get("grupo_setor") or "Outros",
+                        f"{r.get('setor', '')} - {r.get('sigla_setor')}" if r.get("sigla_setor") else r.get("setor", ""))
                 tag = ("condpend",) if cond.get("estado") == "pendente" else ()
                 com_pendencia += cond.get("estado") == "pendente"
             self.tree.insert("", "end", iid=str(l["id_leito"]), values=vals, tags=tag)
         self._mostrar_aviso_condutas(com_pendencia)
         total = len(self.linhas)
         if not total:
-            self.lbl_resumo.configure(text="Nenhum leito cadastrado neste setor. Use o botão \"Leitos\" para cadastrar.")
+            self.lbl_resumo.configure(text="Nenhum leito cadastrado neste setor. Use '+ Adicionar leitos' para começar.")
         else:
             self.lbl_resumo.configure(
                 text=f"{ocupados} de {total} leitos com registro  ·  {past} em dieta pastosa  ·  "
@@ -436,6 +440,12 @@ class MapaUI:
     def _abrir_leitos(self):
         DialogLeitos(self)
 
+    def _abrir_adicionar_leitos(self):
+        DialogAdicionarLeitos(self)
+
+    def _abrir_ordem_setores(self):
+        DialogOrdemSetores(self)
+
     def _abrir_config(self):
         DialogConfig(self)
 
@@ -466,7 +476,7 @@ class MapaUI:
         self.cb_ano.pack(side="left", padx=6)
         self.cb_ano.set(str(ano))
         ctk.CTkLabel(barra, text="Setor:").pack(side="left", padx=(8, 0))
-        self.cb_setor_g = ctk.CTkComboBox(barra, values=["Visão geral (todos os setores)"] + [s["nome"] for s in self.setores],
+        self.cb_setor_g = ctk.CTkComboBox(barra, values=["Visão geral (Internos e Externos)"] + [s["nome"] for s in self.setores],
                                           width=180, state="readonly")
         self.cb_setor_g.pack(side="left", padx=6)
         self.cb_setor_g.set("Todos os setores")
@@ -853,6 +863,115 @@ class DialogLeitos(_Janela):
             if not mdb.remover_leito(self.ui.db, l["id_leito"]):
                 messagebox.showinfo("Leitos", "O leito tem histórico e foi apenas desativado.", parent=self)
             self._recarregar()
+
+
+class DialogAdicionarLeitos(_Janela):
+    """Fluxo simples para cadastrar um leito ou uma faixa numérica sem prefixos técnicos."""
+    def __init__(self, ui):
+        super().__init__(ui, "Adicionar leitos", "500x390")
+        self.setores = mdb.listar_setores(ui.db)
+        ctk.CTkLabel(self, text="Escolha onde os leitos serão adicionados.",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=22, pady=(20, 4))
+        ctk.CTkLabel(self, text="Setor").pack(anchor="w", padx=22, pady=(14, 2))
+        self.cb_setor = ctk.CTkComboBox(self, values=[mdb.rotulo_setor(x) for x in self.setores],
+                                        width=440, state="readonly")
+        self.cb_setor.pack(padx=22, anchor="w")
+        atual = next((mdb.rotulo_setor(x) for x in self.setores if x["id_setor"] == ui.id_setor), None)
+        self.cb_setor.set(atual or (mdb.rotulo_setor(self.setores[0]) if self.setores else ""))
+        linha = ctk.CTkFrame(self, fg_color="transparent")
+        linha.pack(fill="x", padx=22, pady=(16, 4))
+        ctk.CTkLabel(linha, text="Do leito").pack(side="left")
+        self.e_de = ctk.CTkEntry(linha, width=90, placeholder_text="Ex.: 10")
+        self.e_de.pack(side="left", padx=(8, 18))
+        ctk.CTkLabel(linha, text="Até o leito").pack(side="left")
+        self.e_ate = ctk.CTkEntry(linha, width=90, placeholder_text="Ex.: 15")
+        self.e_ate.pack(side="left", padx=8)
+        ctk.CTkLabel(self, text="Para adicionar apenas um leito, informe o mesmo número nos dois campos.",
+                     text_color=tema.SUAVE, wraplength=440, justify="left").pack(anchor="w", padx=22, pady=(4, 12))
+        self.lbl_ajuda = ctk.CTkLabel(self, text="Os leitos já existentes serão preservados.",
+                                      text_color=tema.SUAVE)
+        self.lbl_ajuda.pack(anchor="w", padx=22)
+        _btn(self, "Adicionar leitos", self._adicionar, 180).pack(pady=(22, 8))
+        _btn(self, "Cancelar", self._fechar, 100, CINZA_BTN, CINZA_HOVER).pack()
+        self.protocol("WM_DELETE_WINDOW", self._fechar)
+
+    def _fechar(self):
+        self.destroy()
+
+    def _adicionar(self):
+        setor = next((x for x in self.setores if mdb.rotulo_setor(x) == self.cb_setor.get()), None)
+        de, ate = nc.parse_num(self.e_de.get()), nc.parse_num(self.e_ate.get())
+        if not setor:
+            messagebox.showwarning("Adicionar leitos", "Selecione um setor.", parent=self)
+            return
+        if de is None or ate is None or int(de) != de or int(ate) != ate or de < 0 or ate < de:
+            messagebox.showwarning("Adicionar leitos", "Informe números inteiros válidos e um intervalo crescente.",
+                                   parent=self)
+            return
+        try:
+            n = mdb.criar_leitos_sequencia(self.ui.db, setor["id_setor"], "", int(de), int(ate), largura=1)
+        except ValueError as e:
+            messagebox.showwarning("Adicionar leitos", str(e), parent=self)
+            return
+        self.ui.id_setor = setor["id_setor"]
+        messagebox.showinfo("Leitos adicionados", f"{n} novo(s) leito(s) adicionado(s).", parent=self)
+        self.destroy()
+        self.ui.mostrar_mapa()
+
+
+class DialogOrdemSetores(_Janela):
+    """Permite ordenar setores dentro dos grupos Internos e Externos para o mapa geral e impressão."""
+    def __init__(self, ui):
+        super().__init__(ui, "Ordem do mapa geral e impressão", "560x560")
+        ctk.CTkLabel(self, text="Organize a ordem em que os setores aparecem no mapa geral e nos arquivos PDF/Excel.",
+                     wraplength=510, justify="left").pack(anchor="w", padx=20, pady=(18, 8))
+        ctk.CTkLabel(self, text="A ordem é ajustada dentro de cada grupo: Internos e Externos.",
+                     text_color=tema.SUAVE).pack(anchor="w", padx=20, pady=(0, 8))
+        quadro = ctk.CTkFrame(self, fg_color=tema.BRANCO)
+        quadro.pack(fill="both", expand=True, padx=20, pady=6)
+        self.tree = ttk.Treeview(quadro, columns=("grupo", "setor"), show="headings",
+                                 style=ESTILO_TREE, selectmode="browse", height=12)
+        self.tree.heading("grupo", text="Grupo")
+        self.tree.heading("setor", text="Setor")
+        self.tree.column("grupo", width=110, anchor="center")
+        self.tree.column("setor", width=330, anchor="w")
+        self.tree.pack(fill="both", expand=True, padx=6, pady=6)
+        acoes = ctk.CTkFrame(self, fg_color="transparent")
+        acoes.pack(fill="x", padx=20, pady=8)
+        _btn(acoes, "↑ Subir", self._subir, 110, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=4)
+        _btn(acoes, "↓ Descer", self._descer, 110, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=4)
+        _btn(acoes, "Fechar", self._fechar, 100, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=4)
+        self.protocol("WM_DELETE_WINDOW", self._fechar)
+        self._recarregar()
+
+    def _recarregar(self, selecionar=None):
+        self.setores = mdb.listar_setores(self.ui.db)
+        self.tree.delete(*self.tree.get_children())
+        for setor in self.setores:
+            grupo = setor.get("grupo") or "Outros"
+            self.tree.insert("", "end", iid=str(setor["id_setor"]),
+                             values=(grupo, mdb.rotulo_setor(setor)))
+        if selecionar and self.tree.exists(str(selecionar)):
+            self.tree.selection_set(str(selecionar))
+
+    def _mover(self, direcao):
+        sel = self.tree.selection()
+        if not sel:
+            messagebox.showinfo("Ordem dos setores", "Selecione um setor para mover.", parent=self)
+            return
+        id_setor = int(sel[0])
+        mdb.alterar_ordem_setor(self.ui.db, id_setor, direcao)
+        self._recarregar(id_setor)
+
+    def _subir(self):
+        self._mover(-1)
+
+    def _descer(self):
+        self._mover(1)
+
+    def _fechar(self):
+        self.destroy()
+        self.ui.mostrar_mapa()
 
 
 class DialogSuplemento(_Janela):
