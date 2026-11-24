@@ -112,54 +112,77 @@ class MapaUI:
         area = self._preparar_area()
         self.setores = mdb.listar_setores(self.db)
         if self.id_setor not in [s["id_setor"] for s in self.setores]:
-            self.id_setor = None  # None representa a visão geral de todos os setores.
+            self.id_setor = None
 
-        topo = ctk.CTkFrame(area, fg_color="transparent")
-        topo.pack(fill="x", padx=20, pady=(15, 5))
-        _titulo(topo, "Mapa Nutricional").pack(side="left")
-        _btn(topo, "Configurações", self._abrir_config, 120, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=(6, 0))
-        _btn(topo, "Ordem do mapa geral", self._abrir_ordem_setores, 150, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=6)
-        _btn(topo, "Gerenciar setores", self._abrir_leitos, 125, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=6)
-        _btn(topo, "+ Adicionar leitos", self._abrir_adicionar_leitos, 145, VERDE_ESC, VERDE_ESC).pack(side="right", padx=6)
+        cabecalho = ctk.CTkFrame(area, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=24, pady=(18, 8))
+        titulo_area = ctk.CTkFrame(cabecalho, fg_color="transparent")
+        titulo_area.pack(side="left", fill="x", expand=True)
+        ctk.CTkLabel(titulo_area, text="NUTRILAB  /  ASSISTÊNCIA NUTRICIONAL",
+                     font=ctk.CTkFont(size=10, weight="bold"), text_color=tema.VERDE).pack(anchor="w")
+        _titulo(titulo_area, "Mapa Nutricional").pack(anchor="w", pady=(1, 0))
+        ctk.CTkLabel(titulo_area, text="Acompanhamento diário dos pacientes e leitos",
+                     font=ctk.CTkFont(size=12), text_color=tema.SUAVE).pack(anchor="w", pady=(1, 0))
+        _btn(cabecalho, "Configurações", self._abrir_config, 130, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=(8, 0))
+        _btn(cabecalho, "Ordem do mapa geral", self._abrir_ordem_setores, 150, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=6)
+        _btn(cabecalho, "Gerenciar setores", self._abrir_leitos, 135, tema.VERDE_ESC, tema.VERDE_HOVER).pack(side="right", padx=6)
+        _btn(cabecalho, "+ Adicionar leitos", self._abrir_adicionar_leitos, 145, tema.VERDE_ESC, tema.VERDE_HOVER).pack(side="right")
 
-        barra = ctk.CTkFrame(area, fg_color="transparent")
-        barra.pack(fill="x", padx=20, pady=4)
-        _btn(barra, "◀", lambda: self._mudar_dia(-1), 40).pack(side="left")
-        self.e_data = ctk.CTkEntry(barra, width=110, justify="center")
-        self.e_data.pack(side="left", padx=4)
+        filtros = ctk.CTkFrame(area, fg_color=tema.BRANCO, corner_radius=12,
+                              border_width=1, border_color=tema.BORDA)
+        filtros.pack(fill="x", padx=24, pady=(4, 8))
+        ctk.CTkLabel(filtros, text="PERÍODO", font=ctk.CTkFont(size=10, weight="bold"),
+                     text_color=tema.SUAVE).pack(side="left", padx=(14, 8), pady=12)
+        _btn(filtros, "‹", lambda: self._mudar_dia(-1), 34, CINZA_BTN, CINZA_HOVER, 30).pack(side="left", pady=9)
+        self.e_data = ctk.CTkEntry(filtros, width=112, justify="center", height=32)
+        self.e_data.pack(side="left", padx=5, pady=9)
         self.e_data.bind("<Return>", lambda e: self._aplicar_data())
-        _btn(barra, "▶", lambda: self._mudar_dia(1), 40).pack(side="left")
-        _btn(barra, "Hoje", self._ir_hoje, 70, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(8, 16))
-        ctk.CTkLabel(barra, text="Visualizar:").pack(side="left")
+        _btn(filtros, "›", lambda: self._mudar_dia(1), 34, CINZA_BTN, CINZA_HOVER, 30).pack(side="left", pady=9)
+        _btn(filtros, "Hoje", self._ir_hoje, 62, tema.VERDE_CLARO, tema.VERDE_CLARO, 30).pack(side="left", padx=(7, 18), pady=9)
+        ctk.CTkFrame(filtros, width=1, height=28, fg_color=tema.BORDA).pack(side="left", padx=(0, 14), pady=9)
+        ctk.CTkLabel(filtros, text="SETOR", font=ctk.CTkFont(size=10, weight="bold"),
+                     text_color=tema.SUAVE).pack(side="left", padx=(0, 8), pady=12)
         self.cb_setor = ctk.CTkComboBox(
-            barra, values=["Visão geral (Internos e Externos)"] + [mdb.rotulo_setor(s) for s in self.setores],
-            width=245, state="readonly", command=self._trocar_setor)
-        self.cb_setor.pack(side="left", padx=6)
+            filtros, values=["Visão geral (Internos e Externos)"] + [mdb.rotulo_setor(s) for s in self.setores],
+            width=245, height=32, state="readonly", command=self._trocar_setor)
+        self.cb_setor.pack(side="left", padx=(0, 12), pady=9)
         self.cb_setor.set(next((mdb.rotulo_setor(s) for s in self.setores if s["id_setor"] == self.id_setor),
                                "Visão geral (Internos e Externos)"))
 
         acoes = ctk.CTkFrame(area, fg_color="transparent")
-        acoes.pack(fill="x", padx=20, pady=4)
-        _btn(acoes, "Preencher leito", self._editar, 140).pack(side="left", padx=(0, 6))
-        _btn(acoes, "Histórico", self._historico, 100, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(0, 6))
-        _btn(acoes, "Condutas de alta", self._condutas_alta, 140, LARANJA, tema.LARANJA).pack(side="left", padx=(0, 6))
-        _btn(acoes, "Copiar último mapa", self._copiar_ultimo, 150, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(0, 6))
-        _btn(acoes, "Remover do mapa", self._remover, 130, VERMELHO, VERMELHO_HOVER).pack(side="left", padx=(0, 6))
-        _btn(acoes, "Excel", self._exportar_excel, 80, tema.AZUL, tema.AZUL_HOVER).pack(side="right")
-        _btn(acoes, "PDF", self._exportar_pdf, 70, tema.AZUL, tema.AZUL_HOVER).pack(side="right", padx=6)
+        acoes.pack(fill="x", padx=24, pady=(2, 7))
+        _btn(acoes, "+  Preencher leito", self._editar, 160).pack(side="left", padx=(0, 6))
+        _btn(acoes, "Histórico", self._historico, 94, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=3)
+        _btn(acoes, "Condutas de alta", self._condutas_alta, 132, LARANJA, tema.LARANJA).pack(side="left", padx=3)
+        _btn(acoes, "Copiar último mapa", self._copiar_ultimo, 142, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=3)
+        _btn(acoes, "Remover", self._remover, 88, VERMELHO, VERMELHO_HOVER).pack(side="left", padx=3)
+        _btn(acoes, "Excel", self._exportar_excel, 72, tema.AZUL, tema.AZUL_HOVER).pack(side="right")
+        _btn(acoes, "PDF", self._exportar_pdf, 64, tema.AZUL, tema.AZUL_HOVER).pack(side="right", padx=6)
 
-        self.lbl_aviso = ctk.CTkLabel(area, text="", text_color=LARANJA, font=ctk.CTkFont(size=12, weight="bold"))
-        self.lbl_aviso.pack(fill="x", padx=22, pady=(2, 0), anchor="w")
-        self.lbl_condutas = ctk.CTkLabel(area, text="", text_color=LARANJA, font=ctk.CTkFont(size=12, weight="bold"),
-                                         anchor="w", justify="left")
-        self.lbl_condutas.pack(fill="x", padx=22, pady=(0, 0), anchor="w")
-
+        avisos = ctk.CTkFrame(area, fg_color="transparent")
+        avisos.pack(fill="x", padx=26, pady=(0, 2))
+        self.lbl_aviso = ctk.CTkLabel(avisos, text="", text_color=LARANJA,
+                                      font=ctk.CTkFont(size=11, weight="bold"), anchor="w")
+        self.lbl_aviso.pack(fill="x", anchor="w")
+        self.lbl_condutas = ctk.CTkLabel(avisos, text="", text_color=LARANJA,
+                                         font=ctk.CTkFont(size=11, weight="bold"), anchor="w", justify="left")
+        self.lbl_condutas.pack(fill="x", anchor="w")
         self.lbl_inicio = ctk.CTkLabel(
             area, text="Selecione um leito vazio e clique em 'Preencher leito' para iniciar.",
             text_color=tema.SUAVE, anchor="w", justify="left")
-        self.lbl_inicio.pack(fill="x", padx=22, pady=(2, 0), anchor="w")
-        quadro = ctk.CTkFrame(area, fg_color=tema.BRANCO)
-        quadro.pack(fill="both", expand=True, padx=20, pady=6)
+        self.lbl_inicio.pack(fill="x", padx=28, pady=(2, 0), anchor="w")
+
+        quadro = ctk.CTkFrame(area, fg_color=tema.BRANCO, corner_radius=12,
+                              border_width=1, border_color=tema.BORDA)
+        quadro.pack(fill="both", expand=True, padx=24, pady=(5, 7))
+        cab_tabela = ctk.CTkFrame(quadro, fg_color="transparent")
+        cab_tabela.pack(fill="x", padx=14, pady=(10, 3))
+        ctk.CTkLabel(cab_tabela, text="PACIENTES E LEITOS",
+                     font=ctk.CTkFont(size=11, weight="bold"), text_color=tema.VERDE_ESC).pack(side="left")
+        ctk.CTkLabel(cab_tabela, text="Selecione um leito • duplo clique abre a ficha",
+                     font=ctk.CTkFont(size=10), text_color=tema.SUAVE).pack(side="right")
+        area_tabela = ctk.CTkFrame(quadro, fg_color="transparent")
+        area_tabela.pack(fill="both", expand=True, padx=10, pady=(2, 0))
         colunas = [("leito", "Leito", 60, "center"), ("grupo", "Grupo", 85, "center"),
                    ("setor", "Setor", 180, "w"), ("acomp", "Acomp.", 60, "center"),
                    ("paciente", "Paciente", 220, "w"), ("idade", "Idade", 50, "center"),
@@ -167,28 +190,28 @@ class MapaUI:
                    ("consist", "Consistência", 85, "center"),
                    ("supl", "Terapia nutricional", 210, "w"), ("fi", "Função intestinal", 110, "center"),
                    ("condutas", "Condutas de alta", 120, "center")]
-        self.tree = ttk.Treeview(quadro, columns=[c[0] for c in colunas], show="headings", style=ESTILO_TREE,
-                                 selectmode="browse")
+        self.tree = ttk.Treeview(area_tabela, columns=[c[0] for c in colunas], show="headings",
+                                 style=ESTILO_TREE, selectmode="browse")
         for chave, titulo, larg, anc in colunas:
             self.tree.heading(chave, text=titulo)
             self.tree.column(chave, width=larg, anchor=anc, stretch=chave in ("paciente", "supl", "setor"))
         self.tree.tag_configure("vago", foreground=tema.cor_atual(tema.SUAVE))
         self.tree.tag_configure("condpend", foreground=tema.cor_atual(tema.LARANJA))
-        rolagem = ttk.Scrollbar(quadro, orient="vertical", command=self.tree.yview)
-        rolagem_x = ttk.Scrollbar(quadro, orient="horizontal", command=self.tree.xview)
+        rolagem = ttk.Scrollbar(area_tabela, orient="vertical", command=self.tree.yview)
+        rolagem_x = ttk.Scrollbar(area_tabela, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=rolagem.set, xscrollcommand=rolagem_x.set)
-        self.tree.pack(side="top", fill="both", expand=True, padx=(6, 0), pady=(6, 0))
-        rolagem.pack(side="right", fill="y", pady=6)
-        rolagem_x.pack(side="bottom", fill="x", padx=6, pady=(0, 6))
+        self.tree.pack(side="top", fill="both", expand=True)
+        rolagem.pack(side="right", fill="y")
+        rolagem_x.pack(side="bottom", fill="x")
         self.tree.bind("<Double-1>", lambda e: self._editar())
-        # Ações frequentes também ficam disponíveis pelo teclado, sem depender dos botões.
         self.tree.bind("<Return>", self._atalho_editar)
         self.tree.bind("<F2>", self._atalho_editar)
         self.tree.bind("<Control-h>", self._atalho_historico)
         self.tree.bind("<Control-H>", self._atalho_historico)
 
-        self.lbl_resumo = ctk.CTkLabel(area, text="", font=ctk.CTkFont(size=12), text_color=tema.TEXTO)
-        self.lbl_resumo.pack(fill="x", padx=22, pady=(0, 10), anchor="w")
+        self.lbl_resumo = ctk.CTkLabel(area, text="", font=ctk.CTkFont(size=11, weight="bold"),
+                                       text_color=tema.TEXTO)
+        self.lbl_resumo.pack(fill="x", padx=28, pady=(0, 12), anchor="w")
         self._recarregar()
 
     def _trocar_setor(self, nome):
