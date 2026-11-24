@@ -186,7 +186,7 @@ class AppClinica(ctk.CTk):
                 ("🧪", "Catálogo de Exames", lambda: self.abrir_pagina_principal("Catálogo de Exames", self.tela_exames)),
             ]),
             ("MAPA NUTRICIONAL", [
-                ("🗺️", "Mapa Nutricional", lambda: self.abrir_pagina_principal("Mapa Nutricional", self.tela_mapa)),
+                ("🗺", "Mapa Nutricional", lambda: self.abrir_pagina_principal("Mapa Nutricional", self.tela_mapa)),
                 ("📊", "Gráficos do Mês", lambda: self.abrir_pagina_principal("Gráficos do Mês", self.tela_mapa_graficos)),
                 ("🥣", "Suplementos", lambda: self.abrir_pagina_principal("Suplementos", self.tela_suplementos)),
                 ("📦", "Almoxarifado", lambda: self.abrir_pagina_principal("Almoxarifado", self.tela_almoxarifado)),
