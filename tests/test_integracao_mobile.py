@@ -196,6 +196,23 @@ class TestComServidor(_Base):
         finally:
             c.close()
 
+    def test_snapshot_completo_respeita_o_mais_recente(self):
+        c = sv.conectar(self.mdb)
+        try:
+            sid = c.execute("SELECT id FROM setores WHERE nome='Clinica A'").fetchone()["id"]
+            lid = c.execute("SELECT id FROM leitos WHERE id_setor=? AND codigo='A01'", (sid,)).fetchone()["id"]
+            u = dict(c.execute("SELECT * FROM usuarios WHERE perfil='admin' ORDER BY id LIMIT 1").fetchone())
+            base = {"id_leito": lid, "nome": "Copa", "idade_anos": 70, "atualizado_em": "2026-11-12T10:00:00-03:00"}
+            sv.post_mapa(c, u, {"id": sid, "nome": "Clinica A"}, DIA, [base], completo=True)
+            antigo = {**base, "nome": "PC antigo", "atualizado_em": "2026-11-12T09:00:00-03:00"}
+            sv.post_mapa(c, u, {"id": sid, "nome": "Clinica A"}, DIA, [antigo], completo=True)
+            self.assertEqual(sv.linhas_mapa(c, sid, DIA)[0]["nome"], "Copa")
+            novo = {**base, "nome": "PC novo", "atualizado_em": "2026-11-12T11:00:00-03:00"}
+            sv.post_mapa(c, u, {"id": sid, "nome": "Clinica A"}, DIA, [novo], completo=True)
+            self.assertEqual(sv.linhas_mapa(c, sid, DIA)[0]["nome"], "PC novo")
+        finally:
+            c.close()
+
     def test_ida_e_volta(self):
         # desktop -> mobile: publica para a copa com aviso dos leitos alterados
         res = im.enviar_mapa(self.db, self.mdb, DIA, texto="teste")
