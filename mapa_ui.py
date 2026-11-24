@@ -160,7 +160,8 @@ class MapaUI:
                    ("idade", "Idade", 50, "center"), ("imc", "IMC (classificação)", 170, "w"),
                    ("via", "Via", 70, "center"), ("consist", "Consistência", 85, "center"),
                    ("supl", "Terapia nutricional", 210, "w"), ("fi", "Função intestinal", 110, "center"),
-                   ("condutas", "Condutas de alta", 120, "center"), ("grupo", "Grupo", 90, "center"),\n                   ("setor", "Setor", 190, "w")]
+                   ("condutas", "Condutas de alta", 120, "center"), ("grupo", "Grupo", 90, "center"),
+                   ("setor", "Setor", 190, "w")]
         self.tree = ttk.Treeview(quadro, columns=[c[0] for c in colunas], show="headings", style=ESTILO_TREE,
                                  selectmode="browse")
         for chave, titulo, larg, anc in colunas:
@@ -218,7 +219,9 @@ class MapaUI:
         for it in self.linhas:
             l, r = it["leito"], it["registro"]
             if r is None:
-                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "", "",\n                        l.get("grupo_setor") or "Outros",\n                        f"{l.get('setor', '')} - {l.get('sigla_setor')}" if l.get("sigla_setor") else l.get("setor", ""))
+                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "", "",
+                        l.get("grupo_setor") or "Outros",
+                        f"{l.get('setor', '')} - {l.get('sigla_setor')}" if l.get("sigla_setor") else l.get("setor", ""))
                 tag = ("vago",)
             else:
                 ocupados += 1
