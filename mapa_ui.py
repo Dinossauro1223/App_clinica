@@ -502,7 +502,9 @@ class MapaUI:
                    ("Média por dia", f"{k['media_por_dia']:.1f}".replace(".", ",")),
                    ("Dieta pastosa", f"{k['pastosa']} ({k['pastosa_pct']:.0f}%)"),
                    ("Com acompanhante", f"{k['acompanhante']} ({k['acompanhante_pct']:.0f}%)"),
-                   ("Com suplemento", f"{k['com_suplemento']} ({k['com_suplemento_pct']:.0f}%)")]
+                   ("Oral sem suplemento", f"{k['oral_sem_suplemento']} ({k['oral_sem_suplemento_pct']:.0f}%)"),
+                   ("Oral com suplemento", f"{k['oral_com_suplemento']} ({k['oral_com_suplemento_pct']:.0f}%)"),
+                   ("Dieta enteral", f"{k['enteral']} ({k['enteral_pct']:.0f}%)")]
         for rot, val in cartoes:
             cx = ctk.CTkFrame(self.quadro_kpi, fg_color=tema.BRANCO, corner_radius=8)
             cx.pack(side="left", padx=4, ipadx=8, ipady=4)
