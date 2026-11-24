@@ -201,6 +201,17 @@ class TestBanco(unittest.TestCase):
         self.assertEqual([x["sigla"] for x in atual if x["grupo"] == "Externos"],
                          ["SVA", "SAU", "SVP", "PED"])
 
+    def test_mapa_geral_respeita_grupos_ordem_e_identificacao(self):
+        linhas = mdb.mapa_do_dia(self.db, "2026-11-24")
+        setores = [x["leito"] for x in linhas]
+        self.assertEqual([(x["grupo_setor"], x["sigla_setor"], x["codigo"]) for x in setores[:9]],
+                         [("Internos", "OP", str(n)) for n in range(1, 10)])
+        self.assertEqual([(x["grupo_setor"], x["sigla_setor"], x["codigo"]) for x in setores[9:27]],
+                         [("Internos", "CM", str(n)) for n in range(16, 34)])
+        self.assertEqual([(x["grupo_setor"], x["sigla_setor"], x["codigo"]) for x in setores[27:30]],
+                         [("Internos", "PSI", str(n)) for n in (46, 47, 48)])
+        self.assertEqual(mex.textos_linha(setores[0], None)["setor"], "Internos · Operação (OP)")
+
     def test_seed_e_idempotencia(self):
         mdb.inicializar(self.db)  # chamar de novo não duplica
         self.assertEqual(len(mdb.listar_suplementos(self.db)),
