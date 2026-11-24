@@ -252,8 +252,10 @@ class TestMapaCondicoes(Base):
     def test_copiar_mapa_mantem_condicoes(self):
         registrar(self.db, data="2026-11-14", condicoes="resp")
         self.assertEqual(mdb.copiar_mapa(self.db, "2026-11-14", "2026-11-15"), 1)
-        copia = mdb.mapa_do_dia(self.db, "2026-11-15")[0]["registro"]
-        self.assertEqual(copia["condicoes"], "resp")
+        registros_destino = [item["registro"] for item in mdb.mapa_do_dia(self.db, "2026-11-15")
+                             if item["registro"] is not None]
+        self.assertEqual(len(registros_destino), 1)
+        self.assertEqual(registros_destino[0]["condicoes"], "resp")
 
 
 class TestTexto(unittest.TestCase):

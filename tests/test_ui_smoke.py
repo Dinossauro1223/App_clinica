@@ -665,7 +665,11 @@ class TestInterface(unittest.TestCase):
         d._fechar()
         self.assertEqual(len(self.ui.tree.items), 4)  # mapa passou a mostrar o setor UTI (U01..U03 + U10)
         self.ui.mostrar_suplementos()
-        self.assertEqual(len(self.ui.tree_sup.items), 6)
+        catalogo_ativo = mdb.listar_suplementos(self.db)
+        self.assertEqual(len(self.ui.tree_sup.items), len(catalogo_ativo))
+        nomes_catalogo = {s["nome"] for s in catalogo_ativo}
+        self.assertTrue({"Fresubin", "Thopic Soya 1,5 kcal/ml", "Glutamina", "Nutrison Energy",
+                         "Simbioflora", "Diamax IG"}.issubset(nomes_catalogo))
         ds = mapa_ui.DialogSuplemento(self.ui, None)
         ds.e["nome"].insert(0, "Módulo de fibra X")
         ds.cb_mod.set("Módulo de fibras")
@@ -698,14 +702,15 @@ class TestInterface(unittest.TestCase):
         popular_mes(self.db, n_leitos=6)
         self.ui.mostrar_graficos()
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (8, 0, 0))   # padrão: desenhados na tela
+        esperados = sum(len(g["graficos"]) for g in self.ui._grupos)
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (esperados, 0, 0))   # padrão: desenhados na tela
         self.assertEqual(self.ui.cb_mes.get(), "Outubro")
         self.ui.cb_mes.set("Fevereiro")
         self.ui._gerar_graficos()  # mês sem dados: gráficos vazios, sem erro
-        self.assertEqual(len(self._cartas()[0]), 8)
+        self.assertEqual(len(self._cartas()[0]), esperados)
         FD.pasta = tempfile.mkdtemp()
         self.ui._salvar_graficos()   # exportar as imagens PNG continua igual (o matplotlib só entra aqui)
-        self.assertEqual(len(os.listdir(FD.pasta)), 8)
+        self.assertEqual(len(os.listdir(FD.pasta)), esperados)
 
     def test_graficos_agrupados_lado_a_lado_e_de_cima_para_baixo(self):
         from unittest import mock
@@ -727,7 +732,8 @@ class TestInterface(unittest.TestCase):
             gerar.assert_not_called()
         self.assertEqual(self.ui._painel.disposicao, mapa_ui.gl.DISPOSICAO_VERTICAL)
         self.assertEqual(self.ui._painel.faixas, [])
-        self.assertEqual(len(self.ui._painel.faixas_empilhadas), 8)        # um gráfico por faixa, de cima para baixo
+        self.assertEqual(len(self.ui._painel.faixas_empilhadas), sum(len(g["graficos"]) for g in self.ui._grupos))
+        # um gráfico por faixa, de cima para baixo
         self.assertEqual(len(self.ui.quadro_graf.winfo_children()), 4)    # continua agrupado: uma seção por grupo
         # a escolha vale também na próxima vez que a tela de gráficos é aberta
         self.ui.mostrar_graficos()
@@ -755,7 +761,8 @@ class TestInterface(unittest.TestCase):
             espec.assert_not_called()
             render.assert_called_once()
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (0, 8, 8))
+        esperados = sum(len(g["graficos"]) for g in self.ui._grupos)
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (0, esperados, esperados))
         self.assertEqual(self.ui.estilo_graficos, gl.ESTILO_IMAGEM)
         # mudar só a disposição não desenha os PNG de novo (ficam guardados)
         dc = mapa_ui.DialogConfig(self.ui)
@@ -764,19 +771,20 @@ class TestInterface(unittest.TestCase):
         with mock.patch.object(self.ui._mgr, "renderizar_grupos") as render:
             dc._salvar()
             render.assert_not_called()
-        self.assertEqual((self.ui._painel.faixas, self.ui._painel.faixas_empilhadas, len(self.ui._imagens)), ([], [], 8))
+        self.assertEqual((self.ui._painel.faixas, self.ui._painel.faixas_empilhadas, len(self.ui._imagens)),
+                         ([], [], esperados))
         # novo mês: as imagens antigas são descartadas, as novas valem para o mês novo
         antigos = self.ui._grupos_png
         self.ui.cb_mes.set("Fevereiro")
         self.ui._gerar_graficos()
         self.assertIsNot(self.ui._grupos_png, antigos)
-        self.assertEqual(len(self.ui._imagens), 8)
+        self.assertEqual(len(self.ui._imagens), esperados)
         # volta para animado
         dc = mapa_ui.DialogConfig(self.ui)
         dc.cb_estilo.set(gl.ROTULOS_ESTILO[gl.ESTILO_ANIMADO])
         dc._salvar()
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (8, 0, 0))
+        self.assertEqual((len(nativas), len(imagens), len(self.ui._imagens)), (esperados, 0, 0))
         # valor desconhecido na configuração volta para o padrão
         mapa_ui.mdb.salvar_config(self.db, gl.CHAVE_ESTILO, "qualquer coisa")
         self.assertEqual(self.ui.estilo_graficos, gl.ESTILO_ANIMADO)
@@ -797,7 +805,8 @@ class TestInterface(unittest.TestCase):
         self.assertNotIn("\\n", avisos[0][2])          # quebra de linha de verdade, não a barra e o n escritos
         self.assertIn("\n", avisos[0][2])
         nativas, imagens = self._cartas()
-        self.assertEqual((len(nativas), len(imagens)), (8, 0))     # a tela não fica em branco
+        esperados = sum(len(g["graficos"]) for g in self.ui._grupos)
+        self.assertEqual((len(nativas), len(imagens)), (esperados, 0))     # a tela não fica em branco
 
     def test_exportar_imagens_sem_matplotlib_avisa_em_vez_de_quebrar(self):
         from unittest import mock

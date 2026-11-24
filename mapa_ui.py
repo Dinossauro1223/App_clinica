@@ -1682,12 +1682,17 @@ class FormRegistro(_Janela):
         if self._via_anterior != nova_via and not preservar:
             self._suplementos = []
         self._via_anterior = nova_via
-        # A via classifica o paciente e o tipo de terapia no mapa; não deve esconder produtos
-        # do catálogo. A indicação de uso de cada produto continua registrada no seu módulo/ficha.
-        self._catalogo_visivel = list(self._catalogo)
-        modulos = ["Todos os módulos"] + mdb.listar_modulos(self.ui.db)
-        self.cb_mod.configure(values=modulos)
-        self.cb_mod.set("Todos os módulos")
+        if enteral:
+            # Para dieta enteral, oferece apenas fórmulas e módulos compatíveis com administração
+            # enteral; produtos exclusivamente orais não devem aparecer como opção de seleção.
+            modulos_enterais = {"Fórmula enteral", "Fórmula enteral e oral", "Módulo oral/enteral"}
+            self._catalogo_visivel = [s for s in self._catalogo if s.get("modulo") in modulos_enterais]
+            self.cb_mod.configure(values=["Fórmulas enterais"])
+            self.cb_mod.set("Fórmulas enterais")
+        else:
+            self._catalogo_visivel = list(self._catalogo)
+            self.cb_mod.configure(values=["Todos os módulos"] + mdb.listar_modulos(self.ui.db))
+            self.cb_mod.set("Todos os módulos")
         if enteral:
             self.lbl_sup_tipo.configure(
                 text="DIETA ENTERAL: paciente classificado separadamente como enteral. "
@@ -1708,7 +1713,7 @@ class FormRegistro(_Janela):
         modulo = self.cb_mod.get()
         catalogo = self._catalogo_visivel
         nomes = [s["nome"] for s in catalogo
-                 if self.seg_via.get() == "Enteral" or modulo == "Todos os módulos" or s["modulo"] == modulo]
+                 if modulo in ("Todos os módulos", "Fórmulas enterais") or s["modulo"] == modulo]
         self.cb_sup.configure(values=nomes)
         self.cb_sup.set(nomes[0] if len(nomes) == 1 else "")
 

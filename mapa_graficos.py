@@ -170,10 +170,11 @@ def spec_perfil_dia(agg):
 def spec_classificacao_terapia(agg):
     """Separa pacientes-dia em via oral sem suplemento, via oral com suplemento e dieta enteral."""
     titulo = "Classificação dos pacientes por terapia nutricional"
-    ordem = ["Via oral sem suplementação", "Via oral com suplementação", "Dieta enteral",
-             "Via zero", "Via não informada"]
+    # Este gráfico compara as três modalidades de terapia nutricional. Via zero e via não informada
+    # continuam contabilizadas na agregação geral, mas não são categorias de terapia nutricional.
+    ordem = ["Via oral sem suplementação", "Via oral com suplementação", "Dieta enteral"]
     cores = {"Via oral sem suplementação": VERDE_CLARO, "Via oral com suplementação": VERDE_ESC,
-             "Dieta enteral": AZUL, "Via zero": CINZA, "Via não informada": LARANJA}
+             "Dieta enteral": AZUL}
     itens = [{"nome": nome, "valor": agg["classificacao_terapia"].get(nome, 0),
               "cor": cores[nome]} for nome in ordem if agg["classificacao_terapia"].get(nome, 0)]
     if not itens:
