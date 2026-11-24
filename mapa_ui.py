@@ -908,8 +908,8 @@ class DialogAdicionarLeitos(_Janela):
         if not setor:
             messagebox.showwarning("Adicionar leitos", "Selecione um setor.", parent=self)
             return
-        if de is None or ate is None or int(de) != de or int(ate) != ate or de < 0 or ate < de:
-            messagebox.showwarning("Adicionar leitos", "Informe números inteiros válidos e um intervalo crescente.",
+        if de is None or ate is None or int(de) != de or int(ate) != ate or de < 1 or ate < de:
+            messagebox.showwarning("Adicionar leitos", "Informe números inteiros maiores que zero e um intervalo crescente.",
                                    parent=self)
             return
         try:
@@ -955,7 +955,7 @@ class DialogOrdemSetores(_Janela):
             grupo = setor.get("grupo") or "Outros"
             self.tree.insert("", "end", iid=str(setor["id_setor"]),
                              values=(grupo, mdb.rotulo_setor(setor)))
-        if selecionar and self.tree.exists(str(selecionar)):
+        if selecionar and any(str(x["id_setor"]) == str(selecionar) for x in self.setores):
             self.tree.selection_set(str(selecionar))
 
     def _mover(self, direcao):
