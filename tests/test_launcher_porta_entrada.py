@@ -20,7 +20,7 @@ class TestLauncherPortaDeEntrada(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.launcher = (RAIZ / "Gerar_e_Abrir_NutriLab.bat").read_text(encoding="utf-8")
-        cls.atualizador = (RAIZ / "Atualizar_NutriLab.bat").read_text(encoding="utf-8") if (RAIZ / "Atualizar_NutriLab.bat").exists() else ""
+        cls.atualizador = (RAIZ / "Atualizar_NutriLab.bat").read_text(encoding="utf-8") if (RAIZ / "Atualizar_NutriLab.bat").exists() else ""\n        cls.ps_atualizador = (RAIZ / "tools" / "atualizar_nutrilab.ps1").read_text(encoding="utf-8") if (RAIZ / "tools" / "atualizar_nutrilab.ps1").exists() else ""
 
     def test_instala_python_quando_ausente(self):
         launcher = self.launcher.lower()
@@ -41,7 +41,7 @@ class TestLauncherPortaDeEntrada(unittest.TestCase):
         self.assertLess(pos_verificacao, pos_download)
 
     def test_saida_padrao_tem_nome_simples(self):
-        texto = (self.launcher + "\n" + self.atualizador).lower()
+        texto = (self.launcher + "\n" + self.atualizador + "\n" + self.ps_atualizador).lower()
         self.assertIn("executavel do programa", texto)
         self.assertNotIn('set "pasta_saida=dist"', texto)
 
