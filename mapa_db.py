@@ -32,6 +32,9 @@ CONDICOES = [
 MODULOS_PADRAO = [
     "Fórmula completa",
     "Fórmula para diabetes",
+    "Fórmula enteral",
+    "Fórmula enteral e oral",
+    "Módulo oral/enteral",
     "Módulo de proteínas",
     "Módulo de aminoácidos",
     "Módulo de carboidratos",
@@ -43,6 +46,60 @@ MODULOS_PADRAO = [
     "Outro",
 ]
 NOTA_SEED = "Classificação inicial sugerida; confirmar com a ficha técnica."
+# Candidatos adicionais confirmados no catálogo oficial da Abbott Brasil. São criados sem
+# composição numérica: a ficha técnica específica da apresentação deve ser cadastrada antes
+# de qualquer cálculo. Fonte: https://www.abbottbrasil.com.br/produtos/para-profissionais/nutricao.html
+SUPLEMENTOS_COMPLEMENTARES = [
+    ("Ensure", "Fórmula completa"),
+    ("Ensure Protein", "Fórmula completa"),
+    ("Ensure Plus Advance", "Fórmula completa"),
+    ("Ensure Advance HMB", "Fórmula completa"),
+    ("Glucerna", "Fórmula enteral e oral"),
+    ("Glucerna SR", "Fórmula enteral e oral"),
+    ("Glucerna 1.5 kcal", "Fórmula para diabetes"),
+    ("PediaSure Complete", "Fórmula completa"),
+]
+# Fórmulas cuja indicação para administração por sonda está descrita pelo fabricante.
+# Três fórmulas permanecem sem composição; quatro têm os valores por 100 mL transcritos
+# das respectivas tabelas oficiais. Nenhum valor é estimado por produto semelhante.
+SUPLEMENTOS_ENTERAIS_COMPLEMENTARES = [
+    ("Nutrison Energy 1.5", "Fórmula enteral", 149, 6, 5.8, 18, 134,
+     "https://danonenutricia.com.br/produtos/details/nutrison-energy-15"),
+    ("Nutrison Energy MF 1.5", "Fórmula enteral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/details/nutrison_energry_mf_15"),
+    ("Nutrison Protein Plus Energy", "Fórmula enteral", 150, 7.5, 5.8, 17, 100,
+     "https://danonenutricia.com.br/produtos/details/Nutrison-protein-plus-energy"),
+    ("Nutrison advanced Diason", "Fórmula enteral", 102, 4.3, 4.2, 11, 100,
+     "https://danonenutricia.com.br/produtos/details/nutrison-advanced-diason"),
+    ("Nutrison advanced Cubison", "Fórmula enteral", 103, 5.5, 3.3, 13, 100,
+     "https://danonenutricia.com.br/produtos/details/nutrison-advanced-cubison"),
+    ("Nutrison Protein Plus Multi Fiber", "Fórmula enteral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/adultos/alimentacao-por-sonda"),
+    ("Nutrison Soya 800G", "Fórmula enteral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/adultos/alimentacao-por-sonda"),
+]
+SUPLEMENTOS_DUAS_VIAS_COMPLEMENTARES = [
+    ("Nutri R 2.0", "Fórmula enteral e oral", 200, 3.3, 6.7, 32, 131,
+     "https://danonenutricia.com.br/produtos/details/nutri-R-2-0"),
+    ("Nutri Enteral Soya", "Fórmula enteral e oral", 120, 4.4, 4, 17, 55,
+     "https://danonenutricia.com.br/produtos/details/nutri-enteral-soya"),
+    ("NUTRI FIBER 1.5", "Fórmula enteral e oral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/details/nutri-fiber"),
+    ("NUTRI HWHEY X", "Módulo oral/enteral", None, None, None, None, None,
+     "https://danonenutricia.com.br/produtos/adultos/alimentacao-por-sonda"),
+]
+SETORES_PADRAO = (
+    # grupo, nome, sigla, primeiro leito, último leito
+    ("Internos", "Operação", "OP", 1, 9),
+    ("Internos", "Clínica médica", "CM", 16, 33),
+    ("Internos", "Psiquiatria", "PSI", 46, 48),
+    ("Internos", "Isolamento", "ISO", 1, 2),
+    ("Externos", "Sala vermelha Adulto", "SVA", 1, 3),
+    ("Externos", "Sala de observação adulto", "SAU", 4, 9),
+    ("Externos", "Sala vermelha Pediatria", "SVP", 1, 2),
+    ("Externos", "Observação da Pediatria", "PED", 1, 3),
+)
+
 SUPLEMENTOS_INICIAIS = [
     ("Fresubin", "Fórmula completa"),
     ("Thopic Soya 1,5 kcal/ml", "Fórmula completa"),
@@ -72,7 +129,7 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
     aj_cm REAL, pp_cm REAL, pb_cm REAL,
     altura_cm REAL, altura_origem TEXT, altura_metodo TEXT,
     peso_kg REAL, peso_origem TEXT, peso_metodo TEXT,
-    imc REAL, imc_class TEXT, data_reavaliacao TEXT, via TEXT,
+    imc REAL, imc_class TEXT, data_reavaliacao TEXT, via TEXT, meta_kcal REAL, meta_proteina_g REAL,
     dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
     constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, condicoes TEXT, consistencia TEXT,
     obs_sim TEXT, obs_nao TEXT, fi_estado TEXT, fi_freq REAL, fi_dias_ausente INTEGER,
@@ -82,7 +139,9 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
 CREATE TABLE IF NOT EXISTS Mapa_Registro_Suplementos (
     id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL, id_suplemento INTEGER,
     nome TEXT NOT NULL, modulo TEXT, qtd_dia REAL, unidade TEXT,
-    ml_oferta REAL, agua_ml REAL, refeicoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0);
+    ml_oferta REAL, agua_ml REAL, refeicoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0,
+    kcal_100 REAL, ptn_100 REAL, lip_100 REAL, carb_100 REAL, sod_100 REAL,
+    ficha_observacao TEXT, ficha_snapshot_em TEXT);
 CREATE INDEX IF NOT EXISTS ix_mapa_reg_data ON Mapa_Registros(data);
 CREATE INDEX IF NOT EXISTS ix_mapa_reg_pac ON Mapa_Registros(id_paciente);
 CREATE INDEX IF NOT EXISTS ix_mapa_regsup_reg ON Mapa_Registro_Suplementos(id_registro);
@@ -91,7 +150,7 @@ CREATE INDEX IF NOT EXISTS ix_mapa_regsup_reg ON Mapa_Registro_Suplementos(id_re
 _CAMPOS_REG = [
     "id_paciente", "nome_paciente", "acompanhante", "sexo", "cor", "idade_anos", "idade_meses",
     "aj_cm", "pp_cm", "pb_cm", "altura_cm", "altura_origem", "altura_metodo",
-    "peso_kg", "peso_origem", "peso_metodo", "imc", "imc_class", "data_reavaliacao", "via",
+    "peso_kg", "peso_origem", "peso_metodo", "imc", "imc_class", "data_reavaliacao", "via", "meta_kcal", "meta_proteina_g",
     "dm", "has", "laxativa", "constipante", "drc", "condicoes", "consistencia", "obs_sim", "obs_nao",
     "fi_estado", "fi_freq", "fi_dias_ausente",
     "nrs2002_json", "nrs2002_classificacao", "avaliacao_json", "avaliacao_classificacao",
@@ -138,6 +197,11 @@ def inicializar(db_path):
     with closing(conectar(db_path)) as c:
         c.executescript(_SCHEMA)
         # Bancos criados antes das condutas de alta não têm a coluna `condicoes` (CREATE IF NOT EXISTS não a adiciona).
+        colunas_setor = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Setores)")}
+        for nome, tipo in (("sigla", "TEXT"), ("grupo", "TEXT DEFAULT 'Outros'"),
+                           ("ordem_apresentacao", "INTEGER DEFAULT 999")):
+            if nome not in colunas_setor:
+                c.execute(f"ALTER TABLE Mapa_Setores ADD COLUMN {nome} {tipo}")
         colunas = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
         if "condicoes" not in colunas:
             c.execute("ALTER TABLE Mapa_Registros ADD COLUMN condicoes TEXT")
@@ -147,20 +211,65 @@ def inicializar(db_path):
         ):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
+        for nome, tipo in (("meta_kcal", "REAL"), ("meta_proteina_g", "REAL")):
+            if nome not in colunas:
+                c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
         colunas_sup = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
         for nome, tipo in (("ml_oferta", "REAL"), ("agua_ml", "REAL"),
-                           ("refeicoes_json", "TEXT DEFAULT '[]'"), ("batido_fruta", "INTEGER DEFAULT 0")):
+                           ("refeicoes_json", "TEXT DEFAULT '[]'"), ("batido_fruta", "INTEGER DEFAULT 0"),
+                           ("kcal_100", "REAL"), ("ptn_100", "REAL"), ("lip_100", "REAL"),
+                           ("carb_100", "REAL"), ("sod_100", "REAL"), ("ficha_observacao", "TEXT"),
+                           ("ficha_snapshot_em", "TEXT")):
             if nome not in colunas_sup:
                 c.execute(f"ALTER TABLE Mapa_Registro_Suplementos ADD COLUMN {nome} {tipo}")
         # Pacientes pertence ao programa principal; garante existência em bancos novos.
         c.execute("""CREATE TABLE IF NOT EXISTS Pacientes (
             id_paciente INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL,
             data_nascimento TEXT, sexo TEXT)""")
+        # Cadastro inicial dos setores reais: migração aditiva, idempotente e sem apagar
+        # setores/leitos já utilizados. A ordem pode ser personalizada depois pelo usuário.
+        seed_setores = c.execute("SELECT valor FROM Mapa_Config WHERE chave='seed_mapa_setores_v1'").fetchone()
+        if not seed_setores:
+            for ordem, (grupo, nome, sigla, inicio, fim) in enumerate(SETORES_PADRAO):
+                setor = c.execute("SELECT id_setor FROM Mapa_Setores WHERE nome=?", (nome,)).fetchone()
+                if setor:
+                    id_setor = setor["id_setor"]
+                    c.execute("UPDATE Mapa_Setores SET sigla=?, grupo=?, ordem_apresentacao=? "
+                              "WHERE id_setor=? AND (sigla IS NULL OR sigla='' OR grupo IS NULL OR grupo='Outros')",
+                              (sigla, grupo, ordem, id_setor))
+                else:
+                    cur = c.execute("INSERT INTO Mapa_Setores (nome, sigla, grupo, ordem_apresentacao) "
+                                    "VALUES (?,?,?,?)", (nome, sigla, grupo, ordem))
+                    id_setor = cur.lastrowid
+                for numero in range(inicio, fim + 1):
+                    codigo = str(numero)
+                    existe = c.execute("SELECT 1 FROM Mapa_Leitos WHERE id_setor=? AND codigo=?",
+                                       (id_setor, codigo)).fetchone()
+                    if not existe:
+                        c.execute("INSERT INTO Mapa_Leitos (id_setor, codigo, ordem, ativo) "
+                                  "VALUES (?,?,?,1)", (id_setor, codigo, numero - inicio))
+            # O antigo setor genérico vazio não deve poluir a lista inicial; se tiver leitos,
+            # permanece ativo para preservar o histórico existente.
+            c.execute("UPDATE Mapa_Setores SET ativo=0 WHERE nome='Setor geral' AND NOT EXISTS "
+                      "(SELECT 1 FROM Mapa_Leitos L WHERE L.id_setor=Mapa_Setores.id_setor)")
+            outros = _rows(c.execute("SELECT id_setor FROM Mapa_Setores WHERE grupo='Outros' "
+                                     "ORDER BY ordem_apresentacao, nome"))
+            for pos, item in enumerate(outros, start=1000):
+                c.execute("UPDATE Mapa_Setores SET ordem_apresentacao=? WHERE id_setor=?",
+                          (pos, item["id_setor"]))
+            c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_mapa_setores_v1', '1')")
         if c.execute("SELECT COUNT(*) FROM Mapa_Setores").fetchone()[0] == 0:
-            c.execute("INSERT INTO Mapa_Setores (nome) VALUES (?)", ("Setor geral",))
+            c.execute("INSERT INTO Mapa_Setores (nome, grupo, ordem_apresentacao) VALUES (?, 'Outros', 1000)",
+                      ("Setor geral",))
         if c.execute("SELECT COUNT(*) FROM Mapa_Modulos").fetchone()[0] == 0:
             for i, nome in enumerate(MODULOS_PADRAO):
                 c.execute("INSERT INTO Mapa_Modulos (nome, ordem) VALUES (?, ?)", (nome, i))
+        else:
+            # Evoluções do catálogo adicionam módulos sem apagar nem reordenar os existentes.
+            for nome in MODULOS_PADRAO:
+                if not c.execute("SELECT 1 FROM Mapa_Modulos WHERE nome=?", (nome,)).fetchone():
+                    ordem = c.execute("SELECT COALESCE(MAX(ordem), -1) + 1 FROM Mapa_Modulos").fetchone()[0]
+                    c.execute("INSERT INTO Mapa_Modulos (nome, ordem) VALUES (?, ?)", (nome, ordem))
         ja = c.execute("SELECT valor FROM Mapa_Config WHERE chave='seed_suplementos'").fetchone()
         if not ja:
             if c.execute("SELECT COUNT(*) FROM Mapa_Suplementos").fetchone()[0] == 0:
@@ -169,6 +278,62 @@ def inicializar(db_path):
                         "INSERT INTO Mapa_Suplementos (nome, modulo, observacao) VALUES (?, ?, ?)",
                         (nome, modulo, NOTA_SEED))
             c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos', '1')")
+        # Seed aditivo e idempotente: não sobrescreve fichas já cadastradas pelo serviço.
+        versao = c.execute("SELECT valor FROM Mapa_Config WHERE chave='seed_suplementos_catalogo_v2'").fetchone()
+        if not versao:
+            fonte = ("Produto identificado no catálogo oficial Abbott Brasil. Ficha técnica da apresentação "
+                     "não cadastrada; preencher composição e porção a partir do rótulo/ficha vigente antes "
+                     "de calcular. https://www.abbottbrasil.com.br/produtos/para-profissionais/nutricao.html")
+            for nome, modulo in SUPLEMENTOS_COMPLEMENTARES:
+                existe = c.execute("SELECT 1 FROM Mapa_Suplementos WHERE LOWER(nome)=LOWER(?)", (nome,)).fetchone()
+                if not existe:
+                    c.execute("INSERT INTO Mapa_Suplementos (nome, modulo, observacao) VALUES (?,?,?)",
+                              (nome, modulo, fonte))
+            for nome, modulo, kcal, ptn, lip, carb, sod, url in SUPLEMENTOS_ENTERAIS_COMPLEMENTARES:
+                existe = c.execute("SELECT 1 FROM Mapa_Suplementos WHERE LOWER(nome)=LOWER(?)", (nome,)).fetchone()
+                if not existe:
+                    observacao = ("Fonte oficial do fabricante. Composição por 100 mL transcrita da ficha/rótulo vigente."
+                                  if kcal is not None else
+                                  "Produto identificado como fórmula para nutrição enteral pelo fabricante; ficha nutricional específica pendente.")
+                    observacao += " " + url
+                    c.execute("""INSERT INTO Mapa_Suplementos
+                                 (nome, modulo, kcal_100, ptn_100, lip_100, carb_100, sod_100, observacao)
+                                 VALUES (?,?,?,?,?,?,?,?)""",
+                              (nome, modulo, kcal, ptn, lip, carb, sod, observacao))
+            c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos_catalogo_v2', '1')")
+        # Corrige apenas a composição antiga conhecida da ficha Nutrison Energy 1.5.
+        # Se o profissional já cadastrou outros valores, eles são preservados.
+        versao_v3 = c.execute("SELECT valor FROM Mapa_Config WHERE chave='seed_suplementos_catalogo_v3'").fetchone()
+        if not versao_v3:
+            antiga = c.execute("""SELECT id_suplemento FROM Mapa_Suplementos
+                                  WHERE nome='Nutrison Energy 1.5' AND
+                                  kcal_100=151 AND ptn_100=6 AND lip_100=5.6 AND carb_100=19 AND sod_100=128""").fetchone()
+            if antiga:
+                c.execute("""UPDATE Mapa_Suplementos SET kcal_100=149, ptn_100=6, lip_100=5.8,
+                             carb_100=18, sod_100=134, observacao=?
+                             WHERE id_suplemento=?""",
+                          ("Fonte oficial do fabricante. Composição por 100 mL atualizada conforme ficha vigente. "
+                           "https://danonenutricia.com.br/produtos/details/nutrison-energy-15",
+                           antiga["id_suplemento"]))
+            c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos_catalogo_v3', '1')")
+        versao_v4 = c.execute("SELECT valor FROM Mapa_Config WHERE chave='seed_suplementos_catalogo_v4'").fetchone()
+        if not versao_v4:
+            # Glucerna tem indicação registrada para uso oral e enteral; preserva módulos editados.
+            for nome in ("Glucerna", "Glucerna SR"):
+                c.execute("UPDATE Mapa_Suplementos SET modulo='Fórmula enteral e oral' "
+                          "WHERE nome=? AND modulo='Fórmula para diabetes'", (nome,))
+            for nome, modulo, kcal, ptn, lip, carb, sod, url in SUPLEMENTOS_DUAS_VIAS_COMPLEMENTARES:
+                existe = c.execute("SELECT 1 FROM Mapa_Suplementos WHERE LOWER(nome)=LOWER(?)", (nome,)).fetchone()
+                if not existe:
+                    observacao = ("Fonte oficial do fabricante. Composição por 100 mL transcrita da ficha vigente."
+                                  if kcal is not None else
+                                  "Produto identificado pelo fabricante para uso oral e enteral; ficha nutricional específica pendente.")
+                    observacao += " " + url
+                    c.execute("""INSERT INTO Mapa_Suplementos
+                                 (nome, modulo, kcal_100, ptn_100, lip_100, carb_100, sod_100, observacao)
+                                 VALUES (?,?,?,?,?,?,?,?)""",
+                              (nome, modulo, kcal, ptn, lip, carb, sod, observacao))
+            c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_suplementos_catalogo_v4', '1')")
         c.commit()
 
 
@@ -190,8 +355,43 @@ def salvar_config(db_path, chave, valor):
 
 def listar_setores(db_path, apenas_ativos=True):
     with closing(conectar(db_path)) as c:
-        q = "SELECT * FROM Mapa_Setores" + (" WHERE ativo=1" if apenas_ativos else "") + " ORDER BY nome"
+        q = ("SELECT * FROM Mapa_Setores" + (" WHERE ativo=1" if apenas_ativos else "")
+             + " ORDER BY CASE grupo WHEN 'Internos' THEN 0 WHEN 'Externos' THEN 1 ELSE 2 END, "
+               "ordem_apresentacao, nome")
         return _rows(c.execute(q))
+
+
+def alterar_ordem_setor(db_path, id_setor, direcao):
+    """Move setor para cima (-1) ou para baixo (+1) dentro do mesmo grupo."""
+    if direcao not in (-1, 1):
+        raise ValueError("Direção inválida.")
+    with closing(conectar(db_path)) as c:
+        atual = c.execute("SELECT id_setor, grupo, ordem_apresentacao FROM Mapa_Setores WHERE id_setor=?",
+                          (id_setor,)).fetchone()
+        if not atual:
+            return False
+        grupo = atual["grupo"] or "Outros"
+        itens = _rows(c.execute(
+            "SELECT id_setor, ordem_apresentacao FROM Mapa_Setores WHERE ativo=1 AND COALESCE(grupo,'Outros')=? "
+            "ORDER BY ordem_apresentacao, nome", (grupo,)))
+        pos = next(i for i, item in enumerate(itens) if item["id_setor"] == id_setor)
+        destino = pos + direcao
+        if destino < 0 or destino >= len(itens):
+            return False
+        outro = itens[destino]
+        c.execute("UPDATE Mapa_Setores SET ordem_apresentacao=? WHERE id_setor=?",
+                  (outro["ordem_apresentacao"], id_setor))
+        c.execute("UPDATE Mapa_Setores SET ordem_apresentacao=? WHERE id_setor=?",
+                  (atual["ordem_apresentacao"], outro["id_setor"]))
+        c.commit()
+        return True
+
+
+def rotulo_setor(setor):
+    """Rótulo amigável com sigla, mantendo o nome canônico para persistência."""
+    nome = setor.get("nome", "")
+    sigla = setor.get("sigla")
+    return f"{nome} - {sigla}" if sigla else nome
 
 
 def criar_setor(db_path, nome):
@@ -199,8 +399,11 @@ def criar_setor(db_path, nome):
     if not nome:
         raise ValueError("Informe o nome do setor.")
     with closing(conectar(db_path)) as c:
+        ordem = c.execute("SELECT COALESCE(MAX(ordem_apresentacao), 999) + 1 "
+                          "FROM Mapa_Setores WHERE COALESCE(grupo,'Outros')='Outros'").fetchone()[0]
         try:
-            cur = c.execute("INSERT INTO Mapa_Setores (nome) VALUES (?)", (nome,))
+            cur = c.execute("INSERT INTO Mapa_Setores (nome, grupo, ordem_apresentacao) VALUES (?, 'Outros', ?)",
+                            (nome, ordem))
         except sqlite3.IntegrityError:
             raise ValueError("Já existe um setor com esse nome.")
         c.commit()
@@ -216,7 +419,8 @@ def listar_leitos(db_path, id_setor=None, apenas_ativos=True):
         par.append(id_setor)
     if apenas_ativos:
         sql += " AND L.ativo=1"
-    sql += " ORDER BY S.nome, L.ordem, L.codigo"
+    sql += (" ORDER BY CASE S.grupo WHEN 'Internos' THEN 0 WHEN 'Externos' THEN 1 ELSE 2 END, "
+            "S.ordem_apresentacao, S.nome, L.ordem, CAST(L.codigo AS INTEGER), L.codigo")
     with closing(conectar(db_path)) as c:
         return _rows(c.execute(sql, par))
 
@@ -425,6 +629,11 @@ def validar_registro(reg):
             erros.append(f"Origem inválida para {rot}.")
     if reg.get("via") not in (None, "") + tuple(VIAS):
         erros.append("Via de administração inválida.")
+    for campo, rotulo in (("meta_kcal", "Meta energética"), ("meta_proteina_g", "Meta proteica")):
+        bruto = reg.get(campo)
+        valor = nc.parse_num(bruto)
+        if bruto not in (None, "") and (valor is None or valor <= 0):
+            erros.append(f"{rotulo} deve ser maior que zero.")
     if reg.get("consistencia") not in (None, "") + tuple(CONSISTENCIAS):
         erros.append("Consistência inválida.")
     desconhecidas = [c for c in codigos_condicoes(reg.get("condicoes")) if c not in dict(CONDICOES)]
@@ -477,12 +686,23 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
             id_reg = cur.lastrowid
         c.execute("DELETE FROM Mapa_Registro_Suplementos WHERE id_registro=?", (id_reg,))
         for s in reg.get("suplementos") or []:
+            ficha = None
+            if s.get("id_suplemento"):
+                ficha = c.execute("SELECT kcal_100,ptn_100,lip_100,carb_100,sod_100,observacao "
+                                  "FROM Mapa_Suplementos WHERE id_suplemento=?", (s["id_suplemento"],)).fetchone()
+            campos_ficha = ("kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100")
+            valores_ficha = [s[campo] if campo in s else (ficha[campo] if ficha else None)
+                             for campo in campos_ficha]
+            observacao_ficha = s.get("ficha_observacao") if "ficha_observacao" in s else (ficha["observacao"] if ficha else None)
+            snapshot_em = s.get("ficha_snapshot_em") or (_agora() if any(v is not None for v in valores_ficha) else None)
             c.execute("""INSERT INTO Mapa_Registro_Suplementos
                          (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade, ml_oferta, agua_ml,
-                          refeicoes_json, batido_fruta) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                          refeicoes_json, batido_fruta, kcal_100, ptn_100, lip_100, carb_100, sod_100,
+                          ficha_observacao, ficha_snapshot_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                       (id_reg, s.get("id_suplemento"), s["nome"], s.get("modulo"), s.get("qtd_dia"),
                        s.get("unidade"), s.get("ml_oferta"), s.get("agua_ml"),
-                       json.dumps(s.get("refeicoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta")))))
+                       json.dumps(s.get("refeicoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta"))),
+                       *valores_ficha, observacao_ficha, snapshot_em))
         c.commit()
         return id_reg
 
@@ -505,7 +725,8 @@ def _anexar_suplementos(c, registros):
     return registros
 
 
-_SEL_REG = ("SELECT R.*, L.codigo AS leito_codigo, L.id_setor AS id_setor, S.nome AS setor "
+_SEL_REG = ("SELECT R.*, L.codigo AS leito_codigo, L.id_setor AS id_setor, S.nome AS setor, "
+            "S.sigla AS sigla_setor, S.grupo AS grupo_setor, S.ordem_apresentacao AS ordem_setor "
             "FROM Mapa_Registros R JOIN Mapa_Leitos L ON L.id_leito = R.id_leito "
             "JOIN Mapa_Setores S ON S.id_setor = L.id_setor ")
 
@@ -535,15 +756,18 @@ def mapa_do_dia(db_path, data_iso, id_setor=None):
         regs = _rows(c.execute(_SEL_REG + "WHERE R.data=?" + filtro, par))
         _anexar_suplementos(c, regs)
         por_leito = {r["id_leito"]: r for r in regs}
-        q = ("SELECT L.*, S.nome AS setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
+        q = ("SELECT L.*, S.nome AS setor, S.sigla AS sigla_setor, S.grupo AS grupo_setor, "
+         "S.ordem_apresentacao AS ordem_setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
              "WHERE (L.ativo=1 OR L.id_leito IN (%s))" % ",".join(str(i) for i in por_leito) if por_leito else
-             "SELECT L.*, S.nome AS setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
+             "SELECT L.*, S.nome AS setor, S.sigla AS sigla_setor, S.grupo AS grupo_setor, "
+             "S.ordem_apresentacao AS ordem_setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
              "WHERE L.ativo=1")
         par2 = []
         if id_setor:
             q += " AND L.id_setor=?"
             par2.append(id_setor)
-        q += " ORDER BY S.nome, L.ordem, L.codigo"
+        q += (" ORDER BY CASE S.grupo WHEN 'Internos' THEN 0 WHEN 'Externos' THEN 1 ELSE 2 END, "
+              "S.ordem_apresentacao, S.nome, L.ordem, CAST(L.codigo AS INTEGER), L.codigo")
         leitos = _rows(c.execute(q, par2))
     return [{"leito": l, "registro": por_leito.get(l["id_leito"])} for l in leitos]
 
@@ -585,10 +809,13 @@ def copiar_mapa(db_path, origem_iso, destino_iso, id_setor=None):
             for s in r["suplementos"]:
                 c.execute("""INSERT INTO Mapa_Registro_Suplementos
                              (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade, ml_oferta, agua_ml,
-                              refeicoes_json, batido_fruta) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                              refeicoes_json, batido_fruta, kcal_100, ptn_100, lip_100, carb_100, sod_100,
+                              ficha_observacao, ficha_snapshot_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                           (cur.lastrowid, s.get("id_suplemento"), s["nome"], s.get("modulo"), s["qtd_dia"],
                            s["unidade"], s.get("ml_oferta"), s.get("agua_ml"),
-                           json.dumps(s.get("refeicoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta")))))
+                           json.dumps(s.get("refeicoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta"))),
+                           s.get("kcal_100"), s.get("ptn_100"), s.get("lip_100"), s.get("carb_100"), s.get("sod_100"),
+                           s.get("ficha_observacao"), s.get("ficha_snapshot_em")))
             copiados += 1
         c.commit()
     return copiados

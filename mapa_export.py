@@ -37,7 +37,7 @@ def _colunas(setor_nome):
         return COLUNAS
     ajustes = {"paciente": -6, "via": -2, "supl": -6, "obs": -10}
     base = [(k, t, w + ajustes.get(k, 0), ex + ajustes.get(k, 0)) for k, t, w, ex in COLUNAS]
-    base.insert(1, ("setor", "Setor", 20, 16))
+    base.insert(1, ("setor", "Setor / grupo", 30, 24))
     return base
 
 
@@ -114,7 +114,13 @@ def linhas_paciente(reg, abreviar=True):
 
 def textos_linha(leito, reg, abreviar=True):
     """Textos de todas as colunas de uma linha. `reg` None = leito vago."""
-    t = {"leito": str(leito["codigo"]), "setor": leito.get("setor", "")}
+    nome_setor = leito.get("setor", "")
+    sigla = leito.get("sigla_setor")
+    grupo = leito.get("grupo_setor")
+    setor_rotulo = f"{nome_setor} ({sigla})" if sigla else nome_setor
+    if grupo and grupo != "Outros":
+        setor_rotulo = f"{grupo} · {setor_rotulo}"
+    t = {"leito": str(leito["codigo"]), "setor": setor_rotulo}
     if reg is None:
         t.update(paciente=None, acomp="", idade="", reav="", via="", carac="", consist="", supl=[], obs=[], fi="")
         return t

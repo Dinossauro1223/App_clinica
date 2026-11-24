@@ -32,12 +32,12 @@ CAMPOS_CRONICOS = ("dm", "has", "drc")
 GRUPOS = (
     {"id": "atendimentos", "titulo": "Atendimentos", "cor": VERDE,
      "descricao": "Quantos pacientes foram atendidos por dia e como é o perfil deles",
-     "graficos": ("atendimentos_dia", "perfil_dia", "resumo")},
+     "graficos": ("atendimentos_dia", "perfil_dia", "classificacao_terapia", "resumo")},
     {"id": "dieta", "titulo": "Dieta", "cor": LARANJA,
      "descricao": "Consistência da dieta e características como laxativa e constipante",
      "graficos": ("consistencia", "caracteristicas")},
     {"id": "suplementos", "titulo": "Suplementos", "cor": VERDE_ESC,
-     "descricao": "Quais suplementos e módulos foram mais usados",
+     "descricao": "Produtos registrados em suplementação oral e em dieta enteral, sem misturar a classificação dos pacientes",
      "graficos": ("suplementos", "modulos")},
     {"id": "cronicas", "titulo": "Doenças crônicas", "cor": AZUL,
      "descricao": "Diabetes, hipertensão e doença renal entre os pacientes atendidos",
@@ -49,8 +49,10 @@ GRUPO_OUTROS = {"id": "outros", "titulo": "Outros gráficos", "cor": CINZA, "des
 def agregar_mes(registros, ano, mes):
     """Resume os registros de um mês (lista de dicts de mapa_db.registros_do_mes)."""
     n = calendar.monthrange(ano, mes)[1]
-    dias = {d: {"total": 0, "pastosa": 0, "acomp": 0, "supl": 0} for d in range(1, n + 1)}
+    dias = {d: {"total": 0, "pastosa": 0, "acomp": 0, "oral_sem_suplemento": 0,
+                 "oral_com_suplemento": 0, "enteral": 0} for d in range(1, n + 1)}
     consist, via, acomp, supl_sn = Counter(), Counter(), Counter(), Counter()
+    classificacao_terapia = Counter()
     sup_nome, sup_mod, carac = Counter(), Counter(), Counter()
     cronicas, dieta_carac = Counter(), Counter()
     pacientes = set()
@@ -62,11 +64,23 @@ def agregar_mes(registros, ano, mes):
         if r.get("acompanhante"):
             dias[d]["acomp"] += 1
         sups = r.get("suplementos") or []
-        if sups:
-            dias[d]["supl"] += 1
+        via_registro = r.get("via") or "Não informada"
+        if via_registro == "Enteral":
+            classificacao_terapia["Dieta enteral"] += 1
+            dias[d]["enteral"] += 1
+        elif via_registro == "Oral" and sups:
+            classificacao_terapia["Via oral com suplementação"] += 1
+            dias[d]["oral_com_suplemento"] += 1
+        elif via_registro == "Oral":
+            classificacao_terapia["Via oral sem suplementação"] += 1
+            dias[d]["oral_sem_suplemento"] += 1
+        elif via_registro == "Zero":
+            classificacao_terapia["Via zero"] += 1
+        else:
+            classificacao_terapia["Via não informada"] += 1
         pacientes.add(r.get("id_paciente") or "n:" + (r.get("nome_paciente") or "").strip().lower())
         consist[r.get("consistencia") or "Não informada"] += 1
-        via[r.get("via") or "Não informada"] += 1
+        via[via_registro] += 1
         acomp["Sim" if r.get("acompanhante") else "Não"] += 1
         supl_sn["Sim" if sups else "Não"] += 1
         vistos_n, vistos_m = set(), set()
@@ -95,13 +109,16 @@ def agregar_mes(registros, ano, mes):
         "media_por_dia": (total / dias_com) if dias_com else 0.0,
         "pastosa": sum(v["pastosa"] for v in dias.values()),
         "acompanhante": acomp["Sim"],
-        "com_suplemento": supl_sn["Sim"],
-        "enteral": via["Enteral"],
+        "com_suplemento": classificacao_terapia["Via oral com suplementação"],
+        "oral_sem_suplemento": classificacao_terapia["Via oral sem suplementação"],
+        "oral_com_suplemento": classificacao_terapia["Via oral com suplementação"],
+        "enteral": classificacao_terapia["Dieta enteral"],
     }
-    for k in ("pastosa", "acompanhante", "com_suplemento", "enteral"):
+    for k in ("pastosa", "acompanhante", "com_suplemento", "oral_sem_suplemento", "oral_com_suplemento", "enteral"):
         kpis[k + "_pct"] = pct(kpis[k])
     return {"ano": ano, "mes": mes, "dias": dias, "consist": consist, "via": via, "acomp": acomp,
-            "supl_sn": supl_sn, "sup_nome": sup_nome, "sup_mod": sup_mod, "carac": carac,
+            "supl_sn": supl_sn, "classificacao_terapia": classificacao_terapia,
+            "sup_nome": sup_nome, "sup_mod": sup_mod, "carac": carac,
             "cronicas": cronicas, "dieta_carac": dieta_carac, "kpis": kpis}
 
 
@@ -140,11 +157,30 @@ def spec_perfil_dia(agg):
         return _vazio(agg, titulo)
     dias = sorted(agg["dias"])
     definicao = [("total", "Total atendidos", CINZA, True), ("pastosa", "Dieta pastosa", LARANJA, False),
-                 ("acomp", "Com acompanhante", AZUL, False), ("supl", "Com suplemento", VERDE_ESC, False)]
+                 ("acomp", "Com acompanhante", AZUL, False),
+                 ("oral_sem_suplemento", "Via oral sem suplemento", VERDE_CLARO, False),
+                 ("oral_com_suplemento", "Via oral com suplemento", VERDE_ESC, False),
+                 ("enteral", "Dieta enteral", AZUL, False)]
     series = [{"nome": nome, "cor": cor, "tracejado": trac, "valores": [agg["dias"][d][chave] for d in dias]}
               for chave, nome, cor, trac in definicao]
     return {"tipo": "linhas", "titulo": titulo, "periodo": _periodo(agg), "x": dias, "series": series,
             "rotulo_x": "Dia do mês", "rotulo_y": "Pacientes"}
+
+
+def spec_classificacao_terapia(agg):
+    """Separa pacientes-dia em via oral sem suplemento, via oral com suplemento e dieta enteral."""
+    titulo = "Classificação dos pacientes por terapia nutricional"
+    ordem = ["Via oral sem suplementação", "Via oral com suplementação", "Dieta enteral",
+             "Via zero", "Via não informada"]
+    cores = {"Via oral sem suplementação": VERDE_CLARO, "Via oral com suplementação": VERDE_ESC,
+             "Dieta enteral": AZUL, "Via zero": CINZA, "Via não informada": LARANJA}
+    itens = [{"nome": nome, "valor": agg["classificacao_terapia"].get(nome, 0),
+              "cor": cores[nome]} for nome in ordem if agg["classificacao_terapia"].get(nome, 0)]
+    if not itens:
+        return _vazio(agg, titulo)
+    return {"tipo": "barras_h", "titulo": titulo, "periodo": _periodo(agg), "itens": itens,
+            "total": agg["kpis"]["atendimentos"] or 1, "cor": VERDE, 
+            "rotulo_x": "Pacientes-dia por classificação"}
 
 
 def _spec_barras_h(agg, titulo, contagem, ordem=None, cor=VERDE, maximo=12, rotulo_x="Atendimentos (paciente-dia)"):
@@ -167,7 +203,7 @@ def spec_suplementos(agg):
 
 
 def spec_modulos(agg):
-    return _spec_barras_h(agg, "Uso por módulo de suplemento", agg["sup_mod"], cor=VERDE)
+    return _spec_barras_h(agg, "Uso por módulo (oral e enteral)", agg["sup_mod"], cor=VERDE)
 
 
 def _ordem_das_caracteristicas(cronicas):
@@ -187,12 +223,11 @@ def spec_cronicas(agg):
 
 
 def spec_resumo(agg):
-    titulo = "Via da dieta, acompanhante e suplemento"
+    titulo = "Via da dieta e acompanhante"
     if not agg["kpis"]["atendimentos"]:
         return _vazio(agg, titulo)
-    blocos = [("Via da dieta", agg["via"], {"Oral": VERDE, "Enteral": AZUL, "Não informada": CINZA}),
-              ("Acompanhante", agg["acomp"], {"Sim": VERDE, "Não": CINZA}),
-              ("Uso de suplemento", agg["supl_sn"], {"Sim": VERDE_ESC, "Não": CINZA})]
+    blocos = [("Via da dieta", agg["via"], {"Oral": VERDE, "Enteral": AZUL, "Zero": CINZA, "Não informada": LARANJA}),
+              ("Acompanhante", agg["acomp"], {"Sim": VERDE, "Não": CINZA})]
     return {"tipo": "roscas", "titulo": titulo, "periodo": _periodo(agg),
             "blocos": [{"nome": nome, "itens": [{"rotulo": k, "valor": cont[k], "cor": cores.get(k, CINZA)}
                                                 for k in list(cores) + [k for k in cont if k not in cores]
@@ -204,7 +239,8 @@ def spec_resumo(agg):
 GRAFICOS = {
     "atendimentos_dia": ("Pacientes atendidos por dia", spec_atendimentos_dia),
     "perfil_dia": ("Perfil por dia", spec_perfil_dia),
-    "resumo": ("Via, acompanhante e suplemento", spec_resumo),
+    "resumo": ("Via e acompanhante", spec_resumo),
+    "classificacao_terapia": ("Classificação da terapia nutricional", spec_classificacao_terapia),
     "consistencia": ("Consistência da dieta", spec_consistencia),
     "caracteristicas": ("Características da dieta", spec_caracteristicas),
     "suplementos": ("Suplementos mais utilizados", spec_suplementos),
@@ -320,7 +356,8 @@ def _png_barras_h(spec):
     nomes = [i["nome"] for i in itens][::-1]
     vals = [i["valor"] for i in itens][::-1]
     fig, ax = _plt().subplots(figsize=(9, max(2.2, 0.42 * len(itens) + 1.3)))
-    barras = ax.barh(nomes, vals, color=spec["cor"], height=0.62)
+    cores = [i.get("cor", spec["cor"]) for i in itens][::-1]
+    barras = ax.barh(nomes, vals, color=cores, height=0.62)
     for b, v in zip(barras, vals):
         ax.text(v + 0.01 * max(vals), b.get_y() + b.get_height() / 2, f"{v}  ({100.0 * v / total:.0f}%)",
                 va="center", fontsize=8)

@@ -222,7 +222,7 @@ class Graficos:
         """Estilo "imagens simples": os PNG do matplotlib, como antes."""
         p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "imagem")
         assert len(p.faixas) == 4, f"{len(p.faixas)} faixas, esperadas 4 (um por grupo)"
-        assert len(p.imagens) == 8, f"{len(p.imagens)} imagens, esperadas 8"
+        assert len(p.imagens) == 9, f"{len(p.imagens)} imagens, esperadas 9"
         for faixa in p.faixas:
             assert faixa.carrossel is not None, "a faixa não recebeu o tamanho (evento Configure)"
             assert faixa.canvas.winfo_width() > 300, f"largura da faixa {faixa.canvas.winfo_width()}"
@@ -357,7 +357,7 @@ class Graficos:
     def de_cima_para_baixo_animado(self):
         p = self.montar(self.gl.DISPOSICAO_VERTICAL, "animado")
         assert p.faixas == [], "no modo de cima para baixo não há faixas com setas"
-        assert len(p.faixas_empilhadas) == 8, f"{len(p.faixas_empilhadas)} gráficos empilhados, esperados 8"
+        assert len(p.faixas_empilhadas) == 9, f"{len(p.faixas_empilhadas)} gráficos empilhados, esperados 9"
         for faixa in p.faixas_empilhadas:
             assert faixa.carrossel is not None, "a faixa não recebeu o tamanho"
             (carta,) = faixa.cards
@@ -418,8 +418,9 @@ class Graficos:
         self.na_posicao(faixa, 1, "botão próximo")
         texto = ctrl.pontos.cget("text")
         assert texto == self.gl.pontos(faixa.n_posicoes, 1), f"pontos: {texto!r}"
-        ctrl.b_prox.invoke()
-        bombear(self.raiz, 0.7)
+        while faixa.ativo < faixa.n_posicoes - 1:
+            ctrl.b_prox.invoke()
+            bombear(self.raiz, 0.7)
         self.na_posicao(faixa, faixa.n_posicoes - 1, "botão próximo, fim")
         assert ctrl.b_prox.cget("state") == "disabled", "seta da direita deveria estar desligada no fim"
 
@@ -430,6 +431,9 @@ class Graficos:
         bombear(self.raiz, 0.2)
         if self.raiz.focus_get() is not c:
             raise Pulou("a janela de teste não recebeu o foco do teclado")
+        while faixa.ativo < faixa.n_posicoes - 1:
+            faixa.proximo()
+            bombear(self.raiz, 0.3)
         c.event_generate("<Left>")
         bombear(self.raiz, 0.6)
         self.na_posicao(faixa, faixa.n_posicoes - 2, "seta esquerda")
@@ -440,6 +444,9 @@ class Graficos:
     def shift_com_a_roda(self):
         faixa, _ = self.faixa_com_rolagem()
         c = faixa.canvas
+        while faixa.ativo < faixa.n_posicoes - 1:
+            faixa.proximo()
+            bombear(self.raiz, 0.3)
         time.sleep(0.3)
         c.event_generate("<Shift-MouseWheel>", delta=120)         # para cima: volta uma posição
         bombear(self.raiz, 0.6)
@@ -462,7 +469,7 @@ class Graficos:
     def de_cima_para_baixo_imagem(self):
         p = self.montar(self.gl.DISPOSICAO_VERTICAL, "imagem")
         assert p.faixas == [], "no modo de cima para baixo não há faixas"
-        assert len(p.imagens) == 8, f"{len(p.imagens)} imagens"
+        assert len(p.imagens) == 9, f"{len(p.imagens)} imagens"
         assert all(type(i).__name__ == "CTkImage" for i in p.imagens), "as imagens deveriam ser CTkImage"
 
     def escala_do_windows(self):

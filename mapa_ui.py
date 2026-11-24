@@ -17,6 +17,7 @@ import customtkinter as ctk
 
 import nutri_calculos as nc
 import nrs2002 as nrs
+import suplementos_calculos as sc
 import avaliacao_nutri as avaliacao
 import mapa_db as mdb
 import condutas_alta as ca
@@ -117,7 +118,9 @@ class MapaUI:
         topo.pack(fill="x", padx=20, pady=(15, 5))
         _titulo(topo, "Mapa Nutricional").pack(side="left")
         _btn(topo, "Configurações", self._abrir_config, 120, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=(6, 0))
-        _btn(topo, "Leitos", self._abrir_leitos, 90, CINZA_BTN, CINZA_HOVER).pack(side="right")
+        _btn(topo, "Ordem do mapa geral", self._abrir_ordem_setores, 150, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=6)
+        _btn(topo, "Gerenciar setores", self._abrir_leitos, 125, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=6)
+        _btn(topo, "+ Adicionar leitos", self._abrir_adicionar_leitos, 145, VERDE_ESC, VERDE_ESC).pack(side="right", padx=6)
 
         barra = ctk.CTkFrame(area, fg_color="transparent")
         barra.pack(fill="x", padx=20, pady=4)
@@ -127,16 +130,17 @@ class MapaUI:
         self.e_data.bind("<Return>", lambda e: self._aplicar_data())
         _btn(barra, "▶", lambda: self._mudar_dia(1), 40).pack(side="left")
         _btn(barra, "Hoje", self._ir_hoje, 70, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(8, 16))
-        ctk.CTkLabel(barra, text="Setor:").pack(side="left")
-        self.cb_setor = ctk.CTkComboBox(barra, values=["Visão geral (todos os setores)"] + [s["nome"] for s in self.setores],
-                                        width=190, state="readonly", command=self._trocar_setor)
+        ctk.CTkLabel(barra, text="Visualizar:").pack(side="left")
+        self.cb_setor = ctk.CTkComboBox(
+            barra, values=["Visão geral (Internos e Externos)"] + [mdb.rotulo_setor(s) for s in self.setores],
+            width=245, state="readonly", command=self._trocar_setor)
         self.cb_setor.pack(side="left", padx=6)
-        self.cb_setor.set(next((s["nome"] for s in self.setores if s["id_setor"] == self.id_setor),
-                               "Visão geral (todos os setores)"))
+        self.cb_setor.set(next((mdb.rotulo_setor(s) for s in self.setores if s["id_setor"] == self.id_setor),
+                               "Visão geral (Internos e Externos)"))
 
         acoes = ctk.CTkFrame(area, fg_color="transparent")
         acoes.pack(fill="x", padx=20, pady=4)
-        _btn(acoes, "Registrar / Editar", self._editar, 150).pack(side="left", padx=(0, 6))
+        _btn(acoes, "Preencher leito", self._editar, 140).pack(side="left", padx=(0, 6))
         _btn(acoes, "Histórico", self._historico, 100, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(0, 6))
         _btn(acoes, "Condutas de alta", self._condutas_alta, 140, LARANJA, tema.LARANJA).pack(side="left", padx=(0, 6))
         _btn(acoes, "Copiar último mapa", self._copiar_ultimo, 150, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=(0, 6))
@@ -150,39 +154,36 @@ class MapaUI:
                                          anchor="w", justify="left")
         self.lbl_condutas.pack(fill="x", padx=22, pady=(0, 0), anchor="w")
 
+        self.lbl_inicio = ctk.CTkLabel(
+            area, text="Selecione um leito vazio e clique em 'Preencher leito' para iniciar.",
+            text_color=tema.SUAVE, anchor="w", justify="left")
+        self.lbl_inicio.pack(fill="x", padx=22, pady=(2, 0), anchor="w")
         quadro = ctk.CTkFrame(area, fg_color=tema.BRANCO)
         quadro.pack(fill="both", expand=True, padx=20, pady=6)
-        colunas = [("leito", "Leito", 60, "center"), ("acomp", "Acomp.", 60, "center"), ("paciente", "Paciente", 220, "w"),
-                   ("idade", "Idade", 50, "center"), ("imc", "IMC (classificação)", 170, "w"),
-                   ("via", "Via", 70, "center"), ("consist", "Consistência", 85, "center"),
-                   ("supl", "Suplementos", 190, "w"), ("fi", "Função intestinal", 110, "center"),
+        colunas = [("leito", "Leito", 60, "center"), ("grupo", "Grupo", 85, "center"),
+                   ("setor", "Setor", 180, "w"), ("acomp", "Acomp.", 60, "center"),
+                   ("paciente", "Paciente", 220, "w"), ("idade", "Idade", 50, "center"),
+                   ("imc", "IMC (classificação)", 170, "w"), ("via", "Via", 70, "center"),
+                   ("consist", "Consistência", 85, "center"),
+                   ("supl", "Terapia nutricional", 210, "w"), ("fi", "Função intestinal", 110, "center"),
                    ("condutas", "Condutas de alta", 120, "center")]
         self.tree = ttk.Treeview(quadro, columns=[c[0] for c in colunas], show="headings", style=ESTILO_TREE,
                                  selectmode="browse")
         for chave, titulo, larg, anc in colunas:
             self.tree.heading(chave, text=titulo)
-            self.tree.column(chave, width=larg, anchor=anc, stretch=chave in ("paciente", "supl"))
+            self.tree.column(chave, width=larg, anchor=anc, stretch=chave in ("paciente", "supl", "setor"))
         self.tree.tag_configure("vago", foreground=tema.cor_atual(tema.SUAVE))
         self.tree.tag_configure("condpend", foreground=tema.cor_atual(tema.LARANJA))
         rolagem = ttk.Scrollbar(quadro, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=rolagem.set)
-        self.tree.pack(side="left", fill="both", expand=True, padx=(6, 0), pady=6)
+        rolagem_x = ttk.Scrollbar(quadro, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=rolagem.set, xscrollcommand=rolagem_x.set)
+        self.tree.pack(side="top", fill="both", expand=True, padx=(6, 0), pady=(6, 0))
         rolagem.pack(side="right", fill="y", pady=6)
-        # A grade usa navegação por células no estilo de planilhas.
-        self._celula_selecionada = None
-        self._celula_editor = None
-        self._celula_clipboard = ""
-        self._colunas_celula = ("leito", "acomp", "paciente", "idade", "imc", "via",
-                                "consist", "supl", "fi", "condutas")
-        self.tree.bind("<Button-1>", self._selecionar_celula, add="+")
-        self.tree.bind("<Double-1>", self._editar_celula_mouse)
-        self.tree.bind("<KeyPress>", self._tecla_celula, add="+")
-        self.tree.bind("<Return>", self._enter_celula)
-        self.tree.bind("<Tab>", self._tab_celula)
-        self.tree.bind("<Control-c>", self._copiar_celula)
-        self.tree.bind("<Control-C>", self._copiar_celula)
-        self.tree.bind("<Control-v>", self._colar_celula)
-        self.tree.bind("<Control-V>", self._colar_celula)
+        rolagem_x.pack(side="bottom", fill="x", padx=6, pady=(0, 6))
+        self.tree.bind("<Double-1>", lambda e: self._editar())
+        # Ações frequentes também ficam disponíveis pelo teclado, sem depender dos botões.
+        self.tree.bind("<Return>", self._atalho_editar)
+        self.tree.bind("<F2>", self._atalho_editar)
         self.tree.bind("<Control-h>", self._atalho_historico)
         self.tree.bind("<Control-H>", self._atalho_historico)
 
@@ -191,7 +192,7 @@ class MapaUI:
         self._recarregar()
 
     def _trocar_setor(self, nome):
-        self.id_setor = next((s["id_setor"] for s in self.setores if s["nome"] == nome), None)
+        self.id_setor = next((s["id_setor"] for s in self.setores if mdb.rotulo_setor(s) == nome), None)
         self._recarregar()
 
     def _mudar_dia(self, delta):
@@ -221,34 +222,60 @@ class MapaUI:
         self.linhas = mdb.mapa_do_dia(self.db, self.data.isoformat(), self.id_setor)
         resumo = self._resumo_condutas()
         self.tree.delete(*self.tree.get_children())
-        ocupados = past = acomp = sup = com_pendencia = 0
+        ocupados = past = acomp = sup_oral = oral_sem = enteral = com_pendencia = 0
         for it in self.linhas:
             l, r = it["leito"], it["registro"]
             if r is None:
-                vals = (l["codigo"], "", "— vago —", "", "", "", "", "", "", "", l.get("setor", ""))
+                vals = (l["codigo"], l.get("grupo_setor") or "Outros",
+                        f"{l.get('setor', '')} - {l.get('sigla_setor')}" if l.get("sigla_setor") else l.get("setor", ""),
+                        "", "— vago —", "", "", "", "", "", "", "")
                 tag = ("vago",)
             else:
                 ocupados += 1
                 past += r.get("consistencia") == "Pastosa"
                 acomp += bool(r.get("acompanhante"))
-                sup += bool(r.get("suplementos"))
+                if r.get("via") == "Enteral":
+                    enteral += 1
+                elif r.get("via") == "Oral":
+                    if r.get("suplementos"):
+                        sup_oral += 1
+                    else:
+                        oral_sem += 1
                 imc = f"{_fmt(r.get('imc'))} ({r['imc_class']})" if r.get("imc") and r.get("imc_class") else _fmt(r.get("imc"))
                 cond = resumo.get(r.get("id_paciente"), {})
-                vals = (l["codigo"], "Sim" if r.get("acompanhante") else "Não", r["nome_paciente"],
+                itens_terapia = ", ".join(s["nome"] + (" (batido com fruta)" if s.get("batido_fruta") else "")
+                                           for s in r["suplementos"])
+                if r.get("via") == "Enteral":
+                    itens_terapia = "Dieta enteral" + (": " + itens_terapia if itens_terapia else " (fórmula não informada)")
+                elif r.get("via") == "Zero":
+                    itens_terapia = "Via zero"
+                elif itens_terapia:
+                    itens_terapia = "Suplementação oral: " + itens_terapia
+                vals = (l["codigo"], r.get("grupo_setor") or "Outros",
+                        f"{r.get('setor', '')} - {r.get('sigla_setor')}" if r.get("sigla_setor") else r.get("setor", ""),
+                        "Sim" if r.get("acompanhante") else "Não", r["nome_paciente"],
                         "" if r.get("idade_anos") is None else r["idade_anos"], imc, r.get("via") or "",
-                        r.get("consistencia") or "", ", ".join(s["nome"] + (" (batido com fruta)" if s.get("batido_fruta") else "") for s in r["suplementos"]),
-                        self._fi_txt(r), cond.get("texto", ""))
+                        r.get("consistencia") or "", itens_terapia, self._fi_txt(r), cond.get("texto", ""))
                 tag = ("condpend",) if cond.get("estado") == "pendente" else ()
                 com_pendencia += cond.get("estado") == "pendente"
             self.tree.insert("", "end", iid=str(l["id_leito"]), values=vals, tags=tag)
         self._mostrar_aviso_condutas(com_pendencia)
         total = len(self.linhas)
+        if ocupados == 0 and total:
+            self.lbl_inicio.configure(text="Primeiro preenchimento: selecione um leito vazio e clique em 'Preencher leito'. "
+                                           "Você também pode dar duplo clique na linha.")
+        elif total:
+            self.lbl_inicio.configure(text="Para atualizar um paciente, selecione o leito e clique em 'Preencher leito' "
+                                           "ou dê duplo clique na linha.")
+        else:
+            self.lbl_inicio.configure(text="Adicione os leitos do setor para começar.")
         if not total:
-            self.lbl_resumo.configure(text="Nenhum leito cadastrado neste setor. Use o botão \"Leitos\" para cadastrar.")
+            self.lbl_resumo.configure(text="Nenhum leito cadastrado neste setor. Use '+ Adicionar leitos' para começar.")
         else:
             self.lbl_resumo.configure(
                 text=f"{ocupados} de {total} leitos com registro  ·  {past} em dieta pastosa  ·  "
-                     f"{acomp} com acompanhante  ·  {sup} com suplemento")
+                     f"{acomp} com acompanhante  ·  {ocupados - sup_oral - enteral} em via oral sem suplemento  ·  "
+                     f"{sup_oral} com suplementação oral  ·  {enteral} em dieta enteral")
 
     # ------------------------------------------------------------------ condutas de alta
     def _catalogo_condutas(self):
@@ -322,247 +349,6 @@ class MapaUI:
             return None
         return next((it for it in self.linhas if str(it["leito"]["id_leito"]) == sel[0]), None)
 
-    def _selecionar_celula(self, evento):
-        """Um clique seleciona uma célula, sem abrir uma nova tela ou alterar dados."""
-        try:
-            iid = self.tree.identify_row(evento.y)
-            coluna = self.tree.identify_column(evento.x)
-            if not iid or not coluna:
-                return
-            indice = int(coluna.lstrip("#")) - 1
-            if indice < 0 or indice >= len(self._colunas_celula):
-                return
-            self._celula_selecionada = (iid, indice)
-            self.tree.selection_set(iid)
-            self.tree.focus(iid)
-            if indice == 0:
-                # O clique no identificador do leito abre o editor completo no painel lateral.
-                self._editar()
-                return "break"
-        except (AttributeError, ValueError, tk.TclError):
-            return
-
-    def _mover_celula(self, linhas=0, colunas=0):
-        itens = list(self.tree.get_children())
-        if not itens:
-            return "break"
-        if self._celula_selecionada is None:
-            atual = (itens[0], 0)
-        else:
-            atual = self._celula_selecionada
-        try:
-            li = itens.index(atual[0])
-        except ValueError:
-            li = 0
-        ci = atual[1]
-        alvo = li + linhas
-        coluna = ci + colunas
-        while coluna >= len(self._colunas_celula):
-            coluna -= len(self._colunas_celula)
-            alvo += 1
-        while coluna < 0:
-            coluna += len(self._colunas_celula)
-            alvo -= 1
-        alvo = max(0, min(len(itens) - 1, alvo))
-        self._celula_selecionada = (itens[alvo], coluna)
-        self.tree.selection_set(itens[alvo])
-        self.tree.focus(itens[alvo])
-        self.tree.focus_set()
-        try:
-            self.tree.see(itens[alvo])
-        except (AttributeError, tk.TclError):
-            pass
-        return "break"
-
-    def _valor_celula(self, iid, indice):
-        valores = self.tree.item(iid, "values")
-        return str(valores[indice]) if indice < len(valores) else ""
-
-    def _editar_celula_mouse(self, evento):
-        self._selecionar_celula(evento)
-        if self._celula_selecionada is not None and self._celula_selecionada[1] != 0:
-            if not self._iniciar_edicao_celula():
-                self._editar()
-        return "break"
-
-    def _iniciar_edicao_celula(self, texto_inicial=None):
-        if self._celula_selecionada is None or self._celula_editor is not None:
-            return False
-        iid, indice = self._celula_selecionada
-        campos = {1: "acompanhante", 2: "nome_paciente", 3: "idade_anos", 5: "via", 6: "consistencia"}
-        if indice not in campos:
-            return False  # IMC, suplementos, função intestinal e condutas são calculados/estruturados.
-        item = next((it for it in self.linhas if str(it["leito"]["id_leito"]) == iid), None)
-        if not item or not item.get("registro"):
-            return False
-        try:
-            caixa = self.tree.bbox(iid, f"#{indice + 1}")
-            if not caixa:
-                return False
-            x, y, largura, altura = caixa
-            valor = self._valor_celula(iid, indice) if texto_inicial is None else texto_inicial
-            editor = ctk.CTkEntry(self.tree, height=max(24, altura - 2), font=ctk.CTkFont(size=12))
-            editor.insert(0, valor)
-            editor.place(x=x, y=y, width=largura, height=altura)
-            editor.bind("<Return>", lambda _e: self._finalizar_edicao_celula((1, 0)))
-            editor.bind("<Tab>", lambda _e: self._finalizar_edicao_celula((0, 1)))
-            editor.bind("<Shift-Tab>", lambda _e: self._finalizar_edicao_celula((0, -1)))
-            editor.bind("<Escape>", self._cancelar_edicao_celula)
-            editor.bind("<FocusOut>", lambda _e: self._finalizar_edicao_celula())
-            self._celula_editor = editor
-            editor.focus_set()
-            return True
-        except (AttributeError, tk.TclError):
-            return False
-
-    def _cancelar_edicao_celula(self, _evento=None):
-        editor, self._celula_editor = self._celula_editor, None
-        if editor is not None:
-            try:
-                editor.destroy()
-            except tk.TclError:
-                pass
-        self.tree.focus_set()
-        return "break"
-
-    def _finalizar_edicao_celula(self, mover=None):
-        editor, self._celula_editor = self._celula_editor, None
-        if editor is None:
-            return "break"
-        try:
-            valor = editor.get()
-        finally:
-            try:
-                editor.destroy()
-            except tk.TclError:
-                pass
-        if self._celula_selecionada is not None:
-            iid, indice = self._celula_selecionada
-            salvo = self._salvar_valor_celula(iid, indice, valor)
-            if salvo and mover:
-                return self._mover_celula(*mover)
-        self.tree.focus_set()
-        return "break"
-
-    def _salvar_valor_celula(self, iid, indice, valor):
-        """Atualiza um único campo usando validação e persistência oficiais do mapa."""
-        campos = {1: "acompanhante", 2: "nome_paciente", 3: "idade_anos", 5: "via", 6: "consistencia"}
-        campo = campos.get(indice)
-        if campo is None:
-            return False
-        item = next((it for it in self.linhas if str(it["leito"]["id_leito"]) == str(iid)), None)
-        if not item or not item.get("registro"):
-            return False
-        reg = dict(item["registro"])
-        reg["data"] = self.data.isoformat()
-        reg["id_leito"] = item["leito"]["id_leito"]
-        texto = str(valor).strip()
-        try:
-            if campo == "acompanhante":
-                opcoes = {"sim": 1, "não": 0, "nao": 0, "s": 1, "n": 0}
-                if texto.casefold() not in opcoes:
-                    raise ValueError("Acompanhante deve ser Sim ou Não.")
-                reg[campo] = opcoes[texto.casefold()]
-            elif campo == "nome_paciente":
-                if not texto:
-                    raise ValueError("O nome do paciente não pode ficar vazio.")
-                if texto.casefold() != str(reg.get(campo) or "").strip().casefold():
-                    # Mesma regra do formulário: trocar o nome desvincula o paciente anterior.
-                    reg["id_paciente"] = None
-                reg[campo] = texto
-                if not reg.get("id_paciente"):
-                    iguais = [p for p in mdb.listar_pacientes(self.db, texto)
-                              if p["nome"].strip().casefold() == texto.casefold()]
-                    if iguais:
-                        paciente = iguais[0]
-                        extra = f" (há {len(iguais)} cadastros com esse nome)" if len(iguais) > 1 else ""
-                        resposta = messagebox.askyesnocancel(
-                            "Paciente já cadastrado",
-                            f"Já existe '{paciente['nome']}' no cadastro (nascimento: "
-                            f"{paciente.get('data_nascimento') or 'não informado'}){extra}.\\n\\n"
-                            "Sim: vincular este registro a ele\\n"
-                            "Não: criar um novo cadastro\\n"
-                            "Cancelar: voltar")
-                        if resposta is None:
-                            return False
-                        if resposta:
-                            reg["id_paciente"] = paciente["id_paciente"]
-            elif campo == "idade_anos":
-                numero = nc.parse_num(texto) if texto else None
-                if numero is not None and not float(numero).is_integer():
-                    raise ValueError("A idade deve ser informada em anos completos.")
-                reg[campo] = int(numero) if numero is not None else None
-            elif campo in ("via", "consistencia"):
-                opcoes = mdb.VIAS if campo == "via" else mdb.CONSISTENCIAS
-                correspondencia = next((op for op in opcoes if op.casefold() == texto.casefold()), None)
-                if texto and correspondencia is None:
-                    raise ValueError("Valor inválido. Use uma das opções disponíveis no formulário do paciente.")
-                reg[campo] = correspondencia or None
-            mdb.salvar_registro(self.db, reg, self.criterio_idoso, self.lms)
-        except ValueError as erro:
-            messagebox.showwarning("Edição da célula", str(erro))
-            return False
-        except sqlite3.Error as erro:
-            messagebox.showerror("Edição da célula", f"Não foi possível salvar a alteração: {erro}")
-            return False
-        self._recarregar()
-        self._celula_selecionada = (str(iid), indice)
-        try:
-            self.tree.selection_set(str(iid))
-            self.tree.focus(str(iid))
-        except tk.TclError:
-            pass
-        return True
-
-    def _copiar_celula(self, _evento=None):
-        if self._celula_selecionada is None:
-            return "break"
-        iid, indice = self._celula_selecionada
-        texto = self._valor_celula(iid, indice)
-        self._celula_clipboard = texto
-        try:
-            self.tree.clipboard_clear()
-            self.tree.clipboard_append(texto)
-        except tk.TclError:
-            pass
-        return "break"
-
-    def _colar_celula(self, _evento=None):
-        if self._celula_selecionada is None:
-            return "break"
-        texto = self._celula_clipboard
-        try:
-            texto = self.tree.clipboard_get()
-        except tk.TclError:
-            pass
-        iid, indice = self._celula_selecionada
-        self._salvar_valor_celula(iid, indice, texto)
-        return "break"
-
-    def _enter_celula(self, _evento=None):
-        if self._celula_editor is not None:
-            return self._finalizar_edicao_celula((1, 0))
-        return self._mover_celula(1, 0)
-
-    def _tab_celula(self, _evento=None):
-        if self._celula_editor is not None:
-            return self._finalizar_edicao_celula((0, 1))
-        return self._mover_celula(0, 1)
-
-    def _tecla_celula(self, evento):
-        if self._celula_editor is not None:
-            return None
-        movimentos = {"Up": (-1, 0), "Down": (1, 0), "Left": (0, -1), "Right": (0, 1)}
-        if evento.keysym in movimentos:
-            return self._mover_celula(*movimentos[evento.keysym])
-        if evento.keysym == "F2":
-            self._iniciar_edicao_celula()
-            return "break"
-        if evento.char and evento.char.isprintable() and not (evento.state & 0x4):
-            self._iniciar_edicao_celula(evento.char)
-            return "break"
-        return None
-
     def _editar(self):
         it = self._selecionado()
         if it:
@@ -632,7 +418,7 @@ class MapaUI:
 
     # ------------------------------------------------------------------- exportações
     def _nome_setor(self):
-        return next((s["nome"] for s in self.setores if s["id_setor"] == self.id_setor), "Todos_os_setores")
+        return next((mdb.rotulo_setor(s) for s in self.setores if s["id_setor"] == self.id_setor), "Todos_os_setores")
 
     def _exportar(self, extensao, rotulo, funcao):
         if not self.linhas:
@@ -672,6 +458,12 @@ class MapaUI:
     def _abrir_leitos(self):
         DialogLeitos(self)
 
+    def _abrir_adicionar_leitos(self):
+        DialogAdicionarLeitos(self)
+
+    def _abrir_ordem_setores(self):
+        DialogOrdemSetores(self)
+
     def _abrir_config(self):
         DialogConfig(self)
 
@@ -702,10 +494,10 @@ class MapaUI:
         self.cb_ano.pack(side="left", padx=6)
         self.cb_ano.set(str(ano))
         ctk.CTkLabel(barra, text="Setor:").pack(side="left", padx=(8, 0))
-        self.cb_setor_g = ctk.CTkComboBox(barra, values=["Visão geral (todos os setores)"] + [s["nome"] for s in self.setores],
+        self.cb_setor_g = ctk.CTkComboBox(barra, values=["Visão geral (Internos e Externos)"] + [mdb.rotulo_setor(s) for s in self.setores],
                                           width=180, state="readonly")
         self.cb_setor_g.pack(side="left", padx=6)
-        self.cb_setor_g.set("Todos os setores")
+        self.cb_setor_g.set("Visão geral (Internos e Externos)")
         _btn(barra, "Gerar", self._gerar_graficos, 90).pack(side="left", padx=(10, 6))
         _btn(barra, "Salvar imagens", self._salvar_graficos, 130, CINZA_BTN, CINZA_HOVER).pack(side="left")
         _btn(barra, "Configurações", self._abrir_config, 120, CINZA_BTN, CINZA_HOVER).pack(side="right")
@@ -721,7 +513,7 @@ class MapaUI:
         mes = [m.capitalize() for m in self._mgr.MESES].index(self.cb_mes.get()) + 1
         ano = int(self.cb_ano.get())
         nome = self.cb_setor_g.get()
-        id_setor = next((s["id_setor"] for s in self.setores if s["nome"] == nome), None)
+        id_setor = next((s["id_setor"] for s in self.setores if mdb.rotulo_setor(s) == nome), None)
         return ano, mes, id_setor
 
     def _gerar_graficos(self):
@@ -738,7 +530,9 @@ class MapaUI:
                    ("Média por dia", f"{k['media_por_dia']:.1f}".replace(".", ",")),
                    ("Dieta pastosa", f"{k['pastosa']} ({k['pastosa_pct']:.0f}%)"),
                    ("Com acompanhante", f"{k['acompanhante']} ({k['acompanhante_pct']:.0f}%)"),
-                   ("Com suplemento", f"{k['com_suplemento']} ({k['com_suplemento_pct']:.0f}%)")]
+                   ("Oral sem suplemento", f"{k['oral_sem_suplemento']} ({k['oral_sem_suplemento_pct']:.0f}%)"),
+                   ("Oral com suplemento", f"{k['oral_com_suplemento']} ({k['oral_com_suplemento_pct']:.0f}%)"),
+                   ("Dieta enteral", f"{k['enteral']} ({k['enteral_pct']:.0f}%)")]
         for rot, val in cartoes:
             cx = ctk.CTkFrame(self.quadro_kpi, fg_color=tema.BRANCO, corner_radius=8)
             cx.pack(side="left", padx=4, ipadx=8, ipady=4)
@@ -879,17 +673,14 @@ class MapaUI:
 class _Janela(ctk.CTkFrame):
     """Conteúdo de uma guia lateral; não cria janela Toplevel nem captura o foco."""
 
-    def __init__(self, ui, titulo, geometria, preservar=False):
+    def __init__(self, ui, titulo, geometria):
         self.ui = ui
         self.app = getattr(ui, "app", None)
         if self.app is None and hasattr(ui, "ui"):
             self.app = getattr(ui.ui, "app", None)
         self._painel_externo = bool(self.app and hasattr(self.app, "abrir_painel_lateral"))
         if self._painel_externo:
-            abrir = getattr(self.app, "abrir_painel_modal", None) if preservar else None
-            if abrir is None:
-                abrir = self.app.abrir_painel_lateral
-            self._painel_frame = abrir(titulo, lambda: None)
+            self._painel_frame = self.app.abrir_painel_lateral(titulo, lambda: None)
             pai = self._painel_frame
         else:
             self._painel_frame = None
@@ -978,10 +769,11 @@ class DialogLeitos(_Janela):
         topo = ctk.CTkFrame(self, fg_color="transparent")
         topo.pack(fill="x", padx=16, pady=(14, 4))
         ctk.CTkLabel(topo, text="Setor:").pack(side="left")
-        self.cb_setor = ctk.CTkComboBox(topo, values=[s["nome"] for s in self.setores], width=200, state="readonly",
+        self.cb_setor = ctk.CTkComboBox(topo, values=[mdb.rotulo_setor(s) for s in self.setores], width=200, state="readonly",
                                         command=lambda v: self._recarregar())
         self.cb_setor.pack(side="left", padx=6)
-        atual = next((s["nome"] for s in self.setores if s["id_setor"] == ui.id_setor), self.setores[0]["nome"])
+        atual = next((mdb.rotulo_setor(s) for s in self.setores if s["id_setor"] == ui.id_setor),
+                      mdb.rotulo_setor(self.setores[0]))
         self.cb_setor.set(atual)
         self.e_novo_setor = ctk.CTkEntry(topo, width=130, placeholder_text="Novo setor")
         self.e_novo_setor.pack(side="left", padx=(12, 4))
@@ -1021,7 +813,7 @@ class DialogLeitos(_Janela):
         self._recarregar()
 
     def _id_setor(self):
-        return next(s["id_setor"] for s in self.setores if s["nome"] == self.cb_setor.get())
+        return next(s["id_setor"] for s in self.setores if mdb.rotulo_setor(s) == self.cb_setor.get())
 
     def _recarregar(self):
         self.tree.delete(*self.tree.get_children())
@@ -1043,7 +835,7 @@ class DialogLeitos(_Janela):
             messagebox.showwarning("Setor", str(e), parent=self)
             return
         self.setores = mdb.listar_setores(self.ui.db)
-        self.cb_setor.configure(values=[s["nome"] for s in self.setores])
+        self.cb_setor.configure(values=[mdb.rotulo_setor(s) for s in self.setores])
         self.cb_setor.set(self.e_novo_setor.get().strip())
         _set_entry(self.e_novo_setor, "")
         self._recarregar()
@@ -1090,6 +882,115 @@ class DialogLeitos(_Janela):
             if not mdb.remover_leito(self.ui.db, l["id_leito"]):
                 messagebox.showinfo("Leitos", "O leito tem histórico e foi apenas desativado.", parent=self)
             self._recarregar()
+
+
+class DialogAdicionarLeitos(_Janela):
+    """Fluxo simples para cadastrar um leito ou uma faixa numérica sem prefixos técnicos."""
+    def __init__(self, ui):
+        super().__init__(ui, "Adicionar leitos", "500x390")
+        self.setores = mdb.listar_setores(ui.db)
+        ctk.CTkLabel(self, text="Escolha onde os leitos serão adicionados.",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=22, pady=(20, 4))
+        ctk.CTkLabel(self, text="Setor").pack(anchor="w", padx=22, pady=(14, 2))
+        self.cb_setor = ctk.CTkComboBox(self, values=[mdb.rotulo_setor(x) for x in self.setores],
+                                        width=440, state="readonly")
+        self.cb_setor.pack(padx=22, anchor="w")
+        atual = next((mdb.rotulo_setor(x) for x in self.setores if x["id_setor"] == ui.id_setor), None)
+        self.cb_setor.set(atual or (mdb.rotulo_setor(self.setores[0]) if self.setores else ""))
+        linha = ctk.CTkFrame(self, fg_color="transparent")
+        linha.pack(fill="x", padx=22, pady=(16, 4))
+        ctk.CTkLabel(linha, text="Do leito").pack(side="left")
+        self.e_de = ctk.CTkEntry(linha, width=90, placeholder_text="Ex.: 10")
+        self.e_de.pack(side="left", padx=(8, 18))
+        ctk.CTkLabel(linha, text="Até o leito").pack(side="left")
+        self.e_ate = ctk.CTkEntry(linha, width=90, placeholder_text="Ex.: 15")
+        self.e_ate.pack(side="left", padx=8)
+        ctk.CTkLabel(self, text="Para adicionar apenas um leito, informe o mesmo número nos dois campos.",
+                     text_color=tema.SUAVE, wraplength=440, justify="left").pack(anchor="w", padx=22, pady=(4, 12))
+        self.lbl_ajuda = ctk.CTkLabel(self, text="Os leitos já existentes serão preservados.",
+                                      text_color=tema.SUAVE)
+        self.lbl_ajuda.pack(anchor="w", padx=22)
+        _btn(self, "Adicionar leitos", self._adicionar, 180).pack(pady=(22, 8))
+        _btn(self, "Cancelar", self._fechar, 100, CINZA_BTN, CINZA_HOVER).pack()
+        self.protocol("WM_DELETE_WINDOW", self._fechar)
+
+    def _fechar(self):
+        self.destroy()
+
+    def _adicionar(self):
+        setor = next((x for x in self.setores if mdb.rotulo_setor(x) == self.cb_setor.get()), None)
+        de, ate = nc.parse_num(self.e_de.get()), nc.parse_num(self.e_ate.get())
+        if not setor:
+            messagebox.showwarning("Adicionar leitos", "Selecione um setor.", parent=self)
+            return
+        if de is None or ate is None or int(de) != de or int(ate) != ate or de < 1 or ate < de:
+            messagebox.showwarning("Adicionar leitos", "Informe números inteiros maiores que zero e um intervalo crescente.",
+                                   parent=self)
+            return
+        try:
+            n = mdb.criar_leitos_sequencia(self.ui.db, setor["id_setor"], "", int(de), int(ate), largura=1)
+        except ValueError as e:
+            messagebox.showwarning("Adicionar leitos", str(e), parent=self)
+            return
+        self.ui.id_setor = setor["id_setor"]
+        messagebox.showinfo("Leitos adicionados", f"{n} novo(s) leito(s) adicionado(s).", parent=self)
+        self.destroy()
+        self.ui.mostrar_mapa()
+
+
+class DialogOrdemSetores(_Janela):
+    """Permite ordenar setores dentro dos grupos Internos e Externos para o mapa geral e impressão."""
+    def __init__(self, ui):
+        super().__init__(ui, "Ordem do mapa geral e impressão", "560x560")
+        ctk.CTkLabel(self, text="Organize a ordem em que os setores aparecem no mapa geral e nos arquivos PDF/Excel.",
+                     wraplength=510, justify="left").pack(anchor="w", padx=20, pady=(18, 8))
+        ctk.CTkLabel(self, text="A ordem é ajustada dentro de cada grupo: Internos e Externos.",
+                     text_color=tema.SUAVE).pack(anchor="w", padx=20, pady=(0, 8))
+        quadro = ctk.CTkFrame(self, fg_color=tema.BRANCO)
+        quadro.pack(fill="both", expand=True, padx=20, pady=6)
+        self.tree = ttk.Treeview(quadro, columns=("grupo", "setor"), show="headings",
+                                 style=ESTILO_TREE, selectmode="browse", height=12)
+        self.tree.heading("grupo", text="Grupo")
+        self.tree.heading("setor", text="Setor")
+        self.tree.column("grupo", width=110, anchor="center")
+        self.tree.column("setor", width=330, anchor="w")
+        self.tree.pack(fill="both", expand=True, padx=6, pady=6)
+        acoes = ctk.CTkFrame(self, fg_color="transparent")
+        acoes.pack(fill="x", padx=20, pady=8)
+        _btn(acoes, "↑ Subir", self._subir, 110, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=4)
+        _btn(acoes, "↓ Descer", self._descer, 110, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=4)
+        _btn(acoes, "Fechar", self._fechar, 100, CINZA_BTN, CINZA_HOVER).pack(side="right", padx=4)
+        self.protocol("WM_DELETE_WINDOW", self._fechar)
+        self._recarregar()
+
+    def _recarregar(self, selecionar=None):
+        self.setores = mdb.listar_setores(self.ui.db)
+        self.tree.delete(*self.tree.get_children())
+        for setor in self.setores:
+            grupo = setor.get("grupo") or "Outros"
+            self.tree.insert("", "end", iid=str(setor["id_setor"]),
+                             values=(grupo, mdb.rotulo_setor(setor)))
+        if selecionar and any(str(x["id_setor"]) == str(selecionar) for x in self.setores):
+            self.tree.selection_set(str(selecionar))
+
+    def _mover(self, direcao):
+        sel = self.tree.selection()
+        if not sel:
+            messagebox.showinfo("Ordem dos setores", "Selecione um setor para mover.", parent=self)
+            return
+        id_setor = int(sel[0])
+        mdb.alterar_ordem_setor(self.ui.db, id_setor, direcao)
+        self._recarregar(id_setor)
+
+    def _subir(self):
+        self._mover(-1)
+
+    def _descer(self):
+        self._mover(1)
+
+    def _fechar(self):
+        self.destroy()
+        self.ui.mostrar_mapa()
 
 
 class DialogSuplemento(_Janela):
@@ -1142,7 +1043,7 @@ class DialogBuscarPaciente(_Janela):
     """Escolhe um paciente já cadastrado para vincular ao registro (histórico unificado)."""
 
     def __init__(self, ui, ao_escolher):
-        super().__init__(ui, "Buscar paciente cadastrado", "560x440", preservar=True)
+        super().__init__(ui, "Buscar paciente cadastrado", "560x440")
         self.ao_escolher = ao_escolher
         topo = ctk.CTkFrame(self, fg_color="transparent")
         topo.pack(fill="x", padx=16, pady=(14, 4))
@@ -1259,6 +1160,8 @@ class FormRegistro(_Janela):
         self._peso_metodo = self.reg.get("peso_metodo")
         self._suplementos = [dict(s) for s in self.reg.get("suplementos", [])]
         self._catalogo = mdb.listar_suplementos(ui.db)
+        self._catalogo_visivel = list(self._catalogo)
+        self._via_anterior = None
         self._resultado_nrs = {}
         self._resultado_avaliacao = {}
         self._montar()
@@ -1348,7 +1251,7 @@ class FormRegistro(_Janela):
         q = self._secao("Dieta")
         l = self._linha(q)
         self.e_reav = self._entrada(l, "Reavaliação prevista (DD/MM/AAAA)", 100)
-        self.seg_via = self._seg(l, "Via", mdb.VIAS)
+        self.seg_via = self._seg(l, "Via", mdb.VIAS, cmd=self._via_mudou)
         l = self._linha(q)
         ctk.CTkLabel(l, text="Características:").pack(side="left", padx=(0, 6))
         self.var_carac = {}
@@ -1365,8 +1268,14 @@ class FormRegistro(_Janela):
                      font=ctk.CTkFont(size=11)).pack(side="left", padx=8)
         l = self._linha(q)
         self.seg_cons = self._seg(l, "Consistência", mdb.CONSISTENCIAS)
+        l = self._linha(q)
+        self.e_meta_kcal = self._entrada(l, "Meta energética (kcal/dia)", 85)
+        self.e_meta_ptn = self._entrada(l, "Meta proteica (g/dia)", 85)
 
-        q = self._secao("Suplementos administrados")
+        q = self._secao("Suplementação oral / dieta enteral")
+        self.lbl_sup_tipo = ctk.CTkLabel(q, text="Suplementação oral: complemento da alimentação por via oral",
+                                         text_color=tema.SUAVE, wraplength=760, justify="left")
+        self.lbl_sup_tipo.pack(anchor="w", padx=12, pady=(0, 4))
         l = self._linha(q)
         self.cb_mod = self._reg(ctk.CTkComboBox(l, values=["Todos os módulos"] + mdb.listar_modulos(self.ui.db), width=210,
                                                 state="readonly", command=lambda v: self._filtrar_sup()))
@@ -1385,7 +1294,10 @@ class FormRegistro(_Janela):
             self.tree_sup.column(c, width=w, anchor="w")
         self.tree_sup.pack(fill="x", padx=10, pady=(2, 2))
         self._reg(_btn(q, "Remover selecionado", self._rem_sup, 160, VERMELHO, VERMELHO_HOVER, 26)).pack(
-            anchor="w", padx=10, pady=(0, 8))
+            anchor="w", padx=10, pady=(0, 4))
+        self.lbl_oferta = ctk.CTkLabel(q, text="Aporte calculado: informe dose e metas.",
+                                       text_color=tema.TEXTO, wraplength=760, justify="left")
+        self.lbl_oferta.pack(anchor="w", padx=12, pady=(0, 8))
 
         q = self._secao("Observações")
         for attr, rot in (("t_sim", "Sim: (alimentos que consome)"), ("t_nao", "Não: (alimentos que não consome)")):
@@ -1495,6 +1407,9 @@ class FormRegistro(_Janela):
         _set_entry(self.e_reav, mdb.iso_para_br(r.get("data_reavaliacao")))
         if r.get("via"):
             self.seg_via.set(r["via"])
+        _set_entry(self.e_meta_kcal, _fmt(r.get("meta_kcal")).replace(",0", "") if r.get("meta_kcal") is not None else "")
+        _set_entry(self.e_meta_ptn, _fmt(r.get("meta_proteina_g")).replace(",0", "") if r.get("meta_proteina_g") is not None else "")
+        self._via_mudou(r.get("via") or "Oral", preservar=True)
         for campo, var in self.var_carac.items():
             var.set(1 if r.get(campo) else 0)
         ativas = mdb.codigos_condicoes(r.get("condicoes"))
@@ -1545,7 +1460,8 @@ class FormRegistro(_Janela):
                 raise ValueError("Data de reavaliação inválida. Use DD/MM/AAAA.")
         for campo, rot in ((self.e_aj, "AJ"), (self.e_pp, "PP"), (self.e_pb, "PB"), (self.e_altura, "Altura"),
                            (self.e_peso, "Peso"), (self.e_idade, "Idade"), (self.e_fi_freq, "Frequência"),
-                           (self.e_fi_dias, "Dias")):
+                           (self.e_fi_dias, "Dias"), (self.e_meta_kcal, "Meta energética"),
+                           (self.e_meta_ptn, "Meta proteica")):
             if g(campo) and nc.parse_num(g(campo)) is None:
                 raise ValueError(f"Valor inválido em {rot}.")
         origem_a = {"Estimada": "E", "Real": "R"}.get(self.seg_alt.get())
@@ -1564,6 +1480,7 @@ class FormRegistro(_Janela):
             "peso_kg": n(self.e_peso), "peso_origem": origem_p,
             "peso_metodo": self._peso_metodo if origem_p == "E" else None,
             "data_reavaliacao": reav, "via": self.seg_via.get() or None,
+            "meta_kcal": n(self.e_meta_kcal), "meta_proteina_g": n(self.e_meta_ptn),
             **{campo: var.get() for campo, var in self.var_carac.items()},
             "condicoes": ",".join(c for c, var in self.var_cond.items() if var.get()) or None,
             "consistencia": self.seg_cons.get() or None,
@@ -1579,6 +1496,7 @@ class FormRegistro(_Janela):
 
     # ---------------------------------------------------------------- cálculos
     def _recalcular(self):
+        self._recalcular_oferta()
         peso, alt = nc.parse_num(self.e_peso.get()), nc.parse_num(self.e_altura.get())
         idade = nc.parse_num(self.e_idade.get())
         imc = nc.calcular_imc(peso, alt)
@@ -1667,15 +1585,49 @@ class FormRegistro(_Janela):
         self._recalcular()
 
     # --------------------------------------------------------------- suplementos
+    def _via_mudou(self, via, preservar=False):
+        """Separa suplemento oral de fórmula enteral; não mantém os dois tratamentos misturados."""
+        if not hasattr(self, "cb_sup"):
+            return
+        enteral = via == "Enteral"
+        zero = via == "Zero"
+        nova_via = "Enteral" if enteral else "Zero" if zero else "Oral"
+        if self._via_anterior != nova_via and not preservar:
+            self._suplementos = []
+        self._via_anterior = nova_via
+        # A via classifica o paciente e o tipo de terapia no mapa; não deve esconder produtos
+        # do catálogo. A indicação de uso de cada produto continua registrada no seu módulo/ficha.
+        self._catalogo_visivel = list(self._catalogo)
+        modulos = ["Todos os módulos"] + mdb.listar_modulos(self.ui.db)
+        self.cb_mod.configure(values=modulos)
+        self.cb_mod.set("Todos os módulos")
+        if enteral:
+            self.lbl_sup_tipo.configure(
+                text="DIETA ENTERAL: paciente classificado separadamente como enteral. "
+                     "A seleção de via substitui a suplementação anterior; todos os produtos permanecem "
+                     "visíveis no catálogo. Confira a indicação e a via de administração na ficha técnica.")
+        elif zero:
+            self.lbl_sup_tipo.configure(text="VIA ZERO: paciente classificado em via zero. "
+                                             "Não registre oferta enquanto essa via estiver selecionada.")
+        else:
+            self.lbl_sup_tipo.configure(
+                text="SUPLEMENTAÇÃO ORAL: complemento da alimentação pela boca. "
+                     "O paciente permanece classificado como via oral com suplementação, separado dos pacientes enterais.")
+        self._filtrar_sup()
+        self._atualizar_sup()
+        self._recalcular_oferta()
+
     def _filtrar_sup(self):
         modulo = self.cb_mod.get()
-        nomes = [s["nome"] for s in self._catalogo if modulo == "Todos os módulos" or s["modulo"] == modulo]
+        catalogo = self._catalogo_visivel
+        nomes = [s["nome"] for s in catalogo
+                 if self.seg_via.get() == "Enteral" or modulo == "Todos os módulos" or s["modulo"] == modulo]
         self.cb_sup.configure(values=nomes)
         self.cb_sup.set(nomes[0] if len(nomes) == 1 else "")
 
     def _add_sup(self):
         nome = self.cb_sup.get()
-        s = next((x for x in self._catalogo if x["nome"] == nome), None)
+        s = next((x for x in self._catalogo_visivel if x["nome"] == nome), None)
         if not s:
             messagebox.showinfo("Suplementos", "Escolha o suplemento na lista.", parent=self)
             return
@@ -1687,22 +1639,60 @@ class FormRegistro(_Janela):
         if txt and qtd is None:
             messagebox.showwarning("Suplementos", "Quantidade inválida.", parent=self)
             return
-        self._suplementos.append({"id_suplemento": s["id_suplemento"], "nome": s["nome"], "modulo": s["modulo"],
-                                  "qtd_dia": qtd, "unidade": s["emb_un"]})
+        self._suplementos.append({
+            "id_suplemento": s["id_suplemento"], "nome": s["nome"], "modulo": s["modulo"],
+            "qtd_dia": qtd, "unidade": s["emb_un"],
+            **{campo: s.get(campo) for campo in ("kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100")},
+            "ficha_observacao": s.get("observacao"),
+        })
         _set_entry(self.e_qtd, "")
         self._atualizar_sup()
+        self._recalcular_oferta()
 
     def _rem_sup(self):
         sel = self.tree_sup.selection()
         if sel:
             del self._suplementos[int(sel[0])]
             self._atualizar_sup()
+            self._recalcular_oferta()
 
     def _atualizar_sup(self):
         self.tree_sup.delete(*self.tree_sup.get_children())
         for i, s in enumerate(self._suplementos):
             qtd = f"{_fmt(s.get('qtd_dia')).replace(',0', '')} {s.get('unidade') or ''}".strip() if s.get("qtd_dia") else ""
             self.tree_sup.insert("", "end", iid=str(i), values=(s.get("modulo") or "", s["nome"], qtd))
+
+    def _recalcular_oferta(self):
+        if not hasattr(self, "lbl_oferta"):
+            return
+        por_id = {s["id_suplemento"]: s for s in self._catalogo}
+        itens = [{**por_id.get(item.get("id_suplemento"), {}), **item} for item in self._suplementos]
+        resultado = sc.calcular_oferta(
+            itens, peso_kg=nc.parse_num(self.e_peso.get()),
+            meta_kcal=nc.parse_num(self.e_meta_kcal.get()),
+            meta_proteina_g=nc.parse_num(self.e_meta_ptn.get()))
+        t = resultado["totais"]
+        partes = []
+        if t["kcal_100"] is not None:
+            partes.append(f"{t['kcal_100']:.1f} kcal/dia")
+            if resultado["percentual_meta_kcal"] is not None:
+                partes.append(f"{resultado['percentual_meta_kcal']:.1f}% da meta energética")
+        else:
+            partes.append("energia: ficha/dose pendente")
+        if t["ptn_100"] is not None:
+            partes.append(f"{t['ptn_100']:.1f} g proteína/dia")
+            if resultado["percentual_meta_proteina"] is not None:
+                partes.append(f"{resultado['percentual_meta_proteina']:.1f}% da meta proteica")
+            if resultado["proteina_g_kg"] is not None:
+                partes.append(f"{resultado['proteina_g_kg']:.2f} g/kg")
+        else:
+            partes.append("proteína: ficha/dose pendente")
+        pend = len(resultado["pendencias"])
+        if pend:
+            partes.append(f"{pend} item(ns) com dados incompletos")
+        elif not itens:
+            partes = ["Adicione itens com dose diária e informe as metas para calcular a participação."]
+        self.lbl_oferta.configure(text="Aporte calculado: " + " · ".join(partes))
 
     # ----------------------------------------------------------------- paciente
     def _buscar_paciente(self):
