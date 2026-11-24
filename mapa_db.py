@@ -5,6 +5,7 @@ Sem dependência de interface gráfica. Todas as funções recebem o caminho do 
 Datas são gravadas em ISO (AAAA-MM-DD); use iso_para_br/data_br_para_iso na interface.
 """
 import calendar
+import os
 import json
 import sqlite3
 from contextlib import closing
