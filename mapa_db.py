@@ -88,6 +88,18 @@ SUPLEMENTOS_DUAS_VIAS_COMPLEMENTARES = [
     ("NUTRI HWHEY X", "Módulo oral/enteral", None, None, None, None, None,
      "https://danonenutricia.com.br/produtos/adultos/alimentacao-por-sonda"),
 ]
+SETORES_PADRAO = (
+    # grupo, nome, sigla, primeiro leito, último leito
+    ("Internos", "Operação", "OP", 1, 9),
+    ("Internos", "Clínica médica", "CM", 16, 33),
+    ("Internos", "Psiquiatria", "PSI", 46, 48),
+    ("Internos", "Isolamento", "ISO", 1, 2),
+    ("Externos", "Sala vermelha Adulto", "SVA", 1, 3),
+    ("Externos", "Sala de observação adulto", "SAU", 4, 9),
+    ("Externos", "Sala vermelha Pediatria", "SVP", 1, 2),
+    ("Externos", "Observação da Pediatria", "PED", 1, 3),
+)
+
 SUPLEMENTOS_INICIAIS = [
     ("Fresubin", "Fórmula completa"),
     ("Thopic Soya 1,5 kcal/ml", "Fórmula completa"),
@@ -185,6 +197,11 @@ def inicializar(db_path):
     with closing(conectar(db_path)) as c:
         c.executescript(_SCHEMA)
         # Bancos criados antes das condutas de alta não têm a coluna `condicoes` (CREATE IF NOT EXISTS não a adiciona).
+        colunas_setor = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Setores)")}
+        for nome, tipo in (("sigla", "TEXT"), ("grupo", "TEXT DEFAULT 'Outros'"),
+                           ("ordem_apresentacao", "INTEGER DEFAULT 999")):
+            if nome not in colunas_setor:
+                c.execute(f"ALTER TABLE Mapa_Setores ADD COLUMN {nome} {tipo}")
         colunas = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
         if "condicoes" not in colunas:
             c.execute("ALTER TABLE Mapa_Registros ADD COLUMN condicoes TEXT")
@@ -209,8 +226,34 @@ def inicializar(db_path):
         c.execute("""CREATE TABLE IF NOT EXISTS Pacientes (
             id_paciente INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL,
             data_nascimento TEXT, sexo TEXT)""")
+        # Cadastro inicial dos setores reais: migração aditiva, idempotente e sem apagar
+        # setores/leitos já utilizados. A ordem pode ser personalizada depois pelo usuário.
+        seed_setores = c.execute("SELECT valor FROM Mapa_Config WHERE chave='seed_mapa_setores_v1'").fetchone()
+        if not seed_setores:
+            for ordem, (grupo, nome, sigla, inicio, fim) in enumerate(SETORES_PADRAO):
+                setor = c.execute("SELECT id_setor FROM Mapa_Setores WHERE nome=?", (nome,)).fetchone()
+                if setor:
+                    id_setor = setor["id_setor"]
+                    c.execute("UPDATE Mapa_Setores SET sigla=?, grupo=?, ordem_apresentacao=? "
+                              "WHERE id_setor=? AND (sigla IS NULL OR sigla='' OR grupo IS NULL OR grupo='Outros')",
+                              (sigla, grupo, ordem, id_setor))
+                else:
+                    cur = c.execute("INSERT INTO Mapa_Setores (nome, sigla, grupo, ordem_apresentacao) "
+                                    "VALUES (?,?,?,?)", (nome, sigla, grupo, ordem))
+                    id_setor = cur.lastrowid
+                for numero in range(inicio, fim + 1):
+                    codigo = str(numero)
+                    existe = c.execute("SELECT 1 FROM Mapa_Leitos WHERE id_setor=? AND codigo=?",
+                                       (id_setor, codigo)).fetchone()
+                    if not existe:
+                        c.execute("INSERT INTO Mapa_Leitos (id_setor, codigo, ordem, ativo) "
+                                  "VALUES (?,?,?,1)", (id_setor, codigo, numero - inicio))
+            c.execute("UPDATE Mapa_Setores SET ordem_apresentacao=1000 "
+                      "WHERE grupo='Outros' AND ordem_apresentacao=999")
+            c.execute("INSERT INTO Mapa_Config (chave, valor) VALUES ('seed_mapa_setores_v1', '1')")
         if c.execute("SELECT COUNT(*) FROM Mapa_Setores").fetchone()[0] == 0:
-            c.execute("INSERT INTO Mapa_Setores (nome) VALUES (?)", ("Setor geral",))
+            c.execute("INSERT INTO Mapa_Setores (nome, grupo, ordem_apresentacao) VALUES (?, 'Outros', 1000)",
+                      ("Setor geral",))
         if c.execute("SELECT COUNT(*) FROM Mapa_Modulos").fetchone()[0] == 0:
             for i, nome in enumerate(MODULOS_PADRAO):
                 c.execute("INSERT INTO Mapa_Modulos (nome, ordem) VALUES (?, ?)", (nome, i))
@@ -305,8 +348,36 @@ def salvar_config(db_path, chave, valor):
 
 def listar_setores(db_path, apenas_ativos=True):
     with closing(conectar(db_path)) as c:
-        q = "SELECT * FROM Mapa_Setores" + (" WHERE ativo=1" if apenas_ativos else "") + " ORDER BY nome"
+        q = ("SELECT * FROM Mapa_Setores" + (" WHERE ativo=1" if apenas_ativos else "")
+             + " ORDER BY CASE grupo WHEN 'Internos' THEN 0 WHEN 'Externos' THEN 1 ELSE 2 END, "
+               "ordem_apresentacao, nome")
         return _rows(c.execute(q))
+
+
+def alterar_ordem_setor(db_path, id_setor, direcao):
+    """Move setor para cima (-1) ou para baixo (+1) dentro do mesmo grupo."""
+    if direcao not in (-1, 1):
+        raise ValueError("Direção inválida.")
+    with closing(conectar(db_path)) as c:
+        atual = c.execute("SELECT id_setor, grupo, ordem_apresentacao FROM Mapa_Setores WHERE id_setor=?",
+                          (id_setor,)).fetchone()
+        if not atual:
+            return False
+        grupo = atual["grupo"] or "Outros"
+        itens = _rows(c.execute(
+            "SELECT id_setor, ordem_apresentacao FROM Mapa_Setores WHERE ativo=1 AND COALESCE(grupo,'Outros')=? "
+            "ORDER BY ordem_apresentacao, nome", (grupo,)))
+        pos = next(i for i, item in enumerate(itens) if item["id_setor"] == id_setor)
+        destino = pos + direcao
+        if destino < 0 or destino >= len(itens):
+            return False
+        outro = itens[destino]
+        c.execute("UPDATE Mapa_Setores SET ordem_apresentacao=? WHERE id_setor=?",
+                  (outro["ordem_apresentacao"], id_setor))
+        c.execute("UPDATE Mapa_Setores SET ordem_apresentacao=? WHERE id_setor=?",
+                  (atual["ordem_apresentacao"], outro["id_setor"]))
+        c.commit()
+        return True
 
 
 def criar_setor(db_path, nome):
@@ -331,7 +402,8 @@ def listar_leitos(db_path, id_setor=None, apenas_ativos=True):
         par.append(id_setor)
     if apenas_ativos:
         sql += " AND L.ativo=1"
-    sql += " ORDER BY S.nome, L.ordem, L.codigo"
+    sql += (" ORDER BY CASE S.grupo WHEN 'Internos' THEN 0 WHEN 'Externos' THEN 1 ELSE 2 END, "
+            "S.ordem_apresentacao, S.nome, L.ordem, CAST(L.codigo AS INTEGER), L.codigo")
     with closing(conectar(db_path)) as c:
         return _rows(c.execute(sql, par))
 
@@ -666,15 +738,18 @@ def mapa_do_dia(db_path, data_iso, id_setor=None):
         regs = _rows(c.execute(_SEL_REG + "WHERE R.data=?" + filtro, par))
         _anexar_suplementos(c, regs)
         por_leito = {r["id_leito"]: r for r in regs}
-        q = ("SELECT L.*, S.nome AS setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
+        q = ("SELECT L.*, S.nome AS setor, S.sigla AS sigla_setor, S.grupo AS grupo_setor, "
+         "S.ordem_apresentacao AS ordem_setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
              "WHERE (L.ativo=1 OR L.id_leito IN (%s))" % ",".join(str(i) for i in por_leito) if por_leito else
-             "SELECT L.*, S.nome AS setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
+             "SELECT L.*, S.nome AS setor, S.sigla AS sigla_setor, S.grupo AS grupo_setor, "
+             "S.ordem_apresentacao AS ordem_setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
              "WHERE L.ativo=1")
         par2 = []
         if id_setor:
             q += " AND L.id_setor=?"
             par2.append(id_setor)
-        q += " ORDER BY S.nome, L.ordem, L.codigo"
+        q += (" ORDER BY CASE S.grupo WHEN 'Internos' THEN 0 WHEN 'Externos' THEN 1 ELSE 2 END, "
+              "S.ordem_apresentacao, S.nome, L.ordem, CAST(L.codigo AS INTEGER), L.codigo")
         leitos = _rows(c.execute(q, par2))
     return [{"leito": l, "registro": por_leito.get(l["id_leito"])} for l in leitos]
 
