@@ -406,7 +406,6 @@ class MapaUI:
             editor.bind("<FocusOut>", lambda _e: self._finalizar_edicao_celula())
             self._celula_editor = editor
             editor.focus_set()
-            editor.select_range(0, "end")
             return True
         except (AttributeError, tk.TclError):
             return False
@@ -480,6 +479,9 @@ class MapaUI:
             mdb.salvar_registro(self.db, reg, self.criterio_idoso, self.lms)
         except ValueError as erro:
             messagebox.showwarning("Edição da célula", str(erro))
+            return False
+        except sqlite3.Error as erro:
+            messagebox.showerror("Edição da célula", f"Não foi possível salvar a alteração: {erro}")
             return False
         self._recarregar()
         self._celula_selecionada = (str(iid), indice)
