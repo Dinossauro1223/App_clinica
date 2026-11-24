@@ -641,7 +641,7 @@ class TestMapa(Base):
         self.assertTrue(mdb.obter_registro(self.db, DATA.isoformat(), self.reg["id_leito"]))
         with mock.patch.object(caixa, "askyesnocancel", return_value=False):
             self.ui._remover()                                                # Não: remove mesmo assim
-        self.assertFalse(mdb.obter_registro(self.db, DATA.isoformat(), self.reg["id_leito"]))
+        self.assertTrue(mdb.obter_registro(self.db, DATA.isoformat(), self.reg["id_leito"])["alta_em"])\n        self.assertIsNone(self.ui.linhas[0]["registro"])
 
     def test_remover_sem_pendencia_nao_pergunta_das_condutas(self):
         outro = registrar(self.db, nome="Sem Doença", leito="L02", via="Oral")
@@ -649,7 +649,7 @@ class TestMapa(Base):
         self.ui.tree.selection_set(str(outro["id_leito"]))
         self.ui._remover()
         self.assertEqual(self.caixa_mapa("askyesnocancel"), [])
-        self.assertFalse(mdb.obter_registro(self.db, DATA.isoformat(), outro["id_leito"]))
+        self.assertTrue(mdb.obter_registro(self.db, DATA.isoformat(), outro["id_leito"])["alta_em"])\n        self.assertIsNone(next(l["registro"] for l in self.ui.linhas if l["leito"]["id_leito"] == outro["id_leito"]))
 
     def test_formulario_grava_e_reabre_as_doencas_relatadas(self):
         id_setor = mdb.listar_setores(self.db)[0]["id_setor"]
