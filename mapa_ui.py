@@ -2008,7 +2008,7 @@ class DialogCurvasOMS(ctk.CTkToplevel):
                 for ponto in pontos:
                     x_meses = (ponto["idade"] / 30.4375 if referencia == "oms_2006"
                                else ponto["idade"])
-                    if referencia == "oms_2006" and x_meses > 60:
+                    if referencia == "oms_2006" and x_meses >= 60:
                         continue
                     if referencia == "oms_2007" and x_meses < 60:
                         continue
@@ -2021,7 +2021,7 @@ class DialogCurvasOMS(ctk.CTkToplevel):
                     for ponto in pontos:
                         x_meses = (ponto["idade"] / 30.4375 if referencia == "oms_2006"
                                    else ponto["idade"])
-                        if referencia == "oms_2006" and x_meses > 60:
+                        if referencia == "oms_2006" and x_meses >= 60:
                             continue
                         if referencia == "oms_2007" and x_meses < 60:
                             continue
