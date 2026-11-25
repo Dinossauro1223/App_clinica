@@ -1889,6 +1889,9 @@ class FormRegistro(_Janela):
         nome = reg["nome_paciente"]
         if nome.strip().lower() != self._nome_original.strip().lower() and not self._vinculo_manual:
             reg["id_paciente"] = None  # nome mudou: é outro paciente nesse leito
+            self._data_nascimento = None
+            self._recalcular()
+            reg["pediatria_oms_json"] = json.dumps(self._resultado_pediatria, ensure_ascii=False)
         if not reg["id_paciente"] and nome:
             iguais = [p for p in mdb.listar_pacientes(self.ui.db, nome) if p["nome"].strip().lower() == nome.lower()]
             if iguais:
@@ -1903,6 +1906,9 @@ class FormRegistro(_Janela):
                     return
                 if resp:
                     reg["id_paciente"] = p["id_paciente"]
+                    self._data_nascimento = p.get("data_nascimento")
+                    self._recalcular()
+                    reg["pediatria_oms_json"] = json.dumps(self._resultado_pediatria, ensure_ascii=False)
         if reg["idade_anos"] is None and reg["peso_kg"] and reg["altura_cm"]:
             if not messagebox.askyesno("Idade não informada",
                                        "Sem a idade, o IMC não será classificado. Salvar mesmo assim?", parent=self):
