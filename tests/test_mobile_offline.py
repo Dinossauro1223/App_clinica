@@ -139,5 +139,12 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertIn('android:name=".QRScannerActivity"', manifest)
 
 
+    def test_sintaxe_do_decodificador_qr_offline(self):
+        node = self.node()
+        jsqr = ROOT / "mobile" / "static" / "jsQR.js"
+        r = subprocess.run([node, "--check", str(jsqr)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
