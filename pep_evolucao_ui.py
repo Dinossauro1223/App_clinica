@@ -424,6 +424,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     "kcal_100": ficha["kcal_100"], "ptn_100": ficha["ptn_100"],
                 }
                 dados["bomba"] = {"usa_bomba": bool(self.var_bomba.get()), "taxa_estimativa_ml_h": 10}
+                dados["orientacao_progressao"] = not bool(self.var_bomba.get())
                 dados["progressao_enteral"] = {
                     "solicitada": bool(self.var_progressao.get()), "autorizada": False,
                     "volume_atual_ml": oferta["volume_total_ml"], "volume_meta_ml": volume_meta,
