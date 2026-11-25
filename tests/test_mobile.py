@@ -120,6 +120,21 @@ class MobileTest(unittest.TestCase):
             self.assertTrue(senha_redefinida)
             self.assertNotEqual(senha_redefinida, "123456789")
 
+
+    def test_download_apk_disponibiliza_arquivo_do_bundle_com_nome_correto(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            raiz = Path(pasta)
+            destino = raiz / "apk" / "saida" / "NutriLab-Mobile.apk"
+            destino.parent.mkdir(parents=True)
+            conteudo = b"APK-DE-TESTE-SINTETICO"
+            destino.write_bytes(conteudo)
+            with mock.patch.object(sv, "AQUI", raiz):
+                with urllib.request.urlopen(self.base + "/download/NutriLab-Mobile.apk") as resposta:
+                    self.assertEqual(resposta.status, 200)
+                    self.assertEqual(resposta.headers.get_content_type(), "application/vnd.android.package-archive")
+                    self.assertIn('filename="NutriLab-Mobile.apk"', resposta.headers.get("Content-Disposition", ""))
+                    self.assertEqual(resposta.read(), conteudo)
+
     def test_login_invalido(self):
         self.assertEqual(self.chamar(None, "POST", "/api/login", {"login": "admin", "senha": "errada"})[0], 401)
 
