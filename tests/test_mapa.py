@@ -568,6 +568,26 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
                      if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
         self.assertEqual(linha["registro"]["dados_copa"], {})
 
+        # Ao copiar o mapa, o vínculo do PEP fechado não é duplicado na tabela por registro,
+        # mas a última evolução assinada continua orientando a copa no novo dia.
+        origem = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])
+        id_paciente = origem["id_paciente"]
+        with sqlite3.connect(self.db) as conn:
+            conn.execute(
+                "INSERT INTO Pep_Usuarios (login, nome_completo, crn, salt, senha_hash, ativo, criado_em) "
+                "VALUES ('nutri_teste', 'Nutricionista Teste', 'CRN-6 12345', 's', 'h', 1, '2026-10-25')")
+            conn.execute(
+                "INSERT INTO Pep_Evolucoes (id_paciente, paciente_nome, data_evolucao, cabecalho_json, texto, "
+                "id_usuario, assinante_nome, assinante_crn, criada_em, adendo_de) "
+                "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, NULL)",
+                (id_paciente, origem["nome_paciente"], "2026-10-25",
+                 json.dumps({"dados": dados}, ensure_ascii=False), "Evolução assinada",
+                 "Nutricionista Teste", "CRN-6 12345", "2026-10-25T12:00:00"))
+        mdb.copiar_mapa(self.db, "2026-10-25", "2026-11-02")
+        linha = next(x for x in mdb.mapa_do_dia(self.db, "2026-11-02")
+                     if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
+        self.assertEqual(linha["registro"]["dados_copa"]["volume_por_etapa_ml"], 200)
+
 
 class TestExportacao(unittest.TestCase):
     @classmethod
