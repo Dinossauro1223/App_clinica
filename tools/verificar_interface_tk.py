@@ -207,7 +207,7 @@ class Graficos:
             desenhadas = len(faixa.canvas.find_all())
             esperadas = sum(len(c.pintor.itens) for c in faixa.cards)
             assert desenhadas == esperadas, f"{desenhadas} formas no canvas, a cena do grupo tem {esperadas}"
-            assert all(len(c.pintor.itens) >= 8 for c in faixa.cards), \
+            assert all(c.spec.get("tipo") == "vazio" or len(c.pintor.itens) >= 8 for c in faixa.cards), \
                 f"gráfico com quase nada desenhado: {[len(c.pintor.itens) for c in faixa.cards]} formas"
             assert faixa.fotos == [], "não deveria haver foto no estilo animado"
             alturas = {c.altura for c in faixa.cards}
