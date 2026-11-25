@@ -58,6 +58,42 @@ class TestPainelEvolucao(unittest.TestCase):
         with self.assertRaises(ValueError):
             regras.validar_progressao_oral([70, 100, 130, 160])
 
+    def test_sem_bomba_apresenta_orientacao_sem_calcular_tempo(self):
+        dados = {
+            "antropometria": {"data": "25/11/2026", "idade_anos": 72, "altura_m": 1.65,
+                              "altura_origem": "A", "peso_kg": 62, "peso_origem": "A",
+                              "imc_class": "Eutrofia"},
+            "metas": {"kcal_dia": 1800, "proteina_g_dia": 80, "kcal_kg": 29, "proteina_g_kg": 1.3},
+            "via": "Enteral", "dva": False, "tne_motivos": [],
+            "dieta_enteral": {"nome": "Fórmula 1.5", "volume_por_etapa_ml": 150,
+                              "etapas": 6, "kcal_100": 150, "ptn_100": 6},
+            "oferta": {"volume_total_ml": 900, "kcal_dia": 1350, "proteina_g_dia": 54,
+                       "volume_meta_ml": 1200},
+            "bomba": {"usa_bomba": False}, "orientacao_progressao": True,
+        }
+        texto = regras.gerar_evolucao(dados)
+        self.assertIn("Orientação operacional", texto)
+        self.assertNotIn("horas adicionais", texto)
+
+    def test_com_bomba_apresenta_estimativa_sem_transformar_em_prescricao(self):
+        dados = {
+            "antropometria": {"data": "25/11/2026", "idade_anos": 72, "altura_m": 1.65,
+                              "altura_origem": "A", "peso_kg": 62, "peso_origem": "A",
+                              "imc_class": "Eutrofia"},
+            "metas": {"kcal_dia": 1800, "proteina_g_dia": 80, "kcal_kg": 29, "proteina_g_kg": 1.3},
+            "via": "Enteral", "dva": False, "tne_motivos": [],
+            "dieta_enteral": {"nome": "Fórmula 1.5", "volume_por_etapa_ml": 150,
+                              "etapas": 6, "kcal_100": 150, "ptn_100": 6},
+            "oferta": {"volume_total_ml": 900, "kcal_dia": 1350, "proteina_g_dia": 54,
+                       "volume_meta_ml": 1200},
+            "bomba": {"usa_bomba": True, "taxa_estimativa_ml_h": 10},
+            "orientacao_progressao": False,
+        }
+        texto = regras.gerar_evolucao(dados)
+        self.assertIn("Estimativa de bomba", texto)
+        self.assertIn("30.0 horas estimadas", texto)
+        self.assertNotIn("Orientação operacional", texto)
+
     def test_paciente_oral_nao_entra_no_painel_enteral(self):
         self.assertIsNone(regras.resumo_painel_evolucao(
             {"via": "Oral", "evolucao": {"via": "Oral"}}, "2026-11-22"))
