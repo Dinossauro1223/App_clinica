@@ -186,7 +186,10 @@ def textos_linha(leito, reg, abreviar=True):
     sigla = leito.get("sigla_setor")
     t = {"leito": (f"{sigla} {leito['codigo']}" if sigla else str(leito["codigo"]))}
     if setor := leito.get("setor"):
-        t["setor"] = setor
+        grupo = leito.get("grupo_setor")
+        sigla_setor = leito.get("sigla_setor")
+        t["setor"] = (f"{grupo} · {setor} ({sigla_setor})"
+                      if grupo and sigla_setor else setor)
     if reg is None:
         t.update(acomp="", paciente=None, idade="", reav="", via="",
                  consistencias={k: "" for k in ("LV", "BR", "PAS", "LÍQ. PAS", "LÍQ")},
@@ -226,9 +229,26 @@ def textos_linha(leito, reg, abreviar=True):
                        "lanche":"Lanche", "jantar":"Jant", "ceia":"Ceia"}
     suplementos = []
     for s in reg.get("suplementos") or []:
+        nome_sup = s.get("nome") or ""
         qtd = s.get("qtd_dia")
-        texto = f"{s.get('nome') or ''}: {_fmt_num_pt(qtd, 0)} {s.get('unidade') or 'mL'}/Etapa" if qtd is not None else (s.get("nome") or "")
-        refeicoes = [nomes_refeicoes.get(x, x) for x in (s.get("refeicoes") or [])]
+        ml_oferta = s.get("ml_oferta")
+        refeicoes_orig = s.get("refeicoes") or []
+        refeicoes = [nomes_refeicoes.get(x, x) for x in refeicoes_orig]
+        if ml_oferta is not None:
+            volume = _fmt_num_pt(ml_oferta, 0)
+            texto = f"{nome_sup}: {volume} mL/oferta"
+            if qtd is not None and refeicoes_orig:
+                texto += f" × {len(refeicoes_orig)} = {_fmt_num_pt(qtd, 0)} mL/d"
+            elif qtd is not None:
+                texto += f" ({_fmt_num_pt(qtd, 0)} mL/dia)"
+            agua = s.get("agua_ml")
+            if agua is not None and float(agua or 0) > 0:
+                texto += f"; água: {_fmt_num_pt(agua, 0)} mL/oferta"
+            if s.get("batido_fruta"):
+                texto += " (batido com fruta)"
+        else:
+            texto = (f"{nome_sup}: {_fmt_num_pt(qtd, 0)} {s.get('unidade') or 'mL'}/Etapa"
+                     if qtd is not None else nome_sup)
         if refeicoes:
             texto += " (" + ", ".join(refeicoes) + ")"
         suplementos.append(texto)
@@ -330,7 +350,7 @@ def exportar_excel(caminho, linhas_mapa, data_iso, setor_nome, abreviar=False, i
             cell.alignment = Alignment(horizontal="center" if central else "left",
                                        vertical="top", wrap_text=True)
             cell.border = caixa
-            if key == "supl" and value:
+            if key in ("supl", "supl_inst") and value:
                 cell.fill = PatternFill("solid", fgColor="FCE4D6")
         ws.row_dimensions[row_idx].height = 66 if item["registro"] else 28
 
