@@ -121,4 +121,5 @@ jobs:
           javac -encoding UTF-8 --release 8 \
             -classpath "$ANDROID_HOME/platforms/android-34/android.jar" \
             -d build/apk-classes \
-            mobile/apk/app/src/br/nutrilab/mobile/MainActivity.java
+            mobile/apk/app/src/br/nutrilab/mobile/MainActivity.java \
+            mobile/apk/app/src/br/nutrilab/mobile/QRScannerActivity.java
