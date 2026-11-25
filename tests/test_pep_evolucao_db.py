@@ -118,5 +118,30 @@ class TestPepEvolucaoDB(unittest.TestCase):
             evdb.salvar_rascunho(self.db, 1, "31/02/2026", self._dados(), est)
 
 
+    def test_fecha_com_multiplos_estagiarios_e_nutricionistas(self):
+        est1 = self._intern()
+        est2 = evdb.cadastrar_membro(self.db, "Estagiária Colaboradora", "estagiario")
+        uid2 = pep_db.criar_usuario(self.db, "nutri2", "Nutricionista Colaboradora", "CRN-6 4321", "outra-senha-123")
+        nutri1 = self._nutri()
+        nutri2 = evdb.cadastrar_membro(
+            self.db, "Nutricionista Colaboradora", "nutricionista", crn="CRN-6 4321",
+            crn_conferido=True, id_usuario=uid2)
+        rid = evdb.salvar_rascunho(
+            self.db, 1, "25/11/2026", self._dados(), est1,
+            colaboradores_ids=[est2, nutri2])
+        eid = evdb.fechar_rascunho(self.db, rid, self.uid, "senha-forte-123", confirmado=True)
+        item = evdb.obter_rascunho(self.db, rid)
+        self.assertEqual({x["id_membro"] for x in item["colaboradores"]}, {est1, est2, nutri2})
+        with closing(sqlite3.connect(self.db)) as c:
+            texto = c.execute("SELECT texto FROM Pep_Evolucoes WHERE id_evolucao=?", (eid,)).fetchone()[0]
+            equipe = c.execute(
+                "SELECT papel, nome_snapshot FROM Pep_Evolucao_Equipe WHERE id_evolucao=? ORDER BY papel, nome_snapshot",
+                (eid,)).fetchall()
+        self.assertIn("Estagiário Teste, Estagiária Colaboradora", texto)
+        self.assertIn("Nutricionista Colaboradora — CRN-6 4321", texto)
+        self.assertIn("Nutricionista Teste — CRN-6 1234", texto)
+        self.assertEqual(len(equipe), 4)
+
+
 if __name__ == "__main__":
     unittest.main()
