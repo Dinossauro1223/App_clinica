@@ -1431,7 +1431,7 @@ class FormRegistro(_Janela):
         self._catalogo_visivel = list(self._catalogo)
         self._via_anterior = None
         self._resultado_nrs = {}
-        self._reav_manual = bool(self.reg.get("data_reavaliacao"))
+        self._reav_manual = False
         self._resultado_avaliacao = {}
         self._resultado_pediatria = {}
         self._montar()
@@ -1694,7 +1694,6 @@ class FormRegistro(_Janela):
         if r.get("peso_origem"):
             self.seg_peso.set({"E": "Estimado", "R": "Real"}[r["peso_origem"]])
         _set_entry(self.e_reav, mdb.iso_para_br(r.get("data_reavaliacao")))
-        self._reav_manual = bool(r.get("data_reavaliacao"))
         if r.get("via"):
             self.seg_via.set(r["via"])
         _set_entry(self.e_meta_kcal, _fmt(r.get("meta_kcal")).replace(",0", "") if r.get("meta_kcal") is not None else "")
@@ -1716,6 +1715,7 @@ class FormRegistro(_Janela):
         self._atualizar_sup()
         try:
             salvo_nrs = json.loads(r.get("nrs2002_json") or "{}")
+            self._reav_manual = bool(salvo_nrs.get("data_reavaliacao_manual", bool(r.get("data_reavaliacao"))))
             for codigo, valor in (salvo_nrs.get("respostas") or {}).items():
                 if codigo in self.nrs_respostas:
                     self.nrs_respostas[codigo].set("—" if valor is None else "Sim" if valor else "Não")
@@ -1785,7 +1785,7 @@ class FormRegistro(_Janela):
             "fi_estado": fi, "fi_freq": n(self.e_fi_freq) if fi == "P" else None,
             "fi_dias_ausente": int(dias) if (fi == "A" and dias is not None) else None,
             "suplementos": list(self._suplementos),
-            "nrs2002_json": json.dumps(self._resultado_nrs, ensure_ascii=False),
+            "nrs2002_json": json.dumps(self._resultado_nrs | {"data_reavaliacao_manual": self._reav_manual}, ensure_ascii=False),
             "nrs2002_classificacao": self._resultado_nrs.get("rotulo", ""),
             "avaliacao_json": json.dumps(self._resultado_avaliacao, ensure_ascii=False),
             "avaliacao_classificacao": self._resultado_avaliacao.get("classe", ""),
