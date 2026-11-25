@@ -44,6 +44,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
                 self.dados_existentes = atual["dados"]
         self._montar()
         self._preencher()
+        self._atualizar_correcao()
 
     def _secao(self, pai, titulo):
         card = ctk.CTkFrame(pai, fg_color=tema.BRANCO, border_width=1,
@@ -73,7 +74,11 @@ class FormEvolucaoUI(ctk.CTkFrame):
         q = self._secao(raiz, "Dados clínicos e metas")
         self.lbl_antropometria = ctk.CTkLabel(q, text="", justify="left", anchor="w",
                                                font=tema.fonte(12), text_color=tema.TEXTO)
-        self.lbl_antropometria.pack(fill="x", padx=12, pady=(0, 8))
+        self.lbl_antropometria.pack(fill="x", padx=12, pady=(0, 4))
+        self.lbl_correcao = ctk.CTkLabel(q, text="", justify="left", anchor="w",
+                                         font=tema.fonte(11), text_color=tema.LARANJA_TEXTO,
+                                         wraplength=760)
+        self.lbl_correcao.pack(fill="x", padx=12, pady=(0, 8))
         linha = ctk.CTkFrame(q, fg_color="transparent")
         linha.pack(fill="x", padx=12)
         self.e_kcal_kg = self._entry(linha, "kcal/kg/dia", largura=120)
@@ -287,6 +292,29 @@ class FormEvolucaoUI(ctk.CTkFrame):
                 _set(self.e_ptn_kg, round(float(self.reg["meta_proteina_g"]) / peso, 2))
         self._atualizar_metas()
 
+    def _atualizar_correcao(self):
+        try:
+            av = json.loads(self.reg.get("avaliacao_json") or "{}")
+        except (TypeError, ValueError):
+            av = {}
+        resultado = av.get("resultado") or av
+        if not resultado.get("ajustou"):
+            self.lbl_correcao.configure(text="")
+            return
+        dados_av = resultado.get("dados") or av.get("dados") or {}
+        edema = avaliacao.EDEMA.get(dados_av.get("edema"), 0)
+        ascite = avaliacao.ASCITE.get(dados_av.get("ascite"), 0)
+        original = resultado.get("peso")
+        final = resultado.get("ajustado", av.get("peso_ajustado"))
+        amputacao = resultado.get("amput_pct", 0)
+        self.lbl_correcao.configure(
+            text=("Correção antropométrica — " +
+                  f"peso original: {regras.formatar_numero_pt(original, 1)} kg; " +
+                  f"edema: {regras.formatar_numero_pt(edema, 1)} kg; " +
+                  f"ascite: {regras.formatar_numero_pt(ascite, 1)} kg; " +
+                  f"amputação: {regras.formatar_numero_pt(amputacao, 1)}%; " +
+                  f"peso nutricional final: {regras.formatar_numero_pt(final, 1)} kg."))
+
     def _atualizar_metas(self):
         try:
             peso = self._peso_nutricional()
@@ -302,7 +330,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
             av = json.loads(self.reg.get("avaliacao_json") or "{}")
         except (TypeError, ValueError):
             av = {}
-        peso = av.get("peso_ajustado")
+        resultado = av.get("resultado") or av
+        peso = resultado.get("ajustado", av.get("peso_ajustado"))
         if peso in (None, ""):
             peso = self.reg.get("peso_kg")
         return float(peso) if peso not in (None, "") else None
@@ -342,7 +371,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             "altura_origem": self.reg.get("altura_origem") or "R",
             "peso_kg": peso,
             "peso_origem": self.reg.get("peso_origem") or "R",
-            "peso_corrigido": bool(av.get("ajustou") or (
+            "peso_corrigido": bool(resultado.get("ajustou") or av.get("ajustou") or (
                 peso not in (None, "") and self.reg.get("peso_kg") not in (None, "") and
                 abs(float(peso) - float(self.reg["peso_kg"])) > 0.0001)),
             "imc_class": classificacao,
