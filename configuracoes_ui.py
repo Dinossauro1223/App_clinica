@@ -8,6 +8,8 @@ import socket
 import sys
 import webbrowser
 from pathlib import Path
+import tkinter as tk
+from tkinter import ttk
 from urllib.parse import quote
 
 import customtkinter as ctk
@@ -16,6 +18,7 @@ from tkinter import messagebox
 import db_service
 import tema
 import nrs2002 as nrs
+import integracao_mobile
 from mobile import servidor as servidor_mobile
 
 CAMINHO = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
@@ -73,11 +76,170 @@ class ConfiguracoesUI:
         self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
         self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
         self._distribuicao(conteudo)
+        self._contas_compartilhadas(conteudo)
         self._nrs(conteudo)
         self._backups(conteudo)
         ctk.CTkButton(conteudo, text="Voltar ao início", fg_color=tema.VERDE,
                      hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=14, pady=10)
 
+
+
+    def _mobile_db_path(self):
+        banco_clinica = getattr(getattr(self.app, "mapa", None), "db", None)
+        if not banco_clinica:
+            raise RuntimeError("Não foi possível localizar o banco principal do NutriLab.")
+        return integracao_mobile.caminho_mobile_db(banco_clinica, Path(__file__).resolve().parent)
+
+    def _contas_compartilhadas(self, raiz):
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                            border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=12)
+        ctk.CTkLabel(card, text="Contas compartilhadas da Copa e do Almoxarifado",
+                     font=tema.fonte(16, "bold"), text_color=tema.TEXTO).pack(
+                         anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(card,
+                     text="Cadastre aqui os acessos que serão usados no celular e no painel web. Todas as contas se conectam ao mesmo servidor e compartilham o mapa e os registros, respeitando as permissões de cada perfil.",
+                     font=tema.fonte(12), text_color=tema.SUAVE, wraplength=820,
+                     justify="left").pack(anchor="w", padx=18, pady=(0, 12))
+        form = ctk.CTkFrame(card, fg_color="transparent")
+        form.pack(fill="x", padx=14, pady=4)
+        form.grid_columnconfigure((0, 1), weight=1)
+        self.conta_nome = ctk.CTkEntry(form, placeholder_text="Nome da pessoa / equipe")
+        self.conta_nome.grid(row=0, column=0, sticky="ew", padx=4, pady=4)
+        self.conta_login = ctk.CTkEntry(form, placeholder_text="Login para entrar")
+        self.conta_login.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
+        self.conta_senha = ctk.CTkEntry(form, placeholder_text="Senha inicial (mín. 6 caracteres)", show="•")
+        self.conta_senha.grid(row=1, column=0, sticky="ew", padx=4, pady=4)
+        self.conta_perfil = ctk.CTkOptionMenu(
+            form, values=["Copa", "Almoxarifado"],
+            fg_color=tema.VERDE, button_color=tema.VERDE,
+            button_hover_color=tema.VERDE_HOVER)
+        self.conta_perfil.set("Copa")
+        self.conta_perfil.grid(row=1, column=1, sticky="ew", padx=4, pady=4)
+        acoes = ctk.CTkFrame(card, fg_color="transparent")
+        acoes.pack(fill="x", padx=18, pady=(4, 10))
+        ctk.CTkButton(acoes, text="＋ Criar conta", command=self._criar_conta_compartilhada,
+                      fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER,
+                      font=tema.fonte(12, "bold")).pack(side="left", padx=4)
+        ctk.CTkButton(acoes, text="Atualizar lista", command=self._atualizar_contas_compartilhadas,
+                      fg_color=tema.SUAVE, hover_color=tema.BORDA, text_color=tema.TEXTO).pack(side="left", padx=4)
+        self.lista_contas = ctk.CTkScrollableFrame(card, height=190, fg_color="transparent")
+        self.lista_contas.pack(fill="x", padx=14, pady=(0, 14))
+        self._atualizar_contas_compartilhadas()
+
+    def _atualizar_contas_compartilhadas(self):
+        try:
+            sv = servidor_mobile
+            caminho = self._mobile_db_path()
+            sv.preparar_banco(caminho)
+            c = sv.conectar(caminho)
+            try:
+                contas = [dict(r) for r in c.execute(
+                    "SELECT id,login,nome,perfil,ativo,criado_em FROM usuarios "
+                    "WHERE perfil IN ('copa','estoque_almox') ORDER BY perfil,nome COLLATE NOCASE")]
+            finally:
+                c.close()
+        except Exception as exc:
+            if hasattr(self, "lista_contas"):
+                for w in self.lista_contas.winfo_children():
+                    w.destroy()
+                ctk.CTkLabel(self.lista_contas, text="Não foi possível carregar as contas: " + str(exc),
+                             text_color=tema.SUAVE, wraplength=760).pack(anchor="w", padx=8, pady=8)
+            return
+        for w in self.lista_contas.winfo_children():
+            w.destroy()
+        if not contas:
+            ctk.CTkLabel(self.lista_contas, text="Nenhuma conta da Copa ou do Almoxarifado cadastrada ainda.",
+                         text_color=tema.SUAVE).pack(anchor="w", padx=8, pady=8)
+            return
+        rotulos = {"copa": "Copa", "estoque_almox": "Almoxarifado"}
+        for conta in contas:
+            linha = ctk.CTkFrame(self.lista_contas, fg_color=tema.FUNDO, corner_radius=8)
+            linha.pack(fill="x", padx=3, pady=3)
+            info = ctk.CTkFrame(linha, fg_color="transparent")
+            info.pack(side="left", fill="x", expand=True, padx=10, pady=7)
+            estado = "Ativa" if conta["ativo"] else "Desativada"
+            ctk.CTkLabel(info, text=conta["nome"] + " · " + rotulos[conta["perfil"]],
+                         font=tema.fonte(12, "bold"), text_color=tema.TEXTO).pack(anchor="w")
+            ctk.CTkLabel(info, text=conta["login"] + " · " + estado,
+                         font=tema.fonte(11), text_color=tema.SUAVE).pack(anchor="w")
+            if conta["ativo"]:
+                ctk.CTkButton(linha, text="Desativar", width=92, height=30,
+                              fg_color=tema.SUAVE, hover_color=tema.BORDA,
+                              text_color=tema.TEXTO,
+                              command=lambda uid=conta["id"]: self._alterar_estado_conta(uid, False)).pack(
+                                  side="right", padx=8, pady=6)
+            else:
+                ctk.CTkButton(linha, text="Reativar", width=92, height=30,
+                              fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER,
+                              command=lambda uid=conta["id"]: self._alterar_estado_conta(uid, True)).pack(
+                                  side="right", padx=8, pady=6)
+            ctk.CTkButton(linha, text="Nova senha", width=92, height=30,
+                          fg_color=tema.SUAVE, hover_color=tema.BORDA,
+                          text_color=tema.TEXTO,
+                          command=lambda uid=conta["id"], nome=conta["nome"]: self._redefinir_senha_conta(uid, nome)).pack(
+                              side="right", padx=4, pady=6)
+
+    def _criar_conta_compartilhada(self):
+        nome, login, senha = self.conta_nome.get().strip(), self.conta_login.get().strip(), self.conta_senha.get()
+        perfil = "copa" if self.conta_perfil.get() == "Copa" else "estoque_almox"
+        if not nome or not login or not senha:
+            messagebox.showwarning("Criar conta", "Preencha nome, login e senha.", parent=self.app)
+            return
+        try:
+            caminho = self._mobile_db_path()
+            servidor_mobile.preparar_banco(caminho)
+            c = servidor_mobile.conectar(caminho)
+            try:
+                servidor_mobile.criar_usuario(c, login, nome, perfil, None, senha)
+                c.commit()
+            finally:
+                c.close()
+        except Exception as exc:
+            messagebox.showwarning("Criar conta", str(exc), parent=self.app)
+            return
+        self.conta_nome.delete(0, "end")
+        self.conta_login.delete(0, "end")
+        self.conta_senha.delete(0, "end")
+        self._atualizar_contas_compartilhadas()
+        messagebox.showinfo("Conta criada", "A conta foi criada no banco compartilhado. A pessoa já pode entrar pelo aplicativo ou pelo site usando o servidor configurado.", parent=self.app)
+
+    def _alterar_estado_conta(self, uid, ativo):
+        acao = "reativar" if ativo else "desativar"
+        if not messagebox.askyesno("Contas compartilhadas", "Deseja " + acao + " esta conta?", parent=self.app):
+            return
+        try:
+            caminho = self._mobile_db_path()
+            c = servidor_mobile.conectar(caminho)
+            try:
+                c.execute("UPDATE usuarios SET ativo=? WHERE id=? AND perfil IN ('copa','estoque_almox')",
+                          (int(bool(ativo)), int(uid)))
+                c.commit()
+            finally:
+                c.close()
+        except Exception as exc:
+            messagebox.showwarning("Contas compartilhadas", str(exc), parent=self.app)
+            return
+        self._atualizar_contas_compartilhadas()
+
+    def _redefinir_senha_conta(self, uid, nome):
+        janela = ctk.CTkInputDialog(text="Nova senha para " + nome + " (mínimo 6 caracteres):",
+                                    title="Redefinir senha")
+        senha = janela.get_input()
+        if not senha:
+            return
+        try:
+            caminho = self._mobile_db_path()
+            c = servidor_mobile.conectar(caminho)
+            try:
+                servidor_mobile.definir_senha(c, int(uid), senha)
+                c.commit()
+            finally:
+                c.close()
+        except Exception as exc:
+            messagebox.showwarning("Redefinir senha", str(exc), parent=self.app)
+            return
+        messagebox.showinfo("Senha atualizada", "A nova senha já pode ser usada no aplicativo e no site.", parent=self.app)
 
     def _base_recursos(self):
         return Path(__file__).resolve().parent
