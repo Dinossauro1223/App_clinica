@@ -61,6 +61,33 @@ class TestReposicaoAlmox(unittest.TestCase):
         repo.receber(self.db, pedido, quando="2026-11-02", valor_unitario="8,50")
         self.assertEqual(almox_db.obter_item(self.db, item)["saldo"], 3)
 
+    def test_recebimento_calcula_preco_unitario_a_partir_do_custo_total(self):
+        item = almox_db.salvar_item(self.db, {
+            "nome": "Fórmula enteral", "unidade": "un",
+            "categoria": "Dietas enterais", "embalagem_qtd": "1000",
+            "embalagem_un": "ml"
+        })
+        pedido = repo.solicitar(self.db, item, 12, quando="2026-11-01")
+        repo.receber(self.db, pedido, quando="2026-11-03",
+                     quantidade_recebida="10", valor_total_compra="250,00")
+        produto = almox_db.obter_item(self.db, item)
+        self.assertAlmostEqual(produto["valor_unitario"], 25.0)
+        movimento = almox_db.listar_movimentos(self.db, id_item=item)[0]
+        self.assertEqual(movimento["quantidade"], 10)
+        self.assertAlmostEqual(movimento["valor_unitario"], 25.0)
+        self.assertAlmostEqual(movimento["valor_total"], 250.0)
+        registro = repo.listar(self.db)[0]
+        self.assertEqual(registro["quantidade_recebida"], 10)
+        self.assertAlmostEqual(registro["custo_total_recebido"], 250.0)
+        self.assertEqual(produto["embalagem_qtd"], 1000)
+        self.assertEqual(produto["embalagem_un"], "ml")
+
+    def test_recebimento_por_custo_total_rejeita_quantidade_invalida(self):
+        pedido = repo.solicitar(self.db, self.item, 5, quando="2026-11-01")
+        with self.assertRaisesRegex(ValueError, "quantidade recebida"):
+            repo.receber(self.db, pedido, quando="2026-11-02",
+                         quantidade_recebida="0", valor_total_compra="50,00")
+
     def test_cancelamento_nao_afeta_media(self):
         pedido = repo.solicitar(self.db, self.item, 1, quando="2026-11-01")
         repo.cancelar(self.db, pedido)
