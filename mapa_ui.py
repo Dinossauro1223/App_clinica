@@ -1664,7 +1664,7 @@ class FormRegistro(_Janela):
             return
         imc = nc.calcular_imc(nc.parse_num(self.e_peso.get()), nc.parse_num(self.e_altura.get()))
         DialogCurvasOMS(
-            self.ui, self.ui.tabela_oms, sexo, meses_decimais,
+            self, self.ui.tabela_oms, sexo, meses_decimais,
             nc.parse_num(self.e_peso.get()), nc.parse_num(self.e_altura.get()), imc)
 
     def _recalcular(self):
@@ -1956,11 +1956,14 @@ class FormRegistro(_Janela):
             except (tk.TclError, ValueError, AttributeError):
                 pass
 
-class DialogCurvasOMS(_Janela):
+class DialogCurvasOMS(ctk.CTkToplevel):
     """Exibe curvas LMS oficiais OMS 2006/2007 e posiciona as medidas do paciente."""
 
-    def __init__(self, ui, tabela, sexo, idade_meses, peso, altura, imc):
-        super().__init__(ui, "Curvas de crescimento — OMS", "1100x800")
+    def __init__(self, parent, tabela, sexo, idade_meses, peso, altura, imc):
+        super().__init__(parent)
+        self.title("Curvas de crescimento — OMS")
+        self.geometry("1100x800")
+        self.minsize(900, 650)
         ctk.CTkLabel(
             self, text="CURVAS DE CRESCIMENTO OMS · 0–19 ANOS",
             font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC
