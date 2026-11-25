@@ -71,6 +71,22 @@ def calcular_adequacao(energia_ofertada, proteina_ofertada, meta_kcal, meta_prot
             "deficit_kcal": max(0.0, kcal_meta - energia)}
 
 
+
+def validar_progressao_oral(valores):
+    """Valida a sequência operacional oral configurável, sem decidir a porção clínica do paciente."""
+    if not isinstance(valores, (list, tuple)) or len(valores) != 5:
+        raise ValueError("Informe exatamente cinco porções para a progressão oral.")
+    limpos = []
+    for valor in valores:
+        numero = _numero(valor, "Porção oral", minimo=1)
+        if int(numero) != numero:
+            raise ValueError("As porções orais devem ser números inteiros em mL.")
+        limpos.append(int(numero))
+    if any(a >= b for a, b in zip(limpos, limpos[1:])):
+        raise ValueError("As porções devem estar em ordem crescente, sem valores repetidos.")
+    return limpos
+
+
 def classificar_tne(motivos):
     selecionados = {str(x).strip().casefold() for x in (motivos or []) if str(x).strip()}
     desconhecidos = selecionados - TNE_MOTIVOS
