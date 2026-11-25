@@ -551,7 +551,7 @@ async function vCad(){
   <label class=f style="display:none">Setor da nutrição (vazio = todos os setores)<select id=ns>${opSet(null,'— todos os setores —')}</select></label>
   <label class=f>Senha inicial (mín. 6)<input type=text id=nx></label><button class=btn onclick="novoUsuario()">Criar usuário</button></div>
   <div class=cartao><h2 style="margin-top:0">Usuários</h2>${u.usuarios.map(x=>`<div style="padding:6px 0;border-bottom:1px solid var(--linha)"><b>${esc(x.nome)}</b> <span class=mini>${esc(x.login)} · ${NOME[x.perfil]}${x.ativo?'':' · desativado'}</span><br>
-   ${x.perfil==='copa'||x.perfil==='nutricionista'?`<select onchange="trocaSetor(${x.id},this.value)" style="width:auto;min-height:36px">${opSet(x.id_setor,x.perfil==='copa'?'todos os setores (mapa compartilhado)':'todos os setores')}</select> `:''}
+   ${x.perfil==='copa'?'<span class=mini>Todos os setores · mapa compartilhado</span>':x.perfil==='nutricionista'?`<select onchange="trocaSetor(${x.id},this.value)" style="width:auto;min-height:36px">${opSet(x.id_setor,'todos os setores')}</select> `:''}
    <button class="btn sec peq" onclick="ativa(${x.id},${x.ativo?0:1})">${x.ativo?'Desativar':'Reativar'}</button> <button class="btn sec peq" onclick="senha(${x.id})">Nova senha</button></div>`).join('')}</div>
   <div class=cartao><h2 style="margin-top:0">Atividade de atualização dos mapas</h2>
    <p class=mini>Conta alterações efetivamente aplicadas no mapa, por copeira. Salvamentos sem mudança e propostas pendentes não entram no ranking.</p>
@@ -583,6 +583,7 @@ async function vCad(){
    <span class=mini>${esc(i.unidade)} · ${i.preco_unitario==null?'preço pendente':'R$ '+Number(i.preco_unitario).toFixed(2)} · ${i.embalagem_qtd==null?'conteúdo pendente':esc(i.embalagem_qtd+' '+i.embalagem_un)}</span>
    <button class="btn sec peq" onclick="editarItem(${i.id})">Editar preço/embalagem</button></div>`).join('')}
   </div></div>`;
+  await carregaAtividade();
 }
 
 const carregaAtividade=tenta(async()=>{
