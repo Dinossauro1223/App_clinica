@@ -233,6 +233,8 @@ def registrar_refeicao_servida(
         raise ValueError("Identifique quem recebeu a refeição.")
     if publico == "paciente" and not str(id_paciente or "").strip():
         raise ValueError("O serviço ao paciente exige o identificador do paciente/internação.")
+    if publico == "paciente" and (not str(nome_paciente or "").strip() or not str(leito or "").strip()):
+        raise ValueError("O serviço ao paciente exige snapshots do nome e do leito.")
     if publico == "acompanhante" and not id_autorizacao_acompanhante:
         raise ValueError("A refeição de acompanhante exige autorização da assistência social.")
     categoria = {"paciente": "pacientes", "funcionario": "funcionarios",
@@ -247,12 +249,13 @@ def registrar_refeicao_servida(
             """, (int(id_autorizacao_acompanhante),)).fetchone()
             if not auth:
                 raise ValueError("Autorização de acompanhante inexistente ou inativa.")
-            inicio = datetime.fromisoformat(auth["inicio_vigencia"])
-            fim = datetime.fromisoformat(auth["fim_vigencia"]) if auth["fim_vigencia"] else None
+            inicio = datetime.fromisoformat(auth["inicio_vigencia"]).replace(tzinfo=None)
+            fim = datetime.fromisoformat(auth["fim_vigencia"]).replace(tzinfo=None) if auth["fim_vigencia"] else None
+            instante_comparacao = instante.replace(tzinfo=None)
             permitidas = json.loads(auth["refeicoes_json"])
             if str(id_paciente or "") != auth["id_paciente"]:
                 raise ValueError("A autorização pertence a outro paciente, não ao leito atual.")
-            if refeicao not in permitidas or instante < inicio or (fim and instante > fim):
+            if refeicao not in permitidas or instante_comparacao < inicio or (fim and instante_comparacao > fim):
                 raise ValueError("A refeição ou o horário não está coberto pela autorização.")
             if quantidade > auth["quantidade_acompanhantes"]:
                 raise ValueError("A quantidade excede a autorização da assistência social.")
