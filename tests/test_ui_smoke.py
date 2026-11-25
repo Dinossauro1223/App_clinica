@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Teste de fumaça da interface (mapa_ui) com widgets simulados.
+Sincronização da branch com a main validada antes da execução da CI.
 
 Não abre janelas: injeta versões falsas de tkinter/customtkinter que guardam o estado
 dos campos, e percorre os fluxos principais (mapa, registro, histórico, leitos,
