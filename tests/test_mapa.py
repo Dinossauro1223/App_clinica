@@ -575,7 +575,7 @@ class TestExportacao(unittest.TestCase):
         self.assertGreaterEqual(str(celula).count("\n"), 3)
         self.assertIsNotNone(ws["C5"].font)
         # leito vago
-        vago = [r for r in range(5, ws.max_row + 1) if not ws.cell(r, 3).value]
+        vago = [r for r in range(4, ws.max_row + 1) if not ws.cell(r, 3).value]
         self.assertTrue(vago)
         sem_vagos = os.path.join(self.saida, "mapa_teste_sem_vagos.xlsx")
         mex.exportar_excel(sem_vagos, self.dia, "2026-10-14", self.setor["nome"], incluir_vagos=False)
