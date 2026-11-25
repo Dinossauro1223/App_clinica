@@ -25,6 +25,14 @@ def verificar_pacote(caminho: str | Path) -> None:
             "O ZIP deve conter somente o modelo _internal/modelo_banco/clinica.db; "
             f"encontrados: {bancos!r}"
         )
+    dados_oms_obrigatorios = (
+        "_internal/dados/oms_lms_pediatricos.csv",
+        "_internal/dados/oms_classificacoes_pediatricas.json",
+    )
+    ausentes = [nome for nome in dados_oms_obrigatorios if nome not in nomes]
+    if ausentes:
+        raise ValueError("Dados OMS obrigatórios ausentes no ZIP: " + ", ".join(ausentes))
+
     sobras_sqlite = [
         nome for nome in nomes
         if Path(nome).name.casefold() in {"clinica.db-wal", "clinica.db-shm", "clinica.db-journal"}
