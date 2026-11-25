@@ -605,7 +605,7 @@ def completar_registro(reg, criterio_idoso="lipschitz", lms=None):
     reg["imc"] = round(imc, 1) if imc is not None else None
     if imc is None or reg.get("idade_anos") is None:
         reg["imc_class"] = ""
-    elif reg.get("idade_anos") < 20 and reg.get("pediatria_oms_json") is not None:
+    elif reg.get("idade_anos") < 20:
         try:
             oms = json.loads(reg.get("pediatria_oms_json") or "{}")
         except (TypeError, ValueError):
