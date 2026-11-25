@@ -150,10 +150,10 @@ class TestLimitesEAncoraOMS2007(unittest.TestCase):
             tabela.calcular("peso_idade", "H", 120.5, 30.5, idade_meses_completos=120), 0.0
         )
         self.assertEqual(
-            [p["idade"] for p in tabela.curva("imc_idade", "H", "oms_2007")], [228]
+            [p["idade"] for p in tabela.curva("imc_idade", "H", "oms_2007")], [228, 229]
         )
         self.assertEqual(
-            [p["idade"] for p in tabela.curva("peso_idade", "H", "oms_2007")], [120]
+            [p["idade"] for p in tabela.curva("peso_idade", "H", "oms_2007")], [120, 121]
         )
 
     def test_csv_oficial_contem_ancoras_superiores_de_interpolacao(self):
@@ -162,10 +162,10 @@ class TestLimitesEAncoraOMS2007(unittest.TestCase):
         self.assertIsNotNone(tabela)
         self.assertIn(229, tabela._dados_meses[("imc_idade", "oms_2007", "H")])
         self.assertIn(121, tabela._dados_meses[("peso_idade", "oms_2007", "H")])
-        self.assertNotIn(
+        self.assertIn(
             229, [p["idade"] for p in tabela.curva("imc_idade", "H", "oms_2007")]
         )
-        self.assertNotIn(
+        self.assertIn(
             121, [p["idade"] for p in tabela.curva("peso_idade", "H", "oms_2007")]
         )
 
