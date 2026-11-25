@@ -248,6 +248,13 @@ class FormEvolucaoUI(ctk.CTkFrame):
             if salvo:
                 _set(qtd, salvo.get("quantidade"))
                 _set(etapas, salvo.get("etapas", 1))
+        if not metas and self._peso_nutricional():
+            peso = self._peso_nutricional()
+            if self.reg.get("meta_kcal"):
+                _set(self.e_kcal_kg, round(float(self.reg["meta_kcal"]) / peso, 2))
+            if self.reg.get("meta_proteina_g"):
+                _set(self.e_ptn_kg, round(float(self.reg["meta_proteina_g"]) / peso, 2))
+        self._atualizar_metas()
 
     def _atualizar_metas(self):
         try:
@@ -293,7 +300,9 @@ class FormEvolucaoUI(ctk.CTkFrame):
             "altura_origem": self.reg.get("altura_origem") or "R",
             "peso_kg": peso,
             "peso_origem": self.reg.get("peso_origem") or "R",
-            "peso_corrigido": bool(av.get("ajustou")),
+            "peso_corrigido": bool(av.get("ajustou") or (
+                peso not in (None, "") and self.reg.get("peso_kg") not in (None, "") and
+                abs(float(peso) - float(self.reg["peso_kg"])) > 0.0001)),
             "imc_class": classificacao,
             "aj_cm": self.reg.get("aj_cm"), "pp_cm": self.reg.get("pp_cm"),
             "pb_cm": self.reg.get("pb_cm"),
