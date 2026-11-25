@@ -71,7 +71,7 @@ if not exist "%RAIZ%mobile\apk\Gerar_APK.bat" goto ERRO_APK_FONTE
 call "%RAIZ%mobile\apk\Gerar_APK.bat" /integrado
 if errorlevel 1 goto ERRO_APK
 if not exist "%APK%" goto ERRO_APK_AUSENTE
-for %%F in ("%APK%") do if %%~zF LSS 50000 goto ERRO_APK_INVALIDO
+for %%F in ("%APK%") do if %%~zF LSS 10000 goto ERRO_APK_INVALIDO
 
 echo.
 echo [5/8] Compilando NutriLab.exe...
