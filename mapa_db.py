@@ -833,6 +833,9 @@ def mapa_do_dia(db_path, data_iso, id_setor=None):
             r["data_exibicao"] = data_iso
             por_leito[r["id_leito"]] = r
         por_leito = {k: v for k, v in por_leito.items() if v is not None}
+        for r in registros:
+            if r.get("leito_ativo") == 0 and r["data"] != data_iso:
+                por_leito.pop(r["id_leito"], None)
         # Uma remoção manual é um estado explícito de "vago" para aquele dia e impede
         # que o paciente do dia anterior reapareça, sem criar um falso registro clínico.
         liberacoes = _rows(c.execute("SELECT * FROM Mapa_Liberacoes WHERE data=?", (data_iso,)))
