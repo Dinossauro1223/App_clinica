@@ -571,7 +571,7 @@ class TestExportacao(unittest.TestCase):
         pacientes = [str(ws.cell(r, 3).value or "") for r in range(5, ws.max_row + 1)]
         celula = next(texto for texto in pacientes if "Francisca Aparecida" in texto)
         self.assertIn("IMC", celula)
-        self.assertRegex(celula, r"IMC \\(Kg/m²\\): .+ \\(.+\\)")
+        self.assertRegex(celula, r"IMC \(Kg/m²\): .+ \(.+\)")
         # Leitos vagos mantêm a linha com a célula do paciente vazia e podem ser omitidos.
         vagos = [r for r in range(5, ws.max_row + 1) if ws.cell(r, 3).value is None]
         self.assertTrue(vagos)
