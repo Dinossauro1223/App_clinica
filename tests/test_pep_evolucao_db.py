@@ -37,6 +37,7 @@ class TestPepEvolucaoDB(unittest.TestCase):
                 "data": "25/11/2026", "idade_anos": 72, "altura_m": 1.65, "altura_origem": "A",
                 "peso_kg": 62, "peso_origem": "A", "imc_class": "Eutrofia"
             },
+            "metas": {"kcal_dia": 1800, "proteina_g_dia": 78, "kcal_kg": 30, "proteina_g_kg": 1.3, "peso_referencia_kg": 60},
             "via": "Oral", "dva": False, "tno": "Regular",
             "dieta_oral": {"consistencia": "Branda", "caracteristicas": ["DM", "HAS"]},
             "observacoes": "Observação sintética", "conduta": "Conduta sintética"
