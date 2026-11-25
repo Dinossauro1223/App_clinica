@@ -23,6 +23,7 @@ import mapa_db as mdb
 import condutas_alta as ca
 import graficos_layout as gl
 import tema
+import pediatria_oms as oms
 
 VERDE_ESC, VERDE, VERDE_HOVER, FUNDO = tema.VERDE_ESC, tema.VERDE, tema.VERDE_HOVER, tema.FUNDO
 CINZA_BTN, CINZA_HOVER = tema.SUAVE, tema.SUAVE
@@ -70,9 +71,18 @@ class MapaUI:
         self.app, self.db, self.base_dir = app, db_path, base_dir
         self.data = date.today()
         self.id_setor = None
-        self.lms = None  # tabelas LMS da OMS (opcional): dados/oms_imc_idade_lms.csv
+        self.lms = None  # tabelas LMS para avaliação nutricional geral.
         for pasta in (os.path.dirname(os.path.abspath(db_path)), base_dir):
             self.lms = self.lms or nc.TabelaLMS.carregar_padrao(pasta)
+        self.tabela_oms = None
+        self.erro_tabela_oms = None
+        for pasta in (base_dir, os.path.dirname(os.path.abspath(db_path))):
+            if not pasta:
+                continue
+            try:
+                self.tabela_oms = self.tabela_oms or oms.TabelaReferenciaOMS.carregar_padrao(pasta)
+            except (OSError, ValueError, TypeError) as exc:
+                self.erro_tabela_oms = str(exc)
         self._imagens = []
         self._grupos = None
         self._grupos_png = None
@@ -1124,7 +1134,7 @@ class DialogBuscarPaciente(_Janela):
 
 class DialogHistorico(_Janela):
     def __init__(self, ui, reg):
-        super().__init__(ui, "Histórico do paciente", "900x480")
+        super().__init__(ui, "Histórico do paciente", "1100x480")
         self.reg = reg
         ctk.CTkLabel(self, text=reg["nome_paciente"], font=ctk.CTkFont(size=18, weight="bold"),
                      text_color=VERDE_ESC).pack(anchor="w", padx=16, pady=(14, 0))
@@ -1133,7 +1143,7 @@ class DialogHistorico(_Janela):
         quadro = ctk.CTkFrame(self, fg_color=tema.BRANCO)
         quadro.pack(fill="both", expand=True, padx=16, pady=8)
         cols = [("data", "Data", 90), ("leito", "Leito", 60), ("peso", "Peso (kg)", 80), ("imc", "IMC", 150),
-                ("via", "Via", 70), ("consist", "Consist.", 80), ("supl", "Suplementos", 220), ("reav", "Reav.", 90)]
+                ("via", "Via", 70), ("consist", "Consist.", 80), ("supl", "Suplementos", 220), ("reav", "Reav.", 90), ("oms", "OMS pediatria", 170)]
         self.tree = ttk.Treeview(quadro, columns=[c[0] for c in cols], show="headings", style=ESTILO_TREE,
                                  selectmode="browse")
         for c, t, w in cols:
@@ -1144,10 +1154,23 @@ class DialogHistorico(_Janela):
         self.itens = mdb.historico_paciente(ui.db, reg.get("id_paciente"), reg["nome_paciente"])
         for r in self.itens:
             imc = f"{_fmt(r.get('imc'))} ({r['imc_class']})" if r.get("imc") and r.get("imc_class") else _fmt(r.get("imc"))
+            try:
+                oms_salvo = json.loads(r.get("pediatria_oms_json") or "{}")
+            except (TypeError, ValueError):
+                oms_salvo = {}
+            imc_oms = (oms_salvo.get("resultados") or {}).get("imc_idade") or {}
+            if imc_oms.get("status") == "calculado":
+                oms_txt = f"{imc_oms.get('classificacao')} (z={imc_oms.get('escore_z'):+.2f})"
+            elif imc_oms.get("status") == "pendente":
+                oms_txt = "Pendente"
+            elif imc_oms.get("status") == "fora_faixa":
+                oms_txt = "Fora da faixa"
+            else:
+                oms_txt = ""
             self.tree.insert("", "end", iid=str(r["id_registro"]), values=(
                 mdb.iso_para_br(r["data"]), r["leito_codigo"], _fmt(r.get("peso_kg")), imc, r.get("via") or "",
                 r.get("consistencia") or "", ", ".join(s["nome"] + (" (batido com fruta)" if s.get("batido_fruta") else "") for s in r["suplementos"]),
-                mdb.iso_para_br(r.get("data_reavaliacao"))))
+                mdb.iso_para_br(r.get("data_reavaliacao")), oms_txt))
         _btn(self, "Abrir registro", self._abrir, 140).pack(pady=(0, 14))
 
     def _abrir(self):
@@ -1177,6 +1200,10 @@ class FormRegistro(_Janela):
         self.attributes("-topmost", True)
         self._widgets = []
         self._id_paciente = self.reg.get("id_paciente")
+        self._data_nascimento = None
+        paciente_vinculado = mdb.obter_paciente(ui.db, self._id_paciente)
+        if paciente_vinculado:
+            self._data_nascimento = paciente_vinculado.get("data_nascimento")
         self._nome_original = self.reg.get("nome_paciente") or ""
         self._vinculo_manual = False
         self._altura_metodo = self.reg.get("altura_metodo")
@@ -1187,6 +1214,7 @@ class FormRegistro(_Janela):
         self._via_anterior = None
         self._resultado_nrs = {}
         self._resultado_avaliacao = {}
+        self._resultado_pediatria = {}
         self._montar()
         self.bind("<Control-s>", self._atalho_salvar)
         self.bind("<Control-S>", self._atalho_salvar)
@@ -1270,6 +1298,18 @@ class FormRegistro(_Janela):
         self.lbl_info = ctk.CTkLabel(q, text="", text_color=tema.SUAVE, wraplength=760, justify="left",
                                      font=ctk.CTkFont(size=11))
         self.lbl_info.pack(anchor="w", padx=12, pady=(0, 6))
+        self.lbl_oms_pediatria = ctk.CTkLabel(
+            q, text="OMS pediatria: informe idade, sexo, peso e altura; o resultado exige tabela oficial.",
+            text_color=tema.SUAVE, wraplength=760, justify="left", font=ctk.CTkFont(size=11))
+        self.lbl_oms_pediatria.pack(anchor="w", padx=12, pady=(0, 2))
+        ctk.CTkLabel(
+            q, text="Medida OMS: comprimento deitado antes de 24 meses; estatura em pé a partir de 24 meses.",
+            text_color=tema.SUAVE, wraplength=760, justify="left", font=ctk.CTkFont(size=10)
+        ).pack(anchor="w", padx=12, pady=(0, 4))
+        linha_curvas = self._linha(q)
+        self.b_curvas_oms = self._reg(_btn(linha_curvas, "Ver curvas OMS", self._abrir_curvas_oms,
+                                            130, CINZA_BTN, CINZA_HOVER, 28))
+        self.b_curvas_oms.pack(side="left")
 
         q = self._secao("Dieta")
         l = self._linha(q)
@@ -1475,6 +1515,13 @@ class FormRegistro(_Janela):
         g = lambda e: e.get().strip()
         n = lambda e: nc.parse_num(g(e))
         idade, meses = n(self.e_idade), n(self.e_meses)
+        if self._data_nascimento:
+            idade_meses_oms, _, _, erro_idade = self._idade_para_oms()
+            if idade_meses_oms is None:
+                raise ValueError(erro_idade or "Não foi possível calcular a idade pela data de nascimento.")
+            idade, meses = divmod(idade_meses_oms, 12)
+        elif idade is None and meses is not None and meses > 0:
+            idade, meses = divmod(int(meses), 12)
         reav = None
         if g(self.e_reav):
             try:
@@ -1515,30 +1562,135 @@ class FormRegistro(_Janela):
             "nrs2002_classificacao": self._resultado_nrs.get("rotulo", ""),
             "avaliacao_json": json.dumps(self._resultado_avaliacao, ensure_ascii=False),
             "avaliacao_classificacao": self._resultado_avaliacao.get("classe", ""),
+            "pediatria_oms_json": json.dumps(self._resultado_pediatria, ensure_ascii=False),
         }
 
     # ---------------------------------------------------------------- cálculos
+    def _idade_para_oms(self):
+        # Quando o paciente está vinculado, a data de nascimento é a fonte principal.
+        # Isso evita divergência entre a idade digitada e a idade cronológica real.
+        if self._data_nascimento:
+            bruto = str(self._data_nascimento).strip()
+            try:
+                nascimento = date.fromisoformat(bruto)
+            except ValueError:
+                try:
+                    nascimento = datetime.strptime(bruto, "%d/%m/%Y").date()
+                except ValueError:
+                    return None, None, None, "Data de nascimento inválida."
+            try:
+                idade_dias = oms.calcular_idade_dias(nascimento.isoformat(), self.data_iso)
+                idade_meses = oms.calcular_idade_meses(nascimento.isoformat(), self.data_iso)
+            except ValueError as exc:
+                return None, None, None, str(exc)
+            return idade_meses, idade_dias, idade_dias / 30.4375, nascimento.isoformat()
+
+        anos = nc.parse_num(self.e_idade.get())
+        meses_extra = nc.parse_num(self.e_meses.get()) or 0
+        if anos is None and meses_extra <= 0:
+            return None, None, None, "Informe a idade ou vincule um paciente com data de nascimento."
+        idade_meses = int((anos or 0) * 12 + meses_extra)
+        if idade_meses < 0:
+            return None, None, None, "Idade não pode ser negativa."
+        return idade_meses, None, float(idade_meses), None
+
+    def _recalcular_pediatria(self, imc):
+        idade_meses, idade_dias, meses_decimais, nascimento = self._idade_para_oms()
+        if idade_meses is None:
+            self._resultado_pediatria = {"status": "pendente", "aviso": nascimento, "resultados": {}}
+            self.lbl_oms_pediatria.configure(text="OMS pediatria: " + (nascimento or "informe a idade ou vincule um paciente com data de nascimento."))
+            self.lbl_class.configure(text="(classificação pediátrica pendente)")
+            return
+        sexo = {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get())
+        tabela = self.ui.tabela_oms
+        medidas = {
+            "imc_idade": imc,
+            "peso_idade": nc.parse_num(self.e_peso.get()),
+            "estatura_idade": nc.parse_num(self.e_altura.get()),
+        }
+        resultados = {
+            indicador: oms.avaliar_indicador(indicador, valor, sexo, meses_decimais, tabela,
+                                             idade_dias=idade_dias,
+                                             idade_meses_completos=idade_meses)
+            for indicador, valor in medidas.items()
+        }
+        self._resultado_pediatria = {
+            "status": "calculado" if any(x.get("status") == "calculado" for x in resultados.values()) else "pendente",
+            "data_avaliacao": self.data_iso, "data_nascimento": nascimento,
+            "idade_dias": idade_dias, "idade_meses_completos": idade_meses,
+            "idade_meses_decimais": round(meses_decimais, 4), "sexo": sexo,
+            "peso_kg": medidas["peso_idade"], "altura_cm": medidas["estatura_idade"],
+            "imc": imc, "resultados": resultados,
+            "fonte": "OMS 2006 / OMS 2007 — pacotes WHO anthro 1.1.0 e anthroplus 1.1.0",
+        }
+        nomes = {"imc_idade": "IMC/idade", "peso_idade": "Peso/idade", "estatura_idade": "Estatura/idade"}
+        linhas = []
+        for indicador, resultado in resultados.items():
+            if resultado["status"] == "calculado":
+                linhas.append(f"{nomes[indicador]}: z={resultado['escore_z']:+.2f} — {resultado['classificacao']}")
+            elif resultado["status"] == "fora_faixa":
+                linhas.append(f"{nomes[indicador]}: não aplicável nesta idade")
+            else:
+                linhas.append(f"{nomes[indicador]}: pendente ({resultado.get('aviso') or 'dados insuficientes'})")
+        if tabela is None:
+            aviso = self.ui.erro_tabela_oms or "arquivo oficial dados/oms_lms_pediatricos.csv não encontrado"
+            linhas = ["Tabelas LMS oficiais OMS não carregadas: " + aviso]
+        if idade_meses > 228:
+            linhas.insert(0, "Faixa OMS pediátrica encerrada aos 228 meses (19 anos completos).")
+        elif idade_meses <= 60 and idade_dias is None:
+            linhas.insert(0, "Para OMS 2006, informe/vincule a data de nascimento para calcular a idade exata em dias.")
+        self.lbl_oms_pediatria.configure(text="OMS pediatria — " + " | ".join(linhas))
+        imc_oms = resultados["imc_idade"]
+        if imc_oms["status"] == "calculado":
+            self.lbl_class.configure(text=f"(OMS: {imc_oms['classificacao']} · z={imc_oms['escore_z']:+.2f})")
+        elif imc_oms["status"] == "fora_faixa":
+            self.lbl_class.configure(text="(fora da faixa de referência OMS)")
+        else:
+            self.lbl_class.configure(text="(classificação OMS pendente)")
+
+    def _abrir_curvas_oms(self):
+        if self.ui.tabela_oms is None:
+            messagebox.showwarning(
+                "Curvas OMS", "As tabelas LMS oficiais não foram carregadas. Confira dados/oms_lms_pediatricos.csv.",
+                parent=self)
+            return
+        idade_meses, idade_dias, meses_decimais, _ = self._idade_para_oms()
+        if idade_meses is None:
+            messagebox.showinfo("Curvas OMS", "Informe a idade do paciente.", parent=self)
+            return
+        sexo = {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get())
+        if sexo is None:
+            messagebox.showinfo("Curvas OMS", "Informe o sexo para selecionar a referência correta.", parent=self)
+            return
+        imc = nc.calcular_imc(nc.parse_num(self.e_peso.get()), nc.parse_num(self.e_altura.get()))
+        DialogCurvasOMS(
+            self, self.ui.tabela_oms, sexo, meses_decimais,
+            nc.parse_num(self.e_peso.get()), nc.parse_num(self.e_altura.get()), imc)
+
     def _recalcular(self):
         self._recalcular_oferta()
         peso, alt = nc.parse_num(self.e_peso.get()), nc.parse_num(self.e_altura.get())
         idade = nc.parse_num(self.e_idade.get())
         imc = nc.calcular_imc(peso, alt)
-        if imc is None:
-            self.lbl_imc.configure(text="-")
-            self.lbl_class.configure(text="")
-            self._recalcular_nrs()
-            self._recalcular_avaliacao()
-            return
-        self.lbl_imc.configure(text=nc.fmt_num(imc, 1))
-        if idade is None:
+        self.lbl_imc.configure(text=nc.fmt_num(imc, 1) if imc is not None else "-")
+        idade_meses, _, _, _ = self._idade_para_oms()
+        if idade_meses is not None and idade_meses < 240:
+            self._recalcular_pediatria(imc)
+        elif idade_meses is None:
             self.lbl_class.configure(text="(informe a idade para classificar)")
-            self._recalcular_nrs()
-            self._recalcular_avaliacao()
-            return
-        cl = nc.classificar_imc(imc, int(idade), {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get()),
-                                int(nc.parse_num(self.e_meses.get()) or 0), self.ui.criterio_idoso, self.ui.lms)
-        txt = nc.texto_classificacao(cl)
-        self.lbl_class.configure(text=f"({txt})" if txt else "")
+            self.lbl_oms_pediatria.configure(text="OMS pediatria: informe a idade.")
+            self._resultado_pediatria = {"status": "pendente", "resultados": {}}
+        else:
+            self.lbl_oms_pediatria.configure(text="Indicadores OMS pediátricos não se aplicam a partir de 20 anos.")
+            self._resultado_pediatria = {}
+            if imc is None:
+                self.lbl_class.configure(text="")
+            else:
+                idade_adulta = int(idade_meses // 12)
+                cl = nc.classificar_imc(imc, idade_adulta, {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get()),
+                                        int(idade_meses % 12), self.ui.criterio_idoso, self.ui.lms)
+                txt = nc.texto_classificacao(cl)
+                self.lbl_class.configure(text=f"({txt})" if txt else "")
         self._recalcular_nrs()
         self._recalcular_avaliacao()
 
@@ -1723,6 +1875,7 @@ class FormRegistro(_Janela):
 
     def _paciente_escolhido(self, p):
         self._id_paciente = p["id_paciente"]
+        self._data_nascimento = p.get("data_nascimento")
         self._vinculo_manual = True
         _set_entry(self.e_nome, p["nome"])
         sexo = nc.norm_sexo(p.get("sexo"))
@@ -1764,6 +1917,9 @@ class FormRegistro(_Janela):
         nome = reg["nome_paciente"]
         if nome.strip().lower() != self._nome_original.strip().lower() and not self._vinculo_manual:
             reg["id_paciente"] = None  # nome mudou: é outro paciente nesse leito
+            self._data_nascimento = None
+            self._recalcular()
+            reg["pediatria_oms_json"] = json.dumps(self._resultado_pediatria, ensure_ascii=False)
         if not reg["id_paciente"] and nome:
             iguais = [p for p in mdb.listar_pacientes(self.ui.db, nome) if p["nome"].strip().lower() == nome.lower()]
             if iguais:
@@ -1778,6 +1934,9 @@ class FormRegistro(_Janela):
                     return
                 if resp:
                     reg["id_paciente"] = p["id_paciente"]
+                    self._data_nascimento = p.get("data_nascimento")
+                    self._recalcular()
+                    reg["pediatria_oms_json"] = json.dumps(self._resultado_pediatria, ensure_ascii=False)
         if reg["idade_anos"] is None and reg["peso_kg"] and reg["altura_cm"]:
             if not messagebox.askyesno("Idade não informada",
                                        "Sem a idade, o IMC não será classificado. Salvar mesmo assim?", parent=self):
@@ -1796,3 +1955,95 @@ class FormRegistro(_Janela):
                 w.configure(state="disabled")
             except (tk.TclError, ValueError, AttributeError):
                 pass
+
+class DialogCurvasOMS(ctk.CTkToplevel):
+    """Exibe curvas LMS oficiais OMS 2006/2007 e posiciona as medidas do paciente."""
+
+    def __init__(self, parent, tabela, sexo, idade_meses, peso, altura, imc):
+        super().__init__(parent)
+        self.title("Curvas de crescimento — OMS")
+        self.geometry("1100x800")
+        self.minsize(900, 650)
+        ctk.CTkLabel(
+            self, text="CURVAS DE CRESCIMENTO OMS · 0–19 ANOS",
+            font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC
+        ).pack(anchor="w", padx=16, pady=(12, 2))
+        ctk.CTkLabel(
+            self,
+            text="Peso/idade está disponível somente até 10 anos. Medir comprimento deitado antes de 24 meses "
+                 "e estatura em pé a partir de 24 meses.",
+            text_color=tema.SUAVE, wraplength=980, justify="left"
+        ).pack(anchor="w", padx=16, pady=(0, 6))
+        try:
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+        except ImportError as exc:
+            ctk.CTkLabel(self, text=f"Biblioteca de gráficos indisponível: {exc}",
+                         text_color=tema.ERRO).pack(padx=16, pady=20)
+            return
+        figura = Figure(figsize=(10, 8), dpi=100)
+        eixos = figura.subplots(3, 1)
+        configuracoes = (
+            ("imc_idade", "IMC/idade", "IMC (kg/m²)", imc),
+            ("peso_idade", "Peso/idade", "Peso (kg)", peso),
+            ("estatura_idade", "Estatura/idade", "Comprimento/estatura (cm)", altura),
+        )
+        curvas_z = (
+            ("z_menos3", "−3 DP", "--"),
+            ("z_menos2", "−2 DP", ":"),
+            ("z_zero", "Mediana", "-"),
+            ("z_mais2", "+2 DP", ":"),
+            ("z_mais3", "+3 DP", "--"),
+        )
+        for ax, (indicador, titulo, eixo_y, medida_paciente) in zip(eixos, configuracoes):
+            ax.set_title(titulo, loc="left", fontsize=10, fontweight="bold")
+            ax.set_xlabel("Idade (anos)")
+            ax.set_ylabel(eixo_y)
+            ax.grid(True, alpha=0.22)
+            for referencia in ("oms_2006", "oms_2007"):
+                pontos = tabela.curva(indicador, sexo, referencia)
+                if not pontos:
+                    continue
+                xs = []
+                for ponto in pontos:
+                    x_meses = (ponto["idade"] / 30.4375 if referencia == "oms_2006"
+                               else ponto["idade"])
+                    if referencia == "oms_2006" and x_meses >= 60:
+                        continue
+                    if referencia == "oms_2007" and x_meses < 60:
+                        continue
+                    limite_meses = 120 if indicador == "peso_idade" else 228
+                    if referencia == "oms_2007" and x_meses > limite_meses:
+                        continue
+                    xs.append(x_meses / 12.0)
+                for chave, rotulo, estilo in curvas_z:
+                    ys = []
+                    for ponto in pontos:
+                        x_meses = (ponto["idade"] / 30.4375 if referencia == "oms_2006"
+                                   else ponto["idade"])
+                        if referencia == "oms_2006" and x_meses >= 60:
+                            continue
+                        if referencia == "oms_2007" and x_meses < 60:
+                            continue
+                        limite_meses = 120 if indicador == "peso_idade" else 228
+                        if referencia == "oms_2007" and x_meses > limite_meses:
+                            continue
+                        ys.append(ponto[chave])
+                    ax.plot(xs, ys, linestyle=estilo, linewidth=1.0 if chave != "z_zero" else 1.8,
+                            label=rotulo if referencia == "oms_2006" else None)
+            limite_medida = 120 if indicador == "peso_idade" else 228
+            if medida_paciente is not None and idade_meses is not None and 0 <= idade_meses <= limite_medida:
+                ax.scatter([idade_meses / 12.0], [medida_paciente], marker="o", s=42,
+                           edgecolors="black", linewidths=0.6, zorder=5, label="Paciente")
+            elif indicador == "peso_idade" and idade_meses is not None and idade_meses > 120:
+                ax.text(0.02, 0.95, "Peso/idade não aplicável após 10 anos",
+                        transform=ax.transAxes, va="top", fontsize=8)
+            ax.set_xlim(0, 19)
+            if indicador == "peso_idade":
+                ax.axvline(10, linestyle="--", linewidth=0.8, alpha=0.5)
+        eixos[0].legend(loc="best", ncol=6, fontsize=8)
+        figura.tight_layout(pad=2.0)
+        canvas = FigureCanvasTkAgg(figura, master=self)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=12, pady=8)
+

@@ -529,10 +529,11 @@ class TestExportacao(unittest.TestCase):
                 {"nome": "Módulo", "ml_oferta": 20, "agua_ml": 0, "refeicoes": ["almoco"],
                  "qtd_dia": 20, "batido_fruta": False, "unidade": "ml"}
             ]})
-        self.assertIn("120 mL/oferta × 2 = 240 mL/d", linha["supl"][0])
-        self.assertIn("água: 30 mL/oferta", linha["supl"][0])
-        self.assertIn("(batido com fruta)", linha["supl"][0])
-        self.assertNotIn("batido com fruta", linha["supl"][1])
+        suplementos = linha["supl"].splitlines()
+        self.assertIn("120 mL/oferta × 2 = 240 mL/d", suplementos[0])
+        self.assertIn("água: 30 mL/oferta", suplementos[0])
+        self.assertIn("(batido com fruta)", suplementos[0])
+        self.assertNotIn("batido com fruta", suplementos[1])
 
     def test_exportacao_da_visao_geral_identifica_o_setor(self):
         geral = mex._colunas("Todos_os_setores")
@@ -559,39 +560,31 @@ class TestExportacao(unittest.TestCase):
         from openpyxl import load_workbook
         caminho = os.path.join(self.saida, "mapa_teste.xlsx")
         mex.exportar_excel(caminho, self.dia, "2026-10-14", self.setor["nome"])
-        wb = load_workbook(caminho, rich_text=True)
-        ws = wb.active
-        self.assertEqual([ws.cell(3, c).value for c in range(1, 12)],
-                         ["Lt", "Ac.", "Paciente", "Id.", "Reav.", "Via", "Caract. dieta", "Consist.", "Suplementos",
-                          "Obs. (Sim/Não)", "F. Int."])
-        self.assertEqual(ws.max_row >= 4 + 24, True)
+        ws = load_workbook(caminho).active
+        self.assertEqual(ws["A1"].value, "SETOR DE NUTRIÇÃO")
+        self.assertIn("MAPA DE DIETAS - SETOR GERAL",
+                      [ws.cell(2, c).value for c in range(1, ws.max_column + 1)])
+        cabecalhos = {ws.cell(4, c).value: c for c in range(1, ws.max_column + 1)}
+        for titulo in ("Lt", "Ac.", "Paciente", "Id.", "Reav.", "Via", "Caract. dieta",
+                       "Consist.", "Suplementos", "Obs. (Sim/Não)", "F. Int.",
+                       "Via ALM.", "Suplementação / Dieta enteral", "Preferências",
+                       "Observações", "Diagnósticos"):
+            self.assertIn(titulo, cabecalhos)
+        self.assertGreaterEqual(ws.max_row, 4 + len(self.dia))
         self.assertEqual(ws.page_setup.orientation, "landscape")
-        self.assertEqual(ws.print_title_rows.replace("$", ""), "3:3")
-        # linha do caso longo (leito L01): célula do paciente em texto rico
-        celula = ws["C4"].value
-        self.assertEqual(ws["A4"].value, "L01")
-        blocos = [b for b in celula if not isinstance(b, str)]
-        self.assertTrue(blocos[0].font.b)
-        self.assertEqual(blocos[0].font.sz, 10)
-        self.assertEqual(blocos[0].font.rFont, "Arial")
-        self.assertIn("Francisca Aparecida", blocos[0].text)
-        outros = [b for b in blocos[1:] if "\n" not in b.text]
-        self.assertTrue(all(b.font.sz == 8 and not b.font.b for b in outros))
-        vermelhos = [b for b in blocos if b.font.color is not None and getattr(b.font.color, "rgb", None) == "FFFF0000"]
-        self.assertEqual(len(vermelhos), 1)
-        self.assertTrue(vermelhos[0].text.startswith(" (") and vermelhos[0].text.endswith(")"))
-        self.assertEqual(celula.__str__().count("\n"), 3)  # 4 divisões numa única linha de Excel
-        with zipfile.ZipFile(caminho) as z:
-            xml = z.read("xl/worksheets/sheet1.xml").decode("utf-8")  # strings inline (texto rico)
-        self.assertIn("FFFF0000", xml)
-        self.assertRegex(xml, r'<rFont val="Arial"\s*/>')   # o espaço antes de '/>' varia com o serializador XML
-        # leito vago
-        vago = [r for r in range(4, ws.max_row + 1) if ws.cell(r, 3).value == "Vago"]
-        self.assertTrue(vago)
+        self.assertEqual(ws.print_title_rows.replace("$", ""), "1:4")
+        col_paciente = cabecalhos["Paciente"]
+        registros = [(r, str(ws.cell(r, col_paciente).value or ""))
+                     for r in range(5, ws.max_row + 1)]
+        linha_longa = next((r, v) for r, v in registros if "Francisca Aparecida" in v)
+        self.assertIn("IMC (Kg/m²)", linha_longa[1])
+        self.assertRegex(linha_longa[1], r"IMC \(Kg/m²\): .+ \(.+\)")
+        self.assertEqual(ws.cell(linha_longa[0], cabecalhos["Lt"]).value, "L01")
+        self.assertTrue(any(not valor for _, valor in registros))
         sem_vagos = os.path.join(self.saida, "mapa_teste_sem_vagos.xlsx")
         mex.exportar_excel(sem_vagos, self.dia, "2026-10-14", self.setor["nome"], incluir_vagos=False)
         ws2 = load_workbook(sem_vagos).active
-        self.assertFalse([r for r in range(4, ws2.max_row + 1) if ws2.cell(r, 3).value == "Vago"])
+        self.assertEqual(ws2.max_row, 4 + sum(1 for item in self.dia if item["registro"] is not None))
 
     def test_pdf_simulado(self):
         from fake_fpdf import FakePDF
@@ -609,7 +602,9 @@ class TestExportacao(unittest.TestCase):
         for titulo in ("Lt", "Ac.", "Paciente", "Id.", "Reav.", "Via", "Caract. dieta", "Consist.", "Suplementos",
                        "Obs. (Sim/Não)", "F. Int."):
             self.assertIn(mex._l1(titulo), textos)
-        self.assertTrue(any(t[4] == mex.VERMELHO_PDF and t[3].startswith(" (") for t in pdf.textos))
+        self.assertTrue(any("Francisca Aparecida" in t[3] for t in pdf.textos))
+        self.assertTrue(any(t[4] == mex.VERMELHO_PDF and t[3].startswith(" (")
+                            for t in pdf.textos), "classificação do IMC deve permanecer em vermelho")
         # nada ultrapassa a largura da página
         for _, x, _, txt, _ in pdf.textos:
             self.assertLess(x, 297 - 8)

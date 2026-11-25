@@ -1,70 +1,226 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "dataset_id": "oms_crescimento_pediatrico",
-  "status": "classificacoes_e_cobertura_definidas_lms_pendente",
-  "description": "Metadados de referência e pontos de corte para avaliação antropométrica de crianças e adolescentes. Este arquivo NÃO contém os parâmetros LMS nem substitui as tabelas numéricas oficiais.",
+  "status": "lms_oficial_incluido",
+  "description": "Metadados, cobertura e pontos de corte para avaliação antropométrica pediátrica. Os parâmetros LMS oficiais estão em dados/oms_lms_pediatricos.csv.",
   "references": {
     "who_2006": {
       "name": "WHO Child Growth Standards",
       "year": 2006,
-      "age_months": {"min": 0, "max": 60},
-      "source_url": "https://www.who.int/tools/child-growth-standards"
+      "age_months": {
+        "min": 0,
+        "max": 60
+      },
+      "source_url": "https://www.who.int/tools/child-growth-standards",
+      "source_age_days": {
+        "min": 0,
+        "max": 1826
+      }
     },
     "who_2007": {
       "name": "WHO Growth Reference for school-aged children and adolescents",
       "year": 2007,
-      "age_months": {"min": 61, "max": 228},
+      "age_months": {
+        "min": 60,
+        "max": 228
+      },
       "source_url": "https://www.who.int/toolkits/growth-reference-data-for-5to19-years"
     }
   },
-  "sexes": ["H", "M"],
-  "age_unit": "completed_months",
+  "sexes": [
+    "H",
+    "M"
+  ],
+  "age_unit": "OMS 2006: idade exata em dias; OMS 2007: meses decimais interpolados, com faixa clínica selecionada por meses completos",
   "indicators": {
     "bmi_for_age": {
       "label_pt": "IMC por idade",
       "unit": "kg/m2",
-      "available_age_months": [{"min": 0, "max": 60, "reference": "who_2006"}, {"min": 61, "max": 228, "reference": "who_2007"}],
+      "available_age_months": [
+        {
+          "min": 0,
+          "max": 59,
+          "reference": "who_2006"
+        },
+        {
+          "min": 60,
+          "max": 228,
+          "reference": "who_2007"
+        }
+      ],
       "classification": [
-        {"reference": "who_2006", "z_lt": -3, "label": "Magreza acentuada"},
-        {"reference": "who_2006", "z_gte": -3, "z_lt": -2, "label": "Magreza"},
-        {"reference": "who_2006", "z_gte": -2, "z_lte": 1, "label": "Eutrofia"},
-        {"reference": "who_2006", "z_gt": 1, "z_lte": 2, "label": "Risco de sobrepeso"},
-        {"reference": "who_2006", "z_gt": 2, "z_lte": 3, "label": "Sobrepeso"},
-        {"reference": "who_2006", "z_gt": 3, "label": "Obesidade"},
-        {"reference": "who_2007", "z_lt": -3, "label": "Magreza acentuada"},
-        {"reference": "who_2007", "z_gte": -3, "z_lt": -2, "label": "Magreza"},
-        {"reference": "who_2007", "z_gte": -2, "z_lte": 1, "label": "Eutrofia"},
-        {"reference": "who_2007", "z_gt": 1, "z_lte": 2, "label": "Sobrepeso"},
-        {"reference": "who_2007", "z_gt": 2, "label": "Obesidade"}
+        {
+          "reference": "who_2006",
+          "z_lt": -3,
+          "label": "Magreza acentuada"
+        },
+        {
+          "reference": "who_2006",
+          "z_gte": -3,
+          "z_lt": -2,
+          "label": "Magreza"
+        },
+        {
+          "reference": "who_2006",
+          "z_gte": -2,
+          "z_lte": 1,
+          "label": "Eutrofia"
+        },
+        {
+          "reference": "who_2006",
+          "z_gt": 1,
+          "z_lte": 2,
+          "label": "Risco de sobrepeso"
+        },
+        {
+          "reference": "who_2006",
+          "z_gt": 2,
+          "z_lte": 3,
+          "label": "Sobrepeso"
+        },
+        {
+          "reference": "who_2006",
+          "z_gt": 3,
+          "label": "Obesidade"
+        },
+        {
+          "reference": "who_2007",
+          "z_lt": -3,
+          "label": "Magreza acentuada"
+        },
+        {
+          "reference": "who_2007",
+          "z_gte": -3,
+          "z_lt": -2,
+          "label": "Magreza"
+        },
+        {
+          "reference": "who_2007",
+          "z_gte": -2,
+          "z_lte": 1,
+          "label": "Eutrofia"
+        },
+        {
+          "reference": "who_2007",
+          "z_gt": 1,
+          "z_lte": 2,
+          "label": "Sobrepeso"
+        },
+        {
+          "reference": "who_2007",
+          "z_gt": 2,
+          "label": "Obesidade"
+        }
       ]
     },
     "weight_for_age": {
       "label_pt": "Peso por idade",
       "unit": "kg",
-      "available_age_months": [{"min": 0, "max": 60, "reference": "who_2006"}, {"min": 61, "max": 120, "reference": "who_2007"}],
-      "classification": [
-        {"z_lt": -3, "label": "Peso muito baixo para a idade"},
-        {"z_gte": -3, "z_lt": -2, "label": "Peso baixo para a idade"},
-        {"z_gte": -2, "label": "Sem baixo peso pelo indicador"}
+      "available_age_months": [
+        {
+          "min": 0,
+          "max": 59,
+          "reference": "who_2006"
+        },
+        {
+          "min": 60,
+          "max": 120,
+          "reference": "who_2007"
+        }
       ],
-      "limitations": ["Não classificar sobrepeso ou obesidade pelo peso/idade; utilizar IMC/idade.", "Não há referência OMS peso/idade após 10 anos."]
+      "classification": [
+        {
+          "z_lt": -3,
+          "label": "Peso muito baixo para a idade"
+        },
+        {
+          "z_gte": -3,
+          "z_lt": -2,
+          "label": "Peso baixo para a idade"
+        },
+        {
+          "z_gte": -2,
+          "label": "Sem baixo peso pelo indicador"
+        }
+      ],
+      "limitations": [
+        "Não classificar sobrepeso ou obesidade pelo peso/idade; utilizar IMC/idade.",
+        "Não há referência OMS peso/idade após 10 anos."
+      ]
     },
     "height_for_age": {
       "label_pt": "Estatura por idade",
       "unit": "cm",
-      "available_age_months": [{"min": 0, "max": 60, "reference": "who_2006"}, {"min": 61, "max": 228, "reference": "who_2007"}],
+      "available_age_months": [
+        {
+          "min": 0,
+          "max": 59,
+          "reference": "who_2006"
+        },
+        {
+          "min": 60,
+          "max": 228,
+          "reference": "who_2007"
+        }
+      ],
       "classification": [
-        {"z_lt": -3, "label": "Estatura muito baixa para a idade"},
-        {"z_gte": -3, "z_lt": -2, "label": "Estatura baixa para a idade"},
-        {"z_gte": -2, "z_lte": 3, "label": "Estatura dentro da faixa de referência"},
-        {"z_gt": 3, "label": "Estatura muito elevada para a idade — avaliar contexto clínico"}
+        {
+          "z_lt": -3,
+          "label": "Estatura muito baixa para a idade"
+        },
+        {
+          "z_gte": -3,
+          "z_lt": -2,
+          "label": "Estatura baixa para a idade"
+        },
+        {
+          "z_gte": -2,
+          "z_lte": 3,
+          "label": "Estatura dentro da faixa de referência"
+        },
+        {
+          "z_gt": 3,
+          "label": "Estatura muito elevada para a idade — avaliar contexto clínico"
+        }
       ]
     }
   },
   "lms_data": {
-    "status": "not_included",
-    "required_columns": ["indicator", "reference", "sex", "age_months", "L", "M", "S"],
+    "status": "included",
+    "file": "dados/oms_lms_pediatricos.csv",
+    "source_packages": [
+      {
+        "name": "WHO anthro",
+        "version": "1.1.0",
+        "repository": "https://github.com/WorldHealthOrganization/anthro"
+      },
+      {
+        "name": "WHO anthroplus",
+        "version": "1.1.0",
+        "repository": "https://github.com/WorldHealthOrganization/anthroplus"
+      }
+    ],
+    "required_columns": [
+      "indicador",
+      "referencia",
+      "sexo",
+      "idade_dias",
+      "idade_meses",
+      "L",
+      "M",
+      "S",
+      "medida"
+    ],
     "calculation": "z = (((X / M) ** L) - 1) / (L * S), quando L != 0; z = ln(X / M) / S, quando L == 0",
-    "rules": ["Não interpolar nem extrapolar fora da faixa oficial sem método documentado.", "Não calcular classificação se a tabela oficial, o sexo ou a idade estiverem ausentes.", "Guardar versão da referência e dados de entrada usados em cada avaliação."]
+    "rules": [
+      "OMS 2006: parâmetros diários; usar idade exata em dias.",
+      "OMS 2007: parâmetros mensais; interpolar L, M e S linearmente para idade decimal.",
+      "Usar meses completos para selecionar a faixa e classificar; nunca extrapolar fora das âncoras oficiais.",
+      "Os pontos 229 meses (IMC/estatura) e 121 meses (peso) são apenas âncoras superiores de interpolação.",
+      "Não calcular peso/idade depois de 120 meses.",
+      "Não classificar excesso de peso por peso/idade; utilizar IMC/idade.",
+      "Não calcular classificação se faltar tabela, sexo, idade ou medida obrigatória.",
+      "Guardar versão da referência e dados de entrada usados em cada avaliação."
+    ]
   }
 }
