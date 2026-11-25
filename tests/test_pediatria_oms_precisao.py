@@ -116,10 +116,6 @@ class TestLMSPorDiasEMeses(unittest.TestCase):
         self.assertGreater(curva[0]["z_mais3"], curva[0]["z_mais2"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestLimitesEAncoraOMS2007(unittest.TestCase):
     def test_avaliacao_inicia_referencia_2007_aos_60_meses(self):
         tabela = TabelaReferenciaOMS.de_linhas([
@@ -160,15 +156,18 @@ class TestLimitesEAncoraOMS2007(unittest.TestCase):
             [p["idade"] for p in tabela.curva("peso_idade", "H", "oms_2007")], [120]
         )
 
-    def test_csv_oficial_contem_ancoras_e_nao_as_exibe_como_pontos_clinicos(self):
+    def test_csv_oficial_contem_ancoras_superiores_de_interpolacao(self):
         base = Path(__file__).resolve().parents[1]
         tabela = TabelaReferenciaOMS.carregar_padrao(base)
         self.assertIsNotNone(tabela)
         self.assertIn(229, tabela._dados_meses[("imc_idade", "oms_2007", "H")])
         self.assertIn(121, tabela._dados_meses[("peso_idade", "oms_2007", "H")])
-        self.assertNotIn(
+        self.assertIn(
             229, [p["idade"] for p in tabela.curva("imc_idade", "H", "oms_2007")]
         )
-        self.assertNotIn(
+        self.assertIn(
             121, [p["idade"] for p in tabela.curva("peso_idade", "H", "oms_2007")]
         )
+
+if __name__ == "__main__":
+    unittest.main()
