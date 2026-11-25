@@ -378,8 +378,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
             raise ValueError("Informe os parâmetros energéticos e proteicos antes do fechamento.")
         via = str(self.reg.get("via") or "").casefold()
         motivos_tne = [m for m, v in self.tne_vars.items() if v.get()] if via == "enteral" else []
-        tolerancia_enteral = bool(self.var_tolerancia.get()) and not any(
-            motivo in {"vômitos", "diarreia"} for motivo in motivos_tne)
+        tolerancia_enteral = regras.tolerancia_enteral_permite_progressao(
+            motivos_tne, bool(self.var_tolerancia.get()))
         dados = {
             "data_evolucao": self.reg.get("data"),
             "antropometria": antropometria,
