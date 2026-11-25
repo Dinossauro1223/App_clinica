@@ -137,6 +137,19 @@ def ler_produtos_almox(mobile_db):
         c.close()
 
 
+
+def ler_janelas_refeicoes(mobile_db):
+    """Lê os horários ativos configurados no servidor mobile para classificar retiradas por refeição."""
+    sv, c = _abrir_mobile(mobile_db)
+    try:
+        with sv.LOCK:
+            return {
+                str(r["refeicao"]).strip().lower(): {"abre": r["abre"], "fecha": r["fecha"]}
+                for r in c.execute("SELECT refeicao,abre,fecha FROM refeicoes_cfg WHERE ativa=1")
+            }
+    finally:
+        c.close()
+
 def salvar_produto_almox(mobile_db, dados, id_item=None, estoque_inicial=None):
     """Cria/edita um item compartilhado pelo desktop, preservando o histórico do saldo inicial."""
     sv, c = _abrir_mobile(mobile_db)
