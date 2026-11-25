@@ -427,7 +427,7 @@ class MapaUI:
                              f"({resumo['adequacao_kcal_pct']:.1f}%) · déficit {resumo['deficit_kcal']:.0f} kcal · "
                              f"+{resumo['volume_adicional_ml']:.0f} mL/dia")
                 ctk.CTkButton(
-                    lista, text=texto, anchor="w", justify="left", height=46,
+                    lista, text=texto, anchor="w", height=46,
                     fg_color="transparent", hover_color=tema.VERDE_CLARO,
                     text_color=tema.TEXTO, font=ctk.CTkFont(size=10),
                     command=lambda ident=base["id_leito"]: self._abrir_alerta_evolucao(ident)
