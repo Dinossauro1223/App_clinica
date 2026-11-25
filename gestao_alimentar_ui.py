@@ -710,6 +710,9 @@ class FichaDialog:
         self._tbca_por_rotulo = {
             f"{item['id_tbca']} | {item['alimento']}": item for item in self.tbca
         }
+        self._produtos_por_rotulo = {
+            f"{item['id_mobile']} | {item['nome']}": item for item in self.produtos
+        }
         self._opcoes_tbca = ["— selecionar alimento da TBCA —"] + list(self._tbca_por_rotulo)
         self._montar()
         self._preencher()
@@ -810,7 +813,8 @@ class FichaDialog:
         linha_estoque.pack(fill="x", padx=6, pady=(2, 6))
         opcoes = ["— sem vínculo com Almoxarifado —"] + [f"{p['id_mobile']} | {p['nome']}" for p in self.produtos]
         ctk.CTkLabel(linha_estoque, text="Almoxarifado:", text_color=tema.SUAVE).pack(side="left", padx=(0, 4))
-        produto = ctk.CTkComboBox(linha_estoque, width=170, values=opcoes)
+        produto = ctk.CTkComboBox(linha_estoque, width=170, values=opcoes,
+                                  command=lambda valor: self._selecionar_produto(registro, valor))
         produto.set(opcoes[0])
         produto.pack(side="left", padx=3, pady=3)
         ctk.CTkLabel(linha_estoque, text="Preço manual (R$/unid.):", width=130,
@@ -870,6 +874,18 @@ class FichaDialog:
         if alimento.get("npu") is not None:
             registro["npu"].delete(0, "end")
             registro["npu"].insert(0, str(alimento["npu"]))
+
+
+    def _selecionar_produto(self, registro, valor):
+        """Ao escolher um insumo já vinculado, reaproveita automaticamente o alimento TBCA."""
+        produto = self._produtos_por_rotulo.get(valor)
+        if not produto or not produto.get("tbca_id"):
+            return
+        rotulo = next((r for r, a in self._tbca_por_rotulo.items()
+                       if str(a["id_tbca"]) == str(produto["tbca_id"])), None)
+        if rotulo and registro["tbca"].get() == "— selecionar alimento da TBCA —":
+            registro["tbca"].set(rotulo)
+            self._selecionar_tbca(registro, rotulo)
 
     def _remover_linha(self, registro):
         registro["frame"].destroy()
