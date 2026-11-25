@@ -899,7 +899,8 @@ def dados_operacionais_copa(registro, data_destino=None):
     etapas = int(dieta.get("etapas") or 1)
     progressao = dados.get("progressao_enteral") or {}
     if progressao.get("autorizada") and progressao.get("plano", {}).get("passos"):
-        inicio = datetime.strptime(registro["data"], "%Y-%m-%d").date()
+        inicio_bruto = dados.get("data_evolucao") or registro["data"]
+        inicio = datetime.strptime(inicio_bruto, "%Y-%m-%d").date()
         destino = datetime.strptime(data_destino or registro["data"], "%Y-%m-%d").date()
         dias = max(0, (destino - inicio).days)
         passos = progressao["plano"]["passos"]
