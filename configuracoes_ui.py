@@ -10,6 +10,8 @@ from tkinter import messagebox
 import db_service
 import tema
 import nrs2002 as nrs
+import mapa_db as mdb
+import evolucao_nutricional as evregras
 
 CAMINHO = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
 
@@ -64,6 +66,7 @@ class ConfiguracoesUI:
         self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
         self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
         self._nrs(raiz)
+        self._progressao_oral(raiz)
         self._equipe(raiz)
         self._backups(raiz)
         ctk.CTkButton(raiz, text="Voltar ao início", fg_color=tema.VERDE,
@@ -108,6 +111,54 @@ class ConfiguracoesUI:
             status.configure(text="Intervalos salvos no banco do Mapa." + aviso,
                           text_color=tema.LARANJA_TEXTO if aviso else tema.VERDE)
         ctk.CTkButton(card, text="Salvar intervalos", command=salvar, fg_color=tema.VERDE,
+                      hover_color=tema.VERDE_HOVER, font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
+
+
+    def _progressao_oral(self, raiz):
+        """Sequência operacional oral editável; a porção do paciente continua dependendo de autorização."""
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                           border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=(4, 12))
+        ctk.CTkLabel(card, text="Progressão operacional da oferta oral", font=tema.fonte(16, "bold"),
+                     text_color=tema.TEXTO).pack(anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(card, text="Defina as cinco porções padrão em mL. A sequência é apenas uma referência operacional; "
+                                "cada porção exige seleção e autorização do nutricionista.",
+                     font=tema.fonte(12), text_color=tema.SUAVE, wraplength=720,
+                     justify="left").pack(anchor="w", padx=18, pady=(0, 10))
+        caminho_db = getattr(getattr(self.app, "mapa", None), "db", None)
+        if not caminho_db:
+            ctk.CTkLabel(card, text="Banco de dados do Mapa não disponível nesta sessão.",
+                         text_color=tema.LARANJA_TEXTO).pack(anchor="w", padx=18, pady=(0, 14))
+            return
+        padrao = [70, 100, 130, 160, 200]
+        try:
+            salvos = json.loads(mdb.obter_config(caminho_db, "pep_progressao_oral_etapas", json.dumps(padrao)))
+            atuais = evregras.validar_progressao_oral(salvos)
+        except (ValueError, TypeError):
+            atuais = padrao
+        campos = []
+        linha = ctk.CTkFrame(card, fg_color="transparent")
+        linha.pack(fill="x", padx=18, pady=4)
+        for indice, valor in enumerate(atuais):
+            coluna = ctk.CTkFrame(linha, fg_color="transparent")
+            coluna.pack(side="left", padx=(0, 12))
+            ctk.CTkLabel(coluna, text=("Inicial" if indice == 0 else f"Evolução {indice}"),
+                         font=tema.fonte(11), text_color=tema.SUAVE).pack(anchor="w")
+            entrada = ctk.CTkEntry(coluna, width=78, border_color=tema.BORDA)
+            entrada.insert(0, str(valor))
+            entrada.pack(anchor="w")
+            campos.append(entrada)
+        status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
+        status.pack(anchor="w", padx=18, pady=(4, 8))
+        def salvar():
+            try:
+                novos = evregras.validar_progressao_oral([campo.get().strip() for campo in campos])
+                mdb.salvar_config(caminho_db, "pep_progressao_oral_etapas", json.dumps(novos))
+            except (ValueError, TypeError) as erro:
+                status.configure(text=str(erro), text_color=tema.LARANJA_TEXTO)
+                return
+            status.configure(text="Sequência de porções orais salva no banco local.", text_color=tema.VERDE)
+        ctk.CTkButton(card, text="Salvar sequência", command=salvar, fg_color=tema.VERDE,
                       hover_color=tema.VERDE_HOVER, font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
 
 
