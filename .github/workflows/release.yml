@@ -68,11 +68,16 @@ jobs:
             --manifest "$WORK/app/AndroidManifest.xml" -A "$WORK/app/assets" \
             --min-sdk-version 26 --target-sdk-version 34 --version-code "$VCODE" \
             --version-name "$VNAME" "$WORK/obj/res.zip"
-          javac -encoding UTF-8 --release 8 -classpath "$SDK/platforms/android-34/android.jar" \
-            -d "$WORK/obj/classes" "$WORK/app/src/br/nutrilab/mobile/MainActivity.java"
+          ZXING="$WORK/zxing-core-3.5.4.jar"
+          curl -fsSL "https://maven-central.storage-download.googleapis.com/maven2/com/google/zxing/core/3.5.4/core-3.5.4.jar" -o "$ZXING"
+          test -s "$ZXING"
+          test "$(stat -c%s "$ZXING")" -gt 500000
+          javac -encoding UTF-8 --release 8 -classpath "$SDK/platforms/android-34/android.jar:$ZXING" \
+            -d "$WORK/obj/classes" "$WORK/app/src/br/nutrilab/mobile/MainActivity.java" \
+            "$WORK/app/src/br/nutrilab/mobile/QRScannerActivity.java"
           jar cf "$WORK/obj/classes.jar" -C "$WORK/obj/classes" .
           "$BT/d8" --lib "$SDK/platforms/android-34/android.jar" --min-api 26 \
-            --output "$WORK/obj/dex" "$WORK/obj/classes.jar"
+            --output "$WORK/obj/dex" "$WORK/obj/classes.jar" "$ZXING"
           (cd "$WORK/obj/dex" && "$BT/aapt" add "$WORK/obj/base.apk" classes.dex)
           "$BT/zipalign" -f -p 4 "$WORK/obj/base.apk" "$WORK/obj/aligned.apk"
           "$BT/apksigner" sign --ks "$KS" --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
