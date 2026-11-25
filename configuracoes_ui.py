@@ -22,6 +22,7 @@ import integracao_mobile
 from mobile import servidor as servidor_mobile
 
 CAMINHO = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
+PERFIS_COMPARTILHADOS = {"Copa": "copa", "Almoxarifado": "estoque_almox"}
 
 def _ler():
     try:
@@ -182,7 +183,7 @@ class ConfiguracoesUI:
 
     def _criar_conta_compartilhada(self):
         nome, login, senha = self.conta_nome.get().strip(), self.conta_login.get().strip(), self.conta_senha.get()
-        perfil = "copa" if self.conta_perfil.get() == "Copa" else "estoque_almox"
+        perfil = PERFIS_COMPARTILHADOS[self.conta_perfil.get()]
         if not nome or not login or not senha:
             messagebox.showwarning("Criar conta", "Preencha nome, login e senha.", parent=self.app)
             return
