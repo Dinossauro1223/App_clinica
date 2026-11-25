@@ -613,12 +613,10 @@ class ConfiguracoesUI:
             text="Configure separadamente as janelas de pacientes e funcionários. Os horários não vêm preenchidos por padrão: informe os períodos adotados pelo hospital. A contagem de acompanhantes é tratada por autorização individual da assistência social.",
             font=tema.fonte(12), text_color=tema.SUAVE, wraplength=820, justify="left"
         ).pack(anchor="w", padx=18, pady=(0, 10))
-        caminho_db = getattr(getattr(self.app, "mapa", None), "db", None)
-        if not caminho_db:
-            ctk.CTkLabel(card, text="Banco de dados do Mapa não disponível nesta sessão.",
-                         text_color=tema.LARANJA_TEXTO).pack(anchor="w", padx=18, pady=(0, 14))
-            return
         try:
+            # As janelas e o histórico operacional ficam no banco compartilhado
+            # usado pelo servidor mobile, não no banco clínico local do desktop.
+            caminho_db = self._mobile_db_path()
             rdb.inicializar(caminho_db)
             existentes = {(x["publico"], x["refeicao"]): x
                           for x in rdb.listar_janelas(caminho_db)}
