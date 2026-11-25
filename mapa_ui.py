@@ -178,30 +178,6 @@ class MapaUI:
         self.lbl_condutas = ctk.CTkLabel(avisos, text="", text_color=LARANJA,
                                          font=ctk.CTkFont(size=11, weight="bold"), anchor="w", justify="left")
         self.lbl_condutas.pack(fill="x", anchor="w")
-        self.lbl_nrs = ctk.CTkLabel(avisos, text="", text_color=VERMELHO,
-                                    font=ctk.CTkFont(size=11, weight="bold"), anchor="w", justify="left")
-        self.lbl_nrs.pack(fill="x", anchor="w")
-        self.lbl_condutas = ctk.CTkLabel(avisos, text="", text_color=LARANJA,
-                                         font=ctk.CTkFont(size=11, weight="bold"), anchor="w", justify="left")
-        self.lbl_condutas.pack(fill="x", anchor="w")
-        self.quadro_alertas = ctk.CTkFrame(area, fg_color="transparent")
-        self.quadro_alertas.pack(fill="x", padx=24, pady=(2, 5))
-        ctk.CTkLabel(self.quadro_alertas, text="ACOMPANHAMENTO DA EVOLUÇÃO ENTERAL",
-                     font=ctk.CTkFont(size=10, weight="bold"), text_color=tema.VERDE_ESC).pack(anchor="w", pady=(0, 3))
-        self.cards_alertas = {}
-        for coluna, (chave, titulo) in enumerate((
-            ("evoluiram", "Evoluíram automaticamente"),
-            ("nao_evoluiram", "Não evoluíram automaticamente"),
-            ("abaixo_meta", "Abaixo da meta energética"),
-        )):
-            card = ctk.CTkFrame(self.quadro_alertas, fg_color=tema.BRANCO, corner_radius=8,
-                                border_width=1, border_color=tema.BORDA)
-            card.pack(side="left", fill="both", expand=True, padx=(0 if coluna == 0 else 5, 0))
-            ctk.CTkLabel(card, text=titulo, font=ctk.CTkFont(size=11, weight="bold"),
-                         text_color=tema.TEXTO).pack(anchor="w", padx=8, pady=(6, 2))
-            lista_alertas = ctk.CTkScrollableFrame(card, height=82, fg_color="transparent")
-            lista_alertas.pack(fill="both", expand=True, padx=4, pady=(0, 4))
-            self.cards_alertas[chave] = lista_alertas
         self.lbl_inicio = ctk.CTkLabel(
             area, text="Selecione um leito vazio e clique em 'Preencher leito' para iniciar.",
             text_color=tema.SUAVE, anchor="w", justify="left")
@@ -318,8 +294,6 @@ class MapaUI:
                 com_pendencia += cond.get("estado") == "pendente"
             self.tree.insert("", "end", iid=str(l["id_leito"]), values=vals, tags=tag)
         self._mostrar_aviso_condutas(com_pendencia)
-        self._atualizar_alertas_nrs()
-        self._atualizar_painel_evolucao()
         total = len(self.linhas)
         if ocupados == 0 and total:
             self.lbl_inicio.configure(text="Primeiro preenchimento: selecione um leito vazio e clique em 'Preencher leito'. "
@@ -336,104 +310,6 @@ class MapaUI:
                 text=f"{ocupados} de {total} leitos com registro  ·  {past} em dieta pastosa  ·  "
                      f"{acomp} com acompanhante  ·  {ocupados - sup_oral - enteral} em via oral sem suplemento  ·  "
                      f"{sup_oral} com suplementação oral  ·  {enteral} em dieta enteral")
-
-    def _atualizar_alertas_nrs(self):
-        hoje = self.data
-        atrasadas, proximas = [], []
-        for item in self.linhas:
-            registro = item.get("registro")
-            if not registro:
-                continue
-            bruto = registro.get("data_reavaliacao")
-            if not bruto:
-                continue
-            try:
-                data_limite = datetime.strptime(str(bruto)[:10], "%Y-%m-%d").date()
-            except ValueError:
-                try:
-                    data_limite = datetime.strptime(str(bruto), "%d/%m/%Y").date()
-                except ValueError:
-                    continue
-            nome = f"Leito {item['leito'].get('codigo', '?')} — {registro.get('nome_paciente') or 'Paciente'}"
-            if data_limite < hoje:
-                atrasadas.append(f"{nome} (vencida em {data_limite.strftime('%d/%m/%Y')})")
-            elif data_limite <= hoje + timedelta(days=7):
-                proximas.append(f"{nome} ({data_limite.strftime('%d/%m/%Y')})")
-        partes = []
-        if atrasadas:
-            partes.append("ANTROPOMETRIAS ATRASADAS: " + "; ".join(atrasadas))
-        if proximas:
-            partes.append("ANTROPOMETRIAS PRÓXIMAS DO VENCIMENTO: " + "; ".join(proximas))
-        self.lbl_nrs.configure(text="  |  ".join(partes), text_color=VERMELHO if atrasadas else LARANJA)
-
-    def _abrir_alerta_evolucao(self, id_leito):
-        iid = str(id_leito)
-        if self.tree.exists(iid):
-            self.tree.selection_set(iid)
-            self.tree.focus(iid)
-            self.tree.see(iid)
-            self._editar()
-
-    def _atualizar_painel_evolucao(self):
-        import evolucao_nutricional as ev
-        grupos = {"evoluiram": [], "nao_evoluiram": [], "abaixo_meta": []}
-        for item in self.linhas:
-            registro = item.get("registro")
-            if not registro or not registro.get("evolucao_operacional"):
-                continue
-            resumo = ev.resumo_painel_evolucao(registro, self.data.isoformat())
-            paciente = registro.get("nome_paciente") or "Paciente"
-            leito = item["leito"].get("codigo", "?")
-            base = {"id_leito": item["leito"]["id_leito"], "nome": paciente, "leito": leito}
-            if not resumo:
-                if str(registro.get("via") or "").casefold() == "enteral":
-                    grupos["nao_evoluiram"].append((base, {
-                        "evoluiu": False, "dados_insuficientes": True,
-                        "motivo_nao_evolucao": "Dados insuficientes para calcular oferta e metas"
-                    }))
-                continue
-            if resumo["evoluiu"]:
-                grupos["evoluiram"].append((base, resumo))
-            else:
-                grupos["nao_evoluiram"].append((base, resumo))
-            if resumo["deficit_kcal"] > 0.5:
-                grupos["abaixo_meta"].append((base, resumo))
-        for chave, lista in self.cards_alertas.items():
-            for filho in lista.winfo_children():
-                filho.destroy()
-            itens = grupos[chave]
-            if not itens:
-                ctk.CTkLabel(lista, text="Nenhum paciente nesta condição.",
-                             font=ctk.CTkFont(size=10), text_color=tema.SUAVE).pack(anchor="w", padx=4, pady=4)
-                continue
-            for base, resumo in itens:
-                if chave == "evoluiram":
-                    ptn = (f" · {resumo['adequacao_ptn_pct']:.1f}% PTN"
-                           if resumo.get("adequacao_ptn_pct") is not None else "")
-                    texto = (f"Leito {base['leito']} · {base['nome']}\n"
-                             f"{resumo['volume_inicial_ml']:.0f} → {resumo['volume_atual_ml']:.0f} mL/dia "
-                             f"(+{resumo['incremento_ml']:.0f}); meta {resumo['volume_meta_ml']:.0f} mL/dia; "
-                             f"{resumo['adequacao_kcal_pct']:.1f}% kcal{ptn}")
-                elif chave == "nao_evoluiram":
-                    if resumo.get("dados_insuficientes"):
-                        texto = (f"Leito {base['leito']} · {base['nome']}\n"
-                                 f"{resumo['motivo_nao_evolucao']}")
-                    else:
-                        texto = (f"Leito {base['leito']} · {base['nome']}\n"
-                                 f"{resumo['volume_atual_ml']:.0f}/{resumo['volume_meta_ml']:.0f} mL/dia · "
-                                 f"{resumo['adequacao_kcal_pct']:.1f}% kcal · "
-                                 f"{resumo['motivo_nao_evolucao'] or 'Sem incremento registrado'}")
-                else:
-                    texto = (f"Leito {base['leito']} · {base['nome']}\n"
-                             f"{resumo['energia_kcal']:.0f}/{resumo['meta_kcal']:.0f} kcal "
-                             f"({resumo['adequacao_kcal_pct']:.1f}%) · déficit {resumo['deficit_kcal']:.0f} kcal · "
-                             f"+{resumo['volume_adicional_ml']:.0f} mL/dia")
-                ctk.CTkButton(
-                    lista, text=texto, anchor="w", height=46,
-                    fg_color="transparent", hover_color=tema.VERDE_CLARO,
-                    text_color=tema.TEXTO, font=ctk.CTkFont(size=10),
-                    command=lambda ident=base["id_leito"]: self._abrir_alerta_evolucao(ident)
-                ).pack(fill="x", padx=2, pady=1)
 
     # ------------------------------------------------------------------ condutas de alta
     def _catalogo_condutas(self):
@@ -481,6 +357,94 @@ class MapaUI:
             messagebox.showinfo("Condutas de alta", "Este leito não tem paciente registrado neste dia.")
             return
         self._abrir_condutas(it)
+
+    def _criar_painel_alertas(self, master):
+        painel = ctk.CTkFrame(master, fg_color=tema.BRANCO, border_width=1,
+                              border_color=tema.BORDA, corner_radius=10)
+        painel.pack(fill="x", padx=24, pady=(0, 8))
+        topo = ctk.CTkFrame(painel, fg_color="transparent")
+        topo.pack(fill="x", padx=10, pady=(6, 2))
+        ctk.CTkLabel(topo, text="Painel de avisos nutricionais",
+                     font=ctk.CTkFont(size=13, weight="bold"), text_color=VERDE_ESC).pack(side="left")
+        self.lbl_resumo_alertas = ctk.CTkLabel(topo, text="", font=ctk.CTkFont(size=10),
+                                               text_color=tema.SUAVE)
+        self.lbl_resumo_alertas.pack(side="right")
+        corpo = ctk.CTkFrame(painel, fg_color="transparent")
+        corpo.pack(fill="x", padx=8, pady=(0, 8))
+        self.alerta_lists = {}
+        grupos = (
+            ("evoluiram", "Evoluíram automaticamente"),
+            ("nao_evoluiram", "Não evoluíram automaticamente"),
+            ("abaixo_meta", "Abaixo da meta energética"),
+        )
+        for chave, titulo in grupos:
+            coluna = ctk.CTkFrame(corpo, fg_color=tema.FUNDO, corner_radius=8)
+            coluna.pack(side="left", fill="both", expand=True, padx=3)
+            ctk.CTkLabel(coluna, text=titulo, font=ctk.CTkFont(size=11, weight="bold"),
+                         text_color=tema.TEXTO).pack(anchor="w", padx=8, pady=(6, 2))
+            lista = ctk.CTkScrollableFrame(coluna, height=104, fg_color="transparent")
+            lista.pack(fill="both", expand=True, padx=4, pady=(0, 4))
+            self.alerta_lists[chave] = lista
+
+    def _abrir_leito_alerta(self, id_leito):
+        if id_leito is None:
+            return
+        iid = str(id_leito)
+        if self.tree.exists(iid):
+            self.tree.selection_set(iid)
+            self.tree.focus(iid)
+            self._editar()
+
+    def _atualizar_painel_alertas(self):
+        if not hasattr(self, "alerta_lists"):
+            return
+        import evolucao_nutricional as evolucao
+        grupos = evolucao.gerar_alertas_mapa(self.linhas, self.data.isoformat())
+        self.lbl_resumo_alertas.configure(
+            text=f"{len(grupos['evoluiram'])} evoluíram · {len(grupos['nao_evoluiram'])} sem evolução · {len(grupos['abaixo_meta'])} abaixo da meta")
+        for chave, lista in self.alerta_lists.items():
+            for filho in lista.winfo_children():
+                filho.destroy()
+            itens = grupos.get(chave, [])
+            if not itens:
+                ctk.CTkLabel(lista, text="Nenhum paciente nesta condição.",
+                             font=ctk.CTkFont(size=10), text_color=tema.SUAVE,
+                             wraplength=220, justify="left").pack(anchor="w", padx=4, pady=4)
+                continue
+            for item in itens:
+                nome = item.get("nome") or "Paciente sem nome"
+                leito = item.get("leito") or "Leito"
+                if chave == "evoluiram":
+                    detalhe = (f"{evolucao.formatar_numero_pt(item.get('volume_anterior_ml', 0))} → "
+                               f"{evolucao.formatar_numero_pt(item.get('volume_atual_ml', 0))} mL/dia "
+                               f"(+{evolucao.formatar_numero_pt(item.get('incremento_ml', 0))} mL); "
+                               f"meta {evolucao.formatar_numero_pt(item.get('volume_meta_ml', 0))} mL/dia")
+                    if item.get("adequacao_kcal_pct") is not None:
+                        detalhe += (f" · Adeq. {evolucao.formatar_numero_pt(item['adequacao_kcal_pct'], 1)}% kcal"
+                                    f" / {evolucao.formatar_numero_pt(item.get('adequacao_proteina_pct') or 0, 1)}% PTN")
+                elif chave == "nao_evoluiram":
+                    detalhe = item.get("motivo", "sem progressão")
+                    if item.get("volume_atual_ml") is not None:
+                        detalhe += f" · {evolucao.formatar_numero_pt(item['volume_atual_ml'])} mL/dia"
+                    if item.get("adequacao_kcal_pct") is not None:
+                        detalhe += (f" · Adeq. {evolucao.formatar_numero_pt(item['adequacao_kcal_pct'], 1)}% kcal"
+                                    f" / {evolucao.formatar_numero_pt(item.get('adequacao_proteina_pct') or 0, 1)}% PTN")
+                else:
+                    detalhe = (f"{evolucao.formatar_numero_pt(item.get('kcal_atual', 0))}/"
+                               f"{evolucao.formatar_numero_pt(item.get('meta_kcal', 0))} kcal/dia · "
+                               f"{evolucao.formatar_numero_pt(item.get('adequacao_kcal_pct', 0), 1)}% · "
+                               f"Déficit {evolucao.formatar_numero_pt(item.get('deficit_kcal', 0))} kcal · "
+                               f"+{evolucao.formatar_numero_pt(item.get('volume_adicional_ml', 0))} mL")
+                linha = ctk.CTkFrame(lista, fg_color=tema.BRANCO, corner_radius=6)
+                linha.pack(fill="x", padx=2, pady=2)
+                ctk.CTkLabel(linha, text=f"{leito} — {nome}\n{detalhe}",
+                             font=ctk.CTkFont(size=10), text_color=tema.TEXTO,
+                             wraplength=205, justify="left").pack(side="left", fill="x", expand=True,
+                                                                  padx=6, pady=5)
+                ctk.CTkButton(linha, text="Abrir", width=48, height=25,
+                              fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER,
+                              command=lambda mid=item.get("id_leito"): self._abrir_leito_alerta(mid)
+                              ).pack(side="right", padx=4, pady=4)
 
     def _abrir_condutas(self, it):
         from condutas_alta_ui import abrir_condutas_alta        # na hora de usar: evita importação circular
@@ -1431,8 +1395,6 @@ class FormRegistro(_Janela):
         self._catalogo_visivel = list(self._catalogo)
         self._via_anterior = None
         self._resultado_nrs = {}
-        self._reav_manual = False
-        self._reav_automatica = None
         self._resultado_avaliacao = {}
         self._resultado_pediatria = {}
         self._montar()
@@ -1534,7 +1496,6 @@ class FormRegistro(_Janela):
         q = self._secao("Dieta")
         l = self._linha(q)
         self.e_reav = self._entrada(l, "Reavaliação prevista (DD/MM/AAAA)", 100)
-        self.e_reav.bind("<KeyRelease>", self._marcar_reavaliacao_manual)
         self.seg_via = self._seg(l, "Via", mdb.VIAS, cmd=self._via_mudou)
         l = self._linha(q)
         ctk.CTkLabel(l, text="Características:").pack(side="left", padx=(0, 6))
@@ -1716,9 +1677,6 @@ class FormRegistro(_Janela):
         self._atualizar_sup()
         try:
             salvo_nrs = json.loads(r.get("nrs2002_json") or "{}")
-            self._reav_manual = bool(salvo_nrs.get("data_reavaliacao_manual", bool(r.get("data_reavaliacao"))))
-            self._reav_automatica = (mdb.iso_para_br(r.get("data_reavaliacao"))
-                                     if not self._reav_manual else None)
             for codigo, valor in (salvo_nrs.get("respostas") or {}).items():
                 if codigo in self.nrs_respostas:
                     self.nrs_respostas[codigo].set("—" if valor is None else "Sim" if valor else "Não")
@@ -1754,8 +1712,6 @@ class FormRegistro(_Janela):
             idade, meses = divmod(int(meses), 12)
         reav = None
         if g(self.e_reav):
-            if not self._reav_manual and g(self.e_reav) != self._reav_automatica:
-                self._reav_manual = True
             try:
                 reav = mdb.data_br_para_iso(g(self.e_reav))
             except ValueError:
@@ -1790,7 +1746,7 @@ class FormRegistro(_Janela):
             "fi_estado": fi, "fi_freq": n(self.e_fi_freq) if fi == "P" else None,
             "fi_dias_ausente": int(dias) if (fi == "A" and dias is not None) else None,
             "suplementos": list(self._suplementos),
-            "nrs2002_json": json.dumps(self._resultado_nrs | {"data_reavaliacao_manual": self._reav_manual}, ensure_ascii=False),
+            "nrs2002_json": json.dumps(self._resultado_nrs, ensure_ascii=False),
             "nrs2002_classificacao": self._resultado_nrs.get("rotulo", ""),
             "avaliacao_json": json.dumps(self._resultado_avaliacao, ensure_ascii=False),
             "avaliacao_classificacao": self._resultado_avaliacao.get("classe", ""),
@@ -1946,31 +1902,6 @@ class FormRegistro(_Janela):
         }
         self.lbl_nrs_classificacao.configure(
             text=f"Classificação NRS-2002: {resultado.get('rotulo') or 'Não preenchida'}")
-        if not self._reav_manual:
-            if resultado.get("completo") and resultado.get("grau"):
-                try:
-                    intervalos = getattr(self, "_intervalos_nrs", None)
-                    if intervalos is None:
-                        intervalos = nrs.ler_intervalos(self.ui.db)
-                        self._intervalos_nrs = intervalos
-                    alvo = nrs.proxima_reavaliacao(date.fromisoformat(self.data_iso), resultado["grau"], intervalos)
-                    self._reav_automatica = alvo.strftime("%d/%m/%Y")
-                    _set_entry(self.e_reav, self._reav_automatica)
-                except (ValueError, TypeError, sqlite3.Error):
-                    if self.e_reav.get().strip() == self._reav_automatica:
-                        _set_entry(self.e_reav, "")
-                    self._reav_automatica = None
-            else:
-                if self.e_reav.get().strip() == self._reav_automatica:
-                    _set_entry(self.e_reav, "")
-                self._reav_automatica = None
-
-    def _marcar_reavaliacao_manual(self, _evento=None):
-        valor = self.e_reav.get().strip()
-        self._reav_manual = bool(valor and valor != self._reav_automatica)
-        if not valor:
-            self._reav_automatica = None
-            self._recalcular_nrs()
 
     def _recalcular_avaliacao(self):
         dados = {
@@ -1986,8 +1917,8 @@ class FormRegistro(_Janela):
             rotulo = classe if classe else "Dados insuficientes para classificar"
             self._resultado_avaliacao = {
                 "dados": dados, "classe": classe, "imc": resultado.get("imc"),
-                "peso_ajustado": resultado.get("ajustado"), "fluidos": resultado.get("fluidos"),
-                "amput_pct": resultado.get("amput_pct"), "avisos": resultado.get("avisos", []),
+                "peso_ajustado": resultado.get("ajustado"), "avisos": resultado.get("avisos", []),
+                "resultado": resultado,
             }
         except (ValueError, TypeError) as exc:
             rotulo = f"Não foi possível classificar: {exc}"
