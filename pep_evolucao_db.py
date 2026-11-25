@@ -296,6 +296,9 @@ def fechar_rascunho(db_path, id_rascunho, id_usuario, senha, *, confirmado=False
         if not dados.get("metas"):
             conn.rollback()
             raise ValueError("As metas energéticas e proteicas precisam estar calculadas antes do fechamento.")
+        if dados.get("dva") is None:
+            conn.rollback()
+            raise ValueError("Informe se o paciente utiliza DVA antes do fechamento.")
         via = str(dados.get("via") or "").casefold()
         if via == "oral" and dados.get("tno") not in regras.TNO_PERCENTUAIS:
             conn.rollback()
