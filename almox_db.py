@@ -69,7 +69,7 @@ def _d(v,campo="valor",obrigatorio=False,minimo=None):
  else:s=s.replace(",",".")
  try:x=Decimal(s)
  except (InvalidOperation,ValueError):raise ValueError(f"Valor inválido em {campo}.")
- if not x.is_finite() or (minimo is not None and x<Decimal(str(minimo))):raise ValueError(f"{campo.capitalize()} inválido.")
+ if not x.is_finite() or (minimo is not None and x<Decimal(str(minimo))):\n    adjetivo = "inválida" if campo.strip().lower().startswith("quantidade") else "inválido"\n    raise ValueError(f"{campo.strip().lower()} {adjetivo}.")
  return x
 def _f(x):return None if x is None else float(x)
 def _ref(v,req=False):
