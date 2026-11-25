@@ -561,15 +561,15 @@ class TestExportacao(unittest.TestCase):
         mex.exportar_excel(caminho, self.dia, "2026-10-14", self.setor["nome"])
         wb = load_workbook(caminho, rich_text=True)
         ws = wb.active
-        self.assertEqual([ws.cell(3, c).value for c in range(1, 12)],
+        self.assertEqual([ws.cell(4, c).value for c in range(1, 12)],
                          ["Lt", "Ac.", "Paciente", "Id.", "Reav.", "Via", "Caract. dieta", "Consist.", "Suplementos",
                           "Obs. (Sim/Não)", "F. Int."])
-        self.assertEqual(ws.max_row >= 4 + 24, True)
+        self.assertEqual(ws.max_row >= 5 + 24, True)
         self.assertEqual(ws.page_setup.orientation, "landscape")
-        self.assertEqual(ws.print_title_rows.replace("$", ""), "3:3")
+        self.assertEqual(ws.print_title_rows.replace("$", ""), "4:4")
         # linha do caso longo (leito L01): célula do paciente em texto rico
-        celula = ws["C4"].value
-        self.assertEqual(ws["A4"].value, "L01")
+        celula = ws["C5"].value
+        self.assertEqual(ws["A5"].value, "L01")
         blocos = [b for b in celula if not isinstance(b, str)]
         self.assertTrue(blocos[0].font.b)
         self.assertEqual(blocos[0].font.sz, 10)
@@ -586,7 +586,7 @@ class TestExportacao(unittest.TestCase):
         self.assertIn("FFFF0000", xml)
         self.assertRegex(xml, r'<rFont val="Arial"\s*/>')   # o espaço antes de '/>' varia com o serializador XML
         # leito vago
-        vago = [r for r in range(4, ws.max_row + 1) if ws.cell(r, 3).value == "Vago"]
+        vago = [r for r in range(5, ws.max_row + 1) if ws.cell(r, 3).value == "Vago"]
         self.assertTrue(vago)
         sem_vagos = os.path.join(self.saida, "mapa_teste_sem_vagos.xlsx")
         mex.exportar_excel(sem_vagos, self.dia, "2026-10-14", self.setor["nome"], incluir_vagos=False)
