@@ -69,9 +69,9 @@ class TestCalculos(unittest.TestCase):
         texto = amb.montar_texto_anamnese(
             {}, "", {"peso_kg": 30, "altura_m": 1.3, "imc_kg_m2": 17.75, "pediatria_oms": snapshot})
         self.assertIn("AVALIAÇÃO ANTROPOMÉTRICA PEDIÁTRICA — OMS", texto)
-        self.assertIn("IMC/idade: z=+1.25 — Sobrepeso", texto)
-        self.assertIn("Peso/idade: z=+0.30 — Sem baixo peso pelo indicador", texto)
-        self.assertIn("Estatura/idade: z=-0.20 — Estatura dentro da faixa de referência", texto)
+        self.assertIn("IMC/idade: z=+1.25 - Sobrepeso", texto)
+        self.assertIn("Peso/idade: z=+0.30 - Sem baixo peso pelo indicador", texto)
+        self.assertIn("Estatura/idade: z=-0.20 - Estatura dentro da faixa de referência", texto)
 
     def test_texto_pronto_para_copiar(self):
         texto = amb.montar_texto_anamnese(
