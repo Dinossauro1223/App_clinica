@@ -90,8 +90,8 @@ class TestPepEvolucaoDB(unittest.TestCase):
         self.assertEqual(evdb.obter_rascunho(self.db, rid)["status"], "fechada")
         with closing(sqlite3.connect(self.db)) as c:
             row = c.execute(
-                "SELECT paciente_nome, texto, assinante_nome, assinante_crn, elaborador_nome, fechada_em, dados_json "
-                "FROM Pep_Evolucoes WHERE id_evolucao=?", (eid,)).fetchone()
+                "SELECT E.paciente_nome, E.texto, E.assinante_nome, E.assinante_crn, M.elaborador_nome, M.fechada_em, M.dados_json "
+                "FROM Pep_Evolucoes E JOIN Pep_Evolucao_Metadados M USING(id_evolucao) WHERE E.id_evolucao=?", (eid,)).fetchone()
             self.assertEqual(row[0], "Paciente Sintético")
             self.assertIn("TNO: Regular (75% de consumo estimado)", row[1])
             self.assertIn("Observações: Observação sintética", row[1])
