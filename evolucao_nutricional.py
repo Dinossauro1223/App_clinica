@@ -100,6 +100,13 @@ def classificar_tne(motivos):
     return "Ótima", []
 
 
+
+def tolerancia_enteral_permite_progressao(motivos, tolerancia_informada=True):
+    """Vômitos ou diarreia impedem progressão automática, mesmo se o checkbox estiver marcado."""
+    _, selecionados = classificar_tne(motivos)
+    return bool(tolerancia_informada) and not bool({"vômitos", "diarreia"}.intersection(selecionados))
+
+
 def volume_meta_enteral(meta_kcal, densidade_kcal_ml):
     meta = _numero(meta_kcal, "Meta energética", minimo=0.000001)
     densidade = _numero(densidade_kcal_ml, "Densidade energética", minimo=0.000001)
