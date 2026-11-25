@@ -126,13 +126,24 @@ jobs:
   oms-data-extraction:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'tmp/oms-lms-extract'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
       - uses: r-lib/actions/setup-r@v2
       - name: Exportar tabelas de referência
         run: |
           Rscript -e 'install.packages("base64enc", repos="https://cloud.r-project.org")'
           Rscript tools/exportar_oms_lms.R
+      - name: Commit temporary consolidated dataset
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmp/oms-lms/oms_lms.csv
+          git commit -m "chore(oms): generate official WHO LMS dataset" || echo "No dataset changes"
+          git push origin HEAD:tmp/oms-lms-extract
       - uses: actions/upload-artifact@v4
         with:
           name: who-lms-reference-data
