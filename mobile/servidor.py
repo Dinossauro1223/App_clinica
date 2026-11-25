@@ -56,6 +56,13 @@ CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, ocupado INTEGER
 CREATE TABLE IF NOT EXISTS suplementos_catalogo(
   id_suplemento INTEGER PRIMARY KEY, nome TEXT NOT NULL, modulo TEXT, emb_qtd REAL, emb_un TEXT,
   kcal_100 REAL, ptn_100 REAL, lip_100 REAL, carb_100 REAL, sod_100 REAL, ativo INTEGER DEFAULT 1);
+CREATE TABLE IF NOT EXISTS mapa_historico(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, id_setor INTEGER, id_leito INTEGER NOT NULL,
+  por_usuario INTEGER, por_nome TEXT NOT NULL, por_perfil TEXT NOT NULL, atualizado_em TEXT NOT NULL,
+  origem TEXT NOT NULL DEFAULT 'mobile', campos_alterados TEXT NOT NULL,
+  antes_json TEXT, depois_json TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_mapa_historico_periodo ON mapa_historico(atualizado_em, por_usuario);
+CREATE INDEX IF NOT EXISTS ix_mapa_historico_leito ON mapa_historico(data, id_setor, id_leito, atualizado_em);
 CREATE TABLE IF NOT EXISTS mapa_rascunho(data TEXT, id_leito INTEGER, campos TEXT, por_usuario INTEGER, atualizado_em TEXT,
   PRIMARY KEY(data, id_leito));
 CREATE TABLE IF NOT EXISTS refeicoes_cfg(refeicao TEXT PRIMARY KEY, ativa INTEGER, abre TEXT, fecha TEXT);
@@ -212,6 +219,8 @@ def migrar(c):
     if "id_setor" not in cols("correcoes"):
         c.execute("ALTER TABLE correcoes ADD COLUMN id_setor INTEGER")
     c.execute("UPDATE usuarios SET perfil='copa' WHERE perfil IN ('setor','estoque_copa')")
+    # A copa passa a compartilhar o mapa inteiro; o setor continua identificando cada leito.
+    c.execute("UPDATE usuarios SET id_setor=NULL WHERE perfil='copa'")
     c.executemany("INSERT OR IGNORE INTO refeicoes_cfg VALUES(?,?,?,?)", CFG_INICIAL)
     for slug, titulo, texto, ordem in ORIENTACOES_INICIAIS:
         c.execute("INSERT OR IGNORE INTO orientacoes(slug,titulo,texto,ordem,atualizado_em) VALUES(?,?,?,?,?)",
@@ -289,9 +298,9 @@ def usuario(c, auth):
 
 
 def setor_alvo(c, u, pedido):
-    """Admin e nutricionista sem setor escolhem o setor; copa e nutricionista de um setor ficam no próprio."""
+    """Admin, nutrição sem setor e copa global escolhem o setor; contas setoriais ficam no próprio."""
     p, sid = u["perfil"], u["id_setor"]
-    if p == "admin" or (p == "nutricionista" and sid is None):
+    if p == "admin" or (p in ("nutricionista", "copa") and sid is None):
         sid = pedido
     elif p not in ("nutricionista", "copa"):
         raise Erro("Sem permissão para este setor.", 403)
@@ -409,9 +418,25 @@ def atual(c, tipo, data, chave):
     return dict(r) if r else None
 
 
-def gravar(c, tipo, data, chave, v, uid, perfil):
+def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
     t = agora()
     if tipo == "mapa":
+        anterior = atual(c, "mapa", data, chave)
+        if anterior:
+            anterior.pop("por_perfil", None)
+        campos = [k for k in CAMPOS if (anterior or {}).get(k) != v.get(k)]
+        if campos:
+            leito = c.execute("SELECT id_setor FROM leitos WHERE id=?", (int(chave),)).fetchone()
+            usuario = c.execute("SELECT nome FROM usuarios WHERE id=?", (int(uid),)).fetchone()
+            c.execute(
+                "INSERT INTO mapa_historico(data,id_setor,id_leito,por_usuario,por_nome,por_perfil,atualizado_em,origem,campos_alterados,antes_json,depois_json) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (data, leito["id_setor"] if leito else None, int(chave), uid,
+                 usuario["nome"] if usuario else "Usuário removido", perfil, t, origem,
+                 json.dumps(campos, ensure_ascii=False),
+                 json.dumps(anterior, ensure_ascii=False) if anterior is not None else None,
+                 json.dumps({k: v.get(k) for k in CAMPOS}, ensure_ascii=False)),
+            )
         c.execute("INSERT INTO mapa_dia(data,id_leito,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
                   "cor,consistencia,via,dm,has,laxativa,constipante,drc,suplementos_json,por_usuario,por_perfil,atualizado_em) "
                   "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
@@ -466,6 +491,8 @@ def linhas_mapa(c, sid, d, rascunho=False):
            "LEFT JOIN mapa_dia h ON h.id_leito=l.id AND h.data=(SELECT MAX(data) FROM mapa_dia WHERE id_leito=l.id AND data<=?) "
            "WHERE l.id_setor=? ORDER BY l.codigo")
     out = []
+    sql = sql.replace("FROM leitos l ", "LEFT JOIN usuarios u ON u.id=h.por_usuario FROM leitos l ", 1)
+    sql = sql.replace("h.por_perfil,h.atualizado_em FROM", "h.por_perfil,h.atualizado_em,u.nome por_nome FROM", 1)
     for r in c.execute(sql, (d, sid)):
         item = dict(r)
         try:
@@ -561,7 +588,7 @@ def publicar(c, u, s, d, texto):
         lid, n, b = r["id_leito"], json.loads(r["campos"]), vivo[r["id_leito"]]
         tipo = "liberado" if b["ocupado"] and not n["ocupado"] else ("novo" if n["ocupado"] and not b["ocupado"] else "alterado")
         mud.append({"leito": cods[lid], "tipo": tipo, "campos": [k for k in CAMPOS if b[k] != n[k]]})
-        gravar(c, "mapa", d, str(lid), n, u["id"], u["perfil"])
+        gravar(c, "mapa", d, str(lid), n, u["id"], u["perfil"], origem="publicacao")
     if not mud:
         raise Erro("Não há alterações do mapa para publicar neste setor e dia.")
     c.execute("DELETE FROM mapa_rascunho WHERE data=? AND id_leito IN (SELECT id FROM leitos WHERE id_setor=?)", (d, s["id"]))
@@ -723,7 +750,7 @@ def decidir(c, u, cid, acao):
     if acao not in ("aprovar", "recusar"):
         raise Erro("Ação inválida.")
     if acao == "aprovar":  # valor aprovado passa a valer como valor da equipe (admin/nutrição)
-        gravar(c, k["tipo"], k["data"], k["chave"], json.loads(k["valor_proposto"]), u["id"], u["perfil"])
+        gravar(c, k["tipo"], k["data"], k["chave"], json.loads(k["valor_proposto"]), u["id"], u["perfil"], origem="aprovacao")
     c.execute("UPDATE correcoes SET status=?, decidido_em=? WHERE id=?", ("aprovada" if acao == "aprovar" else "recusada", agora(), cid))
     return {"ok": True}
 
@@ -783,7 +810,7 @@ def _rotear(c, ip, m, p, q, b, auth):
             "SELECT id_suplemento,nome,modulo,emb_qtd,emb_un,kcal_100,ptn_100,lip_100,carb_100,sod_100 "
             "FROM suplementos_catalogo WHERE ativo=1 ORDER BY nome")]}
     if (m, p) == ("GET", "/api/setores"):
-        todos = adm or (perfil == "nutricionista" and not u["id_setor"])
+        todos = adm or (perfil in ("nutricionista", "copa") and not u["id_setor"])
         sql = "SELECT s.id,s.nome,(SELECT COUNT(*) FROM leitos WHERE id_setor=s.id) leitos FROM setores s %s ORDER BY s.nome"
         return {"setores": [dict(r) for r in c.execute(sql % ("" if todos else "WHERE s.id=%d" % (u["id_setor"] or 0)))]}
     if (m, p) == ("GET", "/api/avisos"):
