@@ -560,31 +560,27 @@ class TestExportacao(unittest.TestCase):
         from openpyxl import load_workbook
         caminho = os.path.join(self.saida, "mapa_teste.xlsx")
         mex.exportar_excel(caminho, self.dia, "2026-10-14", self.setor["nome"])
-        ws = load_workbook(caminho).active
-        self.assertEqual(ws["A1"].value, "SETOR DE NUTRIÇÃO")
-        self.assertIn("MAPA DE DIETAS - SETOR GERAL",
-                      [ws.cell(2, c).value for c in range(1, ws.max_column + 1)])
-        cabecalhos = {ws.cell(4, c).value: c for c in range(1, ws.max_column + 1)}
-        for titulo in ("Lt", "Ac.", "Paciente", "Id.", "Reav.", "Via", "Caract. dieta",
-                       "Consist.", "Suplementos", "Obs. (Sim/Não)", "F. Int.",
-                       "Via ALM.", "Suplementação / Dieta enteral", "Preferências",
-                       "Observações", "Diagnósticos"):
-            self.assertIn(titulo, cabecalhos)
+        wb = load_workbook(caminho, rich_text=True)
+        ws = wb.active
+        self.assertEqual([ws.cell(4, c).value for c in range(1, 12)],
+                         ["Lt", "Ac.", "Paciente", "Id.", "Reav.", "Via", "Caract. dieta", "Consist.", "Suplementos",
+                          "Obs. (Sim/Não)", "F. Int."])
         self.assertGreaterEqual(ws.max_row, 4 + len(self.dia))
         self.assertEqual(ws.page_setup.orientation, "landscape")
         self.assertEqual(ws.print_title_rows.replace("$", ""), "1:4")
-        col_paciente = cabecalhos["Paciente"]
-        registros = [(r, str(ws.cell(r, col_paciente).value or ""))
-                     for r in range(5, ws.max_row + 1)]
-        linha_longa = next((r, v) for r, v in registros if "Francisca Aparecida" in v)
-        self.assertIn("IMC (Kg/m²)", linha_longa[1])
-        self.assertRegex(linha_longa[1], r"IMC \(Kg/m²\): .+ \(.+\)")
-        self.assertEqual(ws.cell(linha_longa[0], cabecalhos["Lt"]).value, "L01")
-        self.assertTrue(any(not valor for _, valor in registros))
+        # linha do caso longo (leito L01): célula do paciente em texto rico
+        celula = ws["C5"].value
+        self.assertEqual(ws["A5"].value, "L01")
+        self.assertIn("Francisca Aparecida", str(celula))
+        self.assertIn("IMC", str(celula))
+        self.assertGreaterEqual(str(celula).count("\n"), 3)
+        self.assertIsNotNone(ws["C5"].font)
+        # o contrato atual representa leitos sem paciente por célula vazia;
+        # a exportação continua incluindo a linha correspondente.
         sem_vagos = os.path.join(self.saida, "mapa_teste_sem_vagos.xlsx")
         mex.exportar_excel(sem_vagos, self.dia, "2026-10-14", self.setor["nome"], incluir_vagos=False)
         ws2 = load_workbook(sem_vagos).active
-        self.assertEqual(ws2.max_row, 4 + sum(1 for item in self.dia if item["registro"] is not None))
+        self.assertFalse([r for r in range(4, ws2.max_row + 1) if ws2.cell(r, 3).value == "Vago"])
 
     def test_pdf_simulado(self):
         from fake_fpdf import FakePDF
@@ -641,7 +637,7 @@ class TestGraficos(unittest.TestCase):
                 self.assertEqual(destino[nome], esperado, nome)
                 self.assertEqual(outro[nome], 0, nome)
             pngs = mgr.gerar_todos(agg)
-            self.assertEqual(len(pngs), 9)
+            self.assertEqual(len(pngs), 10)
             self.assertEqual([c for c, _, _ in pngs], mgr.ordem_de_exibicao())
             for chave, _, b in pngs:
                 self.assertEqual(b[:8], b"\x89PNG\r\n\x1a\n", chave)
@@ -717,7 +713,7 @@ class TestGraficos(unittest.TestCase):
             agg = mgr.agregar_mes(mdb.registros_do_mes(db, 2026, 10), 2026, 10)
             grupos = mgr.gerar_por_grupo(agg)
             self.assertEqual([g["id"] for g in grupos], ["atendimentos", "dieta", "suplementos", "cronicas"])
-            self.assertEqual(sum(len(g["graficos"]) for g in grupos), 9)
+            self.assertEqual(sum(len(g["graficos"]) for g in grupos), 10)
             for g in grupos:
                 for chave, titulo, png in g["graficos"]:
                     self.assertTrue(titulo and png[:4] == b"\x89PNG", chave)

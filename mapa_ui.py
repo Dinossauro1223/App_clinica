@@ -427,11 +427,13 @@ class MapaUI:
             if resp:
                 self._abrir_condutas(it)
                 return
-        if messagebox.askyesno("Remover do mapa",
-                               f"Remover {r['nome_paciente']} do leito {it['leito']['codigo']} em "
-                               f"{self.data.strftime('%d/%m/%Y')}?\n\nUse para alta ou transferência. "
-                               "Os registros de outros dias são mantidos."):
-            mdb.remover_registro(self.db, r["id_registro"])
+        if messagebox.askyesno("Liberar leito",
+                               f"Dar alta/liberar {r['nome_paciente']} do leito {it['leito']['codigo']} em "
+                               f"{self.data.strftime('%d/%m/%Y')}?\n\nO histórico será preservado e o leito não "
+                               "voltará a herdar este paciente nos próximos dias."):
+            por = os.environ.get("USERNAME") or os.environ.get("USER") or "usuário local"
+            quando = f"{self.data.isoformat()} {datetime.now().strftime('%H:%M:%S')}"
+            mdb.registrar_alta(self.db, r, por=por, quando=quando)
             self._recarregar()
 
     def _copiar_ultimo(self):
@@ -1441,12 +1443,15 @@ class FormRegistro(_Janela):
 
         rodape = ctk.CTkFrame(self, fg_color="transparent")
         rodape.pack(fill="x", padx=10, pady=8)
+        self.b_alta = _btn(rodape, "Dar alta", self._dar_alta, 120, VERMELHO, VERMELHO_HOVER)
+        self.b_alta.pack(side="left")
         self.b_salvar = _btn(rodape, "Salvar", self._salvar, 130)
         self.b_salvar.pack(side="right")
         _btn(rodape, "Fechar" if self.somente_leitura else "Cancelar", self.destroy, 110, CINZA_BTN, CINZA_HOVER
              ).pack(side="right", padx=8)
         if self.somente_leitura:
             self.b_salvar.pack_forget()
+            self.b_alta.pack_forget()
 
     # ------------------------------------------------------------- preencher/coletar
     def _preencher(self):
@@ -1563,6 +1568,9 @@ class FormRegistro(_Janela):
             "avaliacao_json": json.dumps(self._resultado_avaliacao, ensure_ascii=False),
             "avaliacao_classificacao": self._resultado_avaliacao.get("classe", ""),
             "pediatria_oms_json": json.dumps(self._resultado_pediatria, ensure_ascii=False),
+            "alta_em": self.reg.get("alta_em"),
+            "alta_por": self.reg.get("alta_por"),
+            "alta_motivo": self.reg.get("alta_motivo"),
         }
 
     # ---------------------------------------------------------------- cálculos
@@ -1945,6 +1953,35 @@ class FormRegistro(_Janela):
             mdb.salvar_registro(self.ui.db, reg, self.ui.criterio_idoso, self.ui.lms)
         except ValueError as e:
             messagebox.showwarning("Registro", str(e), parent=self)
+            return
+        self.ui._recarregar()
+        self.destroy()
+
+    def _dar_alta(self):
+        if self.somente_leitura:
+            return
+        try:
+            reg = self._coletar()
+        except ValueError as e:
+            messagebox.showwarning("Alta", str(e), parent=self)
+            return
+        if not reg.get("nome_paciente"):
+            messagebox.showwarning("Alta", "Informe o paciente antes de registrar a alta.", parent=self)
+            return
+        if not messagebox.askyesno(
+                "Dar alta",
+                f"Registrar alta para {reg['nome_paciente']} no leito {self.leito['codigo']}?\n\n"
+                "O paciente continuará no histórico, mas deixará de aparecer no mapa a partir desta data.",
+                parent=self):
+            return
+        try:
+            mdb.salvar_registro(self.ui.db, reg, self.ui.criterio_idoso, self.ui.lms)
+            atual = mdb.obter_registro(self.ui.db, self.data_iso, self.leito["id_leito"])
+            por = os.environ.get("USERNAME") or os.environ.get("USER") or "usuário local"
+            quando = f"{self.data_iso} {datetime.now().strftime('%H:%M:%S')}"
+            mdb.registrar_alta(self.ui.db, atual, por=por, quando=quando)
+        except ValueError as e:
+            messagebox.showwarning("Alta", str(e), parent=self)
             return
         self.ui._recarregar()
         self.destroy()
