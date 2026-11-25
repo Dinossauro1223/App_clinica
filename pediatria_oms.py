@@ -5,18 +5,32 @@ As tabelas numéricas oficiais são carregadas externamente; nenhum parâmetro L
 é presumido ou sintetizado neste módulo. Funções puras para facilitar testes.
 """
 import csv
+import json
 import math
 from datetime import date
 from pathlib import Path
 
 
-_FAIXAS = {
-    # WHO AnthroPlus usa 60 <= idade_em_meses < 229 (peso/idade < 121).
-    # O parâmetro inteiro de 229/121 meses serve apenas como âncora de interpolação.
-    "imc_idade": ((0, 59, "oms_2006"), (60, 228, "oms_2007")),
-    "peso_idade": ((0, 59, "oms_2006"), (60, 120, "oms_2007")),
-    "estatura_idade": ((0, 59, "oms_2006"), (60, 228, "oms_2007")),
+_INDICADORES_JSON = {
+    "imc_idade": "bmi_for_age",
+    "peso_idade": "weight_for_age",
+    "estatura_idade": "height_for_age",
 }
+
+
+def _carregar_classificacoes_oms():
+    caminho = Path(__file__).resolve().parent / "dados" / "oms_classificacoes_pediatricas.json"
+    try:
+        with caminho.open(encoding="utf-8") as arquivo:
+            dados = json.load(arquivo)
+        if dados.get("status") != "lms_oficial_incluido" or not isinstance(dados.get("indicators"), dict):
+            return None
+        return dados
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+_CLASSIFICACOES_OMS = _carregar_classificacoes_oms()
 
 
 def calcular_escore_z(valor, l, m, s):
@@ -110,16 +124,19 @@ def calcular_idade_dias(nascimento, referencia):
 
 
 def _referencia_para(indicador, idade_meses):
-    if indicador not in _FAIXAS:
+    if indicador not in _INDICADORES_JSON:
         raise ValueError("Indicador antropométrico desconhecido.")
-    for minimo, maximo, referencia in _FAIXAS[indicador]:
-        if minimo <= idade_meses <= maximo:
-            return referencia
+    if _CLASSIFICACOES_OMS is None:
+        raise RuntimeError("Metadados de classificação OMS indisponíveis.")
+    configuracao = _CLASSIFICACOES_OMS["indicators"].get(_INDICADORES_JSON[indicador]) or {}
+    for faixa in configuracao.get("available_age_months", []):
+        if int(faixa["min"]) <= idade_meses <= int(faixa["max"]):
+            return "oms_2006" if faixa["reference"] == "who_2006" else "oms_2007"
     raise ValueError("Idade fora da faixa coberta pelo indicador OMS.")
 
 
 def classificar_escore_z(indicador, zscore, idade_meses):
-    """Classifica um escore-z conforme indicador e faixa OMS 2006/2007."""
+    """Aplica os pontos de corte versionados em oms_classificacoes_pediatricas.json."""
     if isinstance(idade_meses, bool) or not isinstance(idade_meses, int) or idade_meses < 0:
         raise ValueError("Idade deve ser informada em meses completos.")
     referencia = _referencia_para(indicador, idade_meses)
@@ -129,39 +146,24 @@ def classificar_escore_z(indicador, zscore, idade_meses):
         raise ValueError("Escore-z inválido.")
     if not math.isfinite(z):
         raise ValueError("Escore-z deve ser finito.")
-
-    if indicador == "imc_idade":
-        if z < -3:
-            return "Magreza acentuada"
-        if z < -2:
-            return "Magreza"
-        if z <= 1:
-            return "Eutrofia"
-        if referencia == "oms_2006":
-            if z <= 2:
-                return "Risco de sobrepeso"
-            if z <= 3:
-                return "Sobrepeso"
-            return "Obesidade"
-        if z <= 2:
-            return "Sobrepeso"
-        return "Obesidade"
-
-    if indicador == "peso_idade":
-        if z < -3:
-            return "Peso muito baixo para idade"
-        if z < -2:
-            return "Peso baixo para idade"
-        return "Peso adequado para idade"
-
-    if indicador == "estatura_idade":
-        if z < -3:
-            return "Estatura muito baixa para idade"
-        if z < -2:
-            return "Estatura baixa para idade"
-        return "Estatura adequada para idade"
-
-    raise ValueError("Indicador antropométrico desconhecido.")
+    if _CLASSIFICACOES_OMS is None:
+        raise ValueError("Arquivo de pontos de corte OMS indisponível.")
+    chave = _INDICADORES_JSON[indicador]
+    regras = _CLASSIFICACOES_OMS["indicators"][chave].get("classification", [])
+    referencia_json = "who_2006" if referencia == "oms_2006" else "who_2007"
+    for regra in regras:
+        if regra.get("reference") and regra["reference"] != referencia_json:
+            continue
+        if "z_lt" in regra and not z < float(regra["z_lt"]):
+            continue
+        if "z_lte" in regra and not z <= float(regra["z_lte"]):
+            continue
+        if "z_gt" in regra and not z > float(regra["z_gt"]):
+            continue
+        if "z_gte" in regra and not z >= float(regra["z_gte"]):
+            continue
+        return regra["label"]
+    raise ValueError("Pontos de corte OMS não cobrem este escore-z.")
 
 
 class TabelaReferenciaOMS:
@@ -289,6 +291,9 @@ def avaliar_indicador(indicador, valor, sexo, idade_meses, tabela, idade_dias=No
     try:
         idade_ref = int(math.floor(float(idade_meses if idade_meses_completos is None else idade_meses_completos)))
         referencia = _referencia_para(indicador, idade_ref)
+    except RuntimeError as exc:
+        return {"status": "pendente", "referencia": None,
+                "escore_z": None, "classificacao": None, "aviso": str(exc)}
     except (TypeError, ValueError, OverflowError) as exc:
         return {"status": "fora_faixa", "referencia": None,
                 "escore_z": None, "classificacao": None, "aviso": str(exc)}
