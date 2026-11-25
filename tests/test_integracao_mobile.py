@@ -160,7 +160,7 @@ class TestReceber(_Base):
         ex = exportacao({"A01": {"nome": "Copa", "idade_anos": 71}})
         ex["mapa"][0]["atualizado_em"] = "2026-11-12T11:00:00-03:00"
         props = im.propostas_mapa(self.db, ex)
-        self.assertEqual([(p["tipo"], p["leito"]) for p in props], [("alterado", "A01")])
+        self.assertEqual([(p["tipo"], p["leito"]) for p in props], [("troca", "A01")])
 
     def test_vazio_do_mobile_nao_apaga_e_geral_equivale_a_livre(self):
         self.salvar("A01", nome_paciente="Maria Teste", idade_anos=70, idade_meses=5, consistencia="Livre", obs_sim="fruta")
