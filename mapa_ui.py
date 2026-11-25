@@ -1443,6 +1443,8 @@ class FormRegistro(_Janela):
 
         rodape = ctk.CTkFrame(self, fg_color="transparent")
         rodape.pack(fill="x", padx=10, pady=8)
+        self.b_evolucao = _btn(rodape, "Evolução nutricional", self._abrir_evolucao, 170, tema.VERDE_ESC, tema.VERDE_HOVER)
+        self.b_evolucao.pack(side="left", padx=(0, 8))
         self.b_alta = _btn(rodape, "Dar alta", self._dar_alta, 120, VERMELHO, VERMELHO_HOVER)
         self.b_alta.pack(side="left")
         self.b_salvar = _btn(rodape, "Salvar", self._salvar, 130)
@@ -1452,6 +1454,7 @@ class FormRegistro(_Janela):
         if self.somente_leitura:
             self.b_salvar.pack_forget()
             self.b_alta.pack_forget()
+            self.b_evolucao.pack_forget()
 
     # ------------------------------------------------------------- preencher/coletar
     def _preencher(self):
@@ -1916,12 +1919,29 @@ class FormRegistro(_Janela):
         self.destroy()
         return "break"
 
-    def _salvar(self):
+    def _abrir_evolucao(self):
+        if self.somente_leitura:
+            return
+        if not self._salvar(manter_aberto=True):
+            return
+        registro = mdb.obter_registro(self.ui.db, self.data_iso, self.leito["id_leito"])
+        if not registro or not registro.get("id_paciente"):
+            messagebox.showwarning("Evolução nutricional", "Salve e vincule o paciente ao cadastro clínico antes de preparar a evolução.", parent=self)
+            return
+        self.reg = registro
+        self._id_paciente = registro["id_paciente"]
+        try:
+            from pep_evolucao_ui import FormEvolucaoUI
+            FormEvolucaoUI(self.ui, registro, self)
+        except Exception as erro:
+            messagebox.showerror("Evolução nutricional", f"Não foi possível abrir o editor de evolução.\n\n{erro}", parent=self)
+    
+    def _salvar(self, manter_aberto=False):
         try:
             reg = self._coletar()
         except ValueError as e:
             messagebox.showwarning("Registro", str(e), parent=self)
-            return
+            return False
         nome = reg["nome_paciente"]
         if nome.strip().lower() != self._nome_original.strip().lower() and not self._vinculo_manual:
             reg["id_paciente"] = None  # nome mudou: é outro paciente nesse leito
@@ -1939,7 +1959,7 @@ class FormRegistro(_Janela):
                     "Sim: vincular este registro a ele (histórico unificado)\n"
                     "Não: criar um novo cadastro\nCancelar: voltar", parent=self)
                 if resp is None:
-                    return
+                    return False
                 if resp:
                     reg["id_paciente"] = p["id_paciente"]
                     self._data_nascimento = p.get("data_nascimento")
@@ -1948,14 +1968,18 @@ class FormRegistro(_Janela):
         if reg["idade_anos"] is None and reg["peso_kg"] and reg["altura_cm"]:
             if not messagebox.askyesno("Idade não informada",
                                        "Sem a idade, o IMC não será classificado. Salvar mesmo assim?", parent=self):
-                return
+                return False
         try:
             mdb.salvar_registro(self.ui.db, reg, self.ui.criterio_idoso, self.ui.lms)
         except ValueError as e:
             messagebox.showwarning("Registro", str(e), parent=self)
-            return
+            return False
         self.ui._recarregar()
-        self.destroy()
+        self.reg = mdb.obter_registro(self.ui.db, self.data_iso, self.leito["id_leito"]) or reg
+        self._id_paciente = self.reg.get("id_paciente")
+        if not manter_aberto:
+            self.destroy()
+        return True
 
     def _dar_alta(self):
         if self.somente_leitura:
