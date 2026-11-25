@@ -199,11 +199,12 @@ def sincronizar_catalogo_almox_desktop(db, mobile_db):
                         elif iguais:
                             erros.append({"id_item": item["id_item"], "erro": "Já existe produto com o mesmo nome e unidade diferente no mobile; revise o cadastro antes de sincronizar."})
                             continue
-                    valores = (nome, unidade, item.get("valor_unitario"), int(bool(item.get("ativo", 1))))
+                    valores = (nome, unidade, item.get("valor_unitario"), item.get("embalagem_qtd"),
+                               item.get("embalagem_un"), int(bool(item.get("ativo", 1))))
                     if mobile_id is None:
                         try:
                             cur = mobile.execute(
-                                "INSERT INTO itens(nome,unidade,preco_unitario,ativo) VALUES(?,?,?,?)",
+                                "INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,ativo) VALUES(?,?,?,?,?,?)",
                                 valores)
                         except sqlite3.IntegrityError:
                             erros.append({"id_item": item["id_item"], "erro": "Conflito de nome no catálogo mobile; nenhum item foi duplicado."})
@@ -212,7 +213,7 @@ def sincronizar_catalogo_almox_desktop(db, mobile_db):
                         criados += 1
                     else:
                         mobile.execute(
-                            "UPDATE itens SET nome=?,unidade=?,preco_unitario=?,ativo=? WHERE id=?",
+                            "UPDATE itens SET nome=?,unidade=?,preco_unitario=?,embalagem_qtd=?,embalagem_un=?,ativo=? WHERE id=?",
                             (*valores, mobile_id))
                         atualizados += 1
                     sincronizados.append((int(item["id_item"]), mobile_id))
