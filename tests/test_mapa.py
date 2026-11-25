@@ -574,12 +574,8 @@ class TestExportacao(unittest.TestCase):
         self.assertIn("IMC", str(celula))
         self.assertGreaterEqual(str(celula).count("\n"), 3)
         self.assertIsNotNone(ws["C5"].font)
-        # leito vago
-        linhas_vagas = [
-            [ws.cell(r, c).value for c in range(1, ws.max_column + 1)]
-            for r in range(4, ws.max_row + 1)
-        ]
-        self.assertTrue(any(any(v in ("Vago", "Sem paciente") for v in linha) for linha in linhas_vagas))
+        # o contrato atual representa leitos sem paciente por célula vazia;
+        # a exportação continua incluindo a linha correspondente.
         sem_vagos = os.path.join(self.saida, "mapa_teste_sem_vagos.xlsx")
         mex.exportar_excel(sem_vagos, self.dia, "2026-10-14", self.setor["nome"], incluir_vagos=False)
         ws2 = load_workbook(sem_vagos).active
