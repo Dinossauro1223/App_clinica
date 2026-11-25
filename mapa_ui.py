@@ -1583,7 +1583,8 @@ class FormRegistro(_Janela):
         }
         resultados = {
             indicador: oms.avaliar_indicador(indicador, valor, sexo, meses_decimais, tabela,
-                                             idade_dias=idade_dias)
+                                             idade_dias=idade_dias,
+                                             idade_meses_completos=idade_meses)
             for indicador, valor in medidas.items()
         }
         self._resultado_pediatria = {
