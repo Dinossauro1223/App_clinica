@@ -801,7 +801,12 @@ def _anexar_evolucao(c, registros):
                 id_paciente_dados = vinculo["id_paciente"] if vinculo else None
             except (sqlite3.OperationalError, TypeError, ValueError):
                 id_paciente_dados = None
-        if dados and (id_paciente_dados is None or id_paciente_dados != r.get("id_paciente")):
+        try:
+            vinculo_valido = (id_paciente_dados is not None and r.get("id_paciente") is not None
+                              and int(id_paciente_dados) == int(r["id_paciente"]))
+        except (TypeError, ValueError):
+            vinculo_valido = False
+        if dados and not vinculo_valido:
             dados, bruto = {}, None
         r["evolucao"] = dados
         r["evolucao_json"] = bruto
