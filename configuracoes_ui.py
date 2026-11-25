@@ -21,6 +21,7 @@ import nrs2002 as nrs
 import mapa_db as mdb
 import evolucao_nutricional as evregras
 import integracao_mobile
+import refeicoes_db as rdb
 from mobile import servidor as servidor_mobile
 
 CAMINHO = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
@@ -83,6 +84,7 @@ class ConfiguracoesUI:
         self._nrs(conteudo)
         self._progressao_oral(conteudo)
         self._equipe(conteudo)
+        self._refeicoes(conteudo)
         self._backups(conteudo)
         ctk.CTkButton(conteudo, text="Voltar ao início", fg_color=tema.VERDE,
                      hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=14, pady=10)
@@ -597,6 +599,89 @@ class ConfiguracoesUI:
                     ctk.CTkButton(linha, text="Desativar", width=78, fg_color=tema.SUAVE,
                                   hover_color=tema.LARANJA, command=desativar).pack(side="right", padx=4)
         atualizar_lista()
+
+    def _refeicoes(self, raiz):
+        """Configura janelas independentes para pacientes e funcionários."""
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                            border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=12)
+        ctk.CTkLabel(card, text="Horários de distribuição de refeições",
+                     font=tema.fonte(16, "bold"), text_color=tema.TEXTO).pack(
+                         anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(
+            card,
+            text="Configure separadamente as janelas de pacientes e funcionários. Os horários não vêm preenchidos por padrão: informe os períodos adotados pelo hospital. A contagem de acompanhantes é tratada por autorização individual da assistência social.",
+            font=tema.fonte(12), text_color=tema.SUAVE, wraplength=820, justify="left"
+        ).pack(anchor="w", padx=18, pady=(0, 10))
+        caminho_db = getattr(getattr(self.app, "mapa", None), "db", None)
+        if not caminho_db:
+            ctk.CTkLabel(card, text="Banco de dados do Mapa não disponível nesta sessão.",
+                         text_color=tema.LARANJA_TEXTO).pack(anchor="w", padx=18, pady=(0, 14))
+            return
+        try:
+            rdb.inicializar(caminho_db)
+            existentes = {(x["publico"], x["refeicao"]): x
+                          for x in rdb.listar_janelas(caminho_db)}
+        except Exception as erro:
+            ctk.CTkLabel(card, text=f"Não foi possível carregar as janelas: {erro}",
+                         text_color=tema.LARANJA_TEXTO, wraplength=760).pack(
+                             anchor="w", padx=18, pady=(0, 14))
+            return
+
+        nomes = {
+            "desjejum": "Desjejum", "colacao": "Colação", "almoco": "Almoço",
+            "lanche": "Lanche da tarde", "jantar": "Jantar", "ceia": "Ceia"
+        }
+        campos = {}
+        grade = ctk.CTkFrame(card, fg_color="transparent")
+        grade.pack(fill="x", padx=18, pady=(2, 8))
+        titulos = ("Refeição", "Paciente — início", "Paciente — fim",
+                   "Funcionário — início", "Funcionário — fim")
+        for coluna, titulo in enumerate(titulos):
+            ctk.CTkLabel(grade, text=titulo, font=tema.fonte(11, "bold"),
+                         text_color=tema.TEXTO).grid(row=0, column=coluna, padx=4, pady=4, sticky="w")
+        for linha, (refeicao, nome) in enumerate(nomes.items(), start=1):
+            ctk.CTkLabel(grade, text=nome, font=tema.fonte(12),
+                         text_color=tema.TEXTO).grid(row=linha, column=0, padx=4, pady=5, sticky="w")
+            for publico, coluna_inicio in (("paciente", 1), ("funcionario", 3)):
+                janela = existentes.get((publico, refeicao), {})
+                for deslocamento, campo in ((0, "inicio"), (1, "fim")):
+                    entrada = ctk.CTkEntry(grade, width=112, placeholder_text="HH:MM")
+                    valor = janela.get(campo)
+                    if valor:
+                        entrada.insert(0, valor)
+                    entrada.grid(row=linha, column=coluna_inicio + deslocamento,
+                                 padx=4, pady=3, sticky="ew")
+                    campos[(publico, refeicao, campo)] = entrada
+        for coluna in range(1, 5):
+            grade.grid_columnconfigure(coluna, weight=1)
+
+        status = ctk.CTkLabel(card, text="", font=tema.fonte(11),
+                              text_color=tema.SUAVE, wraplength=800, justify="left")
+        status.pack(anchor="w", padx=18, pady=(2, 6))
+
+        def salvar():
+            try:
+                alteradas = 0
+                for publico in ("paciente", "funcionario"):
+                    for refeicao in nomes:
+                        inicio = campos[(publico, refeicao, "inicio")].get().strip()
+                        fim = campos[(publico, refeicao, "fim")].get().strip()
+                        if not inicio and not fim:
+                            continue
+                        if not inicio or not fim:
+                            raise ValueError(f"Preencha início e fim de {nomes[refeicao]} para {publico}.")
+                        rdb.salvar_janela(caminho_db, publico, refeicao, inicio, fim)
+                        alteradas += 1
+                status.configure(
+                    text=f"{alteradas} janela(s) salva(s). Campos vazios permanecem sem configuração.",
+                    text_color=tema.VERDE)
+            except Exception as erro:
+                status.configure(text=str(erro), text_color=tema.LARANJA_TEXTO)
+
+        ctk.CTkButton(card, text="Salvar horários das refeições", command=salvar,
+                      fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER,
+                      font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(4, 14))
 
     def _backups(self, raiz):
         """Lista snapshots locais por data e permite restauração protegida."""
