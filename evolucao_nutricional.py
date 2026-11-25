@@ -120,47 +120,159 @@ def estimar_tempo_bomba(volume_adicional_ml, taxa_estimativa_ml_h=10):
     return volume / taxa
 
 
+
+def calcular_oferta_enteral(volume_por_etapa_ml, numero_etapas, kcal_100ml, proteina_100ml):
+    """Calcula oferta diária a partir da composição cadastrada por 100 mL da fórmula."""
+    volume_etapa = _numero(volume_por_etapa_ml, "Volume por etapa", minimo=0.000001)
+    etapas = _numero(numero_etapas, "Número de etapas", minimo=1)
+    if int(etapas) != etapas:
+        raise ValueError("Número de etapas deve ser inteiro.")
+    kcal = _numero(kcal_100ml, "Energia por 100 mL", minimo=0.000001)
+    ptn = _numero(proteina_100ml, "Proteína por 100 mL", minimo=0.000001)
+    volume_total = volume_etapa * int(etapas)
+    return {"volume_por_etapa_ml": volume_etapa, "etapas": int(etapas), "volume_total_ml": volume_total,
+            "kcal_dia": volume_total * kcal / 100, "proteina_g_dia": volume_total * ptn / 100,
+            "kcal_100ml": kcal, "proteina_100ml": ptn}
+
+
+def calcular_peso_corrigido(peso_kg, liquidos_a_retirar_kg=0, percentual_amputacao=0):
+    """Aplica somente correções explicitamente informadas e calculadas pelo protocolo do serviço."""
+    peso = _numero(peso_kg, "Peso original", minimo=0.000001)
+    liquidos = _numero(liquidos_a_retirar_kg, "Correção de líquidos")
+    amputacao = _numero(percentual_amputacao, "Percentual de amputação")
+    if amputacao >= 100:
+        raise ValueError("Percentual de amputação deve ser inferior a 100%.")
+    seco = peso - liquidos
+    if seco <= 0:
+        raise ValueError("Correção de líquidos iguala ou supera o peso original.")
+    corrigido = seco / (1 - amputacao / 100)
+    return {"peso_original_kg": peso, "correcao_liquidos_kg": liquidos,
+            "percentual_amputacao": amputacao, "peso_nutricional_kg": corrigido,
+            "corrigido": bool(liquidos or amputacao)}
+
+
+def classificar_imc_referencia(imc, idade_anos, sexo=None, criterio_idoso="lipschitz", lms=None,
+                               classificacao_oms=None):
+    """Usa a referência já adotada pelo NutriLab; pediatria exige resultado OMS carregado."""
+    from nutri_calculos import classificar_imc, texto_classificacao
+    valor = _numero(imc, "IMC", minimo=0.000001)
+    idade = _numero(idade_anos, "Idade")
+    if idade < 20:
+        if not classificacao_oms:
+            raise ValueError("Classificação pediátrica exige resultado OMS oficial.")
+        return str(classificacao_oms)
+    resultado = classificar_imc(valor, int(idade), sexo, criterio_idoso=criterio_idoso, lms=lms)
+    return texto_classificacao(resultado)
+
+
+def calcular_proxima_antropometria(data_avaliacao, grau_nrs, intervalos=None):
+    """Reaproveita a agenda NRS-2002 já configurável no NutriLab."""
+    from nrs2002 import proxima_reavaliacao
+    data = datetime.strptime(_data_br_ou_iso(data_avaliacao), "%Y-%m-%d").date()
+    return proxima_reavaliacao(data, grau_nrs, intervalos).strftime("%d/%m/%Y")
+
+
+def _data_br_ou_iso(valor):
+    for formato in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(str(valor), formato).date().isoformat()
+        except (TypeError, ValueError):
+            pass
+    raise ValueError("Data antropométrica inválida.")
+
+
+def planejar_progressao_por_etapa(volume_etapa_atual_ml, etapas, volume_etapa_meta_ml,
+                                  incremento_por_etapa_ml=10, dias_alvo=4, *,
+                                  habilitada=True, autorizada=False, tolerancia=True,
+                                  restricao=False, volume_etapa_maximo_ml=None):
+    """Planeja aumento por etapa; não executa nem prescreve sem autorização clínica explícita."""
+    atual = _numero(volume_etapa_atual_ml, "Volume atual por etapa")
+    n_etapas = _numero(etapas, "Número de etapas", minimo=1)
+    meta = _numero(volume_etapa_meta_ml, "Volume-meta por etapa")
+    incremento = _numero(incremento_por_etapa_ml, "Incremento por etapa", minimo=0.000001)
+    if int(n_etapas) != n_etapas:
+        raise ValueError("Número de etapas deve ser inteiro.")
+    if isinstance(dias_alvo, bool) or int(dias_alvo) < 1:
+        raise ValueError("Dias-alvo deve ser inteiro positivo.")
+    limite = meta if volume_etapa_maximo_ml is None else min(meta, _numero(volume_etapa_maximo_ml, "Limite por etapa"))
+    if atual > limite:
+        raise ValueError("Oferta atual excede o limite/meta configurado.")
+    pode = bool(habilitada and autorizada and tolerancia and not restricao)
+    if not pode or atual >= limite:
+        motivo = ("desativada" if not habilitada else "aguarda autorização" if not autorizada else
+                  "intolerância" if not tolerancia else "restrição clínica" if restricao else "meta atingida")
+        return {"ativa": False, "motivo": motivo, "volume_etapa_atual_ml": atual,
+                "volume_total_atual_ml": atual * int(n_etapas), "volume_etapa_meta_ml": meta,
+                "volume_total_meta_ml": meta * int(n_etapas), "passos": [], "dias_estimados": 0}
+    passos, volume = [], atual
+    while volume < limite and len(passos) < 365:
+        proximo = min(limite, volume + incremento)
+        passos.append({"dia": len(passos) + 1, "volume_etapa_ml": proximo,
+                       "volume_total_ml": proximo * int(n_etapas),
+                       "incremento_total_ml": (proximo - volume) * int(n_etapas)})
+        volume = proximo
+    return {"ativa": True, "motivo": None, "volume_etapa_atual_ml": atual,
+            "volume_total_atual_ml": atual * int(n_etapas), "volume_etapa_meta_ml": meta,
+            "volume_total_meta_ml": meta * int(n_etapas), "passos": passos,
+            "dias_estimados": len(passos), "atinge_meta_no_prazo": len(passos) <= int(dias_alvo)}
+
+
+def aviso_bomba(volume_atual_ml, volume_meta_ml, usa_bomba, taxa_estimativa_ml_h=10):
+    """Retorna aviso apenas para dieta enteral com bomba; 10 mL/h é estimativa, não prescrição."""
+    if not usa_bomba:
+        return None
+    atual = _numero(volume_atual_ml, "Volume atual")
+    meta = _numero(volume_meta_ml, "Volume-meta")
+    adicional = max(0.0, meta - atual)
+    horas = estimar_tempo_bomba(adicional, taxa_estimativa_ml_h)
+    return {"volume_adicional_ml": adicional, "horas_estimadas": horas,
+            "texto": (f"Atenção: faltam aproximadamente {adicional:.0f} mL para atingir o volume correspondente "
+                      f"à meta nutricional. Considerando {taxa_estimativa_ml_h:g} mL/h em bomba de infusão, "
+                      f"esse volume corresponde a aproximadamente {horas:.1f} horas adicionais de infusão.")}
+
+
 def formatar_antropometria(dados):
-    """Gera o bloco compacto; medidas auxiliares aparecem quando peso/altura são estimados."""
+    """Formata antropometria compacta, preservando origem e rastreabilidade."""
     data = dados.get("data") or date.today().strftime("%d/%m/%Y")
     idade = dados.get("idade_anos")
     if idade is None:
         idade = idade_em_anos(dados.get("data_nascimento"), dados.get("data_referencia") or data)
     partes = [f"Idade: {idade if idade is not None else 'não informada'} anos"]
-    peso_origem = str(dados.get("peso_origem") or "").upper()
-    altura_origem = str(dados.get("altura_origem") or "").upper()
-    if peso_origem not in {"A", "E"} or altura_origem not in {"A", "E"}:
+    origem_peso = str(dados.get("peso_origem") or "").upper()
+    origem_altura = str(dados.get("altura_origem") or "").upper()
+    origem_peso = {"R": "A", "REAL": "A", "AFERIDO": "A", "ESTIMADO": "E"}.get(origem_peso, origem_peso)
+    origem_altura = {"R": "A", "REAL": "A", "AFERIDA": "A", "ESTIMADA": "E"}.get(origem_altura, origem_altura)
+    if origem_peso not in {"A", "E"} or origem_altura not in {"A", "E"}:
         raise ValueError("Origem do peso e da altura deve ser A (aferido) ou E (estimado).")
-    if peso_origem == "E" or altura_origem == "E":
+    if origem_peso == "E" or origem_altura == "E":
         for chave, rotulo in (("aj_cm", "AJ"), ("pp_cm", "PP"), ("pb_cm", "PB")):
             if dados.get(chave) not in (None, ""):
-                partes.append(f"{rotulo}: {_numero(dados[chave], rotulo)} cm")
+                partes.append(f"{rotulo}: {_numero(dados[chave], rotulo):g} cm")
     if dados.get("altura_m") is not None:
         altura = _numero(dados["altura_m"], "Altura", minimo=0.000001)
-        partes.append(f"ALT: {altura:.2f} m ({altura_origem})")
     elif dados.get("altura_cm") is not None:
         altura = _numero(dados["altura_cm"], "Altura", minimo=0.000001) / 100
-        partes.append(f"ALT: {altura:.2f} m ({altura_origem})")
     else:
         raise ValueError("Altura ausente.")
+    partes.append(f"ALT: {altura:.2f} m ({origem_altura})".replace(".", ","))
     peso = _numero(dados.get("peso_kg"), "Peso", minimo=0.000001)
-    peso_txt = f"PESO: {peso:g} kg ({peso_origem}"
+    peso_txt = f"PESO: {peso:g} kg ({origem_peso}"
     if dados.get("peso_corrigido"):
         peso_txt += "; corrigido"
     partes.append(peso_txt + ")")
     imc = calcular_imc(peso, altura)
     classificacao = str(dados.get("imc_class") or "classificação pendente")
-    return f"**Antropometria {data}:** " + "; ".join(partes) + f". IMC: {imc:.1f} kg/m² ({classificacao})."
+    return f"**Antropometria {data}:** " + "; ".join(partes) + f". IMC: {imc:.1f} kg/m² ({classificacao}).".replace(".", ",", 1).replace("kg/m²", "kg/m²", 1)
 
 
 def gerar_evolucao(dados):
-    """Gera texto somente com dados presentes; adequação apenas para enteral calculável."""
+    """Gera a evolução clínica a partir dos dados estruturados."""
     linhas = [formatar_antropometria(dados["antropometria"])]
     metas = dados.get("metas")
     if metas:
         linhas.append("**Metas nutricionais:** " +
-            f"Kcal/dia: {metas['kcal_dia']:.0f} kcal ({metas['kcal_kg']:g} kcal/kg); " +
-            f"PTN/dia: {metas['proteina_g_dia']:.1f} g ({metas['proteina_g_kg']:g} g/kg).")
+            f"Kcal/dia: {metas['kcal_dia']:.0f} kcal ({str(metas['kcal_kg']).replace('.', ',')} kcal/kg); " +
+            f"PTN/dia: {str(round(metas['proteina_g_dia'], 1)).replace('.', ',')} g ({str(metas['proteina_g_kg']).replace('.', ',')} g/kg).")
     via = str(dados.get("via") or "").strip().casefold()
     enteral = via == "enteral"
     oferta = dados.get("oferta")
@@ -173,14 +285,38 @@ def gerar_evolucao(dados):
     linhas.append(f"**DVA:** {'Sim' if dados.get('dva') else 'Não'}.")
     linhas.append(f"**Via de alimentação:** {'Enteral' if enteral else 'Oral' if via == 'oral' else dados.get('via') or 'não informada'}.")
     if enteral:
-        motivos = dados.get("tne_motivos") or []
-        tne, selecionados = classificar_tne(motivos)
+        tne, selecionados = classificar_tne(dados.get("tne_motivos") or [])
         linhas.append(f"**TNE:** {tne}" + (f" ({' e '.join(selecionados)})." if selecionados else "."))
+        dieta = dados.get("dieta_enteral") or {}
+        if dieta.get("nome") and dieta.get("volume_por_etapa_ml") is not None and dieta.get("etapas") is not None:
+            volume_total = _numero(dieta["volume_por_etapa_ml"], "Volume por etapa") * int(_numero(dieta["etapas"], "Etapas", minimo=1))
+            linhas.append("**Dieta enteral ofertada:** " +
+                f"{dieta['nome']} — {dieta['volume_por_etapa_ml']:g} mL/etapa × {int(dieta['etapas'])} etapas, " +
+                f"totalizando {volume_total:.0f} mL/dia.")
+        progressao = dados.get("progressao_enteral")
+        if progressao and progressao.get("autorizada") and progressao.get("volume_atual_ml") is not None and progressao.get("volume_meta_ml") is not None:
+            atual = _numero(progressao["volume_atual_ml"], "Volume atual")
+            meta = _numero(progressao["volume_meta_ml"], "Volume-meta")
+            incremento = _numero(progressao.get("incremento_diario_ml", 35), "Incremento diário", minimo=0.000001)
+            linhas.append("**Evolução da dieta:** " +
+                f"Oferta atual de {atual:.0f} mL/dia, com progressão programada de {incremento:.0f} mL/dia " +
+                f"até atingir o volume correspondente à meta energética.")
+        bomba = dados.get("bomba")
+        if bomba and bomba.get("usa_bomba") and oferta and oferta.get("volume_total_ml") is not None and oferta.get("volume_meta_ml") is not None:
+            aviso = aviso_bomba(oferta["volume_total_ml"], oferta["volume_meta_ml"], True,
+                                bomba.get("taxa_estimativa_ml_h", 10))
+            if aviso:
+                linhas.append("**Estimativa de bomba:** " + aviso["texto"])
+        elif dados.get("orientacao_progressao"):
+            linhas.append("**Evolução da dieta:** Progressão de aproximadamente 30–40 mL/dia, conforme tolerância e conduta nutricional.")
     elif via == "oral" and dados.get("tno"):
         tno = dados["tno"]
         if tno not in TNO_PERCENTUAIS:
             raise ValueError("Classificação TNO inválida.")
         linhas.append(f"**TNO:** {tno} ({TNO_PERCENTUAIS[tno]}% de consumo estimado).")
+        porcao = dados.get("porcao_oral_ml")
+        if porcao not in (None, ""):
+            linhas.append(f"**Porção oral definida pelo nutricionista:** {_numero(porcao, 'Porção oral')} mL.")
     if dados.get("dieta_oral"):
         dieta = dados["dieta_oral"]
         itens = [dieta.get("consistencia")] if dieta.get("consistencia") else []
@@ -199,7 +335,10 @@ def gerar_evolucao(dados):
     if dados.get("conduta"):
         linhas.append("**Conduta:** " + str(dados["conduta"]).strip())
     if dados.get("estagiarios"):
-        linhas.append("**Estagiário:** " + ", ".join(dados["estagiarios"]) + ".")
+        nomes = dados["estagiarios"] if isinstance(dados["estagiarios"], (list, tuple)) else [dados["estagiarios"]]
+        linhas.append("**Estagiário:** " + ", ".join(str(x) for x in nomes) + ".")
     if dados.get("nutricionistas"):
-        linhas.append("**Nutricionista responsável:** " + "; ".join(dados["nutricionistas"]) + ".")
+        nomes = dados["nutricionistas"] if isinstance(dados["nutricionistas"], (list, tuple)) else [dados["nutricionistas"]]
+        linhas.append("**Nutricionista responsável:** " + "; ".join(str(x) for x in nomes) + ".")
     return "\n\n".join(linhas)
+
