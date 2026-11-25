@@ -285,6 +285,18 @@ public class MainActivity extends Activity {
                 html.append(linha).append("\n");
             }
             leitor.close();
+            // O servidor pode estar offline: injeta o decodificador QR local no HTML de contingência.
+            InputStream qrIn = getAssets().open("jsQR.js");
+            BufferedReader qrLeitor = new BufferedReader(new InputStreamReader(qrIn, "UTF-8"));
+            StringBuilder qrCodigo = new StringBuilder();
+            while ((linha = qrLeitor.readLine()) != null) qrCodigo.append(linha).append("\n");
+            qrLeitor.close();
+            String referenciaQr = "<script src=\"/static/jsQR.js\"></script>";
+            int posQr = html.indexOf(referenciaQr);
+            if (posQr >= 0) {
+                html.replace(posQr, posQr + referenciaQr.length(),
+                        "<script>" + qrCodigo.toString() + "</script>");
+            }
             web.loadDataWithBaseURL(servidor + "/", html.toString(), "text/html", "UTF-8", null);
         } catch (Exception e) {
             web.loadUrl("file:///android_asset/erro.html?motivo=conexao");
