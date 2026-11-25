@@ -540,6 +540,9 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
         reg = registro_base(self.db, self.leitos[0]["id_leito"], "2026-10-25",
                             via="Enteral", evolucao_json=json.dumps(dados, ensure_ascii=False))
         mdb.salvar_registro(self.db, reg)
+        origem = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])
+        dados["id_paciente"] = origem["id_paciente"]
+        mdb.salvar_dados_evolucao(self.db, origem["id_registro"], dados)
         esperado = {"2026-10-25": 150, "2026-10-26": 160, "2026-10-29": 190, "2026-10-30": 200}
         for data, volume in esperado.items():
             linha = next(x for x in mdb.mapa_do_dia(self.db, data)
