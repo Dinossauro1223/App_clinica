@@ -1,7 +1,9 @@
 package br.nutrilab.mobile;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
@@ -10,6 +12,8 @@ import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.ValueCallback;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -37,6 +41,8 @@ import org.json.JSONObject;
  */
 public class MainActivity extends Activity {
     private static final String PORTA = "8765";
+    private static final int PEDIR_CAMERA = 4102;
+    private static final int ESCOLHER_IMAGEM_QR = 4103;
 
     /** A pagina do NutriLab tem o elemento #app; qualquer outra pagina (por exemplo a do download do APK) nao tem. */
     private static final String E_NUTRILAB = "(function(){return !!document.getElementById('app')})()";
@@ -52,6 +58,8 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private SharedPreferences prefs;
+    private PermissionRequest pedidoCamera;
+    private ValueCallback<Uri[]> retornoArquivo;
 
     @Override
     protected void onCreate(Bundle estado) {
@@ -63,6 +71,42 @@ public class MainActivity extends Activity {
         ajustes.setJavaScriptEnabled(true);
         ajustes.setDomStorageEnabled(true);
         web.addJavascriptInterface(new Ponte(), "Android");
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(final PermissionRequest pedido) {
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        boolean camera = false;
+                        for (String recurso : pedido.getResources()) {
+                            if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(recurso)) camera = true;
+                        }
+                        if (!camera) { pedido.deny(); return; }
+                        pedidoCamera = pedido;
+                        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            pedido.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+                            pedidoCamera = null;
+                        } else {
+                            requestPermissions(new String[]{Manifest.permission.CAMERA}, PEDIR_CAMERA);
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                                             FileChooserParams parametros) {
+                if (retornoArquivo != null) retornoArquivo.onReceiveValue(null);
+                retornoArquivo = callback;
+                try {
+                    startActivityForResult(parametros.createIntent(), ESCOLHER_IMAGEM_QR);
+                    return true;
+                } catch (Exception e) {
+                    retornoArquivo = null;
+                    callback.onReceiveValue(null);
+                    return false;
+                }
+            }
+        });
         web.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(String url, String agente, String disposicao, String tipo, long tamanho) {
@@ -241,6 +285,29 @@ public class MainActivity extends Activity {
             web.loadDataWithBaseURL(servidor + "/", html.toString(), "text/html", "UTF-8", null);
         } catch (Exception e) {
             web.loadUrl("file:///android_asset/erro.html?motivo=conexao");
+        }
+    }
+
+
+    @Override
+    public void onRequestPermissionsResult(int codigo, String[] permissoes, int[] resultados) {
+        super.onRequestPermissionsResult(codigo, permissoes, resultados);
+        if (codigo == PEDIR_CAMERA && pedidoCamera != null) {
+            if (resultados.length > 0 && resultados[0] == PackageManager.PERMISSION_GRANTED) {
+                pedidoCamera.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+            } else {
+                pedidoCamera.deny();
+            }
+            pedidoCamera = null;
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int codigo, int resultado, Intent dados) {
+        super.onActivityResult(codigo, resultado, dados);
+        if (codigo == ESCOLHER_IMAGEM_QR && retornoArquivo != null) {
+            retornoArquivo.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultado, dados));
+            retornoArquivo = null;
         }
     }
 
