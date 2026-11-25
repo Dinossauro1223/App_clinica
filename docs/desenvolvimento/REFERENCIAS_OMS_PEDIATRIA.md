@@ -36,7 +36,7 @@ Fontes:
 
 ## Integração no prontuário
 
-A avaliação pediátrica está incorporada ao formulário de registro do leito, junto aos demais dados antropométricos. Usa data de nascimento do cadastro do paciente, sexo, peso e comprimento/estatura, calcula IMC e apresenta escores-z e classificações. Os resultados são persistidos em pediatria_oms_json, aparecem no histórico e alimentam a classificação exibida no mapa. O botão Curvas OMS abre os gráficos por sexo com a medida do paciente sobreposta.
+A avaliação pediátrica está integrada a dois fluxos do prontuário. No mapa diário por leito, usa data de nascimento do cadastro, sexo, peso e comprimento/estatura; exibe escores-z e classificação, persiste o snapshot em pediatria_oms_json, mostra o resultado no histórico e alimenta a classificação do mapa. Na consulta ambulatorial, o painel de antropometria calcula os mesmos indicadores, persiste o snapshot dentro de antropometria_json, inclui a classificação na evolução/anamnese e no PDF, e também permite abrir as curvas OMS com a medida do paciente sobreposta. O cálculo não usa pontos de dados fictícios.
 
 Cada registro guarda um snapshot com data de avaliação, data de nascimento, idade em dias/meses, sexo, medidas, IMC, resultados por indicador e versão/fonte das referências. A aferição anterior não é sobrescrita por um novo registro.
 
