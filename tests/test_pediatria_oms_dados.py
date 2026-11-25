@@ -17,9 +17,11 @@ class TestDadosOficiaisOMS(unittest.TestCase):
     def test_tabelas_diarias_oms_2006_cobrem_nascimento_a_60_meses(self):
         for indicador in ("imc_idade", "peso_idade", "estatura_idade"):
             curva = self.tabela.curva(indicador, "H", "oms_2006")
-            self.assertEqual(len(curva), 1857)
+            # WHO Anthro 1.1.0 disponibiliza 0..1826 dias; a partir de 60
+            # meses completos a referência passa para OMS 2007.
+            self.assertEqual(len(curva), 1827)
             self.assertEqual(curva[0]["idade"], 0)
-            self.assertEqual(curva[-1]["idade"], 1856)
+            self.assertEqual(curva[-1]["idade"], 1826)
 
     def test_tabelas_oms_2007_incluem_ancoras_de_interpolacao(self):
         bmi = self.tabela.curva("imc_idade", "M", "oms_2007")
