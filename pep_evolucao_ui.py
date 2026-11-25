@@ -364,6 +364,12 @@ class FormEvolucaoUI(ctk.CTkFrame):
         }
 
     def _dados(self, para_fechamento=False):
+        def inteiro_positivo(valor, nome):
+            numero = float(str(valor).replace(",", "."))
+            if not numero.is_integer() or numero < 1:
+                raise ValueError(f"{nome} deve ser um número inteiro positivo.")
+            return int(numero)
+
         antropometria = self._antropometria()
         peso = self._peso_nutricional()
         txt_kcal, txt_ptn = self.e_kcal_kg.get().strip(), self.e_ptn_kg.get().strip()
@@ -402,7 +408,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             quantidade_txt = qtd.get().strip()
             etapas_txt = etapas.get().strip() or "1"
             quantidade = float(quantidade_txt.replace(",", ".")) if quantidade_txt else 0
-            n_etapas = int(float(etapas_txt.replace(",", ".")))
+            n_etapas = inteiro_positivo(etapas_txt, "Etapas do suplemento")
             if quantidade > 0:
                 suplementacao.append({"nome": s["nome"], "quantidade": quantidade,
                                       "unidade": s.get("unidade") or "mL", "etapas": n_etapas})
@@ -415,7 +421,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             volume_txt = self.e_volume_etapa.get().strip()
             etapas_txt = self.e_etapas.get().strip() or "1"
             volume_etapa = float(volume_txt.replace(",", ".")) if volume_txt else 0
-            etapas = int(float(etapas_txt.replace(",", ".")))
+            etapas = inteiro_positivo(etapas_txt, "Etapas da dieta enteral")
             if ficha and volume_etapa > 0 and etapas > 0 and metas:
                 oferta = regras.calcular_oferta_enteral(
                     volume_etapa, etapas, ficha["kcal_100"], ficha["ptn_100"])
@@ -433,7 +439,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     "volume_atual_ml": oferta["volume_total_ml"], "volume_meta_ml": volume_meta,
                     "volume_etapa_atual_ml": volume_etapa, "etapas": etapas,
                     "incremento_por_etapa_ml": float((self.e_incremento.get().strip() or "10").replace(",", ".")),
-                    "dias_alvo": int(float((self.e_dias.get().strip() or "4").replace(",", "."))),
+                    "dias_alvo": inteiro_positivo(self.e_dias.get().strip() or "4", "Prazo da progressão"),
                     "tolerancia": tolerancia_enteral, "restricao": bool(self.var_restricao.get()),
                 }
             else:
