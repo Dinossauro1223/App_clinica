@@ -202,7 +202,7 @@ class GestaoAlimentarUI:
         ctk.CTkLabel(topo, text="Itens recebidos do estoque Almoxarifado no mobile",
                      font=ctk.CTkFont(size=14, weight="bold"), text_color=VERDE_ESC).pack(side="left")
         _btn(topo, "Atualizar agora", self.sincronizar, 125, cor=CINZA, hover=tema.SUAVE).pack(side="right")
-        _btn(topo, "Editar / vincular TBCA", lambda: self._editar_produto_almox(False), 175, cor=AZUL).pack(side="right", padx=5)
+        _btn(topo, "Editar / vincular TBCA", lambda: self._editar_produto_almox(False), 175, cor=tema.AZUL).pack(side="right", padx=5)
         _btn(topo, "＋ Novo produto", lambda: self._editar_produto_almox(True), 135).pack(side="right", padx=5)
         ctk.CTkLabel(self.tab_almox,
                      text="O saldo é lido do mobile. Preço unitário refere-se à unidade de estoque cadastrada; conteúdo da embalagem informa quantos g/ml/un essa unidade contém.",
