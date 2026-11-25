@@ -181,7 +181,7 @@ class AlmoxUI:
         self.e_rep_obs=ctk.CTkEntry(self.conteudo,placeholder_text="Observação do pedido (opcional)")
         self.e_rep_obs.pack(fill="x",pady=4)
         ctk.CTkLabel(self.conteudo,text="Pedidos: selecione um pedido pendente e registre o recebimento para atualizar o saldo").pack(anchor="w",pady=(8,2))
-        self.t_rep= self._tree(self.conteudo,("Item","Quantidade","Solicitado em","Solicitante","Fornecedor","Estado","Recebido em"),(170,90,110,130,150,90,110),8)
+        self.t_rep= self._tree(self.conteudo,("Item","Qtd. pedida","Qtd. recebida","Custo total","Solicitado em","Solicitante","Fornecedor","Estado","Recebido em"),(150,85,90,100,100,110,130,80,100),8)
         bar=ctk.CTkFrame(self.conteudo,fg_color="transparent");bar.pack(fill="x")
         ctk.CTkButton(bar,text="Registrar recebimento",command=self._receber_reposicao).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Atualizar",command=self._carregar_reposicoes).pack(side="left",padx=3)
@@ -204,7 +204,9 @@ class AlmoxUI:
         self.t_rep.delete(*self.t_rep.get_children())
         for p in pedidos:
             self.t_rep.insert("","end",iid=str(p["id_pedido"]),values=(
-                p["item"],_num(p["quantidade"]),p["solicitado_em"],p["solicitado_por"] or "—",
+                p["item"],_num(p["quantidade"]),_num(p.get("quantidade_recebida")) if p.get("quantidade_recebida") is not None else "—",
+                _br(p.get("custo_total_recebido")) if p.get("custo_total_recebido") is not None else "—",
+                p["solicitado_em"],p["solicitado_por"] or "—",
                 p["fornecedor"] or "—",p["status"],p["recebido_em"] or "—"))
         self.t_prazos.delete(*self.t_prazos.get_children())
         for p in arep.prazos_medios(self.db):
