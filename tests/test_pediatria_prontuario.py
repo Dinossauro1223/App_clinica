@@ -5,9 +5,62 @@ import sqlite3
 from contextlib import closing
 import tempfile
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 
 import mapa_db as mdb
+import main as app_main
+import pediatria_oms as oms
 
+
+
+class _LabelFalso:
+    def __init__(self):
+        self.text = ""
+
+    def configure(self, **kwargs):
+        self.text = kwargs.get("text", self.text)
+
+
+class TestIntegracaoOMSNaConsultaAmbulatorial(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        raiz = Path(__file__).resolve().parents[1]
+        cls.tabela = oms.TabelaReferenciaOMS.de_csv(raiz / "dados" / "oms_lms_pediatricos.csv")
+
+    def _consulta(self, nascimento, sexo="Masculino"):
+        fake = SimpleNamespace(
+            paciente_atual_nasc=nascimento,
+            paciente_atual_sexo=sexo,
+            _tabela_oms_pediatria=self.tabela,
+            lbl_oms_pediatria=_LabelFalso(),
+            _resultado_pediatria_consulta={},
+        )
+        fake._idade_exata_oms_consulta = lambda: app_main.AppClinica._idade_exata_oms_consulta(fake)
+        fake._tabela_referencia_oms = lambda: self.tabela
+        return fake
+
+    def test_consulta_calcula_oms_2006_com_idade_exata_em_dias(self):
+        fake = self._consulta("01/01/2024")
+        resultado = app_main.AppClinica._atualizar_oms_pediatria_consulta(fake, 15.0, 14.0, 95.0)
+        self.assertEqual(resultado["resultados"]["imc_idade"]["status"], "calculado")
+        self.assertEqual(resultado["resultados"]["imc_idade"]["referencia"], "oms_2006")
+        self.assertIsNotNone(resultado["idade_dias"])
+        self.assertIn("Referência OMS 2006", fake.lbl_oms_pediatria.text)
+
+    def test_consulta_calcula_oms_2007_e_respeita_limite_peso_10_anos(self):
+        fake = self._consulta("15/02/2015")
+        resultado = app_main.AppClinica._atualizar_oms_pediatria_consulta(fake, 19.0, 40.0, 145.0)
+        self.assertEqual(resultado["resultados"]["imc_idade"]["status"], "calculado")
+        self.assertEqual(resultado["resultados"]["imc_idade"]["referencia"], "oms_2007")
+        self.assertEqual(resultado["resultados"]["peso_idade"]["status"], "fora_faixa")
+        self.assertIn("Peso/idade: não aplicável", fake.lbl_oms_pediatria.text)
+
+    def test_consulta_sem_data_de_nascimento_fica_pendente(self):
+        fake = self._consulta("")
+        resultado = app_main.AppClinica._atualizar_oms_pediatria_consulta(fake, 18.0, 30.0, 130.0)
+        self.assertEqual(resultado["status"], "pendente")
+        self.assertIn("Data de nascimento ausente", fake.lbl_oms_pediatria.text)
 
 class TestClassificacaoPediatricaNoRegistro(unittest.TestCase):
     def test_completar_registro_usa_classificacao_oms_salva(self):
