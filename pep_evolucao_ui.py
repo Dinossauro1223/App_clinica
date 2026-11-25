@@ -471,6 +471,15 @@ class FormEvolucaoUI(ctk.CTkFrame):
             if not self.reg.get("id_paciente"):
                 raise ValueError("Vincule o paciente ao cadastro clínico antes de salvar a evolução.")
             dados = self._dados()
+            if dados.get("metas"):
+                self.form_registro.e_meta_kcal.delete(0, "end")
+                self.form_registro.e_meta_kcal.insert(0, str(round(dados["metas"]["kcal_dia"], 1)))
+                self.form_registro.e_meta_ptn.delete(0, "end")
+                self.form_registro.e_meta_ptn.insert(0, str(round(dados["metas"]["proteina_g_dia"], 1)))
+                if not self.form_registro._salvar(manter_aberto=True):
+                    raise ValueError("Não foi possível sincronizar as metas com o registro do Mapa.")
+                self.reg = mdb.obter_registro(self.db, self.reg["data"], self.reg["id_leito"]) or self.reg
+                self.form_registro.reg = self.reg
             id_elaborador, colaboradores = self._colaboradores()
             self.id_rascunho = evdb.salvar_rascunho(
                 self.db, self.reg["id_paciente"], self.reg["data"], dados, id_elaborador,
@@ -478,6 +487,9 @@ class FormEvolucaoUI(ctk.CTkFrame):
             dados["id_rascunho"] = self.id_rascunho
             dados["status_evolucao"] = "rascunho"
             mdb.salvar_dados_evolucao(self.db, self.reg["id_registro"], dados)
+            self.reg = mdb.obter_registro(self.db, self.reg["data"], self.reg["id_leito"]) or self.reg
+            self.form_registro.reg = self.reg
+            self.ui._recarregar()
             self.lbl_status.configure(text=f"Rascunho #{self.id_rascunho} salvo. Ainda não é uma evolução fechada.",
                                        text_color=tema.VERDE)
             return True
@@ -529,6 +541,9 @@ class FormEvolucaoUI(ctk.CTkFrame):
             dados["status_evolucao"] = "fechada"
             dados["fechada"] = True
             mdb.salvar_dados_evolucao(self.db, self.reg["id_registro"], dados)
+            self.reg = mdb.obter_registro(self.db, self.reg["data"], self.reg["id_leito"]) or self.reg
+            self.form_registro.reg = self.reg
+            self.ui._recarregar()
             self.lbl_status.configure(
                 text=f"Evolução #{id_evolucao} fechada e assinada por {revisor['nome']} — {revisor['crn']}.",
                 text_color=tema.VERDE)
