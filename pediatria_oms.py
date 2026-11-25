@@ -237,8 +237,10 @@ class TabelaReferenciaOMS:
             pontos = self._dados_dias.get(chave, {})
             return interpolar_lms(idade_dias, pontos)
         pontos = self._dados_meses.get(chave, {})
-        if pontos and referencia == "oms_2007":
-            idade_meses = max(float(idade_meses), min(pontos))
+        if pontos and referencia == "oms_2007" and float(idade_meses) < 60 and 60.0 in pontos:
+            # Ajuste apenas o arredondamento de dias na fronteira dos 60 meses;
+            # nunca desloca uma idade para o primeiro ponto disponível da tabela.
+            idade_meses = 60.0
         return interpolar_lms(idade_meses, pontos)
 
     def calcular(self, indicador, sexo, idade_meses, valor, idade_dias=None, idade_meses_completos=None):
