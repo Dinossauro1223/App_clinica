@@ -208,6 +208,7 @@ def inicializar(db_path):
         for nome, tipo in (
             ("nrs2002_json", "TEXT"), ("nrs2002_classificacao", "TEXT"),
             ("avaliacao_json", "TEXT"), ("avaliacao_classificacao", "TEXT"),
+            ("pediatria_oms_json", "TEXT"),
         ):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
