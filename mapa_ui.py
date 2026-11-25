@@ -2219,47 +2219,6 @@ class FormRegistro(_Janela):
             self.destroy()
         return True
 
-
-        try:
-            reg = self._coletar()
-        except ValueError as e:
-            messagebox.showwarning("Registro", str(e), parent=self)
-            return
-        nome = reg["nome_paciente"]
-        if nome.strip().lower() != self._nome_original.strip().lower() and not self._vinculo_manual:
-            reg["id_paciente"] = None  # nome mudou: é outro paciente nesse leito
-            self._data_nascimento = None
-            self._recalcular()
-            reg["pediatria_oms_json"] = json.dumps(self._resultado_pediatria, ensure_ascii=False)
-        if not reg["id_paciente"] and nome:
-            iguais = [p for p in mdb.listar_pacientes(self.ui.db, nome) if p["nome"].strip().lower() == nome.lower()]
-            if iguais:
-                p = iguais[0]
-                extra = f" (há {len(iguais)} cadastros com esse nome)" if len(iguais) > 1 else ""
-                resp = messagebox.askyesnocancel(
-                    "Paciente já cadastrado",
-                    f"Já existe '{p['nome']}' no cadastro (nascimento: {p['data_nascimento'] or 'não informado'}){extra}.\n\n"
-                    "Sim: vincular este registro a ele (histórico unificado)\n"
-                    "Não: criar um novo cadastro\nCancelar: voltar", parent=self)
-                if resp is None:
-                    return
-                if resp:
-                    reg["id_paciente"] = p["id_paciente"]
-                    self._data_nascimento = p.get("data_nascimento")
-                    self._recalcular()
-                    reg["pediatria_oms_json"] = json.dumps(self._resultado_pediatria, ensure_ascii=False)
-        if reg["idade_anos"] is None and reg["peso_kg"] and reg["altura_cm"]:
-            if not messagebox.askyesno("Idade não informada",
-                                       "Sem a idade, o IMC não será classificado. Salvar mesmo assim?", parent=self):
-                return
-        try:
-            mdb.salvar_registro(self.ui.db, reg, self.ui.criterio_idoso, self.ui.lms)
-        except ValueError as e:
-            messagebox.showwarning("Registro", str(e), parent=self)
-            return
-        self.ui._recarregar()
-        self.destroy()
-
     def _dar_alta(self):
         if self.somente_leitura:
             return
