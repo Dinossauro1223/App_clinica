@@ -1738,6 +1738,7 @@ class FormRegistro(_Janela):
             self._resultado_avaliacao = {
                 "dados": dados, "classe": classe, "imc": resultado.get("imc"),
                 "peso_ajustado": resultado.get("ajustado"), "avisos": resultado.get("avisos", []),
+                "resultado": resultado,
             }
         except (ValueError, TypeError) as exc:
             rotulo = f"Não foi possível classificar: {exc}"
