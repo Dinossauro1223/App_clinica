@@ -396,7 +396,7 @@ class GestaoAlimentarUI:
         if not novo and not item:
             messagebox.showwarning("Almoxarifado", "Produto não encontrado. Sincronize o catálogo e tente novamente.")
             return
-        janela = ctk.CTkToplevel(self.app)
+        janela = _PainelJanela(self.app, "Cadastrar produto do Almoxarifado" if novo else "Editar produto e vínculo TBCA")
         janela.title("Cadastrar produto do Almoxarifado" if novo else "Editar produto e vínculo TBCA")
         janela.geometry("760x600")
         janela.minsize(650, 520)
@@ -490,7 +490,7 @@ class GestaoAlimentarUI:
         if not produto:
             messagebox.showwarning("Pedido de reposição", "Produto não encontrado.")
             return
-        janela = ctk.CTkToplevel(parent or self.app)
+        janela = _PainelJanela(self.app, "Registrar pedido de reposição")
         janela.title("Registrar pedido de reposição")
         janela.geometry("460x360")
         janela.transient(parent or self.app)
@@ -532,7 +532,7 @@ class GestaoAlimentarUI:
         except Exception as exc:
             messagebox.showwarning("Pedidos de reposição", str(exc))
             return
-        janela = ctk.CTkToplevel(self.app)
+        janela = _PainelJanela(self.app, "Pedidos de reposição pendentes")
         janela.title("Pedidos de reposição pendentes")
         janela.geometry("820x500")
         ctk.CTkLabel(janela, text="Pedidos aguardando recebimento",
@@ -579,7 +579,7 @@ class GestaoAlimentarUI:
         except Exception as exc:
             messagebox.showwarning("Prazo médio de reposição", str(exc))
             return
-        janela = ctk.CTkToplevel(self.app)
+        janela = _PainelJanela(self.app, "Prazo médio de recebimento por insumo")
         janela.title("Prazo médio de recebimento por insumo")
         janela.geometry("760x540")
         ctk.CTkLabel(janela, text="Prazo médio de reposição",
