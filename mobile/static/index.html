@@ -648,6 +648,17 @@ async function vCad(){
    <button class="btn sec" onclick="carregaAtividade()">Atualizar gráfico</button>
    <div id=graficoAtividade class=mini style="margin-top:10px">Carregando atividade…</div>
   </div>
+  <div class=cartao><h2 style="margin-top:0">Prazo médio de reposição dos insumos</h2>
+   <p class=mini>Tempo em dias corridos entre o registro do pedido e a confirmação do recebimento. A média considera apenas pedidos recebidos.</p>
+   <button class="btn sec" onclick="carregaPrazos()">Atualizar prazos</button>
+   <div id=graficoPrazos class=mini style="margin-top:10px">Carregando prazos…</div>
+   <h3>Pedidos aguardando recebimento</h3><div id=pedidosPendentes class=mini>Carregando pedidos…</div>
+   <h3>Registrar novo pedido</h3>
+   <label class=f>Insumo<select id=pedidoItem></select></label>
+   <div class=filtros><label class=f>Quantidade de embalagens<input type=number id=pedidoQtd min=0.001 step=any></label>
+   <label class=f>Fornecedor<input type=text id=pedidoFornecedor></label></div>
+   <button class=btn onclick="novoPedidoMobile()">Registrar pedido</button>
+  </div>
   <div class=cartao><h2 style="margin-top:0">Refeições contadas</h2><p class=mini>Habilite outras refeições quando quiser. O horário vale para todos os setores; a nutrição de cada setor pode ajustar o do seu.</p>
   ${r.refeicoes.map(x=>`<div data-cf=${x.refeicao} style="margin-bottom:8px"><label class=tg><input type=checkbox class=ca ${x.ativa?'checked':''}><b>${REF[x.refeicao]}</b></label>
    <div class=filtros><label class=f>Abre<input type=time class=cb value="${v(x.abre)}"></label><label class=f>Fecha<input type=time class=cc value="${v(x.fecha)}"></label></div></div>`).join('')}
@@ -672,7 +683,8 @@ async function vCad(){
    <span class=mini>${esc(i.unidade)} · ${i.preco_unitario==null?'preço pendente':'R$ '+Number(i.preco_unitario).toFixed(2)} · ${i.embalagem_qtd==null?'conteúdo pendente':esc(i.embalagem_qtd+' '+i.embalagem_un)}</span>
    <button class="btn sec peq" onclick="editarItem(${i.id})">Editar preço/embalagem</button></div>`).join('')}
   </div></div>`;
-  await carregaAtividade();
+  $('#pedidoItem').innerHTML=S.itens.map(i=>'<option value="'+i.id+'">'+esc(i.nome)+'</option>').join('');
+  await Promise.all([carregaAtividade(),carregaPrazos()]);
 }
 
 const carregaAtividade=tenta(async()=>{
@@ -683,6 +695,35 @@ const carregaAtividade=tenta(async()=>{
  if(!j.ranking.length){alvo.innerHTML='<p>Nenhuma atualização de mapa registrada neste período.</p>';return}
  const max=Math.max(1,...j.ranking.map(x=>x.atualizacoes));
  alvo.innerHTML='<p><b>'+j.total+'</b> atualização(ões) aplicadas · '+esc(j.chave)+'</p>'+j.ranking.map((x,i)=>`<div style="display:grid;grid-template-columns:minmax(95px,1fr) 2fr auto;gap:8px;align-items:center;margin:9px 0"><span>${i+1}. ${esc(x.nome)}</span><span style="height:12px;background:var(--linha);border-radius:8px;overflow:hidden"><i style="display:block;height:100%;width:${Math.max(2,x.atualizacoes/max*100)}%;background:var(--cor);border-radius:8px"></i></span><b>${x.atualizacoes}</b></div><div class=mini>${x.dias_ativos} dia(s) ativo(s) · ${x.setores} setor(es)</div>`).join('');
+});
+
+const carregaPrazos=tenta(async()=>{
+ const [r,p]=await Promise.all([api('/api/admin/almox/prazos'),api('/api/admin/almox/pedidos')]);
+ const alvo=$('#graficoPrazos');if(!alvo)return;
+ if(!r.prazos.length){alvo.innerHTML='<p>Nenhum pedido recebido ainda. Registre pedidos e confirme o recebimento para formar a média.</p>'}
+ else{
+  const max=Math.max(1,...r.prazos.map(x=>Number(x.prazo_medio_dias)||0));
+  alvo.innerHTML=r.prazos.map(x=>{
+   const dias=Number(x.prazo_medio_dias)||0;
+   return '<div style="display:grid;grid-template-columns:minmax(90px,1fr) 2fr auto;gap:8px;align-items:center;margin:9px 0"><span>'+esc(x.nome)+'</span><span style="height:12px;background:var(--linha);border-radius:8px;overflow:hidden"><i style="display:block;height:100%;width:'+Math.max(2,dias/max*100)+'%;background:var(--cor);border-radius:8px"></i></span><b>'+(x.prazo_medio_dias==null?'—':dias.toFixed(1)+' d')+'</b></div><div class=mini>'+x.pedidos_recebidos+' recebimento(s) · '+(x.pendentes||0)+' pendente(s)</div>';
+  }).join('');
+ }
+ const pendentes=p.pedidos.filter(x=>x.status==='pendente');
+ $('#pedidosPendentes').innerHTML=pendentes.length?pendentes.map(x=>
+  '<div style="padding:8px 0;border-bottom:1px solid var(--linha)"><b>'+esc(x.item)+'</b> · '+x.qtd+' unidade(s)<div class=mini>Solicitado em '+esc(x.solicitado_em)+' por '+esc(x.solicitado_nome||'—')+' · '+esc(x.fornecedor||'sem fornecedor')+'</div><button class="btn sec peq" onclick="receberPedidoMobile('+x.id+')">Confirmar recebimento</button></div>'
+ ).join(''):'<p>Nenhum pedido pendente.</p>';
+});
+const novoPedidoMobile=tenta(async()=>{
+ const id=+$('#pedidoItem').value,qtd=+$('#pedidoQtd').value;
+ if(!id||!qtd||qtd<=0){aviso('Informe o insumo e a quantidade solicitada.',1);return}
+ await api('/api/admin/almox/pedidos',{id_item:id,qtd,fornecedor:$('#pedidoFornecedor').value});
+ $('#pedidoQtd').value='';$('#pedidoFornecedor').value='';
+ await carregaPrazos();aviso('Pedido de reposição registrado.',0);
+});
+const receberPedidoMobile=tenta(async id=>{
+ if(!confirm('Confirmar que o pedido chegou? A quantidade será adicionada ao estoque do almoxarifado.'))return;
+ await api('/api/admin/almox/pedidos/'+id+'/receber',{});
+ await carregaPrazos();await recarregaBase();aviso('Recebimento registrado e estoque atualizado.',0);
 });
 const novoUsuario=tenta(async()=>{const perfil=$('#np').value;await api('/api/admin/usuarios',{login:$('#nl').value,nome:$('#nn').value,perfil,id_setor:perfil==='nutricionista'?(+$('#ns').value||null):null,senha:$('#nx').value});await vCad();aviso('Usuário criado.',0)});
 const ativa=tenta(async(id,a)=>{await api('/api/admin/usuarios/'+id,{ativo:a});await vCad()});
