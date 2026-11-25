@@ -940,6 +940,67 @@ def _rotear(c, ip, m, p, q, b, auth):
             if b.get("senha"):
                 definir_senha(c, uid, b["senha"])
             return {"ok": True}
+
+        if (m, p) == ("GET", "/api/admin/almox/pedidos"):
+            if not adm:
+                raise Erro("Apenas administradores podem consultar pedidos.", 403)
+            pedidos = [dict(r) for r in c.execute(
+                """SELECT p.id,p.id_item,i.nome AS item,p.qtd,p.solicitado_em,p.solicitado_nome,
+                          p.fornecedor,p.observacao,p.status,p.recebido_em,p.recebido_nome,p.id_movimento
+                   FROM pedidos_estoque p JOIN itens i ON i.id=p.id_item
+                   ORDER BY CASE p.status WHEN 'pendente' THEN 0 ELSE 1 END,p.solicitado_em DESC
+                   LIMIT 200""")]
+            return {"pedidos": pedidos}
+        if (m, p) == ("GET", "/api/admin/almox/prazos"):
+            if not adm:
+                raise Erro("Apenas administradores podem consultar prazos.", 403)
+            prazos = [dict(r) for r in c.execute(
+                """SELECT i.id AS id_item,i.nome,
+                          COUNT(CASE WHEN p.status='recebido' THEN 1 END) AS pedidos_recebidos,
+                          ROUND(AVG(CASE WHEN p.status='recebido'
+                              THEN julianday(substr(p.recebido_em,1,10))-julianday(substr(p.solicitado_em,1,10))
+                              END),1) AS prazo_medio_dias,
+                          SUM(CASE WHEN p.status='pendente' THEN 1 ELSE 0 END) AS pendentes
+                   FROM itens i LEFT JOIN pedidos_estoque p ON p.id_item=i.id
+                   GROUP BY i.id,i.nome
+                   HAVING pedidos_recebidos>0 OR pendentes>0
+                   ORDER BY prazo_medio_dias DESC,i.nome COLLATE NOCASE""")]
+            return {"prazos": prazos}
+        if (m, p) == ("POST", "/api/admin/almox/pedidos"):
+            if not adm:
+                raise Erro("Apenas administradores podem registrar pedidos.", 403)
+            iid = int(b.get("id_item") or 0)
+            qtd = num(b.get("qtd"), "quantidade solicitada")
+            if qtd <= 0:
+                raise Erro("A quantidade solicitada precisa ser maior que zero.")
+            if not c.execute("SELECT 1 FROM itens WHERE id=? AND ativo=1", (iid,)).fetchone():
+                raise Erro("Insumo não encontrado ou inativo.", 404)
+            cur = c.execute(
+                """INSERT INTO pedidos_estoque(id_item,qtd,solicitado_em,solicitado_por,
+                           solicitado_nome,fornecedor,observacao,status)
+                   VALUES(?,?,?,?,?,?,?,'pendente')""",
+                (iid,qtd,agora(),u["id"],u["nome"],
+                 str(b.get("fornecedor") or "").strip() or None,
+                 str(b.get("observacao") or "").strip() or None))
+            return {"ok": True, "id": cur.lastrowid}
+        if m == "POST" and p.startswith("/api/admin/almox/pedidos/") and p.endswith("/receber"):
+            if not adm:
+                raise Erro("Apenas administradores podem registrar recebimentos.", 403)
+            pid = int(p.split("/")[-2])
+            pedido = c.execute("SELECT * FROM pedidos_estoque WHERE id=?", (pid,)).fetchone()
+            if not pedido:
+                raise Erro("Pedido não encontrado.", 404)
+            if pedido["status"] != "pendente":
+                raise Erro("Este pedido já foi finalizado.")
+            saldo = post_reposicao(c,u,"almox",{
+                "id_item": pedido["id_item"], "qtd": pedido["qtd"], "origem": "externo"
+            })
+            id_movimento = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            c.execute(
+                """UPDATE pedidos_estoque SET status='recebido',recebido_em=?,
+                   recebido_por=?,recebido_nome=?,id_movimento=? WHERE id=?""",
+                (agora(),u["id"],u["nome"],id_movimento,pid))
+            return {"ok": True, "saldo": saldo, "id_movimento": id_movimento}
         if (m, p) == ("POST", "/api/admin/setores"):
             return criar_setor(c, b)
         if (m == "POST" and p == "/api/admin/itens") or (m == "POST" and p.startswith("/api/admin/itens/")):
