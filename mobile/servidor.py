@@ -981,12 +981,28 @@ class Manipulador(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(corpo)
 
+    def _enviar_apk(self, arquivo):
+        corpo = arquivo.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/vnd.android.package-archive")
+        self.send_header("Content-Length", str(len(corpo)))
+        self.send_header("Content-Disposition", 'attachment; filename="NutriLab-Mobile.apk"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        self.wfile.write(corpo)
+
     def _tratar(self, m):
         try:
             if not ipaddress.ip_address(self.client_address[0]).is_private:
                 raise Erro("Acesso permitido somente pela rede local.", 403)
             u = urlparse(self.path)
             q = {k: v[0] for k, v in parse_qs(u.query).items()}
+            if m == "GET" and u.path == "/download/NutriLab-Mobile.apk":
+                apk = (AQUI / "apk" / "saida" / "NutriLab-Mobile.apk").resolve()
+                if not apk.is_file() or AQUI.resolve() not in apk.parents:
+                    raise Erro("APK não encontrado nesta instalação. Recompile o pacote do NutriLab.", 404)
+                return self._enviar_apk(apk)
             if m == "GET" and not u.path.startswith("/api/"):
                 raiz = (AQUI / "static").resolve()
                 if u.path in ("/", "/index.html"):
