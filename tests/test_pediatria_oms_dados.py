@@ -17,9 +17,9 @@ class TestDadosOficiaisOMS(unittest.TestCase):
     def test_tabelas_diarias_oms_2006_cobrem_nascimento_a_60_meses(self):
         for indicador in ("imc_idade", "peso_idade", "estatura_idade"):
             curva = self.tabela.curva(indicador, "H", "oms_2006")
-            self.assertEqual(len(curva), 1827)
+            self.assertEqual(len(curva), 1857)
             self.assertEqual(curva[0]["idade"], 0)
-            self.assertEqual(curva[-1]["idade"], 1826)
+            self.assertEqual(curva[-1]["idade"], 1856)
 
     def test_tabelas_oms_2007_incluem_ancoras_de_interpolacao(self):
         bmi = self.tabela.curva("imc_idade", "M", "oms_2007")
