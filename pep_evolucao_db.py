@@ -308,20 +308,31 @@ def fechar_rascunho(db_path, id_rascunho, id_usuario, senha, *, confirmado=False
             conn.rollback()
             raise ValueError("A oferta enteral e sua adequação precisam ser calculadas com a ficha técnica.")
         progressao = dados.get("progressao_enteral") or {}
-        progressao["autorizada"] = bool(autorizar_progressao and progressao.get("solicitada"))
-        if progressao["autorizada"]:
-            progressao["plano"] = regras.planejar_progressao_por_etapa(
-                progressao["volume_etapa_atual_ml"], progressao["etapas"],
-                progressao["volume_meta_ml"] / progressao["etapas"],
-                progressao["incremento_por_etapa_ml"], progressao["dias_alvo"],
-                habilitada=True, autorizada=True,
+        if via == "enteral" and progressao.get("solicitada"):
+            plano = regras.planejar_progressao_enteral(
+                progressao["volume_atual_ml"], progressao["volume_meta_ml"],
+                progressao.get("incremento_diario_ml", 35),
+                maximo_diario_ml=progressao.get("volume_maximo_ml"),
+                dias_alvo=progressao.get("dias_alvo", 4),
+                habilitada=True, autorizada=bool(autorizar_progressao),
                 tolerancia=progressao.get("tolerancia", True),
                 restricao=progressao.get("restricao", False))
-        elif progressao:
+            progressao["plano"] = plano
+            progressao["autorizada"] = bool(plano.get("ativa"))
+            if not progressao["autorizada"]:
+                progressao["motivo"] = plano.get("motivo")
+            else:
+                progressao.pop("motivo", None)
+        else:
+            progressao["autorizada"] = False
             progressao.pop("plano", None)
+            if progressao.get("solicitada"):
+                progressao["motivo"] = "aguarda autorização do nutricionista"
         dados["progressao_enteral"] = progressao
         dados["porcao_oral_autorizada"] = bool(
             autorizar_porcao_oral and dados.get("porcao_oral_solicitada") and via == "oral")
+        dados["status_evolucao"] = "fechada"
+        dados["fechada"] = True
         dados["antropometria"].setdefault("data", datetime.strptime(r[2], "%Y-%m-%d").strftime("%d/%m/%Y"))
         antropometria = dados["antropometria"]
         idade = antropometria.get("idade_anos")
