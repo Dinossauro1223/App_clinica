@@ -261,7 +261,7 @@ def textos_linha(leito, reg, abreviar=True):
              supl="\n".join(suplementos), supl_inst="\n".join(suplementos),
              via_inst=reg.get("via") or "", preferencias="\n".join(preferencias),
              observacoes="\n".join(preferencias), obs="\n".join(preferencias),
-             diagnosticos=diagnosticos)
+             diagnosticos=diagnosticos, _imc=reg.get("imc"), _imc_class=reg.get("imc_class"))
     return t
 
 
@@ -469,8 +469,8 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
             if not value:
                 continue
             key = colunas[i][0]
-            if key == "paciente" and t.get("imc_class"):
-                value = value + "\nIMC: " + _fmt_num_pt(t.get("imc"), 1) + "\n (" + str(t["imc_class"]) + ")"
+            if key == "paciente" and t.get("_imc_class"):
+                value = value + "\nIMC: " + _fmt_num_pt(t.get("_imc"), 1) + "\n (" + str(t["_imc_class"]) + ")"
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Arial", "B" if key == "leito" else "", 5 if key != "paciente" else 6)
             linhas = _l1(value).splitlines() or [""]
