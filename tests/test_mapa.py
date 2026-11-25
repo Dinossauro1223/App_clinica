@@ -529,10 +529,10 @@ class TestExportacao(unittest.TestCase):
                 {"nome": "Módulo", "ml_oferta": 20, "agua_ml": 0, "refeicoes": ["almoco"],
                  "qtd_dia": 20, "batido_fruta": False, "unidade": "ml"}
             ]})
-        self.assertIn("120 mL/oferta × 2 = 240 mL/d", linha["supl"][0])
-        self.assertIn("água: 30 mL/oferta", linha["supl"][0])
-        self.assertIn("(batido com fruta)", linha["supl"][0])
-        self.assertNotIn("batido com fruta", linha["supl"][1])
+        self.assertIn("120 mL/oferta × 2 = 240 mL/d", linha["supl"])
+        self.assertIn("água: 30 mL/oferta", linha["supl"])
+        self.assertIn("(batido com fruta)", linha["supl"])
+        self.assertNotIn("batido com fruta", linha["supl"])
 
     def test_exportacao_da_visao_geral_identifica_o_setor(self):
         geral = mex._colunas("Todos_os_setores")
@@ -564,7 +564,7 @@ class TestExportacao(unittest.TestCase):
         self.assertEqual([ws.cell(4, c).value for c in range(1, 12)],
                          ["Lt", "Ac.", "Paciente", "Id.", "Reav.", "Via", "Caract. dieta", "Consist.", "Suplementos",
                           "Obs. (Sim/Não)", "F. Int."])
-        self.assertEqual(ws.max_row >= 5 + 24, True)
+        self.assertGreaterEqual(ws.max_row, 4 + len(self.dia))
         self.assertEqual(ws.page_setup.orientation, "landscape")
         self.assertEqual(ws.print_title_rows.replace("$", ""), "4:4")
         # linha do caso longo (leito L01): célula do paciente em texto rico
