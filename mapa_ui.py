@@ -178,6 +178,30 @@ class MapaUI:
         self.lbl_condutas = ctk.CTkLabel(avisos, text="", text_color=LARANJA,
                                          font=ctk.CTkFont(size=11, weight="bold"), anchor="w", justify="left")
         self.lbl_condutas.pack(fill="x", anchor="w")
+        self.lbl_nrs = ctk.CTkLabel(avisos, text="", text_color=VERMELHO,
+                                    font=ctk.CTkFont(size=11, weight="bold"), anchor="w", justify="left")
+        self.lbl_nrs.pack(fill="x", anchor="w")
+        self.lbl_condutas = ctk.CTkLabel(avisos, text="", text_color=LARANJA,
+                                         font=ctk.CTkFont(size=11, weight="bold"), anchor="w", justify="left")
+        self.lbl_condutas.pack(fill="x", anchor="w")
+        self.quadro_alertas = ctk.CTkFrame(area, fg_color="transparent")
+        self.quadro_alertas.pack(fill="x", padx=24, pady=(2, 5))
+        ctk.CTkLabel(self.quadro_alertas, text="ACOMPANHAMENTO DA EVOLUÇÃO ENTERAL",
+                     font=ctk.CTkFont(size=10, weight="bold"), text_color=tema.VERDE_ESC).pack(anchor="w", pady=(0, 3))
+        self.cards_alertas = {}
+        for coluna, (chave, titulo) in enumerate((
+            ("evoluiram", "Evoluíram automaticamente"),
+            ("nao_evoluiram", "Não evoluíram automaticamente"),
+            ("abaixo_meta", "Abaixo da meta energética"),
+        )):
+            card = ctk.CTkFrame(self.quadro_alertas, fg_color=tema.BRANCO, corner_radius=8,
+                                border_width=1, border_color=tema.BORDA)
+            card.pack(side="left", fill="both", expand=True, padx=(0 if coluna == 0 else 5, 0))
+            ctk.CTkLabel(card, text=titulo, font=ctk.CTkFont(size=11, weight="bold"),
+                         text_color=tema.TEXTO).pack(anchor="w", padx=8, pady=(6, 2))
+            lista_alertas = ctk.CTkScrollableFrame(card, height=82, fg_color="transparent")
+            lista_alertas.pack(fill="both", expand=True, padx=4, pady=(0, 4))
+            self.cards_alertas[chave] = lista_alertas
         self.lbl_inicio = ctk.CTkLabel(
             area, text="Selecione um leito vazio e clique em 'Preencher leito' para iniciar.",
             text_color=tema.SUAVE, anchor="w", justify="left")
@@ -294,6 +318,8 @@ class MapaUI:
                 com_pendencia += cond.get("estado") == "pendente"
             self.tree.insert("", "end", iid=str(l["id_leito"]), values=vals, tags=tag)
         self._mostrar_aviso_condutas(com_pendencia)
+        self._atualizar_alertas_nrs()
+        self._atualizar_painel_evolucao()
         total = len(self.linhas)
         if ocupados == 0 and total:
             self.lbl_inicio.configure(text="Primeiro preenchimento: selecione um leito vazio e clique em 'Preencher leito'. "
@@ -310,6 +336,104 @@ class MapaUI:
                 text=f"{ocupados} de {total} leitos com registro  ·  {past} em dieta pastosa  ·  "
                      f"{acomp} com acompanhante  ·  {ocupados - sup_oral - enteral} em via oral sem suplemento  ·  "
                      f"{sup_oral} com suplementação oral  ·  {enteral} em dieta enteral")
+
+    def _atualizar_alertas_nrs(self):
+        hoje = self.data
+        atrasadas, proximas = [], []
+        for item in self.linhas:
+            registro = item.get("registro")
+            if not registro:
+                continue
+            bruto = registro.get("data_reavaliacao")
+            if not bruto:
+                continue
+            try:
+                data_limite = datetime.strptime(str(bruto)[:10], "%Y-%m-%d").date()
+            except ValueError:
+                try:
+                    data_limite = datetime.strptime(str(bruto), "%d/%m/%Y").date()
+                except ValueError:
+                    continue
+            nome = f"Leito {item['leito'].get('codigo', '?')} — {registro.get('nome_paciente') or 'Paciente'}"
+            if data_limite < hoje:
+                atrasadas.append(f"{nome} (vencida em {data_limite.strftime('%d/%m/%Y')})")
+            elif data_limite <= hoje + timedelta(days=7):
+                proximas.append(f"{nome} ({data_limite.strftime('%d/%m/%Y')})")
+        partes = []
+        if atrasadas:
+            partes.append("ANTROPOMETRIAS ATRASADAS: " + "; ".join(atrasadas))
+        if proximas:
+            partes.append("ANTROPOMETRIAS PRÓXIMAS DO VENCIMENTO: " + "; ".join(proximas))
+        self.lbl_nrs.configure(text="  |  ".join(partes), text_color=VERMELHO if atrasadas else LARANJA)
+
+    def _abrir_alerta_evolucao(self, id_leito):
+        iid = str(id_leito)
+        if self.tree.exists(iid):
+            self.tree.selection_set(iid)
+            self.tree.focus(iid)
+            self.tree.see(iid)
+            self._editar()
+
+    def _atualizar_painel_evolucao(self):
+        import evolucao_nutricional as ev
+        grupos = {"evoluiram": [], "nao_evoluiram": [], "abaixo_meta": []}
+        for item in self.linhas:
+            registro = item.get("registro")
+            if not registro:
+                continue
+            resumo = ev.resumo_painel_evolucao(registro, self.data.isoformat())
+            paciente = registro.get("nome_paciente") or "Paciente"
+            leito = item["leito"].get("codigo", "?")
+            base = {"id_leito": item["leito"]["id_leito"], "nome": paciente, "leito": leito}
+            if not resumo:
+                if str(registro.get("via") or "").casefold() == "enteral":
+                    grupos["nao_evoluiram"].append((base, {
+                        "evoluiu": False, "dados_insuficientes": True,
+                        "motivo_nao_evolucao": "Dados insuficientes para calcular oferta e metas"
+                    }))
+                continue
+            if resumo["evoluiu"]:
+                grupos["evoluiram"].append((base, resumo))
+            else:
+                grupos["nao_evoluiram"].append((base, resumo))
+            if resumo["deficit_kcal"] > 0.5:
+                grupos["abaixo_meta"].append((base, resumo))
+        for chave, lista in self.cards_alertas.items():
+            for filho in lista.winfo_children():
+                filho.destroy()
+            itens = grupos[chave]
+            if not itens:
+                ctk.CTkLabel(lista, text="Nenhum paciente nesta condição.",
+                             font=ctk.CTkFont(size=10), text_color=tema.SUAVE).pack(anchor="w", padx=4, pady=4)
+                continue
+            for base, resumo in itens:
+                if chave == "evoluiram":
+                    ptn = (f" · {resumo['adequacao_ptn_pct']:.1f}% PTN"
+                           if resumo.get("adequacao_ptn_pct") is not None else "")
+                    texto = (f"Leito {base['leito']} · {base['nome']}\n"
+                             f"{resumo['volume_inicial_ml']:.0f} → {resumo['volume_atual_ml']:.0f} mL/dia "
+                             f"(+{resumo['incremento_ml']:.0f}); meta {resumo['volume_meta_ml']:.0f} mL/dia; "
+                             f"{resumo['adequacao_kcal_pct']:.1f}% kcal{ptn}")
+                elif chave == "nao_evoluiram":
+                    if resumo.get("dados_insuficientes"):
+                        texto = (f"Leito {base['leito']} · {base['nome']}\n"
+                                 f"{resumo['motivo_nao_evolucao']}")
+                    else:
+                        texto = (f"Leito {base['leito']} · {base['nome']}\n"
+                                 f"{resumo['volume_atual_ml']:.0f}/{resumo['volume_meta_ml']:.0f} mL/dia · "
+                                 f"{resumo['adequacao_kcal_pct']:.1f}% kcal · "
+                                 f"{resumo['motivo_nao_evolucao'] or 'Sem incremento registrado'}")
+                else:
+                    texto = (f"Leito {base['leito']} · {base['nome']}\n"
+                             f"{resumo['energia_kcal']:.0f}/{resumo['meta_kcal']:.0f} kcal "
+                             f"({resumo['adequacao_kcal_pct']:.1f}%) · déficit {resumo['deficit_kcal']:.0f} kcal · "
+                             f"+{resumo['volume_adicional_ml']:.0f} mL/dia")
+                ctk.CTkButton(
+                    lista, text=texto, anchor="w", height=46,
+                    fg_color="transparent", hover_color=tema.VERDE_CLARO,
+                    text_color=tema.TEXTO, font=ctk.CTkFont(size=10),
+                    command=lambda ident=base["id_leito"]: self._abrir_alerta_evolucao(ident)
+                ).pack(fill="x", padx=2, pady=1)
 
     # ------------------------------------------------------------------ condutas de alta
     def _catalogo_condutas(self):
@@ -1307,6 +1431,7 @@ class FormRegistro(_Janela):
         self._catalogo_visivel = list(self._catalogo)
         self._via_anterior = None
         self._resultado_nrs = {}
+        self._reav_manual = bool(self.reg.get("data_reavaliacao"))
         self._resultado_avaliacao = {}
         self._resultado_pediatria = {}
         self._montar()
@@ -1408,6 +1533,7 @@ class FormRegistro(_Janela):
         q = self._secao("Dieta")
         l = self._linha(q)
         self.e_reav = self._entrada(l, "Reavaliação prevista (DD/MM/AAAA)", 100)
+        self.e_reav.bind("<KeyRelease>", self._marcar_reavaliacao_manual)
         self.seg_via = self._seg(l, "Via", mdb.VIAS, cmd=self._via_mudou)
         l = self._linha(q)
         ctk.CTkLabel(l, text="Características:").pack(side="left", padx=(0, 6))
@@ -1535,6 +1661,8 @@ class FormRegistro(_Janela):
 
         rodape = ctk.CTkFrame(self, fg_color="transparent")
         rodape.pack(fill="x", padx=10, pady=8)
+        self.b_evolucao = _btn(rodape, "Evolução nutricional", self._abrir_evolucao, 170, tema.VERDE_ESC, tema.VERDE_HOVER)
+        self.b_evolucao.pack(side="left", padx=(0, 8))
         self.b_alta = _btn(rodape, "Dar alta", self._dar_alta, 120, VERMELHO, VERMELHO_HOVER)
         self.b_alta.pack(side="left")
         self.b_salvar = _btn(rodape, "Salvar", self._salvar, 130)
@@ -1544,6 +1672,7 @@ class FormRegistro(_Janela):
         if self.somente_leitura:
             self.b_salvar.pack_forget()
             self.b_alta.pack_forget()
+            self.b_evolucao.pack_forget()
 
     # ------------------------------------------------------------- preencher/coletar
     def _preencher(self):
@@ -1565,6 +1694,7 @@ class FormRegistro(_Janela):
         if r.get("peso_origem"):
             self.seg_peso.set({"E": "Estimado", "R": "Real"}[r["peso_origem"]])
         _set_entry(self.e_reav, mdb.iso_para_br(r.get("data_reavaliacao")))
+        self._reav_manual = bool(r.get("data_reavaliacao"))
         if r.get("via"):
             self.seg_via.set(r["via"])
         _set_entry(self.e_meta_kcal, _fmt(r.get("meta_kcal")).replace(",0", "") if r.get("meta_kcal") is not None else "")
@@ -1811,6 +1941,24 @@ class FormRegistro(_Janela):
         }
         self.lbl_nrs_classificacao.configure(
             text=f"Classificação NRS-2002: {resultado.get('rotulo') or 'Não preenchida'}")
+        if not self._reav_manual:
+            if resultado.get("completo") and resultado.get("grau"):
+                try:
+                    intervalos = getattr(self, "_intervalos_nrs", None)
+                    if intervalos is None:
+                        intervalos = nrs.ler_intervalos(self.ui.db)
+                        self._intervalos_nrs = intervalos
+                    alvo = nrs.proxima_reavaliacao(date.fromisoformat(self.data_iso), resultado["grau"], intervalos)
+                    _set_entry(self.e_reav, alvo.strftime("%d/%m/%Y"))
+                except (ValueError, TypeError, sqlite3.Error):
+                    _set_entry(self.e_reav, "")
+            else:
+                _set_entry(self.e_reav, "")
+
+    def _marcar_reavaliacao_manual(self, _evento=None):
+        self._reav_manual = bool(self.e_reav.get().strip())
+        if not self._reav_manual:
+            self._recalcular_nrs()
 
     def _recalcular_avaliacao(self):
         dados = {
@@ -1826,7 +1974,8 @@ class FormRegistro(_Janela):
             rotulo = classe if classe else "Dados insuficientes para classificar"
             self._resultado_avaliacao = {
                 "dados": dados, "classe": classe, "imc": resultado.get("imc"),
-                "peso_ajustado": resultado.get("ajustado"), "avisos": resultado.get("avisos", []),
+                "peso_ajustado": resultado.get("ajustado"), "fluidos": resultado.get("fluidos"),
+                "amput_pct": resultado.get("amput_pct"), "avisos": resultado.get("avisos", []),
             }
         except (ValueError, TypeError) as exc:
             rotulo = f"Não foi possível classificar: {exc}"
@@ -2008,7 +2157,69 @@ class FormRegistro(_Janela):
         self.destroy()
         return "break"
 
-    def _salvar(self):
+    def _abrir_evolucao(self):
+        if self.somente_leitura:
+            return
+        if not self._salvar(manter_aberto=True):
+            return
+        registro = mdb.obter_registro(self.ui.db, self.data_iso, self.leito["id_leito"])
+        if not registro or not registro.get("id_paciente"):
+            messagebox.showwarning("Evolução nutricional", "Salve e vincule o paciente ao cadastro clínico antes de preparar a evolução.", parent=self)
+            return
+        self.reg = registro
+        self._id_paciente = registro["id_paciente"]
+        try:
+            from pep_evolucao_ui import FormEvolucaoUI
+            FormEvolucaoUI(self.ui, registro, self)
+        except Exception as erro:
+            messagebox.showerror("Evolução nutricional", f"Não foi possível abrir o editor de evolução.\n\n{erro}", parent=self)
+    
+    def _salvar(self, manter_aberto=False):
+        try:
+            reg = self._coletar()
+        except ValueError as e:
+            messagebox.showwarning("Registro", str(e), parent=self)
+            return False
+        nome = reg["nome_paciente"]
+        if nome.strip().lower() != self._nome_original.strip().lower() and not self._vinculo_manual:
+            reg["id_paciente"] = None  # nome mudou: é outro paciente nesse leito
+            self._data_nascimento = None
+            self._recalcular()
+            reg["pediatria_oms_json"] = json.dumps(self._resultado_pediatria, ensure_ascii=False)
+        if not reg["id_paciente"] and nome:
+            iguais = [p for p in mdb.listar_pacientes(self.ui.db, nome) if p["nome"].strip().lower() == nome.lower()]
+            if iguais:
+                p = iguais[0]
+                extra = f" (há {len(iguais)} cadastros com esse nome)" if len(iguais) > 1 else ""
+                resp = messagebox.askyesnocancel(
+                    "Paciente já cadastrado",
+                    f"Já existe '{p['nome']}' no cadastro (nascimento: {p['data_nascimento'] or 'não informado'}){extra}.\n\n"
+                    "Sim: vincular este registro a ele (histórico unificado)\n"
+                    "Não: criar um novo cadastro\nCancelar: voltar", parent=self)
+                if resp is None:
+                    return False
+                if resp:
+                    reg["id_paciente"] = p["id_paciente"]
+                    self._data_nascimento = p.get("data_nascimento")
+                    self._recalcular()
+                    reg["pediatria_oms_json"] = json.dumps(self._resultado_pediatria, ensure_ascii=False)
+        if reg["idade_anos"] is None and reg["peso_kg"] and reg["altura_cm"]:
+            if not messagebox.askyesno("Idade não informada",
+                                       "Sem a idade, o IMC não será classificado. Salvar mesmo assim?", parent=self):
+                return False
+        try:
+            mdb.salvar_registro(self.ui.db, reg, self.ui.criterio_idoso, self.ui.lms)
+        except ValueError as e:
+            messagebox.showwarning("Registro", str(e), parent=self)
+            return False
+        self.ui._recarregar()
+        self.reg = mdb.obter_registro(self.ui.db, self.data_iso, self.leito["id_leito"]) or reg
+        self._id_paciente = self.reg.get("id_paciente")
+        if not manter_aberto:
+            self.destroy()
+        return True
+
+
         try:
             reg = self._coletar()
         except ValueError as e:
