@@ -146,6 +146,10 @@ CREATE TABLE IF NOT EXISTS Mapa_Registro_Suplementos (
     ml_oferta REAL, agua_ml REAL, refeicoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0,
     kcal_100 REAL, ptn_100 REAL, lip_100 REAL, carb_100 REAL, sod_100 REAL,
     ficha_observacao TEXT, ficha_snapshot_em TEXT);
+CREATE TABLE IF NOT EXISTS Mapa_Evolucao_Dados (
+    id_registro INTEGER PRIMARY KEY REFERENCES Mapa_Registros(id_registro) ON DELETE CASCADE,
+    dados_json TEXT NOT NULL, criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS ix_mapa_reg_data ON Mapa_Registros(data);
 CREATE INDEX IF NOT EXISTS ix_mapa_reg_pac ON Mapa_Registros(id_paciente);
 CREATE INDEX IF NOT EXISTS ix_mapa_regsup_reg ON Mapa_Registro_Suplementos(id_registro);
@@ -731,6 +735,22 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
                        s.get("unidade"), s.get("ml_oferta"), s.get("agua_ml"),
                        json.dumps(s.get("refeicoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta"))),
                        *valores_ficha, observacao_ficha, snapshot_em))
+        dados_evolucao = reg.get("evolucao_json")
+        if dados_evolucao not in (None, ""):
+            try:
+                objeto_evolucao = json.loads(dados_evolucao) if isinstance(dados_evolucao, str) else dados_evolucao
+                if not isinstance(objeto_evolucao, dict):
+                    raise ValueError("Dados da evolução devem formar um objeto.")
+                json_evolucao = json.dumps(objeto_evolucao, ensure_ascii=False, sort_keys=True, allow_nan=False)
+            except (TypeError, ValueError) as erro:
+                raise ValueError(f"Dados estruturados da evolução inválidos: {erro}") from erro
+            c.execute(
+                "INSERT INTO Mapa_Evolucao_Dados (id_registro, dados_json, criado_em, atualizado_em) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(id_registro) DO UPDATE SET dados_json=excluded.dados_json, atualizado_em=excluded.atualizado_em",
+                (id_reg, json_evolucao, _agora(), _agora()),
+            )
+        elif "evolucao_json" in reg:
+            c.execute("DELETE FROM Mapa_Evolucao_Dados WHERE id_registro=?", (id_reg,))
         c.commit()
         return id_reg
 
@@ -753,6 +773,43 @@ def _anexar_suplementos(c, registros):
     return registros
 
 
+def _anexar_evolucao(c, registros):
+    if not registros:
+        return registros
+    ids = [r["id_registro"] for r in registros]
+    marcas = ",".join("?" * len(ids))
+    dados = {r["id_registro"]: r["dados_json"] for r in c.execute(
+        f"SELECT id_registro, dados_json FROM Mapa_Evolucao_Dados WHERE id_registro IN ({marcas})", ids)}
+    for r in registros:
+        bruto = dados.get(r["id_registro"])
+        try:
+            r["evolucao"] = json.loads(bruto) if bruto else {}
+        except (TypeError, ValueError):
+            r["evolucao"] = {}
+        r["evolucao_json"] = bruto
+    return registros
+
+
+def salvar_dados_evolucao(db_path, id_registro, dados):
+    """Persiste dados da evolução vinculados ao registro clínico do mapa."""
+    if isinstance(id_registro, bool) or not isinstance(id_registro, int) or id_registro < 1:
+        raise ValueError("Registro clínico inválido.")
+    if not isinstance(dados, dict):
+        raise ValueError("Dados da evolução devem formar um objeto.")
+    bruto = json.dumps(dados, ensure_ascii=False, sort_keys=True, allow_nan=False)
+    agora = _agora()
+    with closing(conectar(db_path)) as c:
+        existe = c.execute("SELECT 1 FROM Mapa_Registros WHERE id_registro=?", (id_registro,)).fetchone()
+        if not existe:
+            raise ValueError("Registro clínico não encontrado.")
+        c.execute(
+            "INSERT INTO Mapa_Evolucao_Dados (id_registro, dados_json, criado_em, atualizado_em) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(id_registro) DO UPDATE SET dados_json=excluded.dados_json, atualizado_em=excluded.atualizado_em",
+            (id_registro, bruto, agora, agora),
+        )
+        c.commit()
+
+
 _SEL_REG = ("SELECT R.*, L.codigo AS leito_codigo, L.id_setor AS id_setor, S.nome AS setor, "
             "S.sigla AS sigla_setor, S.grupo AS grupo_setor, S.ordem_apresentacao AS ordem_setor, L.ativo AS leito_ativo "
             "FROM Mapa_Registros R JOIN Mapa_Leitos L ON L.id_leito = R.id_leito "
@@ -762,7 +819,7 @@ _SEL_REG = ("SELECT R.*, L.codigo AS leito_codigo, L.id_setor AS id_setor, S.nom
 def obter_registro(db_path, data_iso, id_leito):
     with closing(conectar(db_path)) as c:
         rows = _rows(c.execute(_SEL_REG + "WHERE R.data=? AND R.id_leito=?", (data_iso, id_leito)))
-        return _anexar_suplementos(c, rows)[0] if rows else None
+        return _anexar_evolucao(c, _anexar_suplementos(c, rows))[0] if rows else None
 
 
 def remover_registro(db_path, id_registro):
@@ -773,6 +830,7 @@ def remover_registro(db_path, id_registro):
             return
         agora = _agora()
         c.execute("DELETE FROM Mapa_Registro_Suplementos WHERE id_registro=?", (id_registro,))
+        c.execute("DELETE FROM Mapa_Evolucao_Dados WHERE id_registro=?", (id_registro,))
         c.execute("DELETE FROM Mapa_Registros WHERE id_registro=?", (id_registro,))
         c.execute("INSERT INTO Mapa_Liberacoes(data,id_leito,atualizado_em,por,motivo) VALUES(?,?,?,?,?) "
                   "ON CONFLICT(data,id_leito) DO UPDATE SET atualizado_em=excluded.atualizado_em,por=excluded.por,motivo=excluded.motivo",
@@ -813,11 +871,45 @@ def ultimo_registro_leito(db_path, id_leito, data_iso):
     with closing(conectar(db_path)) as c:
         rows = _rows(c.execute(_SEL_REG + "WHERE R.id_leito=? AND R.data<=? ORDER BY R.data DESC, R.id_registro DESC LIMIT 1",
                                (id_leito, data_iso)))
-        reg = _anexar_suplementos(c, rows)[0] if rows else None
+        reg = _anexar_evolucao(c, _anexar_suplementos(c, rows))[0] if rows else None
         lib = c.execute("SELECT * FROM Mapa_Liberacoes WHERE id_leito=? AND data=?", (id_leito, data_iso)).fetchone()
         if lib and (not reg or reg["data"] < data_iso):
             return {"id_leito": id_leito, "data": data_iso, "atualizado_em": lib["atualizado_em"], "alta_em": lib["atualizado_em"]}
         return reg
+
+
+def dados_operacionais_copa(registro, data_destino=None):
+    """Extrai somente instruções operacionais autorizadas; nunca expõe metas, TNE, DVA ou diagnósticos."""
+    if not registro:
+        return {}
+    via = str(registro.get("via") or "").casefold()
+    dados = registro.get("evolucao") or {}
+    if via == "oral":
+        if dados.get("porcao_oral_autorizada") and dados.get("porcao_oral_ml") not in (None, ""):
+            porcao = int(float(dados["porcao_oral_ml"]))
+            return {"via": "Oral", "porcao_oral_ml": porcao,
+                    "instrucao": f"Porção: {porcao} mL"}
+        return {}
+    if via != "enteral":
+        return {}
+    dieta = dados.get("dieta_enteral") or {}
+    if not dieta.get("nome") or dieta.get("volume_por_etapa_ml") in (None, ""):
+        return {}
+    volume = float(dieta["volume_por_etapa_ml"])
+    etapas = int(dieta.get("etapas") or 1)
+    progressao = dados.get("progressao_enteral") or {}
+    if progressao.get("autorizada") and progressao.get("plano", {}).get("passos"):
+        inicio_bruto = dados.get("data_evolucao") or registro["data"]
+        inicio = datetime.strptime(inicio_bruto, "%Y-%m-%d").date()
+        destino = datetime.strptime(data_destino or registro["data"], "%Y-%m-%d").date()
+        dias = max(0, (destino - inicio).days)
+        passos = progressao["plano"]["passos"]
+        if dias:
+            volume = float(passos[min(dias - 1, len(passos) - 1)]["volume_etapa_ml"])
+    total = volume * etapas
+    return {"via": "Enteral", "formula": dieta["nome"], "volume_por_etapa_ml": volume,
+            "etapas": etapas, "volume_total_ml": total,
+            "instrucao": f"{str(dieta['nome'])[:18]} {volume:g}mL/etapa x{etapas}={total:g}mL/d"}
 
 
 def mapa_do_dia(db_path, data_iso, id_setor=None):
@@ -830,7 +922,7 @@ def mapa_do_dia(db_path, data_iso, id_setor=None):
             par.append(id_setor)
         regs = _rows(c.execute(
             _SEL_REG + "WHERE R.data<=?" + filtro + " ORDER BY R.data DESC, R.id_registro DESC", par))
-        _anexar_suplementos(c, regs)
+        _anexar_evolucao(c, _anexar_suplementos(c, regs))
         por_leito = {}
         for r in regs:
             # Como a consulta está ordenada do mais novo para o mais antigo, o primeiro
@@ -843,6 +935,7 @@ def mapa_do_dia(db_path, data_iso, id_setor=None):
                 continue
             r = dict(r)
             r["data_exibicao"] = data_iso
+            r["dados_copa"] = dados_operacionais_copa(r, data_iso)
             por_leito[r["id_leito"]] = r
         por_leito = {k: v for k, v in por_leito.items() if v is not None}
         for r in regs:
@@ -896,7 +989,7 @@ def copiar_mapa(db_path, origem_iso, destino_iso, id_setor=None):
             filtro = " AND L.id_setor=?"
             par.append(id_setor)
         regs = _rows(c.execute(_SEL_REG + "WHERE R.data=?" + filtro, par))
-        _anexar_suplementos(c, regs)
+        _anexar_evolucao(c, _anexar_suplementos(c, regs))
         for r in regs:
             if c.execute("SELECT 1 FROM Mapa_Registros WHERE data=? AND id_leito=?",
                          (destino_iso, r["id_leito"])).fetchone():
@@ -905,6 +998,11 @@ def copiar_mapa(db_path, origem_iso, destino_iso, id_setor=None):
             marc = ", ".join("?" * (2 + len(_CAMPOS_REG) + 2))
             cur = c.execute(f"INSERT INTO Mapa_Registros ({cols}) VALUES ({marc})",
                             [destino_iso, r["id_leito"]] + [r.get(k) for k in _CAMPOS_REG] + [_agora(), _agora()])
+            if r.get("evolucao"):
+                c.execute(
+                    "INSERT INTO Mapa_Evolucao_Dados (id_registro, dados_json, criado_em, atualizado_em) VALUES (?, ?, ?, ?)",
+                    (cur.lastrowid, json.dumps(r["evolucao"], ensure_ascii=False, sort_keys=True), _agora(), _agora()),
+                )
             for s in r["suplementos"]:
                 c.execute("""INSERT INTO Mapa_Registro_Suplementos
                              (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade, ml_oferta, agua_ml,
@@ -931,7 +1029,7 @@ def historico_paciente(db_path, id_paciente=None, nome=None):
         else:
             rows = _rows(c.execute(_SEL_REG + "WHERE LOWER(R.nome_paciente)=LOWER(?) "
                                    "ORDER BY R.data DESC, R.id_registro DESC", ((nome or "").strip(),)))
-        return _anexar_suplementos(c, rows)
+        return _anexar_evolucao(c, _anexar_suplementos(c, rows))
 
 
 def registros_do_mes(db_path, ano, mes, id_setor=None):
@@ -944,7 +1042,7 @@ def registros_do_mes(db_path, ano, mes, id_setor=None):
         par.append(id_setor)
     with closing(conectar(db_path)) as c:
         rows = _rows(c.execute(_SEL_REG + "WHERE R.data >= ? AND R.data < ?" + filtro + " ORDER BY R.data", par))
-        return _anexar_suplementos(c, rows)
+        return _anexar_evolucao(c, _anexar_suplementos(c, rows))
 
 
 def meses_com_dados(db_path):
