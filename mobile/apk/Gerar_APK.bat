@@ -2,6 +2,8 @@
 setlocal EnableExtensions
 title NutriLab - gerar o APK do celular
 cd /d "%~dp0"
+set "MODO_INTEGRADO="
+if /I "%~1"=="/integrado" set "MODO_INTEGRADO=1"
 
 rem ======================================================================
 rem  NutriLab - Gerar_APK.bat  (criado em 12/11/2026, revisado em 23/11/2026)
@@ -177,6 +179,7 @@ echo Para instalar no celular: copie o arquivo para ele, ou baixe pelo Wi-Fi com
 echo.
 if defined IPLAN echo No app, o endereco do servidor ja vem preenchido: %IPLAN%:8765
 echo ATENCAO: o servidor NutriLab usa a porta 8765. A porta 8000 serve so para baixar o APK.
+if defined MODO_INTEGRADO goto :fim_integrado
 echo.
 start "" explorer "%SAIDA%"
 choice /c SN /n /m "Servir o APK pela rede agora, para baixar no celular? [S/N] "
@@ -188,6 +191,8 @@ goto :fim
 :com_python
 python "%~dp0servir_apk.py"
 goto :fim
+:fim_integrado
+exit /b 0
 
 :sem_app
 echo ERRO: nao encontrei a pasta app ao lado deste arquivo.
@@ -210,6 +215,7 @@ echo.
 echo O APK NAO foi gerado. Falhou em: %PASSO%
 echo Registro completo: %LOG%
 echo Se precisar de ajuda, envie o arquivo gerar_apk_log.txt.
+if defined MODO_INTEGRADO exit /b 1
 pause
 exit /b 1
 

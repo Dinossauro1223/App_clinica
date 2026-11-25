@@ -27,5 +27,22 @@ class TestLauncherBootstrap(unittest.TestCase):
         self.assertIn('move /Y "dist\\NutriLab" "%SAIDA%"', self.launcher)
 
 
+    def test_compilacao_conjunta_gera_apk_antes_do_executavel(self):
+        texto = self.launcher
+        normalizado = texto.replace(chr(92), "/")
+        chamada_apk = 'call "%RAIZ%mobile/apk/Gerar_APK.bat" /integrado'
+        self.assertIn(chamada_apk, normalizado)
+        self.assertLess(normalizado.index(chamada_apk), normalizado.index("PyInstaller"))
+        self.assertIn('if errorlevel 1 goto ERRO_APK', texto)
+        self.assertIn('"%SAIDA%/_internal/mobile/apk/saida/NutriLab-Mobile.apk"', normalizado)
+        self.assertIn("Compress-Archive", texto)
+        self.assertIn("NutriLab-Desktop.zip", texto)
+
+    def test_gerador_apk_tem_modo_integrado_sem_interacao(self):
+        apk = (RAIZ / "mobile" / "apk" / "Gerar_APK.bat").read_text(encoding="utf-8")
+        self.assertIn('if /I "%~1"=="/integrado"', apk)
+        self.assertIn("if defined MODO_INTEGRADO goto :fim_integrado", apk)
+        self.assertIn("if defined MODO_INTEGRADO exit /b 1", apk)
+
 if __name__ == "__main__":
     unittest.main()
