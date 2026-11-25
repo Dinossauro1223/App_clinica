@@ -95,7 +95,9 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertIn("AndroidKeyStore", java)
         self.assertIn(r"..\static\index.html", bat)
         self.assertIn("--release 8", bat)
-        self.assertIn('-classpath "%AJAR%"', bat)
+        self.assertIn('-classpath "%AJAR%;%ZXING%"', bat)
+        self.assertIn("QRScannerActivity.java", bat)
+        self.assertIn("ZXINGURL", bat)
         self.assertNotIn("-bootclasspath", bat)
         # Uma única fonte versionada; os builds CI/local geram o asset dentro do APK.
         asset = ROOT / "mobile" / "apk" / "app" / "assets" / "index.html"
@@ -105,12 +107,27 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertIn('copy /y "%~dp0..\\static\\index.html" "%APP%\\assets\\index.html"', bat)
         release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         self.assertIn("setup-android@v4", release)
+        self.assertIn("QRScannerActivity.java", release)
+        self.assertIn("zxing-core-3.5.4.jar", release)
         self.assertIn("--release 8 -classpath", release)
         self.assertNotIn("-bootclasspath", release)
         self.assertIn('tags: ["v*"]', release)
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("apk-java:", workflow)
         self.assertIn("android-34", workflow)
+
+
+    def test_login_mobile_oferece_qr_e_apk_tem_leitor_nativo(self):
+        self.assertIn("Escanear QR code", self.html)
+        self.assertIn("Android.escanearQR()", self.html)
+        self.assertIn("nutrilab-server", self.html)
+        scanner = JAVA.parent / "QRScannerActivity.java"
+        self.assertTrue(scanner.is_file(), "O APK precisa do leitor QR nativo para funcionar em HTTP local.")
+        java = scanner.read_text(encoding="utf-8")
+        self.assertIn("MultiFormatReader", java)
+        self.assertIn("Camera.open()", java)
+        manifest = (ROOT / "mobile" / "apk" / "app" / "AndroidManifest.xml").read_text(encoding="utf-8")
+        self.assertIn('android:name=".QRScannerActivity"', manifest)
 
 
 if __name__ == "__main__":
