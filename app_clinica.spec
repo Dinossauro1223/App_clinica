@@ -18,6 +18,10 @@ if not os.path.isfile(os.path.join(PASTA_CAMADAS, 'folhas.json')):
         "Camadas da tela inicial ausentes. Execute: python tools\\\\gerar_identidade_visual.py."
     )
 
+ARQUIVO_LMS_OMS = os.path.join('dados', 'oms_lms_pediatricos.csv')
+if not os.path.isfile(os.path.join(SPECPATH, ARQUIVO_LMS_OMS)):
+    raise SystemExit("Tabela LMS oficial OMS ausente: dados\\oms_lms_pediatricos.csv")
+
 CUSTOMTKINTER_PATH = os.path.dirname(customtkinter.__file__)
 
 # Os componentes SVG são renderizados em camadas RGBA antes da compilação,
@@ -36,7 +40,7 @@ ARQUIVOS_DATA = [
     ('sintomas_internos', 'sintomas_internos'),
     ('prescricoes_internas', 'prescricoes_internas'),
     ('condutas_alta', 'condutas_alta'),
-    (os.path.join(SPECPATH, 'dados', 'oms_lms_pediatricos.csv'), 'dados'),
+    (ARQUIVO_LMS_OMS, 'dados'),
 ]
 DATAS = [
     (origem, destino)
