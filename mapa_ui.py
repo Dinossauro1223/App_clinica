@@ -1851,7 +1851,10 @@ class FormRegistro(_Janela):
         if not self._reav_manual:
             if resultado.get("completo") and resultado.get("grau"):
                 try:
-                    intervalos = nrs.ler_intervalos(self.ui.db)
+                    intervalos = getattr(self, "_intervalos_nrs", None)
+                    if intervalos is None:
+                        intervalos = nrs.ler_intervalos(self.ui.db)
+                        self._intervalos_nrs = intervalos
                     alvo = nrs.proxima_reavaliacao(date.fromisoformat(self.data_iso), resultado["grau"], intervalos)
                     _set_entry(self.e_reav, alvo.strftime("%d/%m/%Y"))
                 except (ValueError, TypeError, sqlite3.Error):
