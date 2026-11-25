@@ -7,7 +7,7 @@ Regras e tabelas: docs/mobile/INTEGRACAO_DESKTOP.md. A tela também abre sozinha
 import os
 import socket
 import webbrowser
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
@@ -26,6 +26,28 @@ TIPOS = {"novo": "Novo paciente", "alterado": "Alterado", "troca": "Troca de pac
 ROTULOS = {"nome_paciente": "nome", "idade_anos": "idade", "idade_meses": "meses", "acompanhante": "acompanhante",
            "obs_sim": "gosta", "obs_nao": "não aceita", "consistencia": "consistência", "via": "via"}
 TODOS = "Todos os setores"
+
+
+def _lado_mais_novo(pc, mobile):
+    """Retorna pc/mobile/igual sem misturar datetimes com e sem fuso."""
+    if not pc and not mobile:
+        return "igual"
+    if not pc:
+        return "mobile"
+    if not mobile:
+        return "pc"
+    try:
+        a = datetime.fromisoformat(str(pc).replace("Z", "+00:00"))
+        b = datetime.fromisoformat(str(mobile).replace("Z", "+00:00"))
+        fuso = timezone(timedelta(hours=-3))
+        if a.tzinfo is None:
+            a = a.replace(tzinfo=fuso) if fuso else a
+        if b.tzinfo is None:
+            b = b.replace(tzinfo=fuso) if fuso else b
+        return "pc" if a > b else "mobile" if b > a else "igual"
+    except (TypeError, ValueError):
+        a, b = str(pc).replace("T", " "), str(mobile).replace("T", " ")
+        return "pc" if a > b else "mobile" if b > a else "igual"
 
 
 def _btn(master, texto, comando, largura=160, cor=VERDE, hover=VERDE_HOVER):
@@ -100,7 +122,8 @@ class MobileUI:
         acoes = ctk.CTkFrame(area, fg_color="transparent")
         acoes.pack(fill="x", padx=20, pady=(8, 2))
         _btn(acoes, "Verificar o que chegou do mobile", self._verificar, 250).pack(side="left")
-        _btn(acoes, "Enviar mapa para a copa", self._enviar, 210, AZUL, AZUL_HOVER).pack(side="left", padx=8)
+        _btn(acoes, "Comparar PC × Mobile", self._comparar, 190, CINZA, CINZA_HOVER).pack(side="left", padx=8)
+        _btn(acoes, "Enviar mapa completo", self._enviar, 190, AZUL, AZUL_HOVER).pack(side="left", padx=8)
         self.lbl_status = ctk.CTkLabel(area, text='Use "Verificar" para ver o que a copa registrou no celular.', anchor="w",
                                        font=ctk.CTkFont(size=13), text_color=VERDE_ESC)
         self.lbl_status.pack(fill="x", padx=22, pady=(4, 2))
@@ -186,6 +209,61 @@ class MobileUI:
         self._mostrar_data()
 
     # --------------------------------------------------------------- receber
+    def _comparar(self):
+        """Mostra lado a lado o estado local e a fotografia recebida do Mobile."""
+        iso = self.data.isoformat()
+        nome = self.cb_setor.get()
+        sid = next((s["id_setor"] for s in self.setores if s["nome"] == nome), None)
+        if sid is None:
+            messagebox.showinfo("Comparar mapas", "Escolha um setor específico para comparar os mapas.", parent=self.app)
+            return
+        try:
+            pc = {x["leito"]["codigo"]: x["registro"] for x in mdb.mapa_do_dia(self.db, iso, sid)}
+            with servidor_mobile.LOCK:
+                c = servidor_mobile.conectar(self.mobile_db)
+                try:
+                    servidor_mobile.migrar(c)
+                    mobile = {x["codigo"]: x for x in servidor_mobile.linhas_mapa(c, sid, iso)}
+                finally:
+                    c.close()
+        except Exception as e:
+            messagebox.showwarning("Comparar mapas", "Não foi possível ler a cópia do Mobile:\n%s" % e, parent=self.app)
+            return
+        janela = ctk.CTkToplevel(self.app)
+        janela.title("Mapa — PC × Mobile — %s" % mdb.iso_para_br(iso))
+        janela.geometry("1180x620")
+        janela.transient(self.app)
+        ctk.CTkLabel(janela, text="Comparação de estado", font=ctk.CTkFont(size=20, weight="bold"),
+                     text_color=VERDE_ESC).pack(anchor="w", padx=18, pady=(16, 2))
+        ctk.CTkLabel(janela, text="O timestamp mais recente é destacado. Nenhum lado é sobrescrito automaticamente.",
+                     text_color=tema.SUAVE).pack(anchor="w", padx=18, pady=(0, 10))
+        corpo = ctk.CTkFrame(janela, fg_color="transparent"); corpo.pack(fill="both", expand=True, padx=14, pady=4)
+        pa = ctk.CTkFrame(corpo); pb = ctk.CTkFrame(corpo); pa.pack(side="left", fill="both", expand=True, padx=(0,6)); pb.pack(side="left", fill="both", expand=True, padx=(6,0))
+        ctk.CTkLabel(pa, text="ESTADO ATUAL NO PC", font=ctk.CTkFont(size=14, weight="bold"), text_color=VERDE_ESC).pack(anchor="w", padx=10, pady=8)
+        ctk.CTkLabel(pb, text="ESTADO RECEBIDO DO MOBILE / COPA", font=ctk.CTkFont(size=14, weight="bold"), text_color=AZUL).pack(anchor="w", padx=10, pady=8)
+        cols=("leito","paciente","atualizado","origem")
+        trees=[]
+        for pai in (pa,pb):
+            t=ttk.Treeview(pai,columns=cols,show="headings")
+            for k,tit,w in (("leito","Leito",70),("paciente","Paciente",240),("atualizado","Última alteração",150),("origem","Origem",120)):
+                t.heading(k,text=tit);t.column(k,width=w,anchor="w")
+            t.tag_configure("mais_novo",foreground=tema.cor_atual(tema.VERDE_ESC))
+            t.tag_configure("mais_antigo",foreground=tema.cor_atual(tema.SUAVE))
+            t.pack(fill="both",expand=True,padx=8,pady=(0,8));trees.append(t)
+        todos=sorted(set(pc)|set(mobile), key=lambda x:(len(x),x))
+        for cod in todos:
+            pr=pc.get(cod) or {}
+            mr=mobile.get(cod) or {}
+            pt=pr.get("atualizado_em") or ""
+            mt=mr.get("atualizado_em") or ""
+            vencedor = _lado_mais_novo(pt, mt)
+            trees[0].insert("", "end", values=(cod,pr.get("nome_paciente") or "— vago —",pt[11:19] if len(pt)>18 else pt,"PC"), tags=("mais_novo" if vencedor=="pc" else "mais_antigo",))
+            trees[1].insert("", "end", values=(cod,mr.get("nome") or "— vago —",mt[11:19] if len(mt)>18 else mt,"Mobile/Copa"), tags=("mais_novo" if vencedor=="mobile" else "mais_antigo",))
+        rod=ctk.CTkFrame(janela,fg_color="transparent");rod.pack(fill="x",padx=18,pady=(4,14))
+        _btn(rod,"Fechar",janela.destroy,110,CINZA,CINZA_HOVER).pack(side="right")
+        _tornar = getattr(janela,"lift",None)
+        if _tornar: janela.lift()
+
     def _verificar(self):
         """Lê o Mobile e concilia os dados em segundo plano; widgets só mudam no thread do Tk."""
         if self._verificando:
