@@ -123,6 +123,8 @@ if errorlevel 1 goto :falha_build
 set "PASSO=atualizar a interface offline incluida no APK"
 copy /y "%~dp0..\static\index.html" "%APP%\assets\index.html" >nul
 if errorlevel 1 goto :falha_build
+copy /y "%~dp0..\static\jsQR.js" "%APP%\assets\jsQR.js" >nul
+if errorlevel 1 goto :falha_build
 set "PASSO=descobrir o endereco deste computador na rede"
 set "IPLAN="
 where py >nul 2>nul
