@@ -84,6 +84,13 @@ class TestMapeamento(unittest.TestCase):
         self.assertIn("versão antiga", str(erro.exception))
 
 
+class TestTimestamps(unittest.TestCase):
+    def test_comparacao_aceita_timestamp_naive_e_com_fuso(self):
+        self.assertTrue(im._timestamp_maior("2026-11-12 12:00:00", "2026-11-12T11:00:00-03:00"))
+        self.assertTrue(im._timestamp_maior("2026-11-12T12:00:00-03:00", "2026-11-12 11:00:00"))
+        self.assertFalse(im._timestamp_maior("2026-11-12 10:00:00", "2026-11-12T11:00:00-03:00"))
+
+
 class TestReceber(_Base):
     def test_mapa_recebido_de_varios_setores_fica_disponivel_na_visao_geral(self):
         ex = exportacao({"A01": {"nome": "Paciente Clínica", "dieta": "Branda"}})
