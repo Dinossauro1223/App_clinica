@@ -23,6 +23,7 @@ import mapa_db as mdb
 import condutas_alta as ca
 import graficos_layout as gl
 import tema
+import pediatria_oms as oms
 
 VERDE_ESC, VERDE, VERDE_HOVER, FUNDO = tema.VERDE_ESC, tema.VERDE, tema.VERDE_HOVER, tema.FUNDO
 CINZA_BTN, CINZA_HOVER = tema.SUAVE, tema.SUAVE
@@ -70,9 +71,16 @@ class MapaUI:
         self.app, self.db, self.base_dir = app, db_path, base_dir
         self.data = date.today()
         self.id_setor = None
-        self.lms = None  # tabelas LMS da OMS (opcional): dados/oms_imc_idade_lms.csv
+        self.lms = None  # tabelas LMS para avaliação nutricional geral.
         for pasta in (os.path.dirname(os.path.abspath(db_path)), base_dir):
             self.lms = self.lms or nc.TabelaLMS.carregar_padrao(pasta)
+        self.tabela_oms = None
+        self.erro_tabela_oms = None
+        for pasta in (base_dir, os.path.dirname(os.path.abspath(db_path))):
+            try:
+                self.tabela_oms = self.tabela_oms or oms.TabelaReferenciaOMS.carregar_padrao(pasta)
+            except (OSError, ValueError) as exc:
+                self.erro_tabela_oms = str(exc)
         self._imagens = []
         self._grupos = None
         self._grupos_png = None
@@ -1177,6 +1185,10 @@ class FormRegistro(_Janela):
         self.attributes("-topmost", True)
         self._widgets = []
         self._id_paciente = self.reg.get("id_paciente")
+        self._data_nascimento = None
+        paciente_vinculado = mdb.obter_paciente(ui.db, self._id_paciente)
+        if paciente_vinculado:
+            self._data_nascimento = paciente_vinculado.get("data_nascimento")
         self._nome_original = self.reg.get("nome_paciente") or ""
         self._vinculo_manual = False
         self._altura_metodo = self.reg.get("altura_metodo")
@@ -1187,6 +1199,7 @@ class FormRegistro(_Janela):
         self._via_anterior = None
         self._resultado_nrs = {}
         self._resultado_avaliacao = {}
+        self._resultado_pediatria = {}
         self._montar()
         self.bind("<Control-s>", self._atalho_salvar)
         self.bind("<Control-S>", self._atalho_salvar)
@@ -1270,6 +1283,14 @@ class FormRegistro(_Janela):
         self.lbl_info = ctk.CTkLabel(q, text="", text_color=tema.SUAVE, wraplength=760, justify="left",
                                      font=ctk.CTkFont(size=11))
         self.lbl_info.pack(anchor="w", padx=12, pady=(0, 6))
+        self.lbl_oms_pediatria = ctk.CTkLabel(
+            q, text="OMS pediatria: informe idade, sexo, peso e altura; o resultado exige tabela oficial.",
+            text_color=tema.SUAVE, wraplength=760, justify="left", font=ctk.CTkFont(size=11))
+        self.lbl_oms_pediatria.pack(anchor="w", padx=12, pady=(0, 4))
+        linha_curvas = self._linha(q)
+        self.b_curvas_oms = self._reg(_btn(linha_curvas, "Ver curvas OMS", self._abrir_curvas_oms,
+                                            130, CINZA_BTN, CINZA_HOVER, 28))
+        self.b_curvas_oms.pack(side="left")
 
         q = self._secao("Dieta")
         l = self._linha(q)
@@ -1723,6 +1744,7 @@ class FormRegistro(_Janela):
 
     def _paciente_escolhido(self, p):
         self._id_paciente = p["id_paciente"]
+        self._data_nascimento = p.get("data_nascimento")
         self._vinculo_manual = True
         _set_entry(self.e_nome, p["nome"])
         sexo = nc.norm_sexo(p.get("sexo"))
