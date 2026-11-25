@@ -97,8 +97,10 @@ def planejar_progressao_enteral(volume_atual_ml, volume_meta_ml, incremento_diar
     atual = _numero(volume_atual_ml, "Volume atual")
     meta = _numero(volume_meta_ml, "Volume-meta")
     incremento = _numero(incremento_diario_ml, "Incremento diário", minimo=0.000001)
-    if isinstance(dias_alvo, bool) or int(dias_alvo) < 1:
-        raise ValueError("Dias-alvo deve ser inteiro positivo.")
+    if not 30 <= incremento <= 40:
+        raise ValueError("O incremento diário padrão deve ficar entre 30 e 40 mL.")
+    if isinstance(dias_alvo, bool) or int(dias_alvo) != float(dias_alvo) or int(dias_alvo) not in (3, 4):
+        raise ValueError("O prazo de referência deve ser de 3 ou 4 dias.")
     limite = meta if maximo_diario_ml in (None, "") else min(meta, _numero(maximo_diario_ml, "Volume máximo"))
     if atual > limite:
         raise ValueError("Oferta atual excede o limite/meta configurado.")
