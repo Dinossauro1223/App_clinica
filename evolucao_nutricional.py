@@ -262,7 +262,8 @@ def formatar_antropometria(dados):
     partes.append(peso_txt + ")")
     imc = calcular_imc(peso, altura)
     classificacao = str(dados.get("imc_class") or "classificação pendente")
-    return f"**Antropometria {data}:** " + "; ".join(partes) + f". IMC: {imc:.1f} kg/m² ({classificacao}).".replace(".", ",", 1).replace("kg/m²", "kg/m²", 1)
+    imc_txt = f"{imc:.1f}".replace(".", ",")
+    return f"**Antropometria {data}:** " + "; ".join(partes) + f". IMC: {imc_txt} kg/m² ({classificacao})."
 
 
 def gerar_evolucao(dados):
@@ -289,9 +290,11 @@ def gerar_evolucao(dados):
         linhas.append(f"**TNE:** {tne}" + (f" ({' e '.join(selecionados)})." if selecionados else "."))
         dieta = dados.get("dieta_enteral") or {}
         if dieta.get("nome") and dieta.get("volume_por_etapa_ml") is not None and dieta.get("etapas") is not None:
-            volume_total = _numero(dieta["volume_por_etapa_ml"], "Volume por etapa") * int(_numero(dieta["etapas"], "Etapas", minimo=1))
+            volume_etapa = _numero(dieta["volume_por_etapa_ml"], "Volume por etapa")
+            etapas = int(_numero(dieta["etapas"], "Etapas", minimo=1))
+            volume_total = volume_etapa * etapas
             linhas.append("**Dieta enteral ofertada:** " +
-                f"{dieta['nome']} — {dieta['volume_por_etapa_ml']:g} mL/etapa × {int(dieta['etapas'])} etapas, " +
+                f"{dieta['nome']} — {volume_etapa:g} mL/etapa × {etapas} etapas, " +
                 f"totalizando {volume_total:.0f} mL/dia.")
         progressao = dados.get("progressao_enteral")
         if progressao and progressao.get("autorizada") and progressao.get("volume_atual_ml") is not None and progressao.get("volume_meta_ml") is not None:
