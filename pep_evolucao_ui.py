@@ -387,6 +387,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
         tolerancia_enteral = regras.tolerancia_enteral_permite_progressao(
             motivos_tne, bool(self.var_tolerancia.get()))
         dados = {
+            "id_paciente": self.reg.get("id_paciente"),
             "data_evolucao": self.reg.get("data"),
             "antropometria": antropometria,
             "metas": metas,
