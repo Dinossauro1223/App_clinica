@@ -2428,8 +2428,17 @@ class AppClinica(ctk.CTk):
         return self._resultado_pediatria_consulta
 
     def _abrir_curvas_oms_consulta(self):
-        resultado = getattr(self, "_resultado_pediatria_consulta", {}) or {}
-        if not resultado or not resultado.get("idade_meses_decimais") and resultado.get("idade_meses_decimais") != 0:
+        try:
+            peso_txt = self.entry_peso.get().strip().replace(",", ".")
+            altura_txt = self.entry_altura.get().strip().replace(",", ".")
+            peso = float(peso_txt) if peso_txt else None
+            altura_cm = float(altura_txt) * 100 if altura_txt else None
+            imc = peso / ((altura_cm / 100) ** 2) if peso and altura_cm else None
+            resultado = self._atualizar_oms_pediatria_consulta(imc, peso, altura_cm)
+        except (ValueError, ZeroDivisionError):
+            messagebox.showwarning("Curvas OMS", "Confira peso e altura antes de abrir as curvas.", parent=self)
+            return
+        if not resultado or resultado.get("idade_meses_decimais") is None:
             messagebox.showwarning("Curvas OMS", "A avaliação pediátrica exige data de nascimento válida.", parent=self)
             return
         tabela = self._tabela_referencia_oms()
