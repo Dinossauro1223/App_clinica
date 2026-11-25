@@ -357,6 +357,89 @@ class MapaUI:
             return
         self._abrir_condutas(it)
 
+    def _criar_painel_alertas(self, master):
+        painel = ctk.CTkFrame(master, fg_color=tema.BRANCO, border_width=1,
+                              border_color=tema.BORDA, corner_radius=10)
+        painel.pack(fill="x", padx=24, pady=(0, 8))
+        topo = ctk.CTkFrame(painel, fg_color="transparent")
+        topo.pack(fill="x", padx=10, pady=(6, 2))
+        ctk.CTkLabel(topo, text="Painel de avisos nutricionais",
+                     font=ctk.CTkFont(size=13, weight="bold"), text_color=VERDE_ESC).pack(side="left")
+        self.lbl_resumo_alertas = ctk.CTkLabel(topo, text="", font=ctk.CTkFont(size=10),
+                                               text_color=tema.SUAVE)
+        self.lbl_resumo_alertas.pack(side="right")
+        corpo = ctk.CTkFrame(painel, fg_color="transparent")
+        corpo.pack(fill="x", padx=8, pady=(0, 8))
+        self.alerta_lists = {}
+        grupos = (
+            ("evoluiram", "Evoluíram automaticamente"),
+            ("nao_evoluiram", "Não evoluíram automaticamente"),
+            ("abaixo_meta", "Abaixo da meta energética"),
+        )
+        for chave, titulo in grupos:
+            coluna = ctk.CTkFrame(corpo, fg_color=tema.FUNDO, corner_radius=8)
+            coluna.pack(side="left", fill="both", expand=True, padx=3)
+            ctk.CTkLabel(coluna, text=titulo, font=ctk.CTkFont(size=11, weight="bold"),
+                         text_color=tema.TEXTO).pack(anchor="w", padx=8, pady=(6, 2))
+            lista = ctk.CTkScrollableFrame(coluna, height=104, fg_color="transparent")
+            lista.pack(fill="both", expand=True, padx=4, pady=(0, 4))
+            self.alerta_lists[chave] = lista
+
+    def _abrir_leito_alerta(self, id_leito):
+        if id_leito is None:
+            return
+        iid = str(id_leito)
+        if self.tree.exists(iid):
+            self.tree.selection_set(iid)
+            self.tree.focus(iid)
+            self._editar()
+
+    def _atualizar_painel_alertas(self):
+        if not hasattr(self, "alerta_lists"):
+            return
+        import evolucao_nutricional as evolucao
+        grupos = evolucao.gerar_alertas_mapa(self.linhas, self.data.isoformat())
+        total = sum(len(v) for v in grupos.values())
+        self.lbl_resumo_alertas.configure(
+            text=f"{len(grupos['evoluiram'])} evoluíram · {len(grupos['nao_evoluiram'])} sem evolução · {len(grupos['abaixo_meta'])} abaixo da meta")
+        for chave, lista in self.alerta_lists.items():
+            for filho in lista.winfo_children():
+                filho.destroy()
+            itens = grupos.get(chave, [])
+            if not itens:
+                ctk.CTkLabel(lista, text="Nenhum paciente nesta condição.",
+                             font=ctk.CTkFont(size=10), text_color=tema.SUAVE,
+                             wraplength=220, justify="left").pack(anchor="w", padx=4, pady=4)
+                continue
+            for item in itens:
+                nome = item.get("nome") or "Paciente sem nome"
+                leito = item.get("leito") or "Leito"
+                if chave == "evoluiram":
+                    detalhe = (f"{formatar_numero_pt(item.get('volume_anterior_ml', 0))} → "
+                               f"{formatar_numero_pt(item.get('volume_atual_ml', 0))} mL/dia "
+                               f"(+{formatar_numero_pt(item.get('incremento_ml', 0))} mL); "
+                               f"meta {formatar_numero_pt(item.get('volume_meta_ml', 0))} mL/dia")
+                elif chave == "nao_evoluiram":
+                    detalhe = item.get("motivo", "sem progressão")
+                    if item.get("volume_atual_ml") is not None:
+                        detalhe += f" · {formatar_numero_pt(item['volume_atual_ml'])} mL/dia"
+                else:
+                    detalhe = (f"{formatar_numero_pt(item.get('kcal_atual', 0))}/"
+                               f"{formatar_numero_pt(item.get('meta_kcal', 0))} kcal/dia · "
+                               f"{formatar_numero_pt(item.get('adequacao_kcal_pct', 0), 1)}% · "
+                               f"Déficit {formatar_numero_pt(item.get('deficit_kcal', 0))} kcal · "
+                               f"+{formatar_numero_pt(item.get('volume_adicional_ml', 0))} mL")
+                linha = ctk.CTkFrame(lista, fg_color=tema.BRANCO, corner_radius=6)
+                linha.pack(fill="x", padx=2, pady=2)
+                ctk.CTkLabel(linha, text=f"{leito} — {nome}\n{detalhe}",
+                             font=ctk.CTkFont(size=10), text_color=tema.TEXTO,
+                             wraplength=205, justify="left").pack(side="left", fill="x", expand=True,
+                                                                  padx=6, pady=5)
+                ctk.CTkButton(linha, text="Abrir", width=48, height=25,
+                              fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER,
+                              command=lambda mid=item.get("id_leito"): self._abrir_leito_alerta(mid)
+                              ).pack(side="right", padx=4, pady=4)
+
     def _abrir_condutas(self, it):
         from condutas_alta_ui import abrir_condutas_alta        # na hora de usar: evita importação circular
         r = it["registro"]
