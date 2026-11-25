@@ -794,8 +794,16 @@ def _rotear(c, ip, m, p, q, b, auth):
     if p in ("/api/mapa", "/api/refeicoes"):
         if perfil not in ("admin", "nutricionista", "copa"):
             raise Erro("Sem permissão.", 403)
-        s, d = setor_alvo(c, u, q.get("setor") or b.get("setor")), dia_alvo(u, q.get("data") or b.get("data"))
         mapa = p == "/api/mapa"
+        if m == "GET" and perfil == "copa" and q.get("setor"):
+            s = c.execute("SELECT * FROM setores WHERE id=?", (int(q.get("setor")),)).fetchone()
+            if not s:
+                raise Erro("Setor não encontrado.", 404)
+            s = dict(s)
+            d = hoje()
+            lin = linhas_mapa(c, s["id"], d, staff) if mapa else linhas_refeicoes(c, s["id"], d)
+            return {"data": d, "setor": s, "linhas": lin, "pendentes": pendentes(c, "mapa" if mapa else "refeicao", d)}
+        s, d = setor_alvo(c, u, q.get("setor") or b.get("setor")), dia_alvo(u, q.get("data") or b.get("data"))
         if m == "GET":
             lin = linhas_mapa(c, s["id"], d, staff) if mapa else linhas_refeicoes(c, s["id"], d)
             return {"data": d, "setor": s, "linhas": lin, "pendentes": pendentes(c, "mapa" if mapa else "refeicao", d)}
