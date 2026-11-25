@@ -32,7 +32,7 @@ CAMPOS_CRONICOS = ("dm", "has", "drc")
 GRUPOS = (
     {"id": "atendimentos", "titulo": "Atendimentos", "cor": VERDE,
      "descricao": "Quantos pacientes foram atendidos por dia e como é o perfil deles",
-     "graficos": ("atendimentos_dia", "perfil_dia", "classificacao_terapia", "resumo")},
+     "graficos": ("atendimentos_dia", "altas_dia", "perfil_dia", "classificacao_terapia", "resumo")},
     {"id": "dieta", "titulo": "Dieta", "cor": LARANJA,
      "descricao": "Consistência da dieta e características como laxativa e constipante",
      "graficos": ("consistencia", "caracteristicas")},
@@ -49,7 +49,7 @@ GRUPO_OUTROS = {"id": "outros", "titulo": "Outros gráficos", "cor": CINZA, "des
 def agregar_mes(registros, ano, mes):
     """Resume os registros de um mês (lista de dicts de mapa_db.registros_do_mes)."""
     n = calendar.monthrange(ano, mes)[1]
-    dias = {d: {"total": 0, "pastosa": 0, "acomp": 0, "oral_sem_suplemento": 0,
+    dias = {d: {"total": 0, "altas": 0, "pastosa": 0, "acomp": 0, "oral_sem_suplemento": 0,
                  "oral_com_suplemento": 0, "enteral": 0} for d in range(1, n + 1)}
     consist, via, acomp, supl_sn = Counter(), Counter(), Counter(), Counter()
     classificacao_terapia = Counter()
@@ -59,6 +59,10 @@ def agregar_mes(registros, ano, mes):
     for r in registros:
         d = int(r["data"][8:10])
         dias[d]["total"] += 1
+        if r.get("alta_em") and r["alta_em"][:7] == f"{ano:04d}-{mes:02d}":
+            dia_alta = int(r["alta_em"][8:10])
+            if 1 <= dia_alta <= n:
+                dias[dia_alta]["altas"] += 1
         if r.get("consistencia") == "Pastosa":
             dias[d]["pastosa"] += 1
         if r.get("acompanhante"):
@@ -104,6 +108,7 @@ def agregar_mes(registros, ano, mes):
 
     kpis = {
         "atendimentos": total,
+        "altas": sum(v["altas"] for v in dias.values()),
         "pacientes_unicos": len(pacientes),
         "dias_com_registro": dias_com,
         "media_por_dia": (total / dias_com) if dias_com else 0.0,
@@ -149,6 +154,17 @@ def spec_atendimentos_dia(agg):
     return {"tipo": "barras_v", "titulo": titulo, "periodo": _periodo(agg), "x": dias, "y": vals,
             "dicas": [f"Dia {d}: {v} {'paciente' if v == 1 else 'pacientes'}" for d, v in zip(dias, vals)],
             "cor": VERDE, "rotulo_x": "Dia do mês", "rotulo_y": "Pacientes"}
+
+
+def spec_altas_dia(agg):
+    titulo = "Altas dadas por dia"
+    vals = [agg["dias"][d]["altas"] for d in sorted(agg["dias"])]
+    if not any(vals):
+        return _vazio(agg, titulo)
+    dias = sorted(agg["dias"])
+    return {"tipo": "barras_v", "titulo": titulo, "periodo": _periodo(agg), "x": dias, "y": vals,
+            "dicas": [f"Dia {d}: {v} {'alta' if v == 1 else 'altas'}" for d, v in zip(dias, vals)],
+            "cor": LARANJA, "rotulo_x": "Dia do mês", "rotulo_y": "Altas"}
 
 
 def spec_perfil_dia(agg):
@@ -238,6 +254,7 @@ def spec_resumo(agg):
 # chave -> (título curto, função que monta a especificação). A ordem de exibição vem de GRUPOS.
 GRAFICOS = {
     "atendimentos_dia": ("Pacientes atendidos por dia", spec_atendimentos_dia),
+    "altas_dia": ("Altas dadas por dia", spec_altas_dia),
     "perfil_dia": ("Perfil por dia", spec_perfil_dia),
     "resumo": ("Via e acompanhante", spec_resumo),
     "classificacao_terapia": ("Classificação da terapia nutricional", spec_classificacao_terapia),
