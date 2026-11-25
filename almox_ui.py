@@ -204,7 +204,19 @@ class AlmoxUI:
         nome=simpledialog.askstring("Recebimento","Nome de quem recebeu (opcional):")
         if nome is None:return
         try:
-            arep.receber(self.db,int(sel[0]),recebido_por=nome)
+            pedido_id=int(sel[0])
+            pedido=next((p for p in arep.listar(self.db) if p["id_pedido"]==pedido_id),None)
+            if not pedido or pedido["status"]!="pendente":
+                raise ValueError("Selecione um pedido pendente.")
+            item=adb.obter_item(self.db,pedido["id_item"])
+            preco=None
+            if item.get("valor_unitario") is None:
+                preco=simpledialog.askstring(
+                    "Valor da compra",
+                    f"Informe o valor unitário recebido para {item['nome']} ({item['unidade']}):"
+                )
+                if preco is None:return
+            arep.receber(self.db,pedido_id,recebido_por=nome,valor_unitario=preco)
             self._carregar_reposicoes();self._atualizar_combos()
             messagebox.showinfo("Reposição","Recebimento registrado e entrada lançada no estoque.")
         except Exception as e:messagebox.showwarning("Reposição",str(e))
