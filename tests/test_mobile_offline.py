@@ -125,6 +125,9 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertIn("Escanear QR code", self.html)
         self.assertIn("Android.escanearQR()", self.html)
         self.assertIn("nutrilab-server", self.html)
+        self.assertIn("Prazo médio de reposição dos insumos", self.html)
+        self.assertIn("carregaPrazos", self.html)
+        self.assertIn("novoPedidoMobile", self.html)
         self.assertIn('/static/jsQR.js', self.html)
         jsqr = ROOT / "mobile" / "static" / "jsQR.js"
         self.assertTrue(jsqr.is_file())
