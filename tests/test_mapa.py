@@ -641,7 +641,7 @@ class TestGraficos(unittest.TestCase):
                 self.assertEqual(destino[nome], esperado, nome)
                 self.assertEqual(outro[nome], 0, nome)
             pngs = mgr.gerar_todos(agg)
-            self.assertEqual(len(pngs), 9)
+            self.assertEqual(len(pngs), 10)
             self.assertEqual([c for c, _, _ in pngs], mgr.ordem_de_exibicao())
             for chave, _, b in pngs:
                 self.assertEqual(b[:8], b"\x89PNG\r\n\x1a\n", chave)
@@ -717,7 +717,7 @@ class TestGraficos(unittest.TestCase):
             agg = mgr.agregar_mes(mdb.registros_do_mes(db, 2026, 10), 2026, 10)
             grupos = mgr.gerar_por_grupo(agg)
             self.assertEqual([g["id"] for g in grupos], ["atendimentos", "dieta", "suplementos", "cronicas"])
-            self.assertEqual(sum(len(g["graficos"]) for g in grupos), 9)
+            self.assertEqual(sum(len(g["graficos"]) for g in grupos), 10)
             for g in grupos:
                 for chave, titulo, png in g["graficos"]:
                     self.assertTrue(titulo and png[:4] == b"\x89PNG", chave)
