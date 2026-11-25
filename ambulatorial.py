@@ -178,7 +178,7 @@ def montar_texto_anamnese(campos, recordatorio_24h="", antropometria=None, neces
             elif resultado.get("status") == "fora_faixa":
                 linhas.append(f"{rotulo}: não aplicável nesta idade")
             elif resultado:
-                linhas.append(f"{rotulo}: pendente — {resultado.get('aviso') or 'dados insuficientes'}")
+                linhas.append(f"{rotulo}: pendente - {resultado.get('aviso') or 'dados insuficientes'}")
         if oms_salvo.get("aviso"):
             linhas.append("Avaliação OMS pendente: " + str(oms_salvo["aviso"]))
         if oms_salvo.get("fonte"):
