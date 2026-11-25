@@ -23,7 +23,9 @@ class EvolucaoPEPError(Exception):
 
 
 def _conectar(db_path):
-    return svc.conectar(db_path, foreign_keys=True)
+    conn = svc.conectar(db_path, foreign_keys=True)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def _agora():
@@ -262,12 +264,17 @@ def fechar_rascunho(db_path, id_rascunho, id_usuario, senha, *, confirmado=False
         }, ensure_ascii=False, sort_keys=True)
         cur = conn.execute(
             "INSERT INTO Pep_Evolucoes (id_paciente, paciente_nome, data_evolucao, cabecalho_json, texto, "
-            "id_usuario, assinante_nome, assinante_crn, criada_em, adendo_de, dados_json, id_elaborador, "
-            "elaborador_nome, fechada_em, confirmacao_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)",
+            "id_usuario, assinante_nome, assinante_crn, criada_em, adendo_de) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
             (r[0], r[1], r[2], json.dumps({"dados": dados}, ensure_ascii=False, sort_keys=True), texto,
-             int(id_usuario), conta[0], conta[1], agora, dados_json, r[4], membro[0], agora, confirmacao),
+             int(id_usuario), conta[0], conta[1], agora),
         )
         id_evolucao = cur.lastrowid
+        conn.execute(
+            "INSERT INTO Pep_Evolucao_Metadados (id_evolucao, id_elaborador, elaborador_nome, fechada_em, "
+            "dados_json, confirmacao_json) VALUES (?, ?, ?, ?, ?, ?)",
+            (id_evolucao, r[4], membro[0], agora, dados_json, confirmacao),
+        )
         conn.execute(
             "UPDATE Pep_Rascunhos SET status='fechada', id_evolucao=?, fechado_em=?, fechado_por=?, atualizado_em=? "
             "WHERE id_rascunho=?",
