@@ -21,6 +21,9 @@ if not os.path.isfile(os.path.join(PASTA_CAMADAS, 'folhas.json')):
 ARQUIVO_LMS_OMS = os.path.join('dados', 'oms_lms_pediatricos.csv')
 if not os.path.isfile(os.path.join(SPECPATH, ARQUIVO_LMS_OMS)):
     raise SystemExit("Tabela LMS oficial OMS ausente: dados\\oms_lms_pediatricos.csv")
+ARQUIVO_CLASSIFICACOES_OMS = os.path.join('dados', 'oms_classificacoes_pediatricas.json')
+if not os.path.isfile(os.path.join(SPECPATH, ARQUIVO_CLASSIFICACOES_OMS)):
+    raise SystemExit("Pontos de corte OMS ausentes: dados\\oms_classificacoes_pediatricas.json")
 
 CUSTOMTKINTER_PATH = os.path.dirname(customtkinter.__file__)
 
@@ -41,6 +44,7 @@ ARQUIVOS_DATA = [
     ('prescricoes_internas', 'prescricoes_internas'),
     ('condutas_alta', 'condutas_alta'),
     (ARQUIVO_LMS_OMS, 'dados'),
+    (ARQUIVO_CLASSIFICACOES_OMS, 'dados'),
 ]
 DATAS = [
     (origem, destino)
