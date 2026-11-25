@@ -492,6 +492,7 @@ class GestaoAlimentarUI:
         _btn(topo, "Importar retiradas mobile", self.importar_retiradas, 170, cor=VERDE).pack(side="left", padx=4)
         _btn(topo, "Atualizar relatório", self.carregar_consumo, 135, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
         _btn(topo, "Preparações esperadas", self.abrir_preparacoes, 165, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
+        _btn(topo, "Gerar rascunhos por horário", self.gerar_rascunhos_por_horario, 205, cor=AZUL).pack(side="left", padx=4)
         self.lbl_consumo_status = ctk.CTkLabel(self.tab_consumo,
             text="Importe o histórico de retiradas Almoxarifado → Cozinha. Movimentos Cozinha → Copa não entram como novo consumo.",
             anchor="w", justify="left", text_color=tema.SUAVE, font=ctk.CTkFont(size=11))
@@ -531,6 +532,46 @@ class GestaoAlimentarUI:
         frame.pack(fill="both",expand=True,padx=6,pady=6)
         ctk.CTkLabel(tab_prep,text="As quantidades associadas são observacionais. Porção média só aparece quando as porções previstas foram informadas em todas as execuções contabilizadas.",
                      text_color=tema.SUAVE,font=ctk.CTkFont(size=10),wraplength=850,justify="left").pack(anchor="w",padx=9,pady=(0,8))
+
+
+    def gerar_rascunhos_por_horario(self):
+        """Importa retiradas e sugere fichas quando horário + agenda identificam uma única preparação."""
+        try:
+            inicio, fim = self._periodo_consumo()
+            self.mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
+            importacao = im.importar_movimentos_cozinha(self.db, self.mobile_db, inicio, fim)
+            janelas = im.ler_janelas_refeicoes(self.mobile_db)
+            primeiro = __import__("datetime").date.fromisoformat(inicio)
+            ultimo = __import__("datetime").date.fromisoformat(fim)
+            totais = {"alocadas": 0, "rascunhos": 0, "sem_horario": 0,
+                      "horario_ambiguo": 0, "sem_preparacao": 0, "varias_preparacoes": 0,
+                      "ja_alocadas": 0, "sem_porcoes": 0}
+            erros = []
+            dia = primeiro
+            while dia <= ultimo:
+                data = dia.isoformat()
+                movimentos = ga.listar_movimentos_cozinha(self.db, data, data)
+                resultado = ga.gerar_rascunhos_por_horario(self.db, data, movimentos, janelas)
+                for chave in totais:
+                    totais[chave] += int(resultado.get(chave, 0))
+                erros.extend(resultado.get("erros", []))
+                dia += __import__("datetime").timedelta(days=1)
+            self.carregar_consumo()
+            texto = (
+                "Importação de movimentos: %s retirada(s) Almoxarifado → Cozinha.\n\n"
+                "Alocações automáticas: %d\nRascunhos de fichas criados: %d\n"
+                "Sem horário compatível: %d\nHorários sobrepostos: %d\n"
+                "Sem preparação agendada: %d\nMais de uma preparação na refeição: %d\n"
+                "Já alocadas/sem saldo pendente: %d\nPreparações sem porções: %d"
+            ) % (importacao.get("retiradas_cozinha", 0), totais["alocadas"], totais["rascunhos"],
+                 totais["sem_horario"], totais["horario_ambiguo"], totais["sem_preparacao"],
+                 totais["varias_preparacoes"], totais["ja_alocadas"], totais["sem_porcoes"])
+            if erros:
+                texto += "\n\nOcorrências: " + " | ".join(erros[:4])
+            texto += "\n\nAs fichas geradas estão marcadas como 'Rascunho automático'. Revise quantidades, unidades e vínculos TBCA antes de utilizá-las."
+            messagebox.showinfo("Geração automática por horário", texto, parent=self.tab_consumo)
+        except Exception as exc:
+            messagebox.showerror("Geração automática por horário", str(exc), parent=self.tab_consumo)
 
     def _periodo_consumo(self):
         ini, fim = self.e_consumo_inicio.get().strip(), self.e_consumo_fim.get().strip()
