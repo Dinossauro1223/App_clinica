@@ -39,6 +39,7 @@ def validar_apk(apk: Path, app_dir: Path) -> None:
         obrigatorios = {
             "AndroidManifest.xml", "classes.dex", "resources.arsc",
             "assets/index.html", "assets/config.html", "assets/erro.html",
+            "assets/THIRD_PARTY_NOTICES.txt",
         }
         faltando = sorted(obrigatorios - nomes)
         if faltando:
