@@ -300,7 +300,7 @@ function fecharLeitorQR(){
 }
 function usarEnderecoQR(valor){
  const endereco=String(valor||'').trim();
- if(!/^https?:\\/\\//i.test(endereco)||!/:\\d{2,5}(?:\\/|$)/.test(endereco)){
+ if(!/^https?:\/\//i.test(endereco)||!/:\d{2,5}(?:\/|$)/.test(endereco)){
   const aviso=$('#qrAviso');if(aviso)aviso.textContent='QR code inválido. Use o QR de conexão do NutriLab ou informe o endereço com a porta 8765.';return;
  }
  fecharLeitorQR();
