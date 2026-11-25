@@ -266,7 +266,12 @@ class TabelaReferenciaOMS:
         unidade = "dias" if referencia == "oms_2006" else "meses"
         pontos = (self._dados_dias if unidade == "dias" else self._dados_meses).get(chave, {})
         saida = []
+        limite_curva = {"imc_idade": 228, "peso_idade": 120,
+                        "estatura_idade": 228}.get(indicador)
         for idade, parametros in sorted(pontos.items()):
+            # 229/121 meses são âncoras exclusivas de interpolação, não pontos clínicos.
+            if unidade == "meses" and limite_curva is not None and idade > limite_curva:
+                continue
             l_, m_, s_ = parametros
             saida.append({
                 "idade": idade,
