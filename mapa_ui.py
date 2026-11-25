@@ -1536,30 +1536,114 @@ class FormRegistro(_Janela):
             "nrs2002_classificacao": self._resultado_nrs.get("rotulo", ""),
             "avaliacao_json": json.dumps(self._resultado_avaliacao, ensure_ascii=False),
             "avaliacao_classificacao": self._resultado_avaliacao.get("classe", ""),
+            "pediatria_oms_json": json.dumps(self._resultado_pediatria, ensure_ascii=False),
         }
 
     # ---------------------------------------------------------------- cálculos
+    def _idade_para_oms(self):
+        anos = nc.parse_num(self.e_idade.get())
+        meses_extra = nc.parse_num(self.e_meses.get()) or 0
+        if anos is None:
+            return None, None, None, "Informe a idade."
+        idade_meses = int(anos * 12 + meses_extra)
+        idade_dias = None
+        meses_decimais = float(idade_meses)
+        nascimento_iso = None
+        if self._data_nascimento:
+            bruto = str(self._data_nascimento).strip()
+            try:
+                nascimento = date.fromisoformat(bruto)
+            except ValueError:
+                try:
+                    nascimento = datetime.strptime(bruto, "%d/%m/%Y").date()
+                except ValueError:
+                    return idade_meses, None, meses_decimais, "Data de nascimento inválida."
+            try:
+                idade_dias = oms.calcular_idade_dias(nascimento.isoformat(), self.data_iso)
+                idade_meses = oms.calcular_idade_meses(nascimento.isoformat(), self.data_iso)
+                meses_decimais = idade_dias / 30.4375
+                nascimento_iso = nascimento.isoformat()
+            except ValueError as exc:
+                return idade_meses, None, meses_decimais, str(exc)
+        return idade_meses, idade_dias, meses_decimais, nascimento_iso
+
+    def _recalcular_pediatria(self, imc):
+        idade_meses, idade_dias, meses_decimais, nascimento = self._idade_para_oms()
+        if idade_meses is None:
+            self._resultado_pediatria = {"status": "pendente", "aviso": nascimento, "resultados": {}}
+            self.lbl_oms_pediatria.configure(text="OMS pediatria: informe a idade e vincule o paciente para usar a data de nascimento.")
+            self.lbl_class.configure(text="(classificação pediátrica pendente)")
+            return
+        sexo = {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get())
+        tabela = self.ui.tabela_oms
+        medidas = {
+            "imc_idade": imc,
+            "peso_idade": nc.parse_num(self.e_peso.get()),
+            "estatura_idade": nc.parse_num(self.e_altura.get()),
+        }
+        resultados = {
+            indicador: oms.avaliar_indicador(indicador, valor, sexo, meses_decimais, tabela,
+                                             idade_dias=idade_dias)
+            for indicador, valor in medidas.items()
+        }
+        self._resultado_pediatria = {
+            "status": "calculado" if any(x.get("status") == "calculado" for x in resultados.values()) else "pendente",
+            "data_avaliacao": self.data_iso, "data_nascimento": nascimento,
+            "idade_dias": idade_dias, "idade_meses_completos": idade_meses,
+            "idade_meses_decimais": round(meses_decimais, 4), "sexo": sexo,
+            "peso_kg": medidas["peso_idade"], "altura_cm": medidas["estatura_idade"],
+            "imc": imc, "resultados": resultados,
+            "fonte": "OMS 2006 / OMS 2007 — pacotes WHO anthro 1.1.0 e anthroplus 1.1.0",
+        }
+        nomes = {"imc_idade": "IMC/idade", "peso_idade": "Peso/idade", "estatura_idade": "Estatura/idade"}
+        linhas = []
+        for indicador, resultado in resultados.items():
+            if resultado["status"] == "calculado":
+                linhas.append(f"{nomes[indicador]}: z={resultado['escore_z']:+.2f} — {resultado['classificacao']}")
+            elif resultado["status"] == "fora_faixa":
+                linhas.append(f"{nomes[indicador]}: não aplicável nesta idade")
+            else:
+                linhas.append(f"{nomes[indicador]}: pendente ({resultado.get('aviso') or 'dados insuficientes'})")
+        if tabela is None:
+            aviso = self.ui.erro_tabela_oms or "arquivo oficial dados/oms_lms_pediatricos.csv não encontrado"
+            linhas = ["Tabelas LMS oficiais OMS não carregadas: " + aviso]
+        if idade_meses > 228:
+            linhas.insert(0, "Faixa OMS pediátrica encerrada aos 228 meses (19 anos completos).")
+        elif idade_meses <= 60 and idade_dias is None:
+            linhas.insert(0, "Para OMS 2006, informe/vincule a data de nascimento para calcular a idade exata em dias.")
+        self.lbl_oms_pediatria.configure(text="OMS pediatria — " + " | ".join(linhas))
+        imc_oms = resultados["imc_idade"]
+        if imc_oms["status"] == "calculado":
+            self.lbl_class.configure(text=f"(OMS: {imc_oms['classificacao']} · z={imc_oms['escore_z']:+.2f})")
+        elif imc_oms["status"] == "fora_faixa":
+            self.lbl_class.configure(text="(fora da faixa de referência OMS)")
+        else:
+            self.lbl_class.configure(text="(classificação OMS pendente)")
+
     def _recalcular(self):
         self._recalcular_oferta()
         peso, alt = nc.parse_num(self.e_peso.get()), nc.parse_num(self.e_altura.get())
         idade = nc.parse_num(self.e_idade.get())
         imc = nc.calcular_imc(peso, alt)
-        if imc is None:
-            self.lbl_imc.configure(text="-")
-            self.lbl_class.configure(text="")
-            self._recalcular_nrs()
-            self._recalcular_avaliacao()
-            return
-        self.lbl_imc.configure(text=nc.fmt_num(imc, 1))
-        if idade is None:
+        self.lbl_imc.configure(text=nc.fmt_num(imc, 1) if imc is not None else "-")
+        meses_extra = nc.parse_num(self.e_meses.get()) or 0
+        idade_meses = int(idade * 12 + meses_extra) if idade is not None else None
+        if idade_meses is not None and idade_meses < 240:
+            self._recalcular_pediatria(imc)
+        elif idade is None:
             self.lbl_class.configure(text="(informe a idade para classificar)")
-            self._recalcular_nrs()
-            self._recalcular_avaliacao()
-            return
-        cl = nc.classificar_imc(imc, int(idade), {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get()),
-                                int(nc.parse_num(self.e_meses.get()) or 0), self.ui.criterio_idoso, self.ui.lms)
-        txt = nc.texto_classificacao(cl)
-        self.lbl_class.configure(text=f"({txt})" if txt else "")
+            self.lbl_oms_pediatria.configure(text="OMS pediatria: informe a idade.")
+            self._resultado_pediatria = {"status": "pendente", "resultados": {}}
+        else:
+            self.lbl_oms_pediatria.configure(text="Indicadores OMS pediátricos não se aplicam a partir de 20 anos.")
+            self._resultado_pediatria = {}
+            if imc is None:
+                self.lbl_class.configure(text="")
+            else:
+                cl = nc.classificar_imc(imc, int(idade), {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get()),
+                                        int(meses_extra), self.ui.criterio_idoso, self.ui.lms)
+                txt = nc.texto_classificacao(cl)
+                self.lbl_class.configure(text=f"({txt})" if txt else "")
         self._recalcular_nrs()
         self._recalcular_avaliacao()
 
