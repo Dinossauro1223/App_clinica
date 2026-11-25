@@ -888,7 +888,7 @@ def dados_operacionais_copa(registro, data_destino=None):
         if dados.get("porcao_oral_autorizada") and dados.get("porcao_oral_ml") not in (None, ""):
             porcao = int(float(dados["porcao_oral_ml"]))
             return {"via": "Oral", "porcao_oral_ml": porcao,
-                    "instrucao": f"Porção oral autorizada: {porcao} mL por oferta."}
+                    "instrucao": f"Porção: {porcao} mL"}
         return {}
     if via != "enteral":
         return {}
@@ -908,7 +908,7 @@ def dados_operacionais_copa(registro, data_destino=None):
     total = volume * etapas
     return {"via": "Enteral", "formula": dieta["nome"], "volume_por_etapa_ml": volume,
             "etapas": etapas, "volume_total_ml": total,
-            "instrucao": f"{dieta['nome']}: {volume:g} mL/etapa × {etapas} etapas = {total:g} mL/dia."}
+            "instrucao": f"{str(dieta['nome'])[:18]} {volume:g}mL/etapa x{etapas}={total:g}mL/d"}
 
 
 def mapa_do_dia(db_path, data_iso, id_setor=None):
