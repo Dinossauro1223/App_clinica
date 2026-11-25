@@ -188,7 +188,7 @@ class MobileTest(unittest.TestCase):
         })[0], 200)
         atual = next(x for x in self.chamar(self.adm, "GET", "/api/itens")[1]["itens"] if x["id"] == item_id)
         self.assertEqual((atual["preco_unitario"], atual["embalagem_qtd"], atual["embalagem_un"]),
-                         (9.0, 1.0, "kg"))
+                         (9.0, 1000.0, "g"))
         self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/admin/itens/%s" % item_id, {
             "nome": "Farinha Teste", "unidade": "pacote", "preco_unitario": 9.0
         })[0], 403)
@@ -346,6 +346,37 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(rep("alm", "cozinha", 1), 400)  # almoxarifado só recebe de fora
         self.assertEqual(rep("alm", "externo", 5), 200)
         self.assertEqual(self.qtd("almox"), 9)
+
+
+    def test_migracao_normaliza_unidades_antigas_sem_alterar_conteudo_fisico(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            banco = str(Path(pasta) / "mobile.db")
+            sv.preparar_banco(banco)
+            c = sv.conectar(banco)
+            try:
+                c.executemany(
+                    "INSERT INTO itens(nome,unidade,embalagem_qtd,embalagem_un) VALUES(?,?,?,?)",
+                    [("Produto kg", "pacote", 0.5, "kg"),
+                     ("Produto L", "frasco", 1.5, "L"),
+                     ("Produto mg", "sache", 250, "mg"),
+                     ("Produto g", "pacote", 500, "g")],
+                )
+                sv.migrar(c)
+                valores = {r["nome"]: (r["embalagem_qtd"], r["embalagem_un"])
+                           for r in c.execute("SELECT nome,embalagem_qtd,embalagem_un FROM itens")}
+                self.assertEqual(valores["Produto kg"], (500.0, "g"))
+                self.assertEqual(valores["Produto L"], (1500.0, "ml"))
+                self.assertEqual(valores["Produto mg"], (0.25, "g"))
+                self.assertEqual(valores["Produto g"], (500.0, "g"))
+            finally:
+                c.close()
+
+    def test_cadastro_mobile_apresenta_unidades_como_opcoes_diretas(self):
+        html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('name=ieu value="g"', html)
+        self.assertIn('name=ieu value="ml"', html)
+        self.assertIn('name=ieu value="un"', html)
+        self.assertNotIn("select id=ieu", html)
 
 
 if __name__ == "__main__":
