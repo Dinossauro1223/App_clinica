@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Teste de fumaça da interface (mapa_ui) com widgets simulados.
-Sincronização da branch com a main validada antes da execução da CI.
 
 Não abre janelas: injeta versões falsas de tkinter/customtkinter que guardam o estado
 dos campos, e percorre os fluxos principais (mapa, registro, histórico, leitos,
@@ -425,8 +424,6 @@ class TestInterface(unittest.TestCase):
         form.var_carac["dm"].set(1)
         form.var_carac["constipante"].set(1)
         form.e_reav.insert(0, "30/10/2026")
-        # Simula o KeyRelease emitido pelo usuário ao digitar a data manualmente.
-        form._marcar_reavaliacao_manual()
         form.t_sim.insert("1.0", "mamão")
         form.t_nao.insert("1.0", "leite")
         form.seg_fi.click("Presente")
