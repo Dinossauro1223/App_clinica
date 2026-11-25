@@ -7,6 +7,7 @@ nutricionista com CRN conferido e confirmação explícita.
 from __future__ import annotations
 
 import json
+import sqlite3
 import tkinter as tk
 from tkinter import messagebox
 
@@ -264,7 +265,9 @@ class FormEvolucaoUI(ctk.CTkFrame):
         except (TypeError, ValueError):
             av = {}
         peso = av.get("peso_ajustado")
-        return float(peso if peso not in (None, "") else self.reg.get("peso_kg"))
+        if peso in (None, ""):
+            peso = self.reg.get("peso_kg")
+        return float(peso) if peso not in (None, "") else None
 
     def _antropometria(self):
         try:
@@ -299,9 +302,16 @@ class FormEvolucaoUI(ctk.CTkFrame):
     def _dados(self, para_fechamento=False):
         antropometria = self._antropometria()
         peso = self._peso_nutricional()
-        kcalkg = float(self.e_kcal_kg.get().replace(",", "."))
-        ptnkg = float(self.e_ptn_kg.get().replace(",", "."))
-        metas = regras.calcular_metas(peso, kcalkg, ptnkg)
+        txt_kcal, txt_ptn = self.e_kcal_kg.get().strip(), self.e_ptn_kg.get().strip()
+        if bool(txt_kcal) != bool(txt_ptn):
+            raise ValueError("Informe os dois parâmetros: kcal/kg e g proteína/kg.")
+        metas = None
+        if txt_kcal and txt_ptn:
+            if peso is None:
+                raise ValueError("Peso nutricional ausente para calcular as metas.")
+            metas = regras.calcular_metas(peso, txt_kcal, txt_ptn)
+        elif para_fechamento:
+            raise ValueError("Informe os parâmetros energéticos e proteicos antes do fechamento.")
         via = str(self.reg.get("via") or "").casefold()
         dados = {
             "antropometria": antropometria,
@@ -321,8 +331,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
         }
         suplementacao = []
         for s, qtd, etapas in self.sup_fields:
-            quantidade = float(qtd.get().replace(",", "."))
-            n_etapas = int(float(etapas.get().replace(",", ".")))
+            quantidade_txt = qtd.get().strip()
+            etapas_txt = etapas.get().strip() or "1"
+            quantidade = float(quantidade_txt.replace(",", ".")) if quantidade_txt else 0
+            n_etapas = int(float(etapas_txt.replace(",", ".")))
             if quantidade > 0:
                 suplementacao.append({"nome": s["nome"], "quantidade": quantidade,
                                       "unidade": s.get("unidade") or "mL", "etapas": n_etapas})
@@ -330,9 +342,11 @@ class FormEvolucaoUI(ctk.CTkFrame):
         if via == "enteral":
             nome = self.cb_formula.get()
             ficha = self.formula_por_nome.get(nome)
-            volume_etapa = float(self.e_volume_etapa.get().replace(",", "."))
-            etapas = int(float(self.e_etapas.get().replace(",", ".")))
-            if ficha and volume_etapa > 0 and etapas > 0:
+            volume_txt = self.e_volume_etapa.get().strip()
+            etapas_txt = self.e_etapas.get().strip() or "1"
+            volume_etapa = float(volume_txt.replace(",", ".")) if volume_txt else 0
+            etapas = int(float(etapas_txt.replace(",", ".")))
+            if ficha and volume_etapa > 0 and etapas > 0 and metas:
                 oferta = regras.calcular_oferta_enteral(
                     volume_etapa, etapas, ficha["kcal_100"], ficha["ptn_100"])
                 volume_meta = metas["kcal_dia"] / (ficha["kcal_100"] / 100)
@@ -347,8 +361,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     "solicitada": bool(self.var_progressao.get()), "autorizada": False,
                     "volume_atual_ml": oferta["volume_total_ml"], "volume_meta_ml": volume_meta,
                     "volume_etapa_atual_ml": volume_etapa, "etapas": etapas,
-                    "incremento_por_etapa_ml": float(self.e_incremento.get().replace(",", ".")),
-                    "dias_alvo": int(float(self.e_dias.get().replace(",", "."))),
+                    "incremento_por_etapa_ml": float((self.e_incremento.get().strip() or "10").replace(",", ".")),
+                    "dias_alvo": int(float((self.e_dias.get().strip() or "4").replace(",", "."))),
                     "tolerancia": bool(self.var_tolerancia.get()), "restricao": bool(self.var_restricao.get()),
                 }
             else:
@@ -400,7 +414,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
                                        text_color=tema.ERRO)
             return
         try:
-            dados = self._dados()
+            dados = self._dados(para_fechamento=True)
             progressao = dados.get("progressao_enteral") or {}
             if progressao.get("solicitada"):
                 autorizada = bool(self.var_autorizar_progressao.get())
@@ -446,6 +460,14 @@ class FormEvolucaoUI(ctk.CTkFrame):
                 widget.configure(state="disabled")
             except (AttributeError, tk.TclError):
                 pass
+        def desabilitar(pai):
+            for filho in pai.winfo_children():
+                try:
+                    filho.configure(state="disabled")
+                except (AttributeError, tk.TclError):
+                    pass
+                desabilitar(filho)
+        desabilitar(self)
         self.b_salvar.configure(state="disabled")
         self.b_fechar.configure(state="disabled")
 
