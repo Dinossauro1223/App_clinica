@@ -168,6 +168,7 @@ class MapaUI:
         _btn(acoes, "Remover", self._remover, 88, VERMELHO, VERMELHO_HOVER).pack(side="left", padx=3)
         _btn(acoes, "Excel", self._exportar_excel, 72, tema.AZUL, tema.AZUL_HOVER).pack(side="right")
         _btn(acoes, "PDF", self._exportar_pdf, 64, tema.AZUL, tema.AZUL_HOVER).pack(side="right", padx=6)
+        _btn(acoes, "Imprimir", self._abrir_impressao, 100, tema.AZUL, tema.AZUL_HOVER).pack(side="right", padx=6)
 
         avisos = ctk.CTkFrame(area, fg_color="transparent")
         avisos.pack(fill="x", padx=26, pady=(0, 2))
@@ -488,6 +489,97 @@ class MapaUI:
         import mapa_export as mex
         self._exportar(".xlsx", "Excel",
                        lambda c: mex.exportar_excel(c, self.linhas, self.data.isoformat(), self._nome_setor()))
+
+    def _abrir_impressao(self):
+        """Abre os filtros para preparar um PDF do mapa por grupo e ocupação."""
+        painel_existente = getattr(self, "_painel_impressao", None)
+        if painel_existente is not None and painel_existente.winfo_exists():
+            self._fechar_painel_impressao()
+            return
+
+        painel = ctk.CTkFrame(self.app.area_principal, fg_color=tema.BRANCO,
+                              corner_radius=10, border_width=1)
+        painel.pack(fill="x", padx=20, pady=(4, 10))
+        self._painel_impressao = painel
+
+        cabecalho = ctk.CTkFrame(painel, fg_color="transparent")
+        cabecalho.pack(fill="x", padx=16, pady=(12, 4))
+        _titulo(cabecalho, "Preparar impressão").pack(side="left")
+        _btn(cabecalho, "Fechar", self._fechar_painel_impressao, 80,
+             CINZA_BTN, CINZA_HOVER).pack(side="right")
+
+        ctk.CTkLabel(painel, text="Escolha quais leitos devem aparecer no documento.",
+                     text_color=tema.SUAVE).pack(anchor="w", padx=18, pady=(0, 8))
+        self._grupo_impressao = tk.StringVar(master=painel, value="Ambos")
+        self._vagos_impressao = tk.BooleanVar(master=painel, value=True)
+        linha = ctk.CTkFrame(painel, fg_color="transparent")
+        linha.pack(fill="x", padx=16, pady=4)
+        for texto, valor in (("Ambos (Internos e Externos)", "Ambos"),
+                             ("Somente Internos", "Internos"),
+                             ("Somente Externos", "Externos")):
+            ctk.CTkRadioButton(linha, text=texto, variable=self._grupo_impressao,
+                               value=valor).pack(side="left", padx=(0, 14))
+        ctk.CTkCheckBox(painel, text="Incluir leitos vazios",
+                        variable=self._vagos_impressao).pack(anchor="w", padx=18, pady=6)
+        ctk.CTkLabel(
+            painel,
+            text="O PDF será aberto no visualizador padrão. Use Imprimir ou Ctrl+P para selecionar a impressora e as páginas.",
+            text_color=tema.SUAVE, wraplength=900, justify="left"
+        ).pack(anchor="w", padx=18, pady=(2, 8))
+        _btn(painel, "Preparar impressão", self._preparar_impressao, 175).pack(
+            anchor="e", padx=16, pady=(0, 12))
+
+    def _fechar_painel_impressao(self):
+        painel = getattr(self, "_painel_impressao", None)
+        if painel is not None:
+            try:
+                painel.destroy()
+            except tk.TclError:
+                pass
+        self._painel_impressao = None
+
+    def _preparar_impressao(self):
+        import tempfile
+        import mapa_export as mex
+
+        grupo = self._grupo_impressao.get()
+        todas_linhas = mdb.mapa_do_dia(self.db, self.data.isoformat(), None)
+        linhas = mex.filtrar_para_impressao(
+            todas_linhas, grupo, self._vagos_impressao.get()
+        )
+        if not linhas:
+            messagebox.showinfo(
+                "Imprimir mapa",
+                "Não há leitos que correspondam aos filtros selecionados.",
+                parent=self.app,
+            )
+            return
+
+        fd, caminho = tempfile.mkstemp(prefix="NutriLab_Mapa_", suffix=".pdf")
+        os.close(fd)
+        try:
+            nome = "Todos_os_setores" if grupo == "Ambos" else "Grupo_" + grupo
+            mex.exportar_pdf(caminho, linhas, self.data.isoformat(), nome, incluir_vagos=True)
+            abrir = getattr(os, "startfile", None)
+            if abrir is not None:
+                abrir(caminho)
+            else:
+                import webbrowser
+                from pathlib import Path
+                if not webbrowser.open(Path(caminho).resolve().as_uri()):
+                    raise OSError("Não foi possível abrir o PDF no visualizador padrão.")
+            self._arquivo_impressao = caminho
+            self._fechar_painel_impressao()
+        except Exception as erro:
+            try:
+                os.remove(caminho)
+            except OSError:
+                pass
+            messagebox.showerror(
+                "Imprimir mapa",
+                f"Não foi possível preparar a impressão:\n{erro}",
+                parent=self.app,
+            )
 
     # ----------------------------------------------------------------------- diálogos
     def _abrir_leitos(self):
