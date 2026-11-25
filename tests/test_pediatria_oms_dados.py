@@ -1,4 +1,5 @@
 """Validação estrutural das tabelas LMS oficiais OMS incluídas no aplicativo."""
+import json
 from pathlib import Path
 import unittest
 
@@ -22,6 +23,14 @@ class TestDadosOficiaisOMS(unittest.TestCase):
             self.assertEqual(len(curva), 1827)
             self.assertEqual(curva[0]["idade"], 0)
             self.assertEqual(curva[-1]["idade"], 1826)
+
+    def test_metadados_de_idade_diaria_coincidem_com_csv_oficial(self):
+        with (RAIZ / "dados" / "oms_classificacoes_pediatricas.json").open(encoding="utf-8") as arquivo:
+            metadados = json.load(arquivo)
+        faixa = metadados["references"]["who_2006"]["source_age_days"]
+        curva = self.tabela.curva("imc_idade", "H", "oms_2006")
+        self.assertEqual(faixa["min"], curva[0]["idade"])
+        self.assertEqual(faixa["max"], curva[-1]["idade"])
 
     def test_tabelas_oms_2007_mantem_ancoras_internas_sem_exibi_las(self):
         bmi = self.tabela.curva("imc_idade", "M", "oms_2007")
