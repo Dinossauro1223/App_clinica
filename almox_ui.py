@@ -5,7 +5,9 @@ from datetime import date, timedelta
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 import almox_db as adb
+import almox_reposicao as arep
 import tema
+import integracao_mobile as im
 
 FUNDO=tema.FUNDO
 VERDE=tema.VERDE
@@ -20,9 +22,10 @@ def _set(e,v):
     e.delete(0,"end");e.insert(0,"" if v is None else str(v))
 
 class AlmoxUI:
-    def __init__(self,app,db_path):
-        self.app,self.db=app,db_path
+    def __init__(self,app,db_path,base_dir=None):
+        self.app,self.db,self.base_dir=app,db_path,base_dir
         adb.inicializar(self.db)
+        arep.inicializar(self.db)
         self.pagina="Resumo e custos"
         self.item_atual=None
         self.prog_atual=None
@@ -34,13 +37,13 @@ class AlmoxUI:
         ctk.CTkLabel(area,text="Controle de estoque, preços, gastos realizados e programação por refeição.",text_color=CINZA).pack(anchor="w",padx=22,pady=(0,8))
         nav=ctk.CTkFrame(area,fg_color="transparent");nav.pack(fill="x",padx=18,pady=4)
         self.conteudo=ctk.CTkFrame(area,fg_color="transparent");self.conteudo.pack(fill="both",expand=True,padx=16,pady=8)
-        for p in ("Resumo e custos","Itens","Movimentações","Programação"):
+        for p in ("Resumo e custos","Itens","Reposição","Movimentações","Programação"):
             ctk.CTkButton(nav,text=p,width=150,command=lambda x=p:self.ir(x),fg_color=VERDE if p==self.pagina else tema.SUAVE).pack(side="left",padx=3)
         self.ir(self.pagina)
     def ir(self,p):
         self.pagina=p
         for w in self.conteudo.winfo_children():w.destroy()
-        {"Resumo e custos":self._resumo,"Itens":self._itens_ui,"Movimentações":self._movimentos,"Programação":self._programacao}[p]()
+        {"Resumo e custos":self._resumo,"Itens":self._itens_ui,"Reposição":self._reposicao,"Movimentações":self._movimentos,"Programação":self._programacao}[p]()
     def _tree(self,parent,cols,widths=None,height=9):
         box=ctk.CTkFrame(parent,fg_color=tema.BRANCO);box.pack(fill="both",expand=True,pady=6)
         t=ttk.Treeview(box,columns=cols,show="headings",height=height)
@@ -93,6 +96,7 @@ class AlmoxUI:
         ctk.CTkButton(bar,text="Salvar item",command=self._salvar_item).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Ativar / desativar",command=self._alternar_item).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Histórico de preços",command=self._precos).pack(side="left",padx=3)
+        ctk.CTkButton(bar,text="Sincronizar catálogo mobile",command=self._sincronizar_catalogo_mobile).pack(side="left",padx=3)
         self.t_itens=self._tree(self.conteudo,("Nome","Unidade","Categoria","Valor unitário","Saldo","Mínimo","Situação"),(190,80,150,130,100,100,90),12)
         self._carregar_itens()
         self.t_itens.bind("<<TreeviewSelect>>",self._selecionar_item)
@@ -113,6 +117,29 @@ class AlmoxUI:
             d={"id_item":self.item_atual,"nome":self.e_nome.get(),"unidade":self.e_un.get(),"categoria":self.cb_cat.get(),"valor_unitario":self.e_preco.get(),"estoque_minimo":self.e_min.get(),"observacao":self.e_obs.get()}
             adb.salvar_item(self.db,d);self._carregar_itens();self._atualizar_combos();messagebox.showinfo("Almoxarifado","Item salvo.")
         except Exception as e:messagebox.showwarning("Item",str(e))
+    def _sincronizar_catalogo_mobile(self):
+        try:
+            base=self.base_dir
+            if not base:
+                import main
+                base=main.get_base_path()
+            mobile_db=im.caminho_mobile_db(self.db,base)
+            resultado=im.sincronizar_catalogo_almox_desktop(self.db,mobile_db)
+            self._carregar_itens()
+            self._atualizar_combos()
+            resumo=(f"Produtos sincronizados: {resultado['sincronizados']}\\n"
+                    f"Novos no mobile: {resultado['criados']}\\n"
+                    f"Atualizados: {resultado['atualizados']}\\n"
+                    f"Espelho da Gestão Alimentar: {resultado['produtos_espelhados']}")
+            if resultado["erros"]:
+                resumo+="\\n\\nItens que precisam de revisão:\\n"+"\\n".join(
+                    f"#{x['id_item']}: {x['erro']}" for x in resultado["erros"])
+                messagebox.showwarning("Sincronização do catálogo",resumo)
+            else:
+                messagebox.showinfo("Sincronização do catálogo",resumo)
+        except Exception as e:
+            messagebox.showwarning("Sincronização do catálogo",str(e))
+
     def _alternar_item(self):
         if not self.item_atual:messagebox.showinfo("Item","Selecione um item.");return
         i=adb.obter_item(self.db,self.item_atual);adb.alterar_item_ativo(self.db,self.item_atual,not i["ativo"]);self._carregar_itens()
@@ -124,6 +151,64 @@ class AlmoxUI:
         self.itens=adb.listar_itens(self.db,True)
         if hasattr(self,"cb_mov_item"):self.cb_mov_item.configure(values=[f"{x['id_item']} — {x['nome']} ({x['unidade']})" for x in self.itens])
         if hasattr(self,"cb_prog_item"):self.cb_prog_item.configure(values=[f"{x['id_item']} — {x['nome']} ({x['unidade']})" for x in self.itens])
+    def _reposicao(self):
+        self._atualizar_combos()
+        form=ctk.CTkFrame(self.conteudo,fg_color="transparent");form.pack(fill="x")
+        self.cb_rep_item=ctk.CTkComboBox(form,values=[f"{x['id_item']} — {x['nome']} ({x['unidade']})" for x in self.itens],width=250)
+        self.cb_rep_item.pack(side="left",padx=3)
+        self.e_rep_qtd=ctk.CTkEntry(form,width=110,placeholder_text="Quantidade");self.e_rep_qtd.pack(side="left",padx=3)
+        self.e_rep_fornecedor=ctk.CTkEntry(form,width=190,placeholder_text="Fornecedor (opcional)");self.e_rep_fornecedor.pack(side="left",padx=3)
+        self.e_rep_solicitante=ctk.CTkEntry(form,width=160,placeholder_text="Solicitado por");self.e_rep_solicitante.pack(side="left",padx=3)
+        ctk.CTkButton(form,text="Solicitar reposição",command=self._solicitar_reposicao).pack(side="left",padx=3)
+        self.e_rep_obs=ctk.CTkEntry(self.conteudo,placeholder_text="Observação do pedido (opcional)")
+        self.e_rep_obs.pack(fill="x",pady=4)
+        ctk.CTkLabel(self.conteudo,text="Pedidos: selecione um pedido pendente e registre o recebimento para atualizar o saldo").pack(anchor="w",pady=(8,2))
+        self.t_rep= self._tree(self.conteudo,("Item","Quantidade","Solicitado em","Solicitante","Fornecedor","Estado","Recebido em"),(170,90,110,130,150,90,110),8)
+        bar=ctk.CTkFrame(self.conteudo,fg_color="transparent");bar.pack(fill="x")
+        ctk.CTkButton(bar,text="Registrar recebimento",command=self._receber_reposicao).pack(side="left",padx=3)
+        ctk.CTkButton(bar,text="Atualizar",command=self._carregar_reposicoes).pack(side="left",padx=3)
+        ctk.CTkLabel(self.conteudo,text="Prazo médio por insumo — somente pedidos efetivamente recebidos").pack(anchor="w",pady=(10,2))
+        self.t_prazos=self._tree(self.conteudo,("Item","Pedidos recebidos","Prazo médio (dias)","Menor","Maior","Pendentes"),(180,130,140,90,90,100),6)
+        self._carregar_reposicoes()
+
+    def _solicitar_reposicao(self):
+        try:
+            iid=int(self.cb_rep_item.get().split("—",1)[0].strip())
+            arep.solicitar(self.db,iid,self.e_rep_qtd.get(),solicitado_por=self.e_rep_solicitante.get(),
+                           fornecedor=self.e_rep_fornecedor.get(),observacao=self.e_rep_obs.get())
+            _set(self.e_rep_qtd,"");_set(self.e_rep_obs,"")
+            self._carregar_reposicoes()
+            messagebox.showinfo("Reposição","Pedido registrado. O saldo só será atualizado no recebimento.")
+        except Exception as e:messagebox.showwarning("Reposição",str(e))
+
+    def _carregar_reposicoes(self):
+        pedidos=arep.listar(self.db)
+        self.t_rep.delete(*self.t_rep.get_children())
+        for p in pedidos:
+            self.t_rep.insert("","end",iid=str(p["id_pedido"]),values=(
+                p["item"],_num(p["quantidade"]),p["solicitado_em"],p["solicitado_por"] or "—",
+                p["fornecedor"] or "—",p["status"],p["recebido_em"] or "—"))
+        self.t_prazos.delete(*self.t_prazos.get_children())
+        for p in arep.prazos_medios(self.db):
+            medio="—" if p["prazo_medio_dias"] is None else _num(p["prazo_medio_dias"])
+            self.t_prazos.insert("","end",values=(p["nome"],p["pedidos_recebidos"],medio,
+                "—" if p["menor_prazo_dias"] is None else _num(p["menor_prazo_dias"]),
+                "—" if p["maior_prazo_dias"] is None else _num(p["maior_prazo_dias"]),p["pedidos_pendentes"]))
+
+    def _receber_reposicao(self):
+        sel=self.t_rep.selection()
+        if not sel:
+            messagebox.showinfo("Reposição","Selecione um pedido pendente.")
+            return
+        from tkinter import simpledialog
+        nome=simpledialog.askstring("Recebimento","Nome de quem recebeu (opcional):")
+        if nome is None:return
+        try:
+            arep.receber(self.db,int(sel[0]),recebido_por=nome)
+            self._carregar_reposicoes();self._atualizar_combos()
+            messagebox.showinfo("Reposição","Recebimento registrado e entrada lançada no estoque.")
+        except Exception as e:messagebox.showwarning("Reposição",str(e))
+
     def _movimentos(self):
         self._atualizar_combos()
         f=ctk.CTkFrame(self.conteudo,fg_color="transparent");f.pack(fill="x")
