@@ -289,8 +289,12 @@ class FormEvolucaoUI(ctk.CTkFrame):
             oms = {}
         resultados = oms.get("resultados") or {}
         imc_oms = resultados.get("imc_idade") or {}
-        classificacao = (imc_oms.get("classificacao") if imc_oms.get("status") == "calculado"
-                         else av.get("classe") or self.reg.get("imc_class"))
+        idade_reg = self.reg.get("idade_anos")
+        if idade_reg is not None and int(idade_reg) < 20:
+            classificacao = (imc_oms.get("classificacao") if imc_oms.get("status") == "calculado"
+                             else "OMS pendente")
+        else:
+            classificacao = av.get("classe") or self.reg.get("imc_class")
         peso = av.get("peso_ajustado")
         if peso in (None, ""):
             peso = self.reg.get("peso_kg")
