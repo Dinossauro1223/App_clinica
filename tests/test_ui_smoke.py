@@ -424,6 +424,8 @@ class TestInterface(unittest.TestCase):
         form.var_carac["dm"].set(1)
         form.var_carac["constipante"].set(1)
         form.e_reav.insert(0, "30/10/2026")
+        # O fake CTkEntry não dispara KeyRelease; simula a digitação manual real.
+        form._marcar_reavaliacao_manual()
         form.t_sim.insert("1.0", "mamão")
         form.t_nao.insert("1.0", "leite")
         form.seg_fi.click("Presente")

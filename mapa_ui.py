@@ -358,6 +358,94 @@ class MapaUI:
             return
         self._abrir_condutas(it)
 
+    def _criar_painel_alertas(self, master):
+        painel = ctk.CTkFrame(master, fg_color=tema.BRANCO, border_width=1,
+                              border_color=tema.BORDA, corner_radius=10)
+        painel.pack(fill="x", padx=24, pady=(0, 8))
+        topo = ctk.CTkFrame(painel, fg_color="transparent")
+        topo.pack(fill="x", padx=10, pady=(6, 2))
+        ctk.CTkLabel(topo, text="Painel de avisos nutricionais",
+                     font=ctk.CTkFont(size=13, weight="bold"), text_color=VERDE_ESC).pack(side="left")
+        self.lbl_resumo_alertas = ctk.CTkLabel(topo, text="", font=ctk.CTkFont(size=10),
+                                               text_color=tema.SUAVE)
+        self.lbl_resumo_alertas.pack(side="right")
+        corpo = ctk.CTkFrame(painel, fg_color="transparent")
+        corpo.pack(fill="x", padx=8, pady=(0, 8))
+        self.alerta_lists = {}
+        grupos = (
+            ("evoluiram", "Evoluíram automaticamente"),
+            ("nao_evoluiram", "Não evoluíram automaticamente"),
+            ("abaixo_meta", "Abaixo da meta energética"),
+        )
+        for chave, titulo in grupos:
+            coluna = ctk.CTkFrame(corpo, fg_color=tema.FUNDO, corner_radius=8)
+            coluna.pack(side="left", fill="both", expand=True, padx=3)
+            ctk.CTkLabel(coluna, text=titulo, font=ctk.CTkFont(size=11, weight="bold"),
+                         text_color=tema.TEXTO).pack(anchor="w", padx=8, pady=(6, 2))
+            lista = ctk.CTkScrollableFrame(coluna, height=104, fg_color="transparent")
+            lista.pack(fill="both", expand=True, padx=4, pady=(0, 4))
+            self.alerta_lists[chave] = lista
+
+    def _abrir_leito_alerta(self, id_leito):
+        if id_leito is None:
+            return
+        iid = str(id_leito)
+        if self.tree.exists(iid):
+            self.tree.selection_set(iid)
+            self.tree.focus(iid)
+            self._editar()
+
+    def _atualizar_painel_alertas(self):
+        if not hasattr(self, "alerta_lists"):
+            return
+        import evolucao_nutricional as evolucao
+        grupos = evolucao.gerar_alertas_mapa(self.linhas, self.data.isoformat())
+        self.lbl_resumo_alertas.configure(
+            text=f"{len(grupos['evoluiram'])} evoluíram · {len(grupos['nao_evoluiram'])} sem evolução · {len(grupos['abaixo_meta'])} abaixo da meta")
+        for chave, lista in self.alerta_lists.items():
+            for filho in lista.winfo_children():
+                filho.destroy()
+            itens = grupos.get(chave, [])
+            if not itens:
+                ctk.CTkLabel(lista, text="Nenhum paciente nesta condição.",
+                             font=ctk.CTkFont(size=10), text_color=tema.SUAVE,
+                             wraplength=220, justify="left").pack(anchor="w", padx=4, pady=4)
+                continue
+            for item in itens:
+                nome = item.get("nome") or "Paciente sem nome"
+                leito = item.get("leito") or "Leito"
+                if chave == "evoluiram":
+                    detalhe = (f"{evolucao.formatar_numero_pt(item.get('volume_anterior_ml', 0))} → "
+                               f"{evolucao.formatar_numero_pt(item.get('volume_atual_ml', 0))} mL/dia "
+                               f"(+{evolucao.formatar_numero_pt(item.get('incremento_ml', 0))} mL); "
+                               f"meta {evolucao.formatar_numero_pt(item.get('volume_meta_ml', 0))} mL/dia")
+                    if item.get("adequacao_kcal_pct") is not None:
+                        detalhe += (f" · Adeq. {evolucao.formatar_numero_pt(item['adequacao_kcal_pct'], 1)}% kcal"
+                                    f" / {evolucao.formatar_numero_pt(item.get('adequacao_proteina_pct') or 0, 1)}% PTN")
+                elif chave == "nao_evoluiram":
+                    detalhe = item.get("motivo", "sem progressão")
+                    if item.get("volume_atual_ml") is not None:
+                        detalhe += f" · {evolucao.formatar_numero_pt(item['volume_atual_ml'])} mL/dia"
+                    if item.get("adequacao_kcal_pct") is not None:
+                        detalhe += (f" · Adeq. {evolucao.formatar_numero_pt(item['adequacao_kcal_pct'], 1)}% kcal"
+                                    f" / {evolucao.formatar_numero_pt(item.get('adequacao_proteina_pct') or 0, 1)}% PTN")
+                else:
+                    detalhe = (f"{evolucao.formatar_numero_pt(item.get('kcal_atual', 0))}/"
+                               f"{evolucao.formatar_numero_pt(item.get('meta_kcal', 0))} kcal/dia · "
+                               f"{evolucao.formatar_numero_pt(item.get('adequacao_kcal_pct', 0), 1)}% · "
+                               f"Déficit {evolucao.formatar_numero_pt(item.get('deficit_kcal', 0))} kcal · "
+                               f"+{evolucao.formatar_numero_pt(item.get('volume_adicional_ml', 0))} mL")
+                linha = ctk.CTkFrame(lista, fg_color=tema.BRANCO, corner_radius=6)
+                linha.pack(fill="x", padx=2, pady=2)
+                ctk.CTkLabel(linha, text=f"{leito} — {nome}\n{detalhe}",
+                             font=ctk.CTkFont(size=10), text_color=tema.TEXTO,
+                             wraplength=205, justify="left").pack(side="left", fill="x", expand=True,
+                                                                  padx=6, pady=5)
+                ctk.CTkButton(linha, text="Abrir", width=48, height=25,
+                              fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER,
+                              command=lambda mid=item.get("id_leito"): self._abrir_leito_alerta(mid)
+                              ).pack(side="right", padx=4, pady=4)
+
     def _abrir_condutas(self, it):
         from condutas_alta_ui import abrir_condutas_alta        # na hora de usar: evita importação circular
         r = it["registro"]
@@ -1535,6 +1623,8 @@ class FormRegistro(_Janela):
 
         rodape = ctk.CTkFrame(self, fg_color="transparent")
         rodape.pack(fill="x", padx=10, pady=8)
+        self.b_evolucao = _btn(rodape, "Evolução nutricional", self._abrir_evolucao, 170, tema.VERDE_ESC, tema.VERDE_HOVER)
+        self.b_evolucao.pack(side="left", padx=(0, 8))
         self.b_alta = _btn(rodape, "Dar alta", self._dar_alta, 120, VERMELHO, VERMELHO_HOVER)
         self.b_alta.pack(side="left")
         self.b_salvar = _btn(rodape, "Salvar", self._salvar, 130)
@@ -1544,6 +1634,7 @@ class FormRegistro(_Janela):
         if self.somente_leitura:
             self.b_salvar.pack_forget()
             self.b_alta.pack_forget()
+            self.b_evolucao.pack_forget()
 
     # ------------------------------------------------------------- preencher/coletar
     def _preencher(self):
@@ -1827,6 +1918,7 @@ class FormRegistro(_Janela):
             self._resultado_avaliacao = {
                 "dados": dados, "classe": classe, "imc": resultado.get("imc"),
                 "peso_ajustado": resultado.get("ajustado"), "avisos": resultado.get("avisos", []),
+                "resultado": resultado,
             }
         except (ValueError, TypeError) as exc:
             rotulo = f"Não foi possível classificar: {exc}"
@@ -2008,12 +2100,29 @@ class FormRegistro(_Janela):
         self.destroy()
         return "break"
 
-    def _salvar(self):
+    def _abrir_evolucao(self):
+        if self.somente_leitura:
+            return
+        if not self._salvar(manter_aberto=True):
+            return
+        registro = mdb.obter_registro(self.ui.db, self.data_iso, self.leito["id_leito"])
+        if not registro or not registro.get("id_paciente"):
+            messagebox.showwarning("Evolução nutricional", "Salve e vincule o paciente ao cadastro clínico antes de preparar a evolução.", parent=self)
+            return
+        self.reg = registro
+        self._id_paciente = registro["id_paciente"]
+        try:
+            from pep_evolucao_ui import FormEvolucaoUI
+            FormEvolucaoUI(self.ui, registro, self)
+        except Exception as erro:
+            messagebox.showerror("Evolução nutricional", f"Não foi possível abrir o editor de evolução.\n\n{erro}", parent=self)
+    
+    def _salvar(self, manter_aberto=False):
         try:
             reg = self._coletar()
         except ValueError as e:
             messagebox.showwarning("Registro", str(e), parent=self)
-            return
+            return False
         nome = reg["nome_paciente"]
         if nome.strip().lower() != self._nome_original.strip().lower() and not self._vinculo_manual:
             reg["id_paciente"] = None  # nome mudou: é outro paciente nesse leito
@@ -2031,7 +2140,7 @@ class FormRegistro(_Janela):
                     "Sim: vincular este registro a ele (histórico unificado)\n"
                     "Não: criar um novo cadastro\nCancelar: voltar", parent=self)
                 if resp is None:
-                    return
+                    return False
                 if resp:
                     reg["id_paciente"] = p["id_paciente"]
                     self._data_nascimento = p.get("data_nascimento")
@@ -2040,14 +2149,18 @@ class FormRegistro(_Janela):
         if reg["idade_anos"] is None and reg["peso_kg"] and reg["altura_cm"]:
             if not messagebox.askyesno("Idade não informada",
                                        "Sem a idade, o IMC não será classificado. Salvar mesmo assim?", parent=self):
-                return
+                return False
         try:
             mdb.salvar_registro(self.ui.db, reg, self.ui.criterio_idoso, self.ui.lms)
         except ValueError as e:
             messagebox.showwarning("Registro", str(e), parent=self)
-            return
+            return False
         self.ui._recarregar()
-        self.destroy()
+        self.reg = mdb.obter_registro(self.ui.db, self.data_iso, self.leito["id_leito"]) or reg
+        self._id_paciente = self.reg.get("id_paciente")
+        if not manter_aberto:
+            self.destroy()
+        return True
 
     def _dar_alta(self):
         if self.somente_leitura:
