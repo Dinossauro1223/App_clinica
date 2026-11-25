@@ -162,7 +162,8 @@ class TestConfigurarBancoDados(BaseApp):
         "Almox_Itens", "Almox_Historico_Preco", "Almox_Movimentos",
         "Almox_Programacoes", "Almox_Programacao_Itens",
     }                                                                    # migração 5
-    PEP = {"Pep_Config", "Pep_Usuarios", "Pep_Evolucoes"}                 # migração 6
+    PEP = {"Pep_Config", "Pep_Usuarios", "Pep_Evolucoes", "Pep_Equipe", "Pep_Rascunhos",
+           "Pep_Rascunho_Historico", "Pep_Evolucao_Metadados"}          # migrações 6–7
 
     def test_banco_novo_cria_o_esquema_e_registra_a_baseline_sem_backup(self):
         caminho = self.usar_banco()
