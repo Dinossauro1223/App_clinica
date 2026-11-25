@@ -525,6 +525,7 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
 
     def test_progressao_enteral_diaria_e_porcoes_orais_autorizadas_para_copa(self):
         dados = {
+            "status_evolucao": "fechada",
             "via": "Enteral",
             "dieta_enteral": {"nome": "Fórmula Clínica", "volume_por_etapa_ml": 150, "etapas": 6},
             "progressao_enteral": {"autorizada": True, "plano": {"passos": [
@@ -558,6 +559,14 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
         linha = next(x for x in mdb.mapa_do_dia(self.db, "2026-10-31")
                      if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
         self.assertEqual(linha["registro"]["dados_copa"]["porcao_oral_ml"], 100)
+        rascunho = dict(dados, status_evolucao="rascunho")
+        reg["data"] = "2026-11-01"
+        reg["via"] = "Enteral"
+        reg["evolucao_json"] = json.dumps(rascunho, ensure_ascii=False)
+        mdb.salvar_registro(self.db, reg)
+        linha = next(x for x in mdb.mapa_do_dia(self.db, "2026-11-01")
+                     if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
+        self.assertEqual(linha["registro"]["dados_copa"], {})
 
 
 class TestExportacao(unittest.TestCase):
