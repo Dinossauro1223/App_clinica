@@ -46,5 +46,46 @@ class TestInterpolacaoLMS(unittest.TestCase):
         self.assertIsNone(interpolar_lms(11, tabela))
 
 
+
+class TestLMSPorDiasEMeses(unittest.TestCase):
+    def test_oms_2006_usa_idade_exata_em_dias(self):
+        tabela = TabelaReferenciaOMS.de_linhas([
+            {"indicador": "imc_idade", "referencia": "oms_2006", "sexo": "H",
+             "idade_dias": "30", "L": "1", "M": "10", "S": "0.1"},
+            {"indicador": "imc_idade", "referencia": "oms_2006", "sexo": "H",
+             "idade_dias": "31", "L": "1", "M": "11", "S": "0.1"},
+        ])
+        self.assertAlmostEqual(tabela.calcular("imc_idade", "H", 1, 13.2, idade_dias=31), 2.0)
+        self.assertIsNone(tabela.calcular("imc_idade", "H", 1, 13.2, idade_dias=32))
+
+    def test_oms_2007_interpola_meses_decimais(self):
+        tabela = TabelaReferenciaOMS.de_linhas([
+            {"indicador": "imc_idade", "referencia": "oms_2007", "sexo": "H",
+             "idade_meses": "61", "L": "1", "M": "12", "S": "0.1"},
+            {"indicador": "imc_idade", "referencia": "oms_2007", "sexo": "H",
+             "idade_meses": "62", "L": "1", "M": "13", "S": "0.1"},
+        ])
+        self.assertAlmostEqual(tabela.calcular("imc_idade", "H", 61.5, 15.0), 2.0)
+
+    def test_avaliacao_classifica_por_meses_completos_e_calcula_por_dias(self):
+        tabela = TabelaReferenciaOMS.de_linhas([
+            {"indicador": "imc_idade", "referencia": "oms_2006", "sexo": "H",
+             "idade_dias": "300", "L": "1", "M": "10", "S": "0.1"},
+        ])
+        resultado = avaliar_indicador("imc_idade", 12.0, "H", 9, tabela, idade_dias=300)
+        self.assertEqual(resultado["status"], "calculado")
+        self.assertEqual(resultado["classificacao"], "Risco de sobrepeso")
+
+    def test_curva_expoe_centros_e_limites_da_tabela(self):
+        tabela = TabelaReferenciaOMS.de_linhas([
+            {"indicador": "estatura_idade", "referencia": "oms_2007", "sexo": "M",
+             "idade_meses": "61", "L": "1", "M": "100", "S": "0.1"},
+        ])
+        curva = tabela.curva("estatura_idade", "M", "oms_2007")
+        self.assertEqual(len(curva), 1)
+        self.assertEqual(curva[0]["z_zero"], 100.0)
+        self.assertGreater(curva[0]["z_mais3"], curva[0]["z_mais2"])
+
+
 if __name__ == "__main__":
     unittest.main()
