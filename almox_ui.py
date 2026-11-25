@@ -91,7 +91,7 @@ class AlmoxUI:
         self.e_preco=ctk.CTkEntry(form,placeholder_text="Preço por unidade (R$)",width=150);self.e_preco.pack(side="left",padx=3)
         self.e_min=ctk.CTkEntry(form,placeholder_text="Estoque mínimo",width=130);self.e_min.pack(side="left",padx=3)
         embalagem=ctk.CTkFrame(self.conteudo,fg_color="transparent");embalagem.pack(fill="x",pady=3)
-        ctk.CTkLabel(embalagem,text="Conteúdo por embalagem (para custo por g/ml):").pack(side="left",padx=3)
+        ctk.CTkLabel(embalagem,text="Conteúdo por embalagem (preencha se a unidade de estoque for un):").pack(side="left",padx=3)
         self.e_emb_qtd=ctk.CTkEntry(embalagem,width=110,placeholder_text="Ex.: 800");self.e_emb_qtd.pack(side="left",padx=3)
         self.cb_emb_un=ctk.CTkComboBox(embalagem,values=["g","kg","ml","L","mg"],width=85);self.cb_emb_un.pack(side="left",padx=3);self.cb_emb_un.set("g")
         self.e_obs=ctk.CTkEntry(self.conteudo,placeholder_text="Observações / fonte do preço");self.e_obs.pack(fill="x",pady=4)
