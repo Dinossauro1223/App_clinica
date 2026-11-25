@@ -69,6 +69,22 @@ CREATE TABLE IF NOT EXISTS refeicoes_cfg(refeicao TEXT PRIMARY KEY, ativa INTEGE
 CREATE TABLE IF NOT EXISTS janelas(id_setor INTEGER, refeicao TEXT, abre TEXT, fecha TEXT, PRIMARY KEY(id_setor, refeicao));
 CREATE TABLE IF NOT EXISTS refeicoes_dia(data TEXT, id_setor INTEGER, refeicao TEXT, qtd REAL,
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, id_setor, refeicao));
+CREATE TABLE IF NOT EXISTS pedidos_estoque(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ id_item INTEGER NOT NULL REFERENCES itens(id),
+ qtd REAL NOT NULL CHECK(qtd>0),
+ solicitado_em TEXT NOT NULL,
+ solicitado_por INTEGER,
+ solicitado_nome TEXT,
+ fornecedor TEXT,
+ observacao TEXT,
+ status TEXT NOT NULL DEFAULT 'pendente' CHECK(status IN ('pendente','recebido','cancelado')),
+ recebido_em TEXT,
+ recebido_por INTEGER,
+ recebido_nome TEXT,
+ id_movimento INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_pedidos_estoque_item_status ON pedidos_estoque(id_item,status);
 CREATE TABLE IF NOT EXISTS estoque_dia(data TEXT, estoque TEXT, id_item INTEGER, qtd REAL,
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, estoque, id_item));
 CREATE TABLE IF NOT EXISTS movimentos(id INTEGER PRIMARY KEY, data TEXT, hora TEXT, origem TEXT, destino TEXT,
