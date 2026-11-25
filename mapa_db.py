@@ -5,6 +5,7 @@ Sem dependência de interface gráfica. Todas as funções recebem o caminho do 
 Datas são gravadas em ISO (AAAA-MM-DD); use iso_para_br/data_br_para_iso na interface.
 """
 import calendar
+import os
 import json
 import sqlite3
 from contextlib import closing
@@ -116,6 +117,9 @@ CREATE TABLE IF NOT EXISTS Mapa_Setores (
 CREATE TABLE IF NOT EXISTS Mapa_Leitos (
     id_leito INTEGER PRIMARY KEY AUTOINCREMENT, id_setor INTEGER NOT NULL, codigo TEXT NOT NULL,
     ordem INTEGER DEFAULT 0, ativo INTEGER DEFAULT 1, UNIQUE(id_setor, codigo));
+CREATE TABLE IF NOT EXISTS Mapa_Liberacoes (
+    data TEXT NOT NULL, id_leito INTEGER NOT NULL, atualizado_em TEXT NOT NULL, por TEXT, motivo TEXT,
+    PRIMARY KEY(data, id_leito));
 CREATE TABLE IF NOT EXISTS Mapa_Modulos (
     id_modulo INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL UNIQUE, ordem INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS Mapa_Suplementos (
@@ -135,7 +139,7 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
     obs_sim TEXT, obs_nao TEXT, fi_estado TEXT, fi_freq REAL, fi_dias_ausente INTEGER,
     nrs2002_json TEXT, nrs2002_classificacao TEXT,
     avaliacao_json TEXT, avaliacao_classificacao TEXT, pediatria_oms_json TEXT,
-    criado_em TEXT, atualizado_em TEXT, UNIQUE(data, id_leito));
+    criado_em TEXT, atualizado_em TEXT, alta_em TEXT, alta_por TEXT, alta_motivo TEXT, UNIQUE(data, id_leito));
 CREATE TABLE IF NOT EXISTS Mapa_Registro_Suplementos (
     id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL, id_suplemento INTEGER,
     nome TEXT NOT NULL, modulo TEXT, qtd_dia REAL, unidade TEXT,
@@ -154,6 +158,7 @@ _CAMPOS_REG = [
     "dm", "has", "laxativa", "constipante", "drc", "condicoes", "consistencia", "obs_sim", "obs_nao",
     "fi_estado", "fi_freq", "fi_dias_ausente",
     "nrs2002_json", "nrs2002_classificacao", "avaliacao_json", "avaliacao_classificacao", "pediatria_oms_json",
+    "alta_em", "alta_por", "alta_motivo",
 ]
 
 # --------------------------------------------------------------------- utilidades
@@ -213,6 +218,9 @@ def inicializar(db_path):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
         for nome, tipo in (("meta_kcal", "REAL"), ("meta_proteina_g", "REAL")):
+            if nome not in colunas:
+                c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
+        for nome, tipo in (("alta_em", "TEXT"), ("alta_por", "TEXT"), ("alta_motivo", "TEXT")):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
         colunas_sup = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
@@ -467,7 +475,13 @@ def remover_leito(db_path, id_leito):
     with closing(conectar(db_path)) as c:
         usado = c.execute("SELECT COUNT(*) FROM Mapa_Registros WHERE id_leito=?", (id_leito,)).fetchone()[0]
         if usado:
+            agora = _agora()
             c.execute("UPDATE Mapa_Leitos SET ativo=0 WHERE id_leito=?", (id_leito,))
+            c.execute("""UPDATE Mapa_Registros SET alta_em=?, alta_por=?, alta_motivo=?, atualizado_em=?
+                         WHERE id_registro=(SELECT id_registro FROM Mapa_Registros
+                         WHERE id_leito=? ORDER BY data DESC, id_registro DESC LIMIT 1)""",
+                      (agora, os.environ.get("USERNAME") or os.environ.get("USER") or "usuário local",
+                       "leito desativado", agora, id_leito))
             c.commit()
             return False
         c.execute("DELETE FROM Mapa_Leitos WHERE id_leito=?", (id_leito,))
@@ -599,24 +613,12 @@ def nomes_condicoes(valor):
 
 
 def completar_registro(reg, criterio_idoso="lipschitz", lms=None):
-    """Calcula IMC e classificação; respeita resultado OMS pediátrico quando fornecido."""
+    """Calcula IMC e classificação do registro (altera e devolve o dict)."""
     reg["condicoes"] = normalizar_condicoes(reg.get("condicoes"))
     imc = nc.calcular_imc(reg.get("peso_kg"), reg.get("altura_cm"))
     reg["imc"] = round(imc, 1) if imc is not None else None
     if imc is None or reg.get("idade_anos") is None:
         reg["imc_class"] = ""
-    elif reg.get("idade_anos") < 20:
-        try:
-            oms = json.loads(reg.get("pediatria_oms_json") or "{}")
-        except (TypeError, ValueError):
-            oms = {}
-        imc_oms = (oms.get("resultados") or {}).get("imc_idade") or {}
-        if imc_oms.get("status") == "calculado":
-            reg["imc_class"] = imc_oms.get("classificacao") or "OMS calculado"
-        elif imc_oms.get("status") == "fora_faixa":
-            reg["imc_class"] = "OMS fora da faixa"
-        else:
-            reg["imc_class"] = "OMS pendente"
     else:
         cl = nc.classificar_imc(imc, reg["idade_anos"], reg.get("sexo"), reg.get("idade_meses") or 0,
                                 criterio_idoso, lms)
@@ -697,6 +699,7 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
             cur = c.execute(f"INSERT INTO Mapa_Registros ({cols}) VALUES ({marc})",
                             [reg["data"], reg["id_leito"]] + valores + [_agora(), _agora()])
             id_reg = cur.lastrowid
+        c.execute("DELETE FROM Mapa_Liberacoes WHERE data=? AND id_leito=?", (reg["data"], reg["id_leito"]))
         c.execute("DELETE FROM Mapa_Registro_Suplementos WHERE id_registro=?", (id_reg,))
         for s in reg.get("suplementos") or []:
             ficha = None
@@ -739,7 +742,7 @@ def _anexar_suplementos(c, registros):
 
 
 _SEL_REG = ("SELECT R.*, L.codigo AS leito_codigo, L.id_setor AS id_setor, S.nome AS setor, "
-            "S.sigla AS sigla_setor, S.grupo AS grupo_setor, S.ordem_apresentacao AS ordem_setor "
+            "S.sigla AS sigla_setor, S.grupo AS grupo_setor, S.ordem_apresentacao AS ordem_setor, L.ativo AS leito_ativo "
             "FROM Mapa_Registros R JOIN Mapa_Leitos L ON L.id_leito = R.id_leito "
             "JOIN Mapa_Setores S ON S.id_setor = L.id_setor ")
 
@@ -751,24 +754,95 @@ def obter_registro(db_path, data_iso, id_leito):
 
 
 def remover_registro(db_path, id_registro):
+    """Remove o registro do dia, mas cria um tombstone para impedir a herança automática do paciente."""
     with closing(conectar(db_path)) as c:
+        r = c.execute("SELECT data,id_leito FROM Mapa_Registros WHERE id_registro=?", (id_registro,)).fetchone()
+        if not r:
+            return
+        agora = _agora()
         c.execute("DELETE FROM Mapa_Registro_Suplementos WHERE id_registro=?", (id_registro,))
         c.execute("DELETE FROM Mapa_Registros WHERE id_registro=?", (id_registro,))
+        c.execute("INSERT INTO Mapa_Liberacoes(data,id_leito,atualizado_em,por,motivo) VALUES(?,?,?,?,?) "
+                  "ON CONFLICT(data,id_leito) DO UPDATE SET atualizado_em=excluded.atualizado_em,por=excluded.por,motivo=excluded.motivo",
+                  (r["data"], r["id_leito"], agora, os.environ.get("USERNAME") or os.environ.get("USER") or "usuário local",
+                   "remoção manual do mapa"))
         c.commit()
 
 
+def registrar_alta(db_path, reg, por=None, motivo=None, quando=None):
+    """Marca a alta sem apagar o histórico do paciente."""
+    if not reg or not reg.get("id_registro"):
+        raise ValueError("Registro do paciente não encontrado.")
+    quando = quando or _agora()
+    with closing(conectar(db_path)) as c:
+        c.execute("UPDATE Mapa_Registros SET alta_em=?, alta_por=?, alta_motivo=?, atualizado_em=? WHERE id_registro=?",
+                  (quando, por or "usuário local", (motivo or "").strip() or None, quando, reg["id_registro"]))
+        c.commit()
+    return quando
+
+
+def resumo_altas(db_path, ano, mes, id_setor=None):
+    ini = date(ano, mes, 1).isoformat()
+    fim = date(ano, mes, calendar.monthrange(ano, mes)[1]).isoformat()
+    with closing(conectar(db_path)) as c:
+        par = [ini + " 00:00:00", fim + " 23:59:59"]
+        sql = """SELECT substr(alta_em,1,10) AS data, COUNT(*) AS total
+                 FROM Mapa_Registros R JOIN Mapa_Leitos L ON L.id_leito=R.id_leito
+                 WHERE alta_em IS NOT NULL AND alta_em BETWEEN ? AND ?"""
+        if id_setor:
+            sql += " AND L.id_setor=?"
+            par.append(id_setor)
+        sql += " GROUP BY substr(alta_em,1,10) ORDER BY data"
+        return _rows(c.execute(sql, par))
+
+
+def ultimo_registro_leito(db_path, id_leito, data_iso):
+    """Último estado físico do leito, incluindo alta ou liberação manual para sincronização."""
+    with closing(conectar(db_path)) as c:
+        rows = _rows(c.execute(_SEL_REG + "WHERE R.id_leito=? AND R.data<=? ORDER BY R.data DESC, R.id_registro DESC LIMIT 1",
+                               (id_leito, data_iso)))
+        reg = _anexar_suplementos(c, rows)[0] if rows else None
+        lib = c.execute("SELECT * FROM Mapa_Liberacoes WHERE id_leito=? AND data=?", (id_leito, data_iso)).fetchone()
+        if lib and (not reg or reg["data"] < data_iso):
+            return {"id_leito": id_leito, "data": data_iso, "atualizado_em": lib["atualizado_em"], "alta_em": lib["atualizado_em"]}
+        return reg
+
+
 def mapa_do_dia(db_path, data_iso, id_setor=None):
-    """Lista [{'leito': {...}, 'registro': dict|None}] na ordem dos leitos do setor.
-    Inclui leitos desativados que tenham registro nesse dia."""
+    """Lista o estado de cada leito na data solicitada, herdando o último paciente até a alta."""
     with closing(conectar(db_path)) as c:
         par = [data_iso]
         filtro = ""
         if id_setor:
             filtro = " AND L.id_setor=?"
             par.append(id_setor)
-        regs = _rows(c.execute(_SEL_REG + "WHERE R.data=?" + filtro, par))
+        regs = _rows(c.execute(
+            _SEL_REG + "WHERE R.data<=?" + filtro + " ORDER BY R.data DESC, R.id_registro DESC", par))
         _anexar_suplementos(c, regs)
-        por_leito = {r["id_leito"]: r for r in regs}
+        por_leito = {}
+        for r in regs:
+            # Como a consulta está ordenada do mais novo para o mais antigo, o primeiro
+            # registro encontrado para cada leito é o estado que vale para a data.
+            if r["id_leito"] in por_leito:
+                continue
+            alta = (r.get("alta_em") or "")
+            if alta and alta[:10] <= data_iso:
+                por_leito[r["id_leito"]] = None
+                continue
+            r = dict(r)
+            r["data_exibicao"] = data_iso
+            por_leito[r["id_leito"]] = r
+        por_leito = {k: v for k, v in por_leito.items() if v is not None}
+        for r in regs:
+            if r.get("leito_ativo") == 0 and r["data"] != data_iso:
+                por_leito.pop(r["id_leito"], None)
+        # Uma remoção manual é um estado explícito de "vago" para aquele dia e impede
+        # que o paciente do dia anterior reapareça, sem criar um falso registro clínico.
+        liberacoes = _rows(c.execute("SELECT * FROM Mapa_Liberacoes WHERE data=?", (data_iso,)))
+        for lib in liberacoes:
+            atual = por_leito.get(lib["id_leito"])
+            if atual is None or atual.get("data") != data_iso:
+                por_leito[lib["id_leito"]] = None
         q = ("SELECT L.*, S.nome AS setor, S.sigla AS sigla_setor, S.grupo AS grupo_setor, "
          "S.ordem_apresentacao AS ordem_setor FROM Mapa_Leitos L JOIN Mapa_Setores S ON S.id_setor = L.id_setor "
              "WHERE (L.ativo=1 OR L.id_leito IN (%s))" % ",".join(str(i) for i in por_leito) if por_leito else
@@ -866,17 +940,6 @@ def meses_com_dados(db_path):
     with closing(conectar(db_path)) as c:
         rows = c.execute("SELECT DISTINCT substr(data, 1, 7) AS ym FROM Mapa_Registros ORDER BY ym DESC").fetchall()
     return [(int(r["ym"][:4]), int(r["ym"][5:7])) for r in rows]
-
-
-def obter_paciente(db_path, id_paciente):
-    """Retorna cadastro básico e data de nascimento do paciente vinculado."""
-    if not id_paciente:
-        return None
-    with closing(conectar(db_path)) as c:
-        row = c.execute(
-            "SELECT id_paciente, nome, data_nascimento, sexo FROM Pacientes WHERE id_paciente=?",
-            (id_paciente,)).fetchone()
-        return dict(row) if row else None
 
 
 def listar_pacientes(db_path, filtro=""):
