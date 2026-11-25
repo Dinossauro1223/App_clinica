@@ -377,6 +377,9 @@ class FormEvolucaoUI(ctk.CTkFrame):
         elif para_fechamento:
             raise ValueError("Informe os parâmetros energéticos e proteicos antes do fechamento.")
         via = str(self.reg.get("via") or "").casefold()
+        motivos_tne = [m for m, v in self.tne_vars.items() if v.get()] if via == "enteral" else []
+        tolerancia_enteral = bool(self.var_tolerancia.get()) and not any(
+            motivo in {"vômitos", "diarreia"} for motivo in motivos_tne)
         dados = {
             "data_evolucao": self.reg.get("data"),
             "antropometria": antropometria,
@@ -384,7 +387,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             "via": self.reg.get("via"),
             "dva": True if self.seg_dva.get() == "Sim" else False if self.seg_dva.get() == "Não" else None,
             "tno": self.cb_tno.get() if via == "oral" and self.cb_tno.get() != "—" else None,
-            "tne_motivos": [m for m, v in self.tne_vars.items() if v.get()] if via == "enteral" else [],
+            "tne_motivos": motivos_tne,
             "dieta_oral": {
                 "consistencia": self.reg.get("consistencia"),
                 "caracteristicas": [sigla for campo, sigla, _ in mdb.CARACTERISTICAS if self.reg.get(campo)]
@@ -431,7 +434,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     "volume_etapa_atual_ml": volume_etapa, "etapas": etapas,
                     "incremento_por_etapa_ml": float((self.e_incremento.get().strip() or "10").replace(",", ".")),
                     "dias_alvo": int(float((self.e_dias.get().strip() or "4").replace(",", "."))),
-                    "tolerancia": bool(self.var_tolerancia.get()), "restricao": bool(self.var_restricao.get()),
+                    "tolerancia": tolerancia_enteral, "restricao": bool(self.var_restricao.get()),
                 }
             else:
                 dados["dieta_enteral"] = {"nome": nome}
