@@ -566,7 +566,7 @@ class TestExportacao(unittest.TestCase):
                           "Obs. (Sim/Não)", "F. Int."])
         self.assertGreaterEqual(ws.max_row, 4 + len(self.dia))
         self.assertEqual(ws.page_setup.orientation, "landscape")
-        self.assertEqual(ws.print_title_rows.replace("$", ""), "4:4")
+        self.assertEqual(ws.print_title_rows.replace("$", ""), "1:4")
         # linha do caso longo (leito L01): célula do paciente em texto rico
         celula = ws["C5"].value
         self.assertEqual(ws["A5"].value, "L01")
