@@ -123,8 +123,26 @@ def listar_equipe(db_path, funcao=None, ativos=True):
 def desativar_membro(db_path, id_membro):
     with closing(_conectar(db_path)) as conn:
         _exigir_schema(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        membro = conn.execute("SELECT id_usuario FROM Pep_Equipe WHERE id_membro=? AND ativo=1",
+                              (int(id_membro),)).fetchone()
+        if not membro:
+            conn.rollback()
+            return False
+        pendentes = conn.execute(
+            "SELECT COUNT(*) FROM Pep_Rascunhos R LEFT JOIN Pep_Rascunho_Equipe E "
+            "ON E.id_rascunho=R.id_rascunho WHERE R.status!='fechada' "
+            "AND (R.id_elaborador=? OR E.id_membro=?)",
+            (int(id_membro), int(id_membro)),
+        ).fetchone()[0]
+        if pendentes:
+            conn.rollback()
+            raise EvolucaoPEPError("Não é possível desativar: o integrante participa de rascunho(s) ainda não fechado(s).")
         conn.execute("UPDATE Pep_Equipe SET ativo=0 WHERE id_membro=?", (int(id_membro),))
         conn.commit()
+    if membro[0]:
+        pep_db.desativar_usuario(db_path, membro[0])
+    return True
 
 
 def salvar_rascunho(db_path, id_paciente, data_evolucao, dados, id_elaborador, id_rascunho=None, colaboradores_ids=None):
