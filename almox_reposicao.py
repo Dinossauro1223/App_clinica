@@ -85,7 +85,7 @@ def receber(db, id_pedido, *, recebido_por=None, quando=None, valor_unitario=Non
                 preco=adb._d(pedido["valor_unitario"],"valor unitário recebido",True,0)
                 total=(qtd_recebida*preco).quantize(Decimal("0.01"))
             else:
-                raise ValueError("Informe o preço unitário ou o custo total do lote.")
+                raise ValueError("Informe o valor unitário ou o custo total do lote.")
             saldo = Decimal(str(adb._saldo(c, int(pedido["id_item"]))))
             anterior = adb._d(pedido["valor_unitario"], "valor atual", minimo=0)
             media = ((saldo * anterior) + (qtd_recebida * preco)) / (saldo + qtd_recebida) if saldo > 0 and anterior is not None else preco
