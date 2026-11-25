@@ -28,6 +28,28 @@ ROTULOS = {"nome_paciente": "nome", "idade_anos": "idade", "idade_meses": "meses
 TODOS = "Todos os setores"
 
 
+def _lado_mais_novo(pc, mobile):
+    """Retorna pc/mobile/igual sem misturar datetimes com e sem fuso."""
+    if not pc and not mobile:
+        return "igual"
+    if not pc:
+        return "mobile"
+    if not mobile:
+        return "pc"
+    try:
+        a = datetime.fromisoformat(str(pc).replace("Z", "+00:00"))
+        b = datetime.fromisoformat(str(mobile).replace("Z", "+00:00"))
+        fuso = im.timezone(timedelta(hours=-3)) if hasattr(im, "timezone") else None
+        if a.tzinfo is None:
+            a = a.replace(tzinfo=fuso) if fuso else a
+        if b.tzinfo is None:
+            b = b.replace(tzinfo=fuso) if fuso else b
+        return "pc" if a > b else "mobile" if b > a else "igual"
+    except (TypeError, ValueError):
+        a, b = str(pc).replace("T", " "), str(mobile).replace("T", " ")
+        return "pc" if a > b else "mobile" if b > a else "igual"
+
+
 def _btn(master, texto, comando, largura=160, cor=VERDE, hover=VERDE_HOVER):
     return ctk.CTkButton(master, text=texto, command=comando, width=largura, height=34, fg_color=cor, hover_color=hover,
                          font=ctk.CTkFont(size=13, weight="bold"))
@@ -234,12 +256,7 @@ class MobileUI:
             mr=mobile.get(cod) or {}
             pt=pr.get("atualizado_em") or ""
             mt=mr.get("atualizado_em") or ""
-            try:
-                pdt=datetime.fromisoformat(pt.replace("Z","+00:00")) if pt else None
-                mdt=datetime.fromisoformat(mt.replace("Z","+00:00")) if mt else None
-                vencedor="pc" if pdt and (not mdt or pdt>mdt) else "mobile" if mdt and (not pdt or mdt>pdt) else "igual"
-            except ValueError:
-                vencedor="pc" if pt>mt else "mobile" if mt>pt else "igual"
+            vencedor = _lado_mais_novo(pt, mt)
             trees[0].insert("", "end", values=(cod,pr.get("nome_paciente") or "— vago —",pt[11:19] if len(pt)>18 else pt,"PC"), tags=("mais_novo" if vencedor=="pc" else "mais_antigo",))
             trees[1].insert("", "end", values=(cod,mr.get("nome") or "— vago —",mt[11:19] if len(mt)>18 else mt,"Mobile/Copa"), tags=("mais_novo" if vencedor=="mobile" else "mais_antigo",))
         rod=ctk.CTkFrame(janela,fg_color="transparent");rod.pack(fill="x",padx=18,pady=(4,14))
