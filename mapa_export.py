@@ -330,7 +330,7 @@ def exportar_excel(caminho, linhas_mapa, data_iso, setor_nome, abreviar=False, i
             cell.alignment = Alignment(horizontal="center" if central else "left",
                                        vertical="top", wrap_text=True)
             cell.border = caixa
-            if key == "supl" and value:
+            if key in ("supl", "supl_inst") and value:
                 cell.fill = PatternFill("solid", fgColor="FCE4D6")
         ws.row_dimensions[row_idx].height = 66 if item["registro"] else 28
 
