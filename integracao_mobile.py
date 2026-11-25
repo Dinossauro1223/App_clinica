@@ -299,9 +299,14 @@ def dieta_para_desktop(txt):
 
 def dieta_para_mobile(reg):
     if reg.get("via") == "Enteral":
-        return "Enteral"
-    c = reg.get("consistencia") or ""
-    return "Geral" if c == "Livre" else c
+        base = "Enteral"
+    else:
+        c = reg.get("consistencia") or ""
+        base = "Geral" if c == "Livre" else c
+    operacional = (reg.get("dados_copa") or {}).get("instrucao")
+    if operacional:
+        base = (base + " · " + str(operacional)).strip(" ·")
+    return base[:60]
 
 
 def diagnostico_para_mobile(reg):
