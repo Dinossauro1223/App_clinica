@@ -235,22 +235,21 @@ def textos_linha(leito, reg, abreviar=True):
         refeicoes_orig = s.get("refeicoes") or []
         refeicoes = [nomes_refeicoes.get(x, x) for x in refeicoes_orig]
         if ml_oferta is not None:
-            volume = _fmt_num_pt(ml_oferta, 0)
-            texto = f"{nome_sup}: {volume} mL/oferta"
+            texto = f"{nome_sup}: {_fmt_num_pt(ml_oferta, 0)} mL/oferta"
             if qtd is not None and refeicoes_orig:
                 texto += f" × {len(refeicoes_orig)} = {_fmt_num_pt(qtd, 0)} mL/d"
             elif qtd is not None:
-                texto += f" ({_fmt_num_pt(qtd, 0)} mL/dia)"
-            agua = s.get("agua_ml")
-            if agua is not None and float(agua or 0) > 0:
-                texto += f"; água: {_fmt_num_pt(agua, 0)} mL/oferta"
-            if s.get("batido_fruta"):
-                texto += " (batido com fruta)"
+                texto += f" = {_fmt_num_pt(qtd, 0)} mL/d"
         else:
             texto = (f"{nome_sup}: {_fmt_num_pt(qtd, 0)} {s.get('unidade') or 'mL'}/Etapa"
                      if qtd is not None else nome_sup)
         if refeicoes:
             texto += " (" + ", ".join(refeicoes) + ")"
+        agua = s.get("agua_ml")
+        if agua is not None and float(agua or 0) > 0:
+            texto += f"; água: {_fmt_num_pt(agua, 0)} mL/oferta"
+        if s.get("batido_fruta"):
+            texto += " (batido com fruta)"
         suplementos.append(texto)
     preferencias = []
     if (reg.get("obs_sim") or "").strip():

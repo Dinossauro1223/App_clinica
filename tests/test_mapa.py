@@ -561,24 +561,30 @@ class TestExportacao(unittest.TestCase):
         caminho = os.path.join(self.saida, "mapa_teste.xlsx")
         mex.exportar_excel(caminho, self.dia, "2026-10-14", self.setor["nome"])
         ws = load_workbook(caminho).active
-        self.assertEqual([ws.cell(4, c).value for c in range(1, 12)],
-                         ["Lt", "Ac.", "Paciente", "Id.", "Reav.", "Via", "Caract. dieta", "Consist.", "Suplementos",
-                          "Obs. (Sim/Não)", "F. Int."])
+        self.assertEqual(ws["A1"].value, "SETOR DE NUTRIÇÃO")
+        self.assertIn("MAPA DE DIETAS - SETOR GERAL",
+                      [ws.cell(2, c).value for c in range(1, ws.max_column + 1)])
+        cabecalhos = {ws.cell(4, c).value: c for c in range(1, ws.max_column + 1)}
+        for titulo in ("Lt", "Ac.", "Paciente", "Id.", "Reav.", "Via", "Caract. dieta",
+                       "Consist.", "Suplementos", "Obs. (Sim/Não)", "F. Int.",
+                       "Via ALM.", "Suplementação / Dieta enteral", "Preferências",
+                       "Observações", "Diagnósticos"):
+            self.assertIn(titulo, cabecalhos)
         self.assertGreaterEqual(ws.max_row, 4 + len(self.dia))
         self.assertEqual(ws.page_setup.orientation, "landscape")
         self.assertEqual(ws.print_title_rows.replace("$", ""), "1:4")
-        # A exportação institucional atual usa cabeçalho hierárquico e uma célula textual por paciente.
-        pacientes = [str(ws.cell(r, 3).value or "") for r in range(5, ws.max_row + 1)]
-        celula = next(texto for texto in pacientes if "Francisca Aparecida" in texto)
-        self.assertIn("IMC", celula)
-        self.assertRegex(celula, r"IMC \(Kg/m²\): .+ \(.+\)")
-        # Leitos vagos mantêm a linha com a célula do paciente vazia e podem ser omitidos.
-        vagos = [r for r in range(5, ws.max_row + 1) if ws.cell(r, 3).value is None]
-        self.assertTrue(vagos)
+        col_paciente = cabecalhos["Paciente"]
+        registros = [(r, str(ws.cell(r, col_paciente).value or ""))
+                     for r in range(5, ws.max_row + 1)]
+        linha_longa = next((r, v) for r, v in registros if "Francisca Aparecida" in v)
+        self.assertIn("IMC (Kg/m²)", linha_longa[1])
+        self.assertIn("Sobrepeso", linha_longa[1])
+        self.assertEqual(ws.cell(linha_longa[0], cabecalhos["Lt"]).value, "L01")
+        self.assertTrue(any(not valor for _, valor in registros))
         sem_vagos = os.path.join(self.saida, "mapa_teste_sem_vagos.xlsx")
         mex.exportar_excel(sem_vagos, self.dia, "2026-10-14", self.setor["nome"], incluir_vagos=False)
         ws2 = load_workbook(sem_vagos).active
-        self.assertFalse([r for r in range(5, ws2.max_row + 1) if ws2.cell(r, 3).value is None])
+        self.assertEqual(ws2.max_row, 4 + sum(1 for item in self.dia if item["registro"] is not None))
 
     def test_pdf_simulado(self):
         from fake_fpdf import FakePDF
