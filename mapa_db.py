@@ -715,6 +715,11 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
             cur = c.execute(f"INSERT INTO Mapa_Registros ({cols}) VALUES ({marc})",
                             [reg["data"], reg["id_leito"]] + valores + [_agora(), _agora()])
             id_reg = cur.lastrowid
+        # Uma evolução pertence ao paciente do registro, não apenas ao leito/data.
+        # Ao substituir o paciente no mesmo leito/dia, descarta a evolução anterior
+        # para impedir que dados clínicos sejam exibidos para outra pessoa.
+        if existente and existente["id_paciente"] != reg.get("id_paciente"):
+            c.execute("DELETE FROM Mapa_Evolucao_Dados WHERE id_registro=?", (id_reg,))
         c.execute("DELETE FROM Mapa_Liberacoes WHERE data=? AND id_leito=?", (reg["data"], reg["id_leito"]))
         c.execute("DELETE FROM Mapa_Registro_Suplementos WHERE id_registro=?", (id_reg,))
         for s in reg.get("suplementos") or []:
