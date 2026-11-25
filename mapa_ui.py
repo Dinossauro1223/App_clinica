@@ -1132,7 +1132,7 @@ class DialogBuscarPaciente(_Janela):
 
 class DialogHistorico(_Janela):
     def __init__(self, ui, reg):
-        super().__init__(ui, "Histórico do paciente", "900x480")
+        super().__init__(ui, "Histórico do paciente", "1100x480")
         self.reg = reg
         ctk.CTkLabel(self, text=reg["nome_paciente"], font=ctk.CTkFont(size=18, weight="bold"),
                      text_color=VERDE_ESC).pack(anchor="w", padx=16, pady=(14, 0))
@@ -1141,7 +1141,7 @@ class DialogHistorico(_Janela):
         quadro = ctk.CTkFrame(self, fg_color=tema.BRANCO)
         quadro.pack(fill="both", expand=True, padx=16, pady=8)
         cols = [("data", "Data", 90), ("leito", "Leito", 60), ("peso", "Peso (kg)", 80), ("imc", "IMC", 150),
-                ("via", "Via", 70), ("consist", "Consist.", 80), ("supl", "Suplementos", 220), ("reav", "Reav.", 90)]
+                ("via", "Via", 70), ("consist", "Consist.", 80), ("supl", "Suplementos", 220), ("reav", "Reav.", 90), ("oms", "OMS pediatria", 170)]
         self.tree = ttk.Treeview(quadro, columns=[c[0] for c in cols], show="headings", style=ESTILO_TREE,
                                  selectmode="browse")
         for c, t, w in cols:
@@ -1152,10 +1152,23 @@ class DialogHistorico(_Janela):
         self.itens = mdb.historico_paciente(ui.db, reg.get("id_paciente"), reg["nome_paciente"])
         for r in self.itens:
             imc = f"{_fmt(r.get('imc'))} ({r['imc_class']})" if r.get("imc") and r.get("imc_class") else _fmt(r.get("imc"))
+            try:
+                oms_salvo = json.loads(r.get("pediatria_oms_json") or "{}")
+            except (TypeError, ValueError):
+                oms_salvo = {}
+            imc_oms = (oms_salvo.get("resultados") or {}).get("imc_idade") or {}
+            if imc_oms.get("status") == "calculado":
+                oms_txt = f"{imc_oms.get('classificacao')} (z={imc_oms.get('escore_z'):+.2f})"
+            elif imc_oms.get("status") == "pendente":
+                oms_txt = "Pendente"
+            elif imc_oms.get("status") == "fora_faixa":
+                oms_txt = "Fora da faixa"
+            else:
+                oms_txt = ""
             self.tree.insert("", "end", iid=str(r["id_registro"]), values=(
                 mdb.iso_para_br(r["data"]), r["leito_codigo"], _fmt(r.get("peso_kg")), imc, r.get("via") or "",
                 r.get("consistencia") or "", ", ".join(s["nome"] + (" (batido com fruta)" if s.get("batido_fruta") else "") for s in r["suplementos"]),
-                mdb.iso_para_br(r.get("data_reavaliacao"))))
+                mdb.iso_para_br(r.get("data_reavaliacao")), oms_txt))
         _btn(self, "Abrir registro", self._abrir, 140).pack(pady=(0, 14))
 
     def _abrir(self):
