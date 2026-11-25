@@ -25,9 +25,14 @@ class TestDadosOficiaisOMS(unittest.TestCase):
         bmi = self.tabela.curva("imc_idade", "M", "oms_2007")
         altura = self.tabela.curva("estatura_idade", "H", "oms_2007")
         peso = self.tabela.curva("peso_idade", "M", "oms_2007")
-        self.assertEqual((bmi[0]["idade"], bmi[-1]["idade"]), (60, 229))
-        self.assertEqual((altura[0]["idade"], altura[-1]["idade"]), (60, 229))
-        self.assertEqual((peso[0]["idade"], peso[-1]["idade"]), (60, 121))
+        self.assertEqual((bmi[0]["idade"], bmi[-1]["idade"]), (60, 228))
+        self.assertEqual((altura[0]["idade"], altura[-1]["idade"]), (60, 228))
+        self.assertEqual((peso[0]["idade"], peso[-1]["idade"]), (60, 120))
+        # As linhas superiores são mantidas no índice LMS para interpolação,
+        # mas não são exibidas como pontos clínicos das curvas.
+        self.assertIn(229, self.tabela._dados_meses[("imc_idade", "oms_2007", "M")])
+        self.assertIn(229, self.tabela._dados_meses[("estatura_idade", "oms_2007", "H")])
+        self.assertIn(121, self.tabela._dados_meses[("peso_idade", "oms_2007", "M")])
 
     def test_interpolacao_oficial_entre_meses_retorna_escore_z_zero_na_mediana(self):
         curva = self.tabela.curva("imc_idade", "H", "oms_2007")
