@@ -77,9 +77,11 @@ class MapaUI:
         self.tabela_oms = None
         self.erro_tabela_oms = None
         for pasta in (base_dir, os.path.dirname(os.path.abspath(db_path))):
+            if not pasta:
+                continue
             try:
                 self.tabela_oms = self.tabela_oms or oms.TabelaReferenciaOMS.carregar_padrao(pasta)
-            except (OSError, ValueError) as exc:
+            except (OSError, ValueError, TypeError) as exc:
                 self.erro_tabela_oms = str(exc)
         self._imagens = []
         self._grupos = None
