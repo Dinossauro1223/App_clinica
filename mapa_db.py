@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
     constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, condicoes TEXT, consistencia TEXT,
     obs_sim TEXT, obs_nao TEXT, fi_estado TEXT, fi_freq REAL, fi_dias_ausente INTEGER,
     nrs2002_json TEXT, nrs2002_classificacao TEXT,
-    avaliacao_json TEXT, avaliacao_classificacao TEXT,
+    avaliacao_json TEXT, avaliacao_classificacao TEXT, pediatria_oms_json TEXT,
     criado_em TEXT, atualizado_em TEXT, UNIQUE(data, id_leito));
 CREATE TABLE IF NOT EXISTS Mapa_Registro_Suplementos (
     id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL, id_suplemento INTEGER,
@@ -153,7 +153,7 @@ _CAMPOS_REG = [
     "peso_kg", "peso_origem", "peso_metodo", "imc", "imc_class", "data_reavaliacao", "via", "meta_kcal", "meta_proteina_g",
     "dm", "has", "laxativa", "constipante", "drc", "condicoes", "consistencia", "obs_sim", "obs_nao",
     "fi_estado", "fi_freq", "fi_dias_ausente",
-    "nrs2002_json", "nrs2002_classificacao", "avaliacao_json", "avaliacao_classificacao",
+    "nrs2002_json", "nrs2002_classificacao", "avaliacao_json", "avaliacao_classificacao", "pediatria_oms_json",
 ]
 
 # --------------------------------------------------------------------- utilidades
@@ -598,12 +598,24 @@ def nomes_condicoes(valor):
 
 
 def completar_registro(reg, criterio_idoso="lipschitz", lms=None):
-    """Calcula IMC e classificação do registro (altera e devolve o dict)."""
+    """Calcula IMC e classificação; respeita resultado OMS pediátrico quando fornecido."""
     reg["condicoes"] = normalizar_condicoes(reg.get("condicoes"))
     imc = nc.calcular_imc(reg.get("peso_kg"), reg.get("altura_cm"))
     reg["imc"] = round(imc, 1) if imc is not None else None
     if imc is None or reg.get("idade_anos") is None:
         reg["imc_class"] = ""
+    elif reg.get("pediatria_oms_json") is not None:
+        try:
+            oms = json.loads(reg.get("pediatria_oms_json") or "{}")
+        except (TypeError, ValueError):
+            oms = {}
+        imc_oms = (oms.get("resultados") or {}).get("imc_idade") or {}
+        if imc_oms.get("status") == "calculado":
+            reg["imc_class"] = imc_oms.get("classificacao") or "OMS calculado"
+        elif imc_oms.get("status") == "fora_faixa":
+            reg["imc_class"] = "OMS fora da faixa"
+        else:
+            reg["imc_class"] = "OMS pendente"
     else:
         cl = nc.classificar_imc(imc, reg["idade_anos"], reg.get("sexo"), reg.get("idade_meses") or 0,
                                 criterio_idoso, lms)
@@ -853,6 +865,17 @@ def meses_com_dados(db_path):
     with closing(conectar(db_path)) as c:
         rows = c.execute("SELECT DISTINCT substr(data, 1, 7) AS ym FROM Mapa_Registros ORDER BY ym DESC").fetchall()
     return [(int(r["ym"][:4]), int(r["ym"][5:7])) for r in rows]
+
+
+def obter_paciente(db_path, id_paciente):
+    """Retorna cadastro básico e data de nascimento do paciente vinculado."""
+    if not id_paciente:
+        return None
+    with closing(conectar(db_path)) as c:
+        row = c.execute(
+            "SELECT id_paciente, nome, data_nascimento, sexo FROM Pacientes WHERE id_paciente=?",
+            (id_paciente,)).fetchone()
+        return dict(row) if row else None
 
 
 def listar_pacientes(db_path, filtro=""):
