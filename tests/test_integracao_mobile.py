@@ -8,7 +8,7 @@ import tempfile
 import types
 import unittest
 from contextlib import closing
-from datetime import date
+from datetime import date, datetime
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -340,6 +340,35 @@ class TestTela(_Base):
             ui.tree.selection.return_value = tuple(ui.propostas)
             ui._aplicar()
         self.assertEqual(self.reg("A02")["nome_paciente"], "Joao Teste")
+
+
+class TestCatalogoPedidosAlmox(unittest.TestCase):
+    def test_desktop_cadastra_item_tbca_e_calcula_prazo_de_recebimento(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            banco = os.path.join(pasta, "mobile.db")
+            sv.preparar_banco(banco)
+            item_id = im.salvar_produto_almox(banco, {
+                "nome": "Leite teste", "unidade": "frasco", "preco_unitario": "8,50",
+                "embalagem_qtd": "1000", "embalagem_un": "ml", "tbca_id": "T001",
+            }, estoque_inicial="4")
+            c = sv.conectar(banco)
+            try:
+                item = c.execute("SELECT * FROM itens WHERE id=?", (item_id,)).fetchone()
+                self.assertEqual(item["tbca_id"], "T001")
+                self.assertEqual(item["embalagem_un"], "ml")
+            finally:
+                c.close()
+            with mock.patch.object(sv, "agora_dt",
+                                   lambda: datetime(2026, 11, 10, 9, 0, tzinfo=sv.TZ)):
+                pedido = im.criar_pedido_almox(banco, item_id, 2, "Fornecedor teste", "Pedido teste", "Perfil desktop")
+            with mock.patch.object(sv, "agora_dt",
+                                   lambda: datetime(2026, 11, 12, 10, 0, tzinfo=sv.TZ)):
+                im.receber_pedido_almox(banco, pedido, "Perfil desktop")
+            prazo = im.prazo_medio_produto(banco, item_id)
+            self.assertEqual(prazo["pedidos_recebidos"], 1)
+            self.assertAlmostEqual(prazo["prazo_medio_dias"], 2.0)
+            self.assertEqual(prazo["pendentes"], 0)
+
 
 
 if __name__ == "__main__":
