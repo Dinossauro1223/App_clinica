@@ -129,7 +129,7 @@ class TestExportacaoXLSX(unittest.TestCase):
                        "Observações", "Diagnósticos"):
             self.assertIn(titulo, cabecalhos)
         texto = " ".join(str(c.value) for row in ws.iter_rows() for c in row if c.value)
-        for trecho in ("Paciente Exemplo", "AJ (cm): 50,3", "IMC (Kg/m²): 27",
+        for trecho in ("Paciente Exemplo", "AJ: 50,3", "IMC (Kg/m²): 27",
                        "Kcal: 1.998", "Proteínas: 79,92 g", "Trophic Soya 1,5",
                        "Mamão", "Doença renal crônica"):
             self.assertIn(trecho, texto)
