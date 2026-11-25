@@ -526,6 +526,7 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
     def test_progressao_enteral_diaria_e_porcoes_orais_autorizadas_para_copa(self):
         dados = {
             "status_evolucao": "fechada",
+            "data_evolucao": "2026-10-25",
             "via": "Enteral",
             "dieta_enteral": {"nome": "Fórmula Clínica", "volume_por_etapa_ml": 150, "etapas": 6},
             "progressao_enteral": {"autorizada": True, "plano": {"passos": [
