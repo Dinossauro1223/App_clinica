@@ -174,6 +174,9 @@ class MapaUI:
         self.lbl_aviso = ctk.CTkLabel(avisos, text="", text_color=LARANJA,
                                       font=ctk.CTkFont(size=11, weight="bold"), anchor="w")
         self.lbl_aviso.pack(fill="x", anchor="w")
+        self.lbl_nrs = ctk.CTkLabel(avisos, text="", text_color=VERMELHO,
+                                    font=ctk.CTkFont(size=11, weight="bold"), anchor="w", justify="left")
+        self.lbl_nrs.pack(fill="x", anchor="w")
         self.lbl_condutas = ctk.CTkLabel(avisos, text="", text_color=LARANJA,
                                          font=ctk.CTkFont(size=11, weight="bold"), anchor="w", justify="left")
         self.lbl_condutas.pack(fill="x", anchor="w")
@@ -311,6 +314,7 @@ class MapaUI:
                 com_pendencia += cond.get("estado") == "pendente"
             self.tree.insert("", "end", iid=str(l["id_leito"]), values=vals, tags=tag)
         self._mostrar_aviso_condutas(com_pendencia)
+        self._atualizar_alertas_nrs()
         self._atualizar_painel_evolucao()
         total = len(self.linhas)
         if ocupados == 0 and total:
@@ -329,6 +333,36 @@ class MapaUI:
                      f"{acomp} com acompanhante  ·  {ocupados - sup_oral - enteral} em via oral sem suplemento  ·  "
                      f"{sup_oral} com suplementação oral  ·  {enteral} em dieta enteral")
 
+
+
+    def _atualizar_alertas_nrs(self):
+        hoje = self.data
+        atrasadas, proximas = [], []
+        for item in self.linhas:
+            registro = item.get("registro")
+            if not registro:
+                continue
+            bruto = registro.get("data_reavaliacao")
+            if not bruto:
+                continue
+            try:
+                data_limite = datetime.strptime(str(bruto)[:10], "%Y-%m-%d").date()
+            except ValueError:
+                try:
+                    data_limite = datetime.strptime(str(bruto), "%d/%m/%Y").date()
+                except ValueError:
+                    continue
+            nome = f"Leito {item['leito'].get('codigo', '?')} — {registro.get('nome_paciente') or 'Paciente'}"
+            if data_limite < hoje:
+                atrasadas.append(f"{nome} (vencida em {data_limite.strftime('%d/%m/%Y')})")
+            elif data_limite <= hoje + timedelta(days=7):
+                proximas.append(f"{nome} ({data_limite.strftime('%d/%m/%Y')})")
+        partes = []
+        if atrasadas:
+            partes.append("ANTROPOMETRIAS ATRASADAS: " + "; ".join(atrasadas))
+        if proximas:
+            partes.append("ANTROPOMETRIAS PRÓXIMAS DO VENCIMENTO: " + "; ".join(proximas))
+        self.lbl_nrs.configure(text="  |  ".join(partes), text_color=VERMELHO if atrasadas else LARANJA)
 
     def _abrir_alerta_evolucao(self, id_leito):
         iid = str(id_leito)
