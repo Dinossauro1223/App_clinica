@@ -444,6 +444,53 @@ _PEP_EVOLUCAO_DOWN = (
     "DROP TABLE IF EXISTS Pep_Equipe",
 )
 
+# --- v8: colaboração multiprofissional e dados de evolução vinculados ao mapa ----------------
+_PEP_MAPA_UP = (
+    """CREATE TABLE IF NOT EXISTS Mapa_Evolucao_Dados (
+        id_registro INTEGER PRIMARY KEY REFERENCES Mapa_Registros(id_registro) ON DELETE CASCADE,
+        dados_json TEXT NOT NULL,
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Pep_Rascunho_Equipe (
+        id_rascunho INTEGER NOT NULL REFERENCES Pep_Rascunhos(id_rascunho),
+        id_membro INTEGER NOT NULL REFERENCES Pep_Equipe(id_membro),
+        papel TEXT NOT NULL CHECK (papel IN ('estagiario', 'nutricionista')),
+        PRIMARY KEY (id_rascunho, id_membro)
+    )""",
+    """CREATE TABLE IF NOT EXISTS Pep_Evolucao_Equipe (
+        id_evolucao INTEGER NOT NULL REFERENCES Pep_Evolucoes(id_evolucao),
+        id_membro INTEGER NOT NULL REFERENCES Pep_Equipe(id_membro),
+        papel TEXT NOT NULL CHECK (papel IN ('estagiario', 'nutricionista')),
+        nome_snapshot TEXT NOT NULL,
+        crn_snapshot TEXT,
+        PRIMARY KEY (id_evolucao, id_membro)
+    )""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_equipe_ins_fechado BEFORE INSERT ON Pep_Rascunho_Equipe
+       WHEN (SELECT status FROM Pep_Rascunhos WHERE id_rascunho=NEW.id_rascunho) = 'fechada'
+       BEGIN SELECT RAISE(ABORT, 'Equipe de evolução fechada não pode ser alterada.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_equipe_upd_fechado BEFORE UPDATE ON Pep_Rascunho_Equipe
+       WHEN (SELECT status FROM Pep_Rascunhos WHERE id_rascunho=OLD.id_rascunho) = 'fechada'
+       BEGIN SELECT RAISE(ABORT, 'Equipe de evolução fechada não pode ser alterada.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_equipe_del_fechado BEFORE DELETE ON Pep_Rascunho_Equipe
+       WHEN (SELECT status FROM Pep_Rascunhos WHERE id_rascunho=OLD.id_rascunho) = 'fechada'
+       BEGIN SELECT RAISE(ABORT, 'Equipe de evolução fechada não pode ser alterada.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucao_equipe_update_imutavel BEFORE UPDATE ON Pep_Evolucao_Equipe
+       BEGIN SELECT RAISE(ABORT, 'Equipe da evolução final é imutável.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucao_equipe_delete_imutavel BEFORE DELETE ON Pep_Evolucao_Equipe
+       BEGIN SELECT RAISE(ABORT, 'Equipe da evolução final não pode ser apagada.'); END""",
+)
+_PEP_MAPA_DOWN = (
+    "DROP TRIGGER IF EXISTS tr_pep_evolucao_equipe_delete_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_evolucao_equipe_update_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_rascunho_equipe_del_fechado",
+    "DROP TRIGGER IF EXISTS tr_pep_rascunho_equipe_upd_fechado",
+    "DROP TRIGGER IF EXISTS tr_pep_rascunho_equipe_ins_fechado",
+    "DROP TABLE IF EXISTS Pep_Evolucao_Equipe",
+    "DROP TABLE IF EXISTS Pep_Rascunho_Equipe",
+    "DROP TABLE IF EXISTS Mapa_Evolucao_Dados",
+)
+
 # Lista oficial. NOVAS migrações entram SEMPRE ao final, com versão contígua; nunca editar uma já publicada.
 MIGRACOES = (
     Migracao(versao=1, nome="baseline_esquema_legado", up=(), down=None, baseline=True),
@@ -455,6 +502,7 @@ MIGRACOES = (
     Migracao(versao=5, nome="almoxarifado_custos_programacao", up=_ALMOX_UP, down=_ALMOX_DOWN),
     Migracao(versao=6, nome="pep_evolucoes_immutability", up=_PEP_UP, down=_PEP_DOWN),
     Migracao(versao=7, nome="pep_rascunhos_equipe_e_revisao", up=_PEP_EVOLUCAO_UP, down=_PEP_EVOLUCAO_DOWN),
+    Migracao(versao=8, nome="pep_colaboradores_e_integracao_mapa", up=_PEP_MAPA_UP, down=_PEP_MAPA_DOWN),
 )
 
 
