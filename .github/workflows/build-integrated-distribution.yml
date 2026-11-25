@@ -1,0 +1,81 @@
+name: Build integrado desktop + Android (launcher real)
+
+on:
+  push:
+    branches:
+      - feat/build-apk-integrado-2026-11-24
+  pull_request:
+    branches: [main]
+    paths:
+      - Gerar_e_Abrir_NutriLab.bat
+      - mobile/apk/Gerar_APK.bat
+      - app_clinica.spec
+      - requirements-build.txt
+      - tests/test_launcher_bootstrap.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-integrado-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  build-integrado:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Executar o launcher real para compilar APK e desktop
+        shell: cmd
+        run: call Gerar_e_Abrir_NutriLab.bat /recompilar-sem-abrir
+
+      - name: Validar EXE, APK, ZIP e cópias dentro do pacote
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $saida = Join-Path (Get-Location) "Executavel do programa"
+          $exe = Join-Path $saida "NutriLab.exe"
+          $apk = Join-Path $saida "_internal\mobile\apk\saida\NutriLab-Mobile.apk"
+          $zip = Join-Path $saida "_internal\compartilhamento\NutriLab-Desktop.zip"
+          $apkCompartilhado = Join-Path $saida "_internal\compartilhamento\NutriLab-Mobile.apk"
+          foreach ($arquivo in @($exe, $apk, $zip, $apkCompartilhado)) {
+            if (!(Test-Path -LiteralPath $arquivo -PathType Leaf)) {
+              throw "Artefato obrigatório ausente: $arquivo"
+            }
+          }
+          if ((Get-Item -LiteralPath $apk).Length -lt 50000) {
+            throw "APK muito pequeno ou vazio."
+          }
+          $temp = Join-Path $env:RUNNER_TEMP "nutrilab-integrado-validacao"
+          if (Test-Path $temp) { Remove-Item $temp -Recurse -Force }
+          Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
+          $exeZip = Join-Path $temp "NutriLab.exe"
+          $apkZip = Join-Path $temp "_internal\mobile\apk\saida\NutriLab-Mobile.apk"
+          if (!(Test-Path -LiteralPath $exeZip -PathType Leaf)) {
+            throw "O ZIP desktop não contém NutriLab.exe."
+          }
+          if (!(Test-Path -LiteralPath $apkZip -PathType Leaf)) {
+            throw "O ZIP desktop não contém o APK no caminho do servidor mobile."
+          }
+          $shaOrigem = (Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash
+          $shaPacote = (Get-FileHash -LiteralPath $apkZip -Algorithm SHA256).Hash
+          if ($shaOrigem -ne $shaPacote) {
+            throw "O APK dentro do ZIP não corresponde ao APK compilado."
+          }
+          Write-Host "EXE, APK e ZIP validados. SHA-256 APK: $shaOrigem"
+
+      - name: Publicar pacote integrado para inspeção
+        uses: actions/upload-artifact@v6
+        with:
+          name: nutrilab-distribuicao-integrada
+          path: |
+            Executavel do programa/_internal/compartilhamento/*
+            Distribuicao/*
+          if-no-files-found: error
+          retention-days: 7
