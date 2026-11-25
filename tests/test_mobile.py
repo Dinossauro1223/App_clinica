@@ -439,5 +439,32 @@ class MobileTest(unittest.TestCase):
         self.assertIsNotNone(qr.make_image().get_image())
 
 
+    def test_pedido_almox_registra_recebimento_e_prazo_medio(self):
+        with mock.patch.object(sv, "agora_dt",
+                               lambda: datetime(2026, 11, 10, 9, 0, tzinfo=sv.TZ)):
+            cod, criado = self.chamar(self.adm, "POST", "/api/admin/almox/pedidos",
+                                      {"id_item": 1, "qtd": 3, "fornecedor": "Fornecedor teste"})
+        self.assertEqual(cod, 200, criado)
+        pedido_id = criado["id"]
+        cod, lista = self.chamar(self.adm, "GET", "/api/admin/almox/pedidos")
+        self.assertEqual(cod, 200)
+        self.assertEqual(next(p for p in lista["pedidos"] if p["id"] == pedido_id)["status"], "pendente")
+        with mock.patch.object(sv, "agora_dt",
+                               lambda: datetime(2026, 11, 12, 10, 0, tzinfo=sv.TZ)):
+            cod, recebido = self.chamar(self.adm, "POST",
+                                        "/api/admin/almox/pedidos/%d/receber" % pedido_id, {})
+        self.assertEqual(cod, 200, recebido)
+        self.assertEqual(self.qtd("almox"), 3)
+        cod, prazos = self.chamar(self.adm, "GET", "/api/admin/almox/prazos")
+        self.assertEqual(cod, 200, prazos)
+        arroz = next(p for p in prazos["prazos"] if p["id_item"] == 1)
+        self.assertEqual(arroz["pedidos_recebidos"], 1)
+        self.assertAlmostEqual(arroz["prazo_medio_dias"], 2.0)
+        self.assertEqual(arroz["pendentes"], 0)
+        cod, negado = self.chamar(self.t["cop"], "GET", "/api/admin/almox/prazos")
+        self.assertEqual(cod, 403)
+
+
+
 if __name__ == "__main__":
     unittest.main()
