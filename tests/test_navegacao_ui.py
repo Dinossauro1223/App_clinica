@@ -142,7 +142,12 @@ root.destroy()
         for nome in ("main.py", "ambulatorial_ui.py", "mapa_ui.py",
                      "gestao_alimentar_ui.py", "condutas_alta_ui.py"):
             fonte = (raiz / nome).read_text(encoding="utf-8")
-            self.assertNotIn("CTkToplevel", fonte, f"{nome} ainda abre janela secundária")
+            if nome == "mapa_ui.py":
+                # A única janela modal permitida é o visualizador de curvas OMS.
+                self.assertEqual(fonte.count("ctk.CTkToplevel"), 1)
+                self.assertIn("class DialogCurvasOMS(ctk.CTkToplevel)", fonte)
+            else:
+                self.assertNotIn("CTkToplevel", fonte, f"{nome} ainda abre janela secundária")
 
     def test_dimensoes_padronizadas_da_barra(self):
         self.assertEqual(BarraLateral.RECOLHIDA, 58)
