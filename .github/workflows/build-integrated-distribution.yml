@@ -73,7 +73,7 @@ jobs:
       - name: Executar o launcher real para compilar APK e desktop
         shell: cmd
         env:
-          NUTRILAB_ANDROID_SDK: ${{ env.ANDROID_SDK_ROOT }}
+          NUTRILAB_ANDROID_SDK: ${{ env.ANDROID_HOME }}
         run: call Gerar_e_Abrir_NutriLab.bat /recompilar-sem-abrir
 
       - name: Validar EXE, APK, ZIP e cópias dentro do pacote
