@@ -491,8 +491,8 @@ def linhas_mapa(c, sid, d, rascunho=False):
            "LEFT JOIN mapa_dia h ON h.id_leito=l.id AND h.data=(SELECT MAX(data) FROM mapa_dia WHERE id_leito=l.id AND data<=?) "
            "WHERE l.id_setor=? ORDER BY l.codigo")
     out = []
-    sql = sql.replace("FROM leitos l ", "LEFT JOIN usuarios u ON u.id=h.por_usuario FROM leitos l ", 1)
     sql = sql.replace("h.por_perfil,h.atualizado_em FROM", "h.por_perfil,h.atualizado_em,u.nome por_nome FROM", 1)
+    sql = sql.replace("WHERE l.id_setor=?", "LEFT JOIN usuarios u ON u.id=h.por_usuario WHERE l.id_setor=?", 1)
     for r in c.execute(sql, (d, sid)):
         item = dict(r)
         try:
