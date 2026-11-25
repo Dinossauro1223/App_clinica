@@ -37,6 +37,6 @@ Os pontos de corte e os rótulos de classificação são mantidos separadamente 
 
 ## Reprodução
 
-O script temporário `tools/exportar_oms_lms.R` documenta a conversão feita no CI a partir dos objetos de dados dos pacotes. O aplicativo Python usa diretamente o CSV e não depende de R em tempo de execução.
+Os parâmetros foram extraídos dos objetos de dados distribuídos pelos pacotes WHO citados e convertidos para o esquema CSV versionado neste repositório. O aplicativo Python usa diretamente o CSV e não depende de R em tempo de execução.
 
 Os parâmetros são usados apenas dentro da cobertura oficial. O sistema não extrapola idades, não sintetiza valores LMS e mantém resultado pendente quando faltar medida, sexo, data de nascimento necessária ou parâmetro aplicável.
