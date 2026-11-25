@@ -120,6 +120,13 @@ class MobileTest(unittest.TestCase):
             self.assertTrue(senha_redefinida)
             self.assertNotEqual(senha_redefinida, "123456789")
 
+    def test_copa_pode_consultar_mapa_de_outro_setor_sem_poder_gravar(self):
+        cod, dados = self.chamar(self.t["cop"], "GET", "/api/mapa?setor=2")
+        self.assertEqual(cod, 200, dados)
+        self.assertEqual(dados["setor"]["id"], 2)
+        self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/mapa",
+                                     {"setor": 2, "linhas": [{"id_leito": 7, "nome": "Não autorizado"}]})[0], 403)
+
     def test_login_invalido(self):
         self.assertEqual(self.chamar(None, "POST", "/api/login", {"login": "admin", "senha": "errada"})[0], 401)
 
