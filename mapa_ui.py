@@ -2030,6 +2030,9 @@ class DialogCurvasOMS(_Janela):
             if medida_paciente is not None and idade_meses is not None and 0 <= idade_meses <= limite_medida:
                 ax.scatter([idade_meses / 12.0], [medida_paciente], marker="o", s=42,
                            edgecolors="black", linewidths=0.6, zorder=5, label="Paciente")
+            elif indicador == "peso_idade" and idade_meses is not None and idade_meses > 120:
+                ax.text(0.02, 0.95, "Peso/idade não aplicável após 10 anos",
+                        transform=ax.transAxes, va="top", fontsize=8)
             ax.set_xlim(0, 19)
             if indicador == "peso_idade":
                 ax.axvline(10, linestyle="--", linewidth=0.8, alpha=0.5)
