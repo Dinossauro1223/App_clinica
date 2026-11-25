@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 import almox_db
 import almox_reposicao as repo
+import gestao_alimentar_db as ga
 
 class TestReposicaoAlmox(unittest.TestCase):
     def setUp(self):
@@ -81,6 +82,21 @@ class TestReposicaoAlmox(unittest.TestCase):
         self.assertAlmostEqual(registro["custo_total_recebido"], 250.0)
         self.assertEqual(produto["embalagem_qtd"], 1000)
         self.assertEqual(produto["embalagem_un"], "ml")
+
+        # O espelho da Gestão Alimentar usa o preço da embalagem e converte a ficha para R$/ml.
+        ga.inicializar(self.db)
+        ga.sincronizar_produtos_almox(self.db, [{
+            "id_item": item, "nome": "Fórmula enteral", "unidade": "un",
+            "preco_unitario": 25.0, "embalagem_qtd": 1000, "embalagem_un": "ml",
+            "qtd": 10, "data_base": "2026-11-03"
+        }])
+        ficha = ga.salvar_ficha(self.db, "Teste de dieta enteral", "Dieta enteral", 1, [{
+            "nome": "Fórmula enteral", "id_produto_mobile": item,
+            "unidade": "ml", "qtd_per_capita": 200, "fator_correcao": 1
+        }])
+        calculo = ga.calcular_ficha(self.db, ficha)
+        self.assertAlmostEqual(calculo["linhas"][0]["custo_total"], 5.0)
+        self.assertAlmostEqual(calculo["custo_por_porcao"], 5.0)
 
     def test_recebimento_por_custo_total_rejeita_quantidade_invalida(self):
         pedido = repo.solicitar(self.db, self.item, 5, quando="2026-11-01")
