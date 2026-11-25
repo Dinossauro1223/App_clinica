@@ -228,7 +228,7 @@ def aviso_bomba(volume_atual_ml, volume_meta_ml, usa_bomba, taxa_estimativa_ml_h
     return {"volume_adicional_ml": adicional, "horas_estimadas": horas,
             "texto": (f"Atenção: faltam aproximadamente {adicional:.0f} mL para atingir o volume correspondente "
                       f"à meta nutricional. Considerando {taxa_estimativa_ml_h:g} mL/h em bomba de infusão, "
-                      f"esse volume corresponde a aproximadamente {horas:.1f} horas adicionais de infusão.")}
+                      f"esse volume corresponde a aproximadamente {horas:.1f} horas estimadas adicionais de infusão.")}
 
 
 def formatar_antropometria(dados):
