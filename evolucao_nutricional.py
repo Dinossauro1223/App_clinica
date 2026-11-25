@@ -369,8 +369,12 @@ def gerar_alertas_mapa(linhas, data_referencia=None):
                     "incremento_ml": incremento,
                 })
             else:
-                motivo = ("meta atingida" if atual is not None and progressao.get("volume_meta_ml") and
-                          atual >= float(progressao["volume_meta_ml"]) else "sem aumento previsto para a data")
+                if atual is not None and progressao.get("volume_meta_ml") and atual >= float(progressao["volume_meta_ml"]):
+                    motivo = "meta atingida"
+                elif plan.get("volume_limite_ml") is not None and progressao.get("volume_meta_ml") and float(plan["volume_limite_ml"]) < float(progressao["volume_meta_ml"]):
+                    motivo = "volume máximo configurado atingido"
+                else:
+                    motivo = "sem aumento previsto para a data"
                 grupos["nao_evoluiram"].append({
                     "id_leito": registro.get("id_leito"), "leito": (linha.get("leito") or {}).get("codigo", ""),
                     "nome": registro.get("nome_paciente", ""), "motivo": motivo,
@@ -394,10 +398,17 @@ def gerar_alertas_mapa(linhas, data_referencia=None):
             kcal_atual = float(atual) * float(kcal_100) / 100
             meta_kcal = float(meta["kcal_dia"])
             adequacao = kcal_atual / meta_kcal * 100
+            ptn_atual = float(atual) * float(ptn_100) / 100 if ptn_100 else None
+            adequacao_ptn = (ptn_atual / float(meta["proteina_g_dia"]) * 100
+                             if ptn_atual is not None and meta.get("proteina_g_dia") else None)
+            for grupo in ("evoluiram", "nao_evoluiram"):
+                for alerta in grupos[grupo]:
+                    if alerta.get("id_leito") == registro.get("id_leito") and alerta.get("nome") == registro.get("nome_paciente"):
+                        alerta["adequacao_kcal_pct"] = adequacao
+                        alerta["adequacao_proteina_pct"] = adequacao_ptn
             if kcal_atual < meta_kcal:
                 deficit = meta_kcal - kcal_atual
                 volume_adicional = deficit / (float(kcal_100) / 100)
-                ptn_atual = float(atual) * float(ptn_100) / 100 if ptn_100 else None
                 grupos["abaixo_meta"].append({
                     "id_leito": registro.get("id_leito"), "leito": (linha.get("leito") or {}).get("codigo", ""),
                     "nome": registro.get("nome_paciente", ""), "kcal_atual": kcal_atual,
