@@ -253,7 +253,7 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(self.chamar(t["cop"], "POST", "/api/nutri/janelas", {"refeicao": "almoco", "abre": "10:00", "fecha": "11:00"})[0], 403)
         self.assertEqual(self.chamar(t["coz"], "GET", "/api/mapa")[0], 403)
         self.assertEqual(self.chamar(t["nut"], "GET", "/api/estoque")[0], 403)
-        self.assertEqual(self.chamar(t["cop"], "GET", "/api/mapa?setor=2")[1]["setor"]["id"], 1)  # pede outro setor: recebe o seu
+        self.assertEqual(self.chamar(t["cop"], "GET", "/api/mapa?setor=2")[1]["setor"]["id"], 2)  # a copa pode consultar outro setor
         self.assertEqual(self.chamar(t["nut"], "GET", "/api/mapa?setor=2")[1]["setor"]["id"], 1)
         self.assertEqual(self.chamar(t["cop"], "GET", "/api/estoque?estoque=almox")[1]["estoque"], "copa")
 
