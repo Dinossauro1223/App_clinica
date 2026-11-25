@@ -1299,7 +1299,11 @@ class FormRegistro(_Janela):
         self.lbl_oms_pediatria = ctk.CTkLabel(
             q, text="OMS pediatria: informe idade, sexo, peso e altura; o resultado exige tabela oficial.",
             text_color=tema.SUAVE, wraplength=760, justify="left", font=ctk.CTkFont(size=11))
-        self.lbl_oms_pediatria.pack(anchor="w", padx=12, pady=(0, 4))
+        self.lbl_oms_pediatria.pack(anchor="w", padx=12, pady=(0, 2))
+        ctk.CTkLabel(
+            q, text="Medida OMS: comprimento deitado antes de 24 meses; estatura em pé a partir de 24 meses.",
+            text_color=tema.SUAVE, wraplength=760, justify="left", font=ctk.CTkFont(size=10)
+        ).pack(anchor="w", padx=12, pady=(0, 4))
         linha_curvas = self._linha(q)
         self.b_curvas_oms = self._reg(_btn(linha_curvas, "Ver curvas OMS", self._abrir_curvas_oms,
                                             130, CINZA_BTN, CINZA_HOVER, 28))
