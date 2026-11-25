@@ -66,9 +66,11 @@ class TestClassificacaoPorIndicador(unittest.TestCase):
 
     def test_peso_por_idade_nao_classifica_excesso_de_peso_e_limita_a_10_anos(self):
         self.assertEqual(classificar_escore_z("peso_idade", -2.5, 60),
-                         "Peso baixo para idade")
+                         "Peso baixo para a idade")
         self.assertEqual(classificar_escore_z("peso_idade", -2.5, 120),
-                         "Peso baixo para idade")
+                         "Peso baixo para a idade")
+        self.assertEqual(classificar_escore_z("peso_idade", -1.0, 120),
+                         "Sem baixo peso pelo indicador")
         with self.assertRaises(ValueError):
             classificar_escore_z("peso_idade", -2.5, 121)
 
@@ -78,7 +80,9 @@ class TestClassificacaoPorIndicador(unittest.TestCase):
         self.assertEqual(classificar_escore_z("estatura_idade", -2.5, 180),
                          "Estatura baixa para idade")
         self.assertEqual(classificar_escore_z("estatura_idade", 0, 180),
-                         "Estatura adequada para idade")
+                         "Estatura dentro da faixa de referência")
+        self.assertEqual(classificar_escore_z("estatura_idade", 3.5, 180),
+                         "Estatura muito elevada para a idade — avaliar contexto clínico")
 
 
 class TestTabelaReferenciaOMS(unittest.TestCase):
