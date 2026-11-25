@@ -2,6 +2,7 @@
 import json
 import os
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 
@@ -51,16 +52,17 @@ class TestPersistenciaDaAvaliacaoOMS(unittest.TestCase):
             os.remove(self.db)
 
     def test_migracao_adiciona_coluna_pediatria_oms_json(self):
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn:
             colunas = {r[1] for r in conn.execute("PRAGMA table_info(Mapa_Registros)")}
         self.assertIn("pediatria_oms_json", colunas)
 
     def test_obter_paciente_retorna_data_de_nascimento(self):
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn:
             cur = conn.execute(
                 "INSERT INTO Pacientes (nome, data_nascimento, sexo) VALUES (?, ?, ?)",
                 ("Paciente teste", "15/02/2015", "Masculino"))
             id_paciente = cur.lastrowid
+            conn.commit()
         paciente = mdb.obter_paciente(self.db, id_paciente)
         self.assertEqual(paciente["data_nascimento"], "15/02/2015")
         self.assertEqual(paciente["sexo"], "Masculino")
