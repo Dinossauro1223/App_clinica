@@ -578,7 +578,7 @@ class TestExportacao(unittest.TestCase):
                      for r in range(5, ws.max_row + 1)]
         linha_longa = next((r, v) for r, v in registros if "Francisca Aparecida" in v)
         self.assertIn("IMC (Kg/m²)", linha_longa[1])
-        self.assertRegex(linha_longa[1], r"IMC \\(Kg/m²\\): .+ \\(.+\\)")
+        self.assertRegex(linha_longa[1], r"IMC \(Kg/m²\): .+ \(.+\)")
         self.assertEqual(ws.cell(linha_longa[0], cabecalhos["Lt"]).value, "L01")
         self.assertTrue(any(not valor for _, valor in registros))
         sem_vagos = os.path.join(self.saida, "mapa_teste_sem_vagos.xlsx")
