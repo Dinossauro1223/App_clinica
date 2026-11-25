@@ -24,11 +24,12 @@ import db_migracoes
 from db_esquema_legado import garantir_esquema_legado
 import atalhos_edicao
 import tema
-from mapa_ui import MapaUI
+from mapa_ui import MapaUI, DialogCurvasOMS
 from tela_boas_vindas import TelaBoasVindas
 from navegacao_ui import BarraLateral, PilhaAbasLaterais
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
 import ambulatorial
+import pediatria_oms as oms
 import atualizador
 import ui_motion
 from backup_manager import BackupManager
@@ -1290,6 +1291,7 @@ class AppClinica(ctk.CTk):
         self.resultados_lancados = {}
         self.tmb_atual = ""
         self.vet_atual = ""
+        self._resultado_pediatria_consulta = {}
 
         # Cache dos dados do paciente atual (para cálculo de idade e IMC)
         self.paciente_atual_nasc = ""
@@ -1342,6 +1344,15 @@ class AppClinica(ctk.CTk):
         self.entry_altura.bind('<KeyRelease>', self._calcular_imc_dinamico)
         self.lbl_imc = ctk.CTkLabel(frame_antro, text="IMC: -- kg/m²", font=ctk.CTkFont(size=15, weight="bold"), text_color=tema.SUAVE)
         self.lbl_imc.grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        self.lbl_oms_pediatria = ctk.CTkLabel(
+            frame_antro, text="OMS pediatria: aguardando peso, altura e data de nascimento.",
+            font=ctk.CTkFont(size=12), text_color=tema.SUAVE, wraplength=780, justify="left")
+        self.lbl_oms_pediatria.grid(row=2, column=0, columnspan=3, sticky="w", pady=(3, 0))
+        self.btn_curvas_oms = ctk.CTkButton(
+            frame_antro, text="Ver curvas OMS", width=130, height=28,
+            fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO,
+            command=self._abrir_curvas_oms_consulta)
+        self.btn_curvas_oms.grid(row=3, column=0, sticky="w", pady=(5, 0))
 
         frame_calculo = ctk.CTkFrame(scroll_frame, fg_color=tema.VERDE_CLARO, corner_radius=8, border_width=1, border_color=tema.BORDA)
         frame_calculo.pack(fill="x", padx=20, pady=10, ipady=5)
