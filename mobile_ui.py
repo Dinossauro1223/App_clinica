@@ -352,7 +352,7 @@ class MobileUI:
             try:
                 with servidor_mobile.conectar(self.mobile_db) as banco:
                     linhas = [dict(r) for r in banco.execute(
-                        "SELECT por_usuario,nome,por_nome,por_perfil,COUNT(*) atualizacoes,"
+                        "SELECT por_usuario,por_nome,por_perfil,COUNT(*) atualizacoes,"
                         "COUNT(DISTINCT data) dias_ativos,COUNT(DISTINCT id_setor) setores "
                         "FROM mapa_historico WHERE por_perfil='copa' AND " + filtro +
                         " GROUP BY por_usuario,por_nome,por_perfil "
