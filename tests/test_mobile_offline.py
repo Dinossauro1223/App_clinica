@@ -111,7 +111,7 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         self.assertIn("setup-android@v4", release)
         self.assertIn("QRScannerActivity.java", release)
-        self.assertIn("zxing-core-3.5.4.jar", release)
+        self.assertIn("zxing-core-3.4.1.jar", release)
         self.assertIn('cp mobile/static/jsQR.js "$WORK/app/assets/jsQR.js"', release)
         self.assertIn("--release 8 -classpath", release)
         self.assertNotIn("-bootclasspath", release)
