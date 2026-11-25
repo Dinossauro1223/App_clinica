@@ -587,6 +587,9 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
                 (id_paciente, origem["nome_paciente"], "2026-10-25",
                  json.dumps({"dados": dados}, ensure_ascii=False), "Evolução assinada",
                  "Nutricionista Teste", "CRN-6 12345", "2026-10-25T12:00:00"))
+        linha = next(x for x in mdb.mapa_do_dia(self.db, "2026-11-01")
+                     if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
+        self.assertEqual(linha["registro"]["dados_copa"]["volume_por_etapa_ml"], 200)
         mdb.copiar_mapa(self.db, "2026-10-25", "2026-11-02")
         linha = next(x for x in mdb.mapa_do_dia(self.db, "2026-11-02")
                      if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
