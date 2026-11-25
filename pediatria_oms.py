@@ -237,10 +237,10 @@ class TabelaReferenciaOMS:
         pontos = self._dados_meses.get(chave, {})
         return interpolar_lms(idade_meses, pontos)
 
-    def calcular(self, indicador, sexo, idade_meses, valor, idade_dias=None):
+    def calcular(self, indicador, sexo, idade_meses, valor, idade_dias=None, idade_meses_completos=None):
         """Calcula escore-z; interpola LMS dentro da cobertura e nunca extrapola."""
         try:
-            idade_ref = int(math.floor(float(idade_meses)))
+            idade_ref = int(math.floor(float(idade_meses if idade_meses_completos is None else idade_meses_completos)))
         except (TypeError, ValueError, OverflowError):
             raise ValueError("Idade deve ser informada em meses.")
         if idade_ref < 0:
@@ -276,10 +276,10 @@ class TabelaReferenciaOMS:
         return saida
 
 
-def avaliar_indicador(indicador, valor, sexo, idade_meses, tabela, idade_dias=None):
+def avaliar_indicador(indicador, valor, sexo, idade_meses, tabela, idade_dias=None, idade_meses_completos=None):
     """Retorna estado explícito, escore-z e classe; nunca presume dado ausente."""
     try:
-        idade_ref = int(math.floor(float(idade_meses)))
+        idade_ref = int(math.floor(float(idade_meses if idade_meses_completos is None else idade_meses_completos)))
         referencia = _referencia_para(indicador, idade_ref)
     except (TypeError, ValueError, OverflowError) as exc:
         return {"status": "fora_faixa", "referencia": None,
@@ -288,7 +288,8 @@ def avaliar_indicador(indicador, valor, sexo, idade_meses, tabela, idade_dias=No
         return {"status": "pendente", "referencia": referencia,
                 "escore_z": None, "classificacao": None,
                 "aviso": "Medida, sexo ou tabela LMS oficial indisponível."}
-    z = tabela.calcular(indicador, sexo, idade_meses, valor, idade_dias=idade_dias)
+    z = tabela.calcular(indicador, sexo, idade_meses, valor, idade_dias=idade_dias,
+                        idade_meses_completos=idade_ref)
     if z is None:
         motivo = ("Idade exata em dias ou parâmetro LMS oficial indisponível."
                   if referencia == "oms_2006" else
