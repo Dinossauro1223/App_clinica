@@ -1043,11 +1043,8 @@ def copiar_mapa(db_path, origem_iso, destino_iso, id_setor=None):
             marc = ", ".join("?" * (2 + len(_CAMPOS_REG) + 2))
             cur = c.execute(f"INSERT INTO Mapa_Registros ({cols}) VALUES ({marc})",
                             [destino_iso, r["id_leito"]] + [r.get(k) for k in _CAMPOS_REG] + [_agora(), _agora()])
-            if r.get("evolucao"):
-                c.execute(
-                    "INSERT INTO Mapa_Evolucao_Dados (id_registro, dados_json, criado_em, atualizado_em) VALUES (?, ?, ?, ?)",
-                    (cur.lastrowid, json.dumps(r["evolucao"], ensure_ascii=False, sort_keys=True), _agora(), _agora()),
-                )
+            # O rascunho/evolução permanece vinculado ao registro original; a última evolução
+            # assinada é recuperada por paciente em _anexar_evolucao, sem duplicar auditoria.
             for s in r["suplementos"]:
                 c.execute("""INSERT INTO Mapa_Registro_Suplementos
                              (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade, ml_oferta, agua_ml,
