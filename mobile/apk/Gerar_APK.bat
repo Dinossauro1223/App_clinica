@@ -30,8 +30,8 @@ set "JDKDIR=%FERR%\jdk"
 set "SDK=%FERR%\sdk"
 set "DL=%FERR%\downloads"
 set "KS=%FERR%\nutrilab.keystore"
-set "ZXING=%DL%\zxing-core-3.5.4.jar"
-set "ZXINGURL=https://maven-central.storage-download.googleapis.com/maven2/com/google/zxing/core/3.5.4/core-3.5.4.jar"
+set "ZXING=%DL%\zxing-core-3.4.1.jar"
+set "ZXINGURL=https://maven-central.storage-download.googleapis.com/maven2/com/google/zxing/core/3.4.1/core-3.4.1.jar"
 set "W=%FERR%\work"
 set "BTV=34.0.0"
 set "PLAT=android-34"
@@ -98,7 +98,7 @@ if errorlevel 1 goto :falha_download
 if not exist "%BT%\aapt2.exe" goto :falha
 if not exist "%AJAR%" goto :falha
 :sdk_ok
-set "PASSO=ZXing Core 3.5.4 para leitura nativa de QR"
+set "PASSO=ZXing Core 3.4.1 para leitura nativa de QR"
 if exist "%ZXING%" goto :zxing_ok
 call :baixar "%ZXINGURL%" "%ZXING%"
 if errorlevel 1 goto :falha_download
