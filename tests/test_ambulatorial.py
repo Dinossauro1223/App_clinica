@@ -55,6 +55,24 @@ class TestCalculos(unittest.TestCase):
             with self.subTest(fn=fn.__name__), self.assertRaises(amb.ErroAmbulatorial):
                 fn(*args)
 
+    def test_texto_da_consulta_inclui_escores_e_classificacao_oms(self):
+        snapshot = {
+            "status": "calculado", "data_nascimento": "2019-01-15",
+            "idade_dias": 2500, "idade_meses_completos": 82,
+            "resultados": {
+                "imc_idade": {"status": "calculado", "escore_z": 1.25, "classificacao": "Sobrepeso"},
+                "peso_idade": {"status": "calculado", "escore_z": 0.3, "classificacao": "Sem baixo peso pelo indicador"},
+                "estatura_idade": {"status": "calculado", "escore_z": -0.2, "classificacao": "Estatura dentro da faixa de referência"},
+            },
+            "fonte": "OMS 2006 / OMS 2007",
+        }
+        texto = amb.montar_texto_anamnese(
+            {}, "", {"peso_kg": 30, "altura_m": 1.3, "imc_kg_m2": 17.75, "pediatria_oms": snapshot})
+        self.assertIn("AVALIAÇÃO ANTROPOMÉTRICA PEDIÁTRICA — OMS", texto)
+        self.assertIn("IMC/idade: z=+1.25 — Sobrepeso", texto)
+        self.assertIn("Peso/idade: z=+0.30 — Sem baixo peso pelo indicador", texto)
+        self.assertIn("Estatura/idade: z=-0.20 — Estatura dentro da faixa de referência", texto)
+
     def test_texto_pronto_para_copiar(self):
         texto = amb.montar_texto_anamnese(
             {"queixa_principal": "Fadiga", "apetite": "Reduzido", "observacoes": ""},
@@ -85,7 +103,7 @@ class TestPersistencia(unittest.TestCase):
         dados = {
             "anamnese_guiada": {"queixa_principal": "Fadiga"},
             "recordatorio_24h": "Desjejum: pão",
-            "antropometria": {"peso_kg": 70, "altura_m": 1.75},
+            "antropometria": {"peso_kg": 70, "altura_m": 1.75, "pediatria_oms": {"resultados": {"imc_idade": {"status": "calculado", "escore_z": 0.5, "classificacao": "Eutrofia"}}}},
             "necessidades": {"dri_2023_kcal_dia": 2200},
             "medicamentos": [{"nome": "Medicamento A", "dose": "10 mg", "via": "oral", "frequencia": "1x/dia"}],
             "metas": [{"descricao": "Meta A", "indicador": "25 g/dia", "prazo": "30 dias", "status": "Em acompanhamento"}],
@@ -95,6 +113,7 @@ class TestPersistencia(unittest.TestCase):
         self.assertEqual(json.loads(row[0])["queixa_principal"], "Fadiga")
         self.assertEqual(row[1], "Desjejum: pão")
         self.assertEqual(json.loads(row[2])["peso_kg"], 70)
+        self.assertEqual(json.loads(row[2])["pediatria_oms"]["resultados"]["imc_idade"]["escore_z"], 0.5)
         self.assertEqual(json.loads(row[3])["dri_2023_kcal_dia"], 2200)
         self.assertEqual(self.conn.execute("SELECT nome FROM Consulta_Medicamentos").fetchone()[0], "Medicamento A")
         self.assertEqual(self.conn.execute("SELECT descricao FROM Consulta_Metas").fetchone()[0], "Meta A")
