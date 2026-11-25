@@ -79,7 +79,7 @@ class ConfiguracoesUI:
         card.pack(fill="x", padx=24, pady=(4, 12))
         ctk.CTkLabel(card, text="Reavaliação nutricional (NRS-2002)", font=tema.fonte(16, "bold"),
                     text_color=tema.TEXTO).pack(anchor="w", padx=18, pady=(16, 4))
-        ctk.CTkLabel(card, text="Configure o intervalo para cada classificação. Padrão: 7 dias; permitido: 1–90 dias.",
+        ctk.CTkLabel(card, text="Configure o intervalo para cada classificação. Os valores iniciais seguem os parâmetros já adotados pelo módulo e podem ser alterados pelo serviço; permitido: 1–90 dias.",
                     font=tema.fonte(12), text_color=tema.SUAVE).pack(anchor="w", padx=18, pady=(0, 10))
         caminho_db = getattr(getattr(self.app, "mapa", None), "db", None)
         if not caminho_db:
