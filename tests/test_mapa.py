@@ -572,12 +572,13 @@ class TestExportacao(unittest.TestCase):
         celula = next(texto for texto in pacientes if "Francisca Aparecida" in texto)
         self.assertIn("IMC", celula)
         self.assertIn("Sobrepeso", celula)
-        # Leitos vagos continuam presentes e podem ser excluídos por opção.
-        self.assertIn("Vago", pacientes)
+        # Leitos vagos mantêm a linha com a célula do paciente vazia e podem ser omitidos.
+        vagos = [r for r in range(5, ws.max_row + 1) if ws.cell(r, 3).value is None]
+        self.assertTrue(vagos)
         sem_vagos = os.path.join(self.saida, "mapa_teste_sem_vagos.xlsx")
         mex.exportar_excel(sem_vagos, self.dia, "2026-10-14", self.setor["nome"], incluir_vagos=False)
         ws2 = load_workbook(sem_vagos).active
-        self.assertFalse([r for r in range(5, ws2.max_row + 1) if ws2.cell(r, 3).value == "Vago"])
+        self.assertFalse([r for r in range(5, ws2.max_row + 1) if ws2.cell(r, 3).value is None])
 
     def test_pdf_simulado(self):
         from fake_fpdf import FakePDF
