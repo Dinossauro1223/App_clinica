@@ -160,7 +160,7 @@ def montar_texto_anamnese(campos, recordatorio_24h="", antropometria=None, neces
     oms_salvo = antro.get("pediatria_oms") or {}
     resultados_oms = oms_salvo.get("resultados") or {}
     if oms_salvo:
-        linhas.append("\nAVALIAÇÃO ANTROPOMÉTRICA PEDIÁTRICA — OMS")
+        linhas.append("\nAVALIAÇÃO ANTROPOMÉTRICA PEDIÁTRICA - OMS")
         if oms_salvo.get("data_nascimento"):
             linhas.append(f"Data de nascimento: {oms_salvo['data_nascimento']}")
         if oms_salvo.get("idade_dias") is not None:
@@ -174,7 +174,7 @@ def montar_texto_anamnese(campos, recordatorio_24h="", antropometria=None, neces
         for indicador, rotulo in rotulos_oms.items():
             resultado = resultados_oms.get(indicador) or {}
             if resultado.get("status") == "calculado":
-                linhas.append(f"{rotulo}: z={resultado['escore_z']:+.2f} — {resultado['classificacao']}")
+                linhas.append(f"{rotulo}: z={resultado['escore_z']:+.2f} - {str(resultado['classificacao']).replace('—', '-')}" )
             elif resultado.get("status") == "fora_faixa":
                 linhas.append(f"{rotulo}: não aplicável nesta idade")
             elif resultado:
@@ -182,7 +182,7 @@ def montar_texto_anamnese(campos, recordatorio_24h="", antropometria=None, neces
         if oms_salvo.get("aviso"):
             linhas.append("Avaliação OMS pendente: " + str(oms_salvo["aviso"]))
         if oms_salvo.get("fonte"):
-            linhas.append("Referência: " + str(oms_salvo["fonte"]))
+            linhas.append("Referência: " + str(oms_salvo["fonte"]).replace("—", "-"))
     nec = necessidades or {}
     if nec:
         linhas.append("\nESTIMATIVA DE NECESSIDADES NUTRICIONAIS")
