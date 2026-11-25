@@ -80,6 +80,16 @@ def inicializar(db_path):
             ON Refeicoes_Servidas(servido_em, publico, refeicao);
         CREATE INDEX IF NOT EXISTS idx_ref_serv_paciente
             ON Refeicoes_Servidas(id_paciente, data_refeicao);
+        CREATE TRIGGER IF NOT EXISTS trg_refeicoes_servidas_sem_update
+        BEFORE UPDATE ON Refeicoes_Servidas
+        BEGIN
+            SELECT RAISE(ABORT, 'O histórico de refeições servidas é imutável.');
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_refeicoes_servidas_sem_delete
+        BEFORE DELETE ON Refeicoes_Servidas
+        BEGIN
+            SELECT RAISE(ABORT, 'O histórico de refeições servidas é imutável.');
+        END;
         """)
 
 
