@@ -7,7 +7,7 @@ Regras e tabelas: docs/mobile/INTEGRACAO_DESKTOP.md. A tela também abre sozinha
 import os
 import socket
 import webbrowser
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
@@ -39,7 +39,7 @@ def _lado_mais_novo(pc, mobile):
     try:
         a = datetime.fromisoformat(str(pc).replace("Z", "+00:00"))
         b = datetime.fromisoformat(str(mobile).replace("Z", "+00:00"))
-        fuso = im.timezone(timedelta(hours=-3)) if hasattr(im, "timezone") else None
+        fuso = timezone(timedelta(hours=-3))
         if a.tzinfo is None:
             a = a.replace(tzinfo=fuso) if fuso else a
         if b.tzinfo is None:
