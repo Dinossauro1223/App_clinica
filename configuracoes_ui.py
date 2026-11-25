@@ -8,6 +8,7 @@ import tkinter as tk
 import customtkinter as ctk
 from tkinter import messagebox
 import db_service
+import mapa_db
 import tema
 import nrs2002 as nrs
 
