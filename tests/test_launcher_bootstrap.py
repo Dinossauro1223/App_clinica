@@ -37,6 +37,8 @@ class TestLauncherBootstrap(unittest.TestCase):
         self.assertIn('"%SAIDA%/_internal/mobile/apk/saida/NutriLab-Mobile.apk"', normalizado)
         self.assertIn("Compress-Archive", texto)
         self.assertIn("NutriLab-Desktop.zip", texto)
+        self.assertIn('if /I "%~1"=="/recompilar-sem-abrir" goto COMPILAR', texto)
+        self.assertIn('if /I "%~1"=="/recompilar-sem-abrir" exit /b 0', texto)
 
     def test_gerador_apk_tem_modo_integrado_sem_interacao(self):
         apk = (RAIZ / "mobile" / "apk" / "Gerar_APK.bat").read_text(encoding="utf-8")
