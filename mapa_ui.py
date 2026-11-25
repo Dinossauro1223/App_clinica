@@ -1432,6 +1432,7 @@ class FormRegistro(_Janela):
         self._via_anterior = None
         self._resultado_nrs = {}
         self._reav_manual = False
+        self._reav_automatica = None
         self._resultado_avaliacao = {}
         self._resultado_pediatria = {}
         self._montar()
@@ -1716,6 +1717,8 @@ class FormRegistro(_Janela):
         try:
             salvo_nrs = json.loads(r.get("nrs2002_json") or "{}")
             self._reav_manual = bool(salvo_nrs.get("data_reavaliacao_manual", bool(r.get("data_reavaliacao"))))
+            self._reav_automatica = (mdb.iso_para_br(r.get("data_reavaliacao"))
+                                     if not self._reav_manual else None)
             for codigo, valor in (salvo_nrs.get("respostas") or {}).items():
                 if codigo in self.nrs_respostas:
                     self.nrs_respostas[codigo].set("—" if valor is None else "Sim" if valor else "Não")
@@ -1751,6 +1754,8 @@ class FormRegistro(_Janela):
             idade, meses = divmod(int(meses), 12)
         reav = None
         if g(self.e_reav):
+            if not self._reav_manual and g(self.e_reav) != self._reav_automatica:
+                self._reav_manual = True
             try:
                 reav = mdb.data_br_para_iso(g(self.e_reav))
             except ValueError:
@@ -1949,15 +1954,22 @@ class FormRegistro(_Janela):
                         intervalos = nrs.ler_intervalos(self.ui.db)
                         self._intervalos_nrs = intervalos
                     alvo = nrs.proxima_reavaliacao(date.fromisoformat(self.data_iso), resultado["grau"], intervalos)
-                    _set_entry(self.e_reav, alvo.strftime("%d/%m/%Y"))
+                    self._reav_automatica = alvo.strftime("%d/%m/%Y")
+                    _set_entry(self.e_reav, self._reav_automatica)
                 except (ValueError, TypeError, sqlite3.Error):
-                    _set_entry(self.e_reav, "")
+                    if self.e_reav.get().strip() == self._reav_automatica:
+                        _set_entry(self.e_reav, "")
+                    self._reav_automatica = None
             else:
-                _set_entry(self.e_reav, "")
+                if self.e_reav.get().strip() == self._reav_automatica:
+                    _set_entry(self.e_reav, "")
+                self._reav_automatica = None
 
     def _marcar_reavaliacao_manual(self, _evento=None):
-        self._reav_manual = bool(self.e_reav.get().strip())
-        if not self._reav_manual:
+        valor = self.e_reav.get().strip()
+        self._reav_manual = bool(valor and valor != self._reav_automatica)
+        if not valor:
+            self._reav_automatica = None
             self._recalcular_nrs()
 
     def _recalcular_avaliacao(self):
