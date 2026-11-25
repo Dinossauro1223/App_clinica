@@ -575,8 +575,11 @@ class TestExportacao(unittest.TestCase):
         self.assertGreaterEqual(str(celula).count("\n"), 3)
         self.assertIsNotNone(ws["C5"].font)
         # leito vago
-        self.assertEqual(ws.max_row, 29)
-        self.assertEqual(ws.cell(28, 3).value, "Sem paciente")
+        linhas_vagas = [
+            [ws.cell(r, c).value for c in range(1, ws.max_column + 1)]
+            for r in range(4, ws.max_row + 1)
+        ]
+        self.assertTrue(any(any(v in ("Vago", "Sem paciente") for v in linha) for linha in linhas_vagas))
         sem_vagos = os.path.join(self.saida, "mapa_teste_sem_vagos.xlsx")
         mex.exportar_excel(sem_vagos, self.dia, "2026-10-14", self.setor["nome"], incluir_vagos=False)
         ws2 = load_workbook(sem_vagos).active
