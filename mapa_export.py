@@ -185,8 +185,10 @@ def textos_linha(leito, reg, abreviar=True):
     """Prepara os campos clínicos do mapa; registro None representa leito vago."""
     sigla = leito.get("sigla_setor")
     t = {"leito": (f"{sigla} {leito['codigo']}" if sigla else str(leito["codigo"]))}
-    if setor := leito.get("setor"):
-        t["setor"] = setor
+    setor = leito.get("setor")
+    grupo = leito.get("grupo_setor")
+    if setor:
+        t["setor"] = f"{grupo} · {setor} ({sigla})" if grupo and sigla else setor
     if reg is None:
         t.update(acomp="", paciente=None, idade="", reav="", via="",
                  consistencias={k: "" for k in ("LV", "BR", "PAS", "LÍQ. PAS", "LÍQ")},
@@ -231,6 +233,14 @@ def textos_linha(leito, reg, abreviar=True):
         refeicoes = [nomes_refeicoes.get(x, x) for x in (s.get("refeicoes") or [])]
         if refeicoes:
             texto += " (" + ", ".join(refeicoes) + ")"
+        if s.get("ml_oferta") is not None:
+            texto = f"{s.get('nome') or ''}: {_fmt_num_pt(s.get('ml_oferta'), 0)} mL/oferta × {len(refeicoes)} = {_fmt_num_pt(s.get('qtd_dia'), 0)} mL/d"
+            if s.get("agua_ml") is not None:
+                texto += f" · água: {_fmt_num_pt(s.get('agua_ml'), 0)} mL/oferta"
+            if refeicoes:
+                texto += " (" + ", ".join(refeicoes) + ")"
+            if s.get("batido_fruta"):
+                texto += " (batido com fruta)"
         suplementos.append(texto)
     preferencias = []
     if (reg.get("obs_sim") or "").strip():
@@ -465,6 +475,10 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
             max_linhas = max(1, int((altura - 1) / 2.4))
             for j, line in enumerate(linhas[:max_linhas]):
                 limite = max(2, int(larguras[i] * 1.3))
+                if key == "paciente" and line.startswith(" ("):
+                    pdf.set_text_color(*VERMELHO_PDF)
+                else:
+                    pdf.set_text_color(0, 0, 0)
                 pdf.text(xs[i] + 0.5, y + 3 + j * 2.3, line[:limite])
         y += altura
     pdf.output(caminho)
