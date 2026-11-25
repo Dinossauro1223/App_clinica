@@ -261,7 +261,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
         if not metas:
             try:
                 peso = self._peso_nutricional()
-            except ValueError:
+            except (TypeError, ValueError):
                 peso = None
             if peso:
                 if self.reg.get("meta_kcal"):
@@ -403,9 +403,11 @@ class FormEvolucaoUI(ctk.CTkFrame):
             if quantidade > 0:
                 suplementacao.append({"nome": s["nome"], "quantidade": quantidade,
                                       "unidade": s.get("unidade") or "mL", "etapas": n_etapas})
-        dados["suplementacao"] = suplementacao
         if via == "enteral":
             nome = self.cb_formula.get()
+            suplementacao = [s for s in suplementacao if s["nome"] != nome]
+        dados["suplementacao"] = suplementacao
+        if via == "enteral":
             ficha = self.formula_por_nome.get(nome)
             volume_txt = self.e_volume_etapa.get().strip()
             etapas_txt = self.e_etapas.get().strip() or "1"
@@ -457,6 +459,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             dados["id_rascunho"] = self.id_rascunho
             dados["status_evolucao"] = "rascunho"
             mdb.salvar_dados_evolucao(self.db, self.reg["id_registro"], dados)
+            self.ui._recarregar()
             self.lbl_status.configure(text=f"Rascunho #{self.id_rascunho} salvo. Ainda não é uma evolução fechada.",
                                        text_color=tema.VERDE)
             return True
@@ -508,6 +511,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             dados["status_evolucao"] = "fechada"
             dados["fechada"] = True
             mdb.salvar_dados_evolucao(self.db, self.reg["id_registro"], dados)
+            self.ui._recarregar()
             self.lbl_status.configure(
                 text=f"Evolução #{id_evolucao} fechada e assinada por {revisor['nome']} — {revisor['crn']}.",
                 text_color=tema.VERDE)
