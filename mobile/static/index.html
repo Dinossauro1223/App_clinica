@@ -562,11 +562,15 @@ async function vCad(){
   <div class=filtros><label class=f>De<input type=number id=si value=1></label><label class=f>Até<input type=number id=sf></label></div><button class=btn onclick="novoSetor()">Salvar setor/leitos</button></div>
   <div class=cartao><h2 style="margin-top:0">Itens do almoxarifado</h2>
   <label class=f>Nome do produto<input type=text id=in></label>
-  <label class=f>Unidade de estoque (kg, pacote, un…)<input type=text id=iu></label>
+  <label class=f>Unidade de estoque (ex.: pacote, frasco ou lata)<input type=text id=iu placeholder="Ex.: pacote"></label>
   <div class=filtros><label class=f>Preço unitário (R$)<input type=number id=ip min=0 step=0.01 placeholder="Ex.: 8,50"></label>
-  <label class=f>Conteúdo por unidade<input type=number id=ie min=0.000001 step=any placeholder="Ex.: 500"></label>
-  <label class=f>Unidade do conteúdo<select id=ieu><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">L</option><option value="mg">mg</option><option value="un">un</option></select></label></div>
-  <p class=mini>O preço corresponde à unidade de estoque cadastrada. Informe também o conteúdo da embalagem para permitir converter o custo nas fichas técnicas.</p>
+  <label class=f>Conteúdo por embalagem<input type=number id=ie min=0.000001 step=any placeholder="Ex.: 500"></label></div>
+  <div class=f><b>Unidade do conteúdo</b><div class=seg id=unidadeConteudo>
+   <label><input type=radio name=ieu value="g" checked> Gramas (g)</label>
+   <label><input type=radio name=ieu value="ml"> Mililitros (mL)</label>
+   <label><input type=radio name=ieu value="un"> Unidade (un)</label>
+  </div></div>
+  <p class=mini>Informe o conteúdo de cada pacote/frasco e, separadamente, quantas embalagens existem no estoque, na tela Estoque. Para massa use g; para volume use mL. O programa converte automaticamente kg para g e L para mL em cadastros antigos ou importados.</p>
   <button class=btn id=btnSalvarItem onclick="novoItem()">Adicionar item</button>
   <h3>Itens cadastrados (${S.itens.length})</h3>
   ${S.itens.map(i=>`<div style="padding:7px 0;border-bottom:1px solid var(--linha)"><b>${esc(i.nome)}</b>
@@ -589,13 +593,14 @@ function editarItem(id){
  S.itemEditando=id;
  $('#in').value=item.nome;$('#iu').value=item.unidade;
  $('#ip').value=item.preco_unitario??'';$('#ie').value=item.embalagem_qtd??'';
- $('#ieu').value=item.embalagem_un||'g';
+ document.querySelectorAll('input[name=ieu]').forEach(r=>{r.checked=r.value===(item.embalagem_un||'g')});
  $('#btnSalvarItem').textContent='Salvar alterações do item';
  $('#in').scrollIntoView({behavior:'smooth',block:'center'});
 }
 const novoItem=tenta(async()=>{
+ const unidadeConteudo=document.querySelector('input[name=ieu]:checked');
  const corpo={nome:$('#in').value,unidade:$('#iu').value,preco_unitario:$('#ip').value,
-  embalagem_qtd:$('#ie').value,embalagem_un:$('#ieu').value};
+  embalagem_qtd:$('#ie').value,embalagem_un:unidadeConteudo?unidadeConteudo.value:'g'};
  if(S.itemEditando)await api('/api/admin/itens/'+S.itemEditando,corpo);
  else await api('/api/admin/itens',corpo);
  S.itemEditando=null;await recarregaBase();await vCad();aviso('Item salvo.',0);
