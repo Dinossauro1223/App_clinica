@@ -380,11 +380,16 @@ class MapaUI:
             if not registro:
                 continue
             resumo = ev.resumo_painel_evolucao(registro, self.data.isoformat())
-            if not resumo:
-                continue
             paciente = registro.get("nome_paciente") or "Paciente"
             leito = item["leito"].get("codigo", "?")
             base = {"id_leito": item["leito"]["id_leito"], "nome": paciente, "leito": leito}
+            if not resumo:
+                if str(registro.get("via") or "").casefold() == "enteral":
+                    grupos["nao_evoluiram"].append((base, {
+                        "evoluiu": False, "dados_insuficientes": True,
+                        "motivo_nao_evolucao": "Dados insuficientes para calcular oferta e metas"
+                    }))
+                continue
             if resumo["evoluiu"]:
                 grupos["evoluiram"].append((base, resumo))
             else:
@@ -401,14 +406,21 @@ class MapaUI:
                 continue
             for base, resumo in itens:
                 if chave == "evoluiram":
+                    ptn = (f" · {resumo['adequacao_ptn_pct']:.1f}% PTN"
+                           if resumo.get("adequacao_ptn_pct") is not None else "")
                     texto = (f"Leito {base['leito']} · {base['nome']}\n"
                              f"{resumo['volume_inicial_ml']:.0f} → {resumo['volume_atual_ml']:.0f} mL/dia "
                              f"(+{resumo['incremento_ml']:.0f}); meta {resumo['volume_meta_ml']:.0f} mL/dia; "
-                             f"{resumo['adequacao_kcal_pct']:.1f}% kcal")
+                             f"{resumo['adequacao_kcal_pct']:.1f}% kcal{ptn}")
                 elif chave == "nao_evoluiram":
-                    texto = (f"Leito {base['leito']} · {base['nome']}\n"
-                             f"{resumo['volume_atual_ml']:.0f}/{resumo['volume_meta_ml']:.0f} mL/dia · "
-                             f"{resumo['motivo_nao_evolucao'] or 'Sem incremento registrado'}")
+                    if resumo.get("dados_insuficientes"):
+                        texto = (f"Leito {base['leito']} · {base['nome']}\n"
+                                 f"{resumo['motivo_nao_evolucao']}")
+                    else:
+                        texto = (f"Leito {base['leito']} · {base['nome']}\n"
+                                 f"{resumo['volume_atual_ml']:.0f}/{resumo['volume_meta_ml']:.0f} mL/dia · "
+                                 f"{resumo['adequacao_kcal_pct']:.1f}% kcal · "
+                                 f"{resumo['motivo_nao_evolucao'] or 'Sem incremento registrado'}")
                 else:
                     texto = (f"Leito {base['leito']} · {base['nome']}\n"
                              f"{resumo['energia_kcal']:.0f}/{resumo['meta_kcal']:.0f} kcal "
