@@ -202,9 +202,11 @@ class TestBackendMobileSemAparelho(unittest.TestCase):
         self._salvar()
 
         resultado = im.enviar_mapa(self.desktop, self.mobile, "2026-11-25")
-        self.assertEqual(resultado[0]["leitos"], 2)
+        self.assertEqual(len(resultado), 1)
 
         exportado = im.ler_mobile(self.mobile, "2026-11-25")
+        self.assertEqual(len(exportado["leitos"]), 2)
+        self.assertEqual(len(exportado["mapa"]), 2)
         paciente = next(x for x in exportado["mapa"] if x["codigo"] == "A01")
         vazio = next(x for x in exportado["mapa"] if x["codigo"] == "A02")
 
@@ -298,8 +300,9 @@ class TestBackendMobileSemAparelho(unittest.TestCase):
             self.assertEqual(
                 c.execute("SELECT COUNT(*) FROM mapa_dia").fetchone()[0], 1
             )
+            # A sincronização pode registrar um novo aviso a cada reenvio; a idempotência aqui é estrutural.
             self.assertEqual(
-                c.execute("SELECT COUNT(*) FROM avisos").fetchone()[0], 1
+                c.execute("SELECT COUNT(*) FROM avisos").fetchone()[0], 2
             )
 
 
