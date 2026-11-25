@@ -1513,6 +1513,13 @@ class FormRegistro(_Janela):
         g = lambda e: e.get().strip()
         n = lambda e: nc.parse_num(g(e))
         idade, meses = n(self.e_idade), n(self.e_meses)
+        if self._data_nascimento:
+            idade_meses_oms, _, _, erro_idade = self._idade_para_oms()
+            if idade_meses_oms is None:
+                raise ValueError(erro_idade or "Não foi possível calcular a idade pela data de nascimento.")
+            idade, meses = divmod(idade_meses_oms, 12)
+        elif idade is None and meses is not None and meses > 0:
+            idade, meses = divmod(int(meses), 12)
         reav = None
         if g(self.e_reav):
             try:
