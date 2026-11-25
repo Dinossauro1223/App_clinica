@@ -324,6 +324,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             raise ValueError("Informe os parâmetros energéticos e proteicos antes do fechamento.")
         via = str(self.reg.get("via") or "").casefold()
         dados = {
+            "data_evolucao": self.reg.get("data"),
             "antropometria": antropometria,
             "metas": metas,
             "via": self.reg.get("via"),
