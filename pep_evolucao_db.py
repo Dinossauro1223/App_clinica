@@ -323,6 +323,26 @@ def fechar_rascunho(db_path, id_rascunho, id_usuario, senha, *, confirmado=False
         dados["porcao_oral_autorizada"] = bool(
             autorizar_porcao_oral and dados.get("porcao_oral_solicitada") and via == "oral")
         dados["antropometria"].setdefault("data", datetime.strptime(r[2], "%Y-%m-%d").strftime("%d/%m/%Y"))
+        antropometria = dados["antropometria"]
+        idade = antropometria.get("idade_anos")
+        if idade is None and antropometria.get("data_nascimento"):
+            idade = regras.idade_em_anos(antropometria["data_nascimento"], antropometria["data"])
+            antropometria["idade_anos"] = idade
+        if idade is None:
+            conn.rollback()
+            raise ValueError("Idade ou data de nascimento é obrigatória para classificar o estado nutricional.")
+        classificacao = str(antropometria.get("imc_class") or "").strip().casefold()
+        if not classificacao or "pendente" in classificacao:
+            conn.rollback()
+            raise ValueError("A classificação do IMC está pendente. Conclua a avaliação antropométrica antes de fechar.")
+        origem_altura = str(antropometria.get("altura_origem") or "").upper()
+        origem_peso = str(antropometria.get("peso_origem") or "").upper()
+        if origem_altura in {"E", "ESTIMADA"} and antropometria.get("aj_cm") in (None, ""):
+            conn.rollback()
+            raise ValueError("Altura estimada exige o registro da altura do joelho (AJ).")
+        if origem_peso in {"E", "ESTIMADO"} and any(antropometria.get(k) in (None, "") for k in ("aj_cm", "pb_cm")):
+            conn.rollback()
+            raise ValueError("Peso estimado exige o registro de AJ e PB.")
         membros = [dict(x) for x in conn.execute(
             "SELECT E.id_membro, E.nome, E.funcao, E.crn FROM Pep_Rascunho_Equipe R "
             "JOIN Pep_Equipe E ON E.id_membro=R.id_membro WHERE R.id_rascunho=? AND E.ativo=1",
