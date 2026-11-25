@@ -2295,6 +2295,19 @@ class AppClinica(ctk.CTk):
                 antropometria["imc_kg_m2"] = ambulatorial.calcular_imc(peso, altura)
             except ambulatorial.ErroAmbulatorial:
                 pass
+        idade_consulta = self._calcular_idade_por_nascimento(getattr(self, "paciente_atual_nasc", ""))
+        if idade_consulta is None or idade_consulta < 20:
+            try:
+                peso_num = float(peso.replace(",", ".")) if peso else None
+                altura_cm = float(altura.replace(",", ".")) * 100 if altura else None
+                self._atualizar_oms_pediatria_consulta(
+                    antropometria.get("imc_kg_m2"), peso_num, altura_cm)
+                antropometria["pediatria_oms"] = self._resultado_pediatria_consulta
+            except (TypeError, ValueError):
+                antropometria["pediatria_oms"] = {
+                    "status": "pendente", "aviso": "Medidas antropométricas inválidas.", "resultados": {}}
+        else:
+            self._resultado_pediatria_consulta = {}
         texto = ambulatorial.montar_texto_anamnese(
             dados["anamnese_guiada"], dados["recordatorio_24h"], antropometria,
             necessidades, dados["medicamentos"], dados["metas"])
