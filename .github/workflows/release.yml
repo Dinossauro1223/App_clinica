@@ -69,8 +69,8 @@ jobs:
             --manifest "$WORK/app/AndroidManifest.xml" -A "$WORK/app/assets" \
             --min-sdk-version 26 --target-sdk-version 34 --version-code "$VCODE" \
             --version-name "$VNAME" "$WORK/obj/res.zip"
-          ZXING="$WORK/zxing-core-3.5.4.jar"
-          curl -fsSL "https://maven-central.storage-download.googleapis.com/maven2/com/google/zxing/core/3.5.4/core-3.5.4.jar" -o "$ZXING"
+          ZXING="$WORK/zxing-core-3.4.1.jar"
+          curl -fsSL "https://maven-central.storage-download.googleapis.com/maven2/com/google/zxing/core/3.4.1/core-3.4.1.jar" -o "$ZXING"
           test -s "$ZXING"
           test "$(stat -c%s "$ZXING")" -gt 500000
           javac -encoding UTF-8 --release 8 -classpath "$SDK/platforms/android-34/android.jar:$ZXING" \
