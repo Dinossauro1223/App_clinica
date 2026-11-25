@@ -523,6 +523,23 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
         self.assertIsNotNone(id_reg)
 
 
+    def test_troca_de_paciente_remove_evolucao_do_registro_anterior(self):
+        leito = self.leitos[0]["id_leito"]
+        reg = registro_base(self.db, leito, "2026-10-25", nome_paciente="Maria de Souza")
+        id_reg = mdb.salvar_registro(self.db, reg)
+        mdb.salvar_dados_evolucao(self.db, id_reg, {
+            "status_evolucao": "fechada", "via": "Enteral",
+            "dieta_enteral": {"nome": "Fórmula da paciente anterior"}
+        })
+
+        substituto = registro_base(
+            self.db, leito, "2026-10-25", nome_paciente="João de Souza"
+        )
+        self.assertEqual(mdb.salvar_registro(self.db, substituto), id_reg)
+        obtido = mdb.obter_registro(self.db, "2026-10-25", leito)
+        self.assertEqual(obtido["nome_paciente"], "João de Souza")
+        self.assertEqual(obtido["evolucao"], {})
+
     def test_progressao_enteral_diaria_e_porcoes_orais_autorizadas_para_copa(self):
         dados = {
             "via": "Enteral", "status_evolucao": "fechada", "fechada": True,
