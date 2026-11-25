@@ -1646,11 +1646,10 @@ class FormRegistro(_Janela):
         idade = nc.parse_num(self.e_idade.get())
         imc = nc.calcular_imc(peso, alt)
         self.lbl_imc.configure(text=nc.fmt_num(imc, 1) if imc is not None else "-")
-        meses_extra = nc.parse_num(self.e_meses.get()) or 0
-        idade_meses = int(idade * 12 + meses_extra) if idade is not None else None
+        idade_meses, _, _, _ = self._idade_para_oms()
         if idade_meses is not None and idade_meses < 240:
             self._recalcular_pediatria(imc)
-        elif idade is None:
+        elif idade_meses is None:
             self.lbl_class.configure(text="(informe a idade para classificar)")
             self.lbl_oms_pediatria.configure(text="OMS pediatria: informe a idade.")
             self._resultado_pediatria = {"status": "pendente", "resultados": {}}
@@ -1660,8 +1659,9 @@ class FormRegistro(_Janela):
             if imc is None:
                 self.lbl_class.configure(text="")
             else:
-                cl = nc.classificar_imc(imc, int(idade), {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get()),
-                                        int(meses_extra), self.ui.criterio_idoso, self.ui.lms)
+                idade_adulta = int(idade_meses // 12)
+                cl = nc.classificar_imc(imc, idade_adulta, {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get()),
+                                        int(idade_meses % 12), self.ui.criterio_idoso, self.ui.lms)
                 txt = nc.texto_classificacao(cl)
                 self.lbl_class.configure(text=f"({txt})" if txt else "")
         self._recalcular_nrs()
