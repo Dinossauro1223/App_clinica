@@ -1558,14 +1558,8 @@ class FormRegistro(_Janela):
 
     # ---------------------------------------------------------------- cálculos
     def _idade_para_oms(self):
-        anos = nc.parse_num(self.e_idade.get())
-        meses_extra = nc.parse_num(self.e_meses.get()) or 0
-        if anos is None:
-            return None, None, None, "Informe a idade."
-        idade_meses = int(anos * 12 + meses_extra)
-        idade_dias = None
-        meses_decimais = float(idade_meses)
-        nascimento_iso = None
+        # Quando o paciente está vinculado, a data de nascimento é a fonte principal.
+        # Isso evita divergência entre a idade digitada e a idade cronológica real.
         if self._data_nascimento:
             bruto = str(self._data_nascimento).strip()
             try:
@@ -1574,15 +1568,22 @@ class FormRegistro(_Janela):
                 try:
                     nascimento = datetime.strptime(bruto, "%d/%m/%Y").date()
                 except ValueError:
-                    return idade_meses, None, meses_decimais, "Data de nascimento inválida."
+                    return None, None, None, "Data de nascimento inválida."
             try:
                 idade_dias = oms.calcular_idade_dias(nascimento.isoformat(), self.data_iso)
                 idade_meses = oms.calcular_idade_meses(nascimento.isoformat(), self.data_iso)
-                meses_decimais = idade_dias / 30.4375
-                nascimento_iso = nascimento.isoformat()
             except ValueError as exc:
-                return idade_meses, None, meses_decimais, str(exc)
-        return idade_meses, idade_dias, meses_decimais, nascimento_iso
+                return None, None, None, str(exc)
+            return idade_meses, idade_dias, idade_dias / 30.4375, nascimento.isoformat()
+
+        anos = nc.parse_num(self.e_idade.get())
+        meses_extra = nc.parse_num(self.e_meses.get()) or 0
+        if anos is None and meses_extra <= 0:
+            return None, None, None, "Informe a idade ou vincule um paciente com data de nascimento."
+        idade_meses = int((anos or 0) * 12 + meses_extra)
+        if idade_meses < 0:
+            return None, None, None, "Idade não pode ser negativa."
+        return idade_meses, None, float(idade_meses), None
 
     def _recalcular_pediatria(self, imc):
         idade_meses, idade_dias, meses_decimais, nascimento = self._idade_para_oms()
@@ -2018,7 +2019,8 @@ class DialogCurvasOMS(_Janela):
                         ys.append(ponto[chave])
                     ax.plot(xs, ys, linestyle=estilo, linewidth=1.0 if chave != "z_zero" else 1.8,
                             label=rotulo if referencia == "oms_2006" else None)
-            if medida_paciente is not None and idade_meses is not None and 0 <= idade_meses <= 228:
+            limite_medida = 120 if indicador == "peso_idade" else 228
+            if medida_paciente is not None and idade_meses is not None and 0 <= idade_meses <= limite_medida:
                 ax.scatter([idade_meses / 12.0], [medida_paciente], marker="o", s=42,
                            edgecolors="black", linewidths=0.6, zorder=5, label="Paciente")
             ax.set_xlim(0, 19)
