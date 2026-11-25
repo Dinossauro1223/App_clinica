@@ -878,6 +878,39 @@ def ultimo_registro_leito(db_path, id_leito, data_iso):
         return reg
 
 
+def dados_operacionais_copa(registro, data_destino=None):
+    """Extrai somente instruções operacionais autorizadas; nunca expõe metas, TNE, DVA ou diagnósticos."""
+    if not registro:
+        return {}
+    via = str(registro.get("via") or "").casefold()
+    dados = registro.get("evolucao") or {}
+    if via == "oral":
+        if dados.get("porcao_oral_autorizada") and dados.get("porcao_oral_ml") not in (None, ""):
+            porcao = int(float(dados["porcao_oral_ml"]))
+            return {"via": "Oral", "porcao_oral_ml": porcao,
+                    "instrucao": f"Porção oral autorizada: {porcao} mL por oferta."}
+        return {}
+    if via != "enteral":
+        return {}
+    dieta = dados.get("dieta_enteral") or {}
+    if not dieta.get("nome") or dieta.get("volume_por_etapa_ml") in (None, ""):
+        return {}
+    volume = float(dieta["volume_por_etapa_ml"])
+    etapas = int(dieta.get("etapas") or 1)
+    progressao = dados.get("progressao_enteral") or {}
+    if progressao.get("autorizada") and progressao.get("plano", {}).get("passos"):
+        inicio = datetime.strptime(registro["data"], "%Y-%m-%d").date()
+        destino = datetime.strptime(data_destino or registro["data"], "%Y-%m-%d").date()
+        dias = max(0, (destino - inicio).days)
+        passos = progressao["plano"]["passos"]
+        if dias:
+            volume = float(passos[min(dias - 1, len(passos) - 1)]["volume_etapa_ml"])
+    total = volume * etapas
+    return {"via": "Enteral", "formula": dieta["nome"], "volume_por_etapa_ml": volume,
+            "etapas": etapas, "volume_total_ml": total,
+            "instrucao": f"{dieta['nome']}: {volume:g} mL/etapa × {etapas} etapas = {total:g} mL/dia."}
+
+
 def mapa_do_dia(db_path, data_iso, id_setor=None):
     """Lista o estado de cada leito na data solicitada, herdando o último paciente até a alta."""
     with closing(conectar(db_path)) as c:
@@ -901,6 +934,7 @@ def mapa_do_dia(db_path, data_iso, id_setor=None):
                 continue
             r = dict(r)
             r["data_exibicao"] = data_iso
+            r["dados_copa"] = dados_operacionais_copa(r, data_iso)
             por_leito[r["id_leito"]] = r
         por_leito = {k: v for k, v in por_leito.items() if v is not None}
         for r in regs:
