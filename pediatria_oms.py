@@ -56,19 +56,27 @@ def _valor_lms_no_z(z, l_, m_, s_):
 
 def interpolar_lms(idade, tabela):
     """Interpola L, M e S linearmente; não extrapola além das idades fornecidas."""
-    if isinstance(idade, bool) or not isinstance(idade, int):
-        raise ValueError("Idade deve ser um número inteiro.")
+    if isinstance(idade, bool):
+        raise ValueError("Idade deve ser numérica.")
+    try:
+        idade = float(idade)
+    except (TypeError, ValueError):
+        raise ValueError("Idade deve ser numérica.")
+    if not math.isfinite(idade):
+        raise ValueError("Idade deve ser finita.")
     if not tabela:
         return None
-    pontos = sorted(tabela.items())
-    if idade in tabela:
-        return tuple(float(v) for v in tabela[idade])
+    pontos = sorted((float(k), v) for k, v in tabela.items())
+    exato = next((v for k, v in pontos if math.isclose(k, idade, abs_tol=1e-9)), None)
+    if exato is not None:
+        return tuple(float(v) for v in exato)
     if idade < pontos[0][0] or idade > pontos[-1][0]:
         return None
     for (idade_a, parametros_a), (idade_b, parametros_b) in zip(pontos, pontos[1:]):
         if idade_a < idade < idade_b:
             proporcao = (idade - idade_a) / (idade_b - idade_a)
-            return tuple(float(a) + (float(b) - float(a)) * proporcao for a, b in zip(parametros_a, parametros_b))
+            return tuple(float(a) + (float(b) - float(a)) * proporcao
+                         for a, b in zip(parametros_a, parametros_b))
     return None
 
 
@@ -155,34 +163,46 @@ def classificar_escore_z(indicador, zscore, idade_meses):
 
 
 class TabelaReferenciaOMS:
-    """Tabela LMS indexada por indicador, referência, sexo e idade em meses.
+    """Tabelas OMS oficiais, indexadas por indicador, referência, sexo e unidade de idade.
 
-    CSV: indicador,referencia,sexo,idade_meses,L,M,S.
-    Sexo interno: H (masculino) ou M (feminino). Não há interpolação nem
-    extrapolação: ausência de uma linha exata significa resultado indisponível.
+    CSV aceita idade_dias (OMS 2006) ou idade_meses (OMS 2007), além de L, M e S.
+    Linhas sintéticas antigas com apenas idade_meses continuam aceitas para testes.
     """
 
     def __init__(self, linhas):
-        self._dados = {}
+        self._dados_dias = {}
+        self._dados_meses = {}
+        self._medidas = {}
         for linha in linhas:
             indicador = str(linha["indicador"]).strip().lower()
             referencia = str(linha["referencia"]).strip().lower()
             sexo = str(linha["sexo"]).strip().upper()
             if sexo not in ("H", "M"):
                 raise ValueError("Sexo LMS deve ser H (masculino) ou M (feminino).")
-            idade = int(float(linha["idade_meses"]))
-            if idade < 0:
-                raise ValueError("Idade LMS não pode ser negativa.")
             try:
                 l_, m_, s_ = (float(linha[k]) for k in ("L", "M", "S"))
             except (TypeError, ValueError, KeyError):
                 raise ValueError("Linha LMS incompleta ou não numérica.")
             if not all(math.isfinite(v) for v in (l_, m_, s_)) or m_ <= 0 or s_ <= 0:
                 raise ValueError("Parâmetros LMS inválidos.")
-            chave = (indicador, referencia, sexo, idade)
-            if chave in self._dados:
-                raise ValueError("Linha LMS duplicada: " + repr(chave))
-            self._dados[chave] = (l_, m_, s_)
+            idade_dias = linha.get("idade_dias")
+            idade_meses = linha.get("idade_meses")
+            if idade_dias not in (None, ""):
+                unidade, idade, destino = "dias", float(idade_dias), self._dados_dias
+            elif idade_meses not in (None, ""):
+                unidade, idade, destino = "meses", float(idade_meses), self._dados_meses
+            else:
+                raise ValueError("Linha LMS deve informar idade_dias ou idade_meses.")
+            if idade < 0 or not math.isfinite(idade):
+                raise ValueError("Idade LMS inválida.")
+            chave = (indicador, referencia, sexo)
+            pontos = destino.setdefault(chave, {})
+            if idade in pontos:
+                raise ValueError("Linha LMS duplicada: " + repr(chave + (idade,)))
+            pontos[idade] = (l_, m_, s_)
+            medida = str(linha.get("medida") or "").strip().upper()
+            if medida:
+                self._medidas[(unidade, chave, idade)] = medida
 
     @classmethod
     def de_linhas(cls, linhas):
@@ -195,42 +215,86 @@ class TabelaReferenciaOMS:
             arquivo.seek(0)
             delimitador = ";" if amostra.count(";") > amostra.count(",") else ","
             leitor = csv.DictReader(arquivo, delimiter=delimitador)
-            obrigatorias = {"indicador", "referencia", "sexo", "idade_meses", "L", "M", "S"}
-            if not leitor.fieldnames or not obrigatorias.issubset(
-                    {c.strip() for c in leitor.fieldnames}):
-                raise ValueError("CSV deve conter indicador, referencia, sexo, idade_meses, L, M e S.")
+            obrigatorias = {"indicador", "referencia", "sexo", "L", "M", "S"}
+            campos = {c.strip() for c in (leitor.fieldnames or [])}
+            if not obrigatorias.issubset(campos) or not ({"idade_dias", "idade_meses"} & campos):
+                raise ValueError("CSV deve conter indicador, referencia, sexo, idade_dias ou idade_meses, L, M e S.")
             return cls(leitor)
 
-    def calcular(self, indicador, sexo, idade_meses, valor):
-        """Calcula escore-z ou retorna None quando não existe linha oficial exata."""
-        if isinstance(idade_meses, bool) or not isinstance(idade_meses, int):
-            raise ValueError("Idade deve ser informada em meses completos.")
-        referencia = _referencia_para(indicador, idade_meses)
+    @classmethod
+    def carregar_padrao(cls, base_dir):
+        """Carrega o arquivo versionado dados/oms_lms_pediatricos.csv, se existir."""
+        caminho = Path(base_dir) / "dados" / "oms_lms_pediatricos.csv"
+        if not caminho.exists():
+            return None
+        return cls.de_csv(caminho)
+
+    def _parametros(self, indicador, referencia, sexo, idade_meses, idade_dias=None):
+        chave = (indicador, referencia, sexo)
+        if referencia == "oms_2006" and idade_dias is not None:
+            pontos = self._dados_dias.get(chave, {})
+            return interpolar_lms(idade_dias, pontos)
+        pontos = self._dados_meses.get(chave, {})
+        return interpolar_lms(idade_meses, pontos)
+
+    def calcular(self, indicador, sexo, idade_meses, valor, idade_dias=None):
+        """Calcula escore-z; interpola LMS dentro da cobertura e nunca extrapola."""
+        try:
+            idade_ref = int(math.floor(float(idade_meses)))
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("Idade deve ser informada em meses.")
+        if idade_ref < 0:
+            raise ValueError("Idade não pode ser negativa.")
+        referencia = _referencia_para(indicador, idade_ref)
         sexo = str(sexo or "").strip().upper()
         if sexo not in ("H", "M"):
             return None
-        parametros = self._dados.get((indicador, referencia, sexo, idade_meses))
+        parametros = self._parametros(indicador, referencia, sexo,
+                                      float(idade_meses), idade_dias)
         if parametros is None:
             return None
         return calcular_escore_z(valor, *parametros)
 
+    def curva(self, indicador, sexo, referencia):
+        """Retorna pontos da curva LMS (idade, z=-3,-2,0,+2,+3), sem extrapolar."""
+        sexo = str(sexo or "").strip().upper()
+        chave = (indicador, referencia, sexo)
+        unidade = "dias" if referencia == "oms_2006" else "meses"
+        pontos = (self._dados_dias if unidade == "dias" else self._dados_meses).get(chave, {})
+        saida = []
+        for idade, parametros in sorted(pontos.items()):
+            l_, m_, s_ = parametros
+            saida.append({
+                "idade": idade,
+                "medida": self._medidas.get((unidade, chave, idade), ""),
+                "z_menos3": _valor_lms_no_z(-3, l_, m_, s_),
+                "z_menos2": _valor_lms_no_z(-2, l_, m_, s_),
+                "z_zero": m_,
+                "z_mais2": _valor_lms_no_z(2, l_, m_, s_),
+                "z_mais3": _valor_lms_no_z(3, l_, m_, s_),
+            })
+        return saida
 
-def avaliar_indicador(indicador, valor, sexo, idade_meses, tabela):
+
+def avaliar_indicador(indicador, valor, sexo, idade_meses, tabela, idade_dias=None):
     """Retorna estado explícito, escore-z e classe; nunca presume dado ausente."""
     try:
-        referencia = _referencia_para(indicador, idade_meses)
-    except ValueError as exc:
+        idade_ref = int(math.floor(float(idade_meses)))
+        referencia = _referencia_para(indicador, idade_ref)
+    except (TypeError, ValueError, OverflowError) as exc:
         return {"status": "fora_faixa", "referencia": None,
                 "escore_z": None, "classificacao": None, "aviso": str(exc)}
     if valor is None or sexo not in ("H", "M") or tabela is None:
         return {"status": "pendente", "referencia": referencia,
                 "escore_z": None, "classificacao": None,
                 "aviso": "Medida, sexo ou tabela LMS oficial indisponível."}
-    z = tabela.calcular(indicador, sexo, idade_meses, valor)
+    z = tabela.calcular(indicador, sexo, idade_meses, valor, idade_dias=idade_dias)
     if z is None:
+        motivo = ("Idade exata em dias ou parâmetro LMS oficial indisponível."
+                  if referencia == "oms_2006" else
+                  "Não existe parâmetro LMS oficial para esta combinação.")
         return {"status": "pendente", "referencia": referencia,
-                "escore_z": None, "classificacao": None,
-                "aviso": "Não existe parâmetro LMS oficial para esta combinação."}
-    classe = classificar_escore_z(indicador, z, idade_meses)
+                "escore_z": None, "classificacao": None, "aviso": motivo}
+    classe = classificar_escore_z(indicador, z, idade_ref)
     return {"status": "calculado", "referencia": referencia,
             "escore_z": z, "classificacao": classe, "aviso": None}
