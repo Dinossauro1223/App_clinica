@@ -246,7 +246,8 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(self.chamar(t["cop"], "POST", "/api/nutri/janelas", {"refeicao": "almoco", "abre": "10:00", "fecha": "11:00"})[0], 403)
         self.assertEqual(self.chamar(t["coz"], "GET", "/api/mapa")[0], 403)
         self.assertEqual(self.chamar(t["nut"], "GET", "/api/estoque")[0], 403)
-        self.assertEqual(self.chamar(t["cop"], "GET", "/api/mapa?setor=2")[1]["setor"]["id"], 1)  # pede outro setor: recebe o seu
+        self.assertEqual(self.chamar(t["cop"], "GET", "/api/mapa?setor=2")[1]["setor"]["id"], 2)  # copa compartilha todos os setores
+        self.assertEqual(self.chamar(t["cop2"], "GET", "/api/mapa?setor=1")[1]["setor"]["id"], 1)
         self.assertEqual(self.chamar(t["nut"], "GET", "/api/mapa?setor=2")[1]["setor"]["id"], 1)
         self.assertEqual(self.chamar(t["cop"], "GET", "/api/estoque?estoque=almox")[1]["estoque"], "copa")
 
@@ -377,6 +378,31 @@ class MobileTest(unittest.TestCase):
         self.assertIn('name=ieu value="ml"', html)
         self.assertIn('name=ieu value="un"', html)
         self.assertNotIn("select id=ieu", html)
+
+
+    def test_todas_as_copeiras_compartilham_mapa_e_historico_identifica_autor(self):
+        cop, cop2 = self.t["cop"], self.t["cop2"]
+        mapa = self.chamar(cop, "GET", "/api/mapa?setor=2")[1]
+        self.assertEqual(mapa["setor"]["id"], 2)
+        leito_id = mapa["linhas"][0]["id_leito"]
+        codigo, resultado = self.chamar(cop, "POST", "/api/mapa", {
+            "setor": 2, "linhas": [{"id_leito": leito_id, "nome": "Paciente compartilhado"}]
+        })
+        self.assertEqual(codigo, 200, resultado)
+        leitura = self.chamar(cop2, "GET", "/api/mapa?setor=2")[1]
+        linha = next(x for x in leitura["linhas"] if x["id_leito"] == leito_id)
+        self.assertEqual(linha["nome"], "Paciente compartilhado")
+        self.assertEqual(linha["por_nome"], "cop")
+        self.assertEqual(linha["por_perfil"], "copa")
+        with closing(sv.conectar(self.db)) as c:
+            historico = c.execute(
+                "SELECT por_nome,por_perfil,origem,campos_alterados FROM mapa_historico "
+                "WHERE id_leito=? ORDER BY id DESC LIMIT 1", (leito_id,)
+            ).fetchone()
+            self.assertIsNotNone(historico)
+            self.assertEqual((historico["por_nome"], historico["por_perfil"], historico["origem"]),
+                             ("cop", "copa", "mobile"))
+            self.assertIn("nome", json.loads(historico["campos_alterados"]))
 
 
 if __name__ == "__main__":
