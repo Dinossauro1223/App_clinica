@@ -498,7 +498,7 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
 
     def test_dados_estruturados_da_evolucao_acompanham_historico_e_copia_do_mapa(self):
         dados = {
-            "via": "Enteral", "dva": False,
+            "via": "Enteral", "dva": False, "status_evolucao": "fechada", "fechada": True,
             "dieta_enteral": {"nome": "Fórmula Sintética", "volume_por_etapa_ml": 180, "etapas": 6},
             "progressao_enteral": {"autorizada": True, "incremento_por_etapa_ml": 10},
             "tne_motivos": []
@@ -525,7 +525,7 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
 
     def test_progressao_enteral_diaria_e_porcoes_orais_autorizadas_para_copa(self):
         dados = {
-            "via": "Enteral",
+            "via": "Enteral", "status_evolucao": "fechada", "fechada": True,
             "dieta_enteral": {"nome": "Fórmula Clínica", "volume_por_etapa_ml": 150, "etapas": 6},
             "progressao_enteral": {"autorizada": True, "plano": {"passos": [
                 {"dia": 1, "volume_etapa_ml": 160},
