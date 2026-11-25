@@ -39,9 +39,9 @@ linhas <- list(
   make_rows(a$growthstandards_bmianthro, "imc_idade", "oms_2006", "dias", 1856),
   make_rows(a$growthstandards_weianthro, "peso_idade", "oms_2006", "dias", 1856),
   make_rows(a$growthstandards_lenanthro, "estatura_idade", "oms_2006", "dias", 1856, "loh"),
-  make_rows(p$bfa_growth_standards, "imc_idade", "oms_2007", "meses", 228, idade_min = 61),
-  make_rows(p$wfa_growth_standards, "peso_idade", "oms_2007", "meses", 120, idade_min = 61),
-  make_rows(p$hfa_growth_standards, "estatura_idade", "oms_2007", "meses", 228, idade_min = 61)
+  make_rows(p$bfa_growth_standards, "imc_idade", "oms_2007", "meses", 229, idade_min = 60),
+  make_rows(p$wfa_growth_standards, "peso_idade", "oms_2007", "meses", 121, idade_min = 60),
+  make_rows(p$hfa_growth_standards, "estatura_idade", "oms_2007", "meses", 229, idade_min = 60)
 )
 tabela <- do.call(rbind, linhas)
 write.csv(tabela, "tmp/oms-lms/oms_lms.csv", row.names = FALSE, na = "")
