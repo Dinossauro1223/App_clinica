@@ -290,6 +290,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
         resultados = oms.get("resultados") or {}
         imc_oms = resultados.get("imc_idade") or {}
         idade_reg = self.reg.get("idade_anos")
+        nascimento = self.paciente.get("data_nascimento") or self.reg.get("data_nascimento")
+        data_ref = mdb.iso_para_br(self.reg.get("data"))
+        if idade_reg is None and nascimento:
+            idade_reg = regras.idade_em_anos(nascimento, data_ref)
         if idade_reg is not None and int(idade_reg) < 20:
             classificacao = (imc_oms.get("classificacao") if imc_oms.get("status") == "calculado"
                              else "OMS pendente")
@@ -298,9 +302,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
         peso = av.get("peso_ajustado")
         if peso in (None, ""):
             peso = self.reg.get("peso_kg")
-        data_ref = mdb.iso_para_br(self.reg.get("data"))
         idade = self.reg.get("idade_anos")
-        nascimento = self.paciente.get("data_nascimento") or self.reg.get("data_nascimento")
         if idade is None and nascimento:
             idade = regras.idade_em_anos(nascimento, data_ref)
         return {
