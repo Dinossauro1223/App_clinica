@@ -11,9 +11,11 @@ from pathlib import Path
 
 
 _FAIXAS = {
-    "imc_idade": ((0, 60, "oms_2006"), (61, 228, "oms_2007")),
-    "peso_idade": ((0, 60, "oms_2006"), (61, 120, "oms_2007")),
-    "estatura_idade": ((0, 60, "oms_2006"), (61, 228, "oms_2007")),
+    # WHO AnthroPlus usa 60 <= idade_em_meses < 229 (peso/idade < 121).
+    # O parâmetro inteiro de 229/121 meses serve apenas como âncora de interpolação.
+    "imc_idade": ((0, 59, "oms_2006"), (60, 228, "oms_2007")),
+    "peso_idade": ((0, 59, "oms_2006"), (60, 120, "oms_2007")),
+    "estatura_idade": ((0, 59, "oms_2006"), (60, 228, "oms_2007")),
 }
 
 
@@ -235,6 +237,8 @@ class TabelaReferenciaOMS:
             pontos = self._dados_dias.get(chave, {})
             return interpolar_lms(idade_dias, pontos)
         pontos = self._dados_meses.get(chave, {})
+        if pontos and referencia == "oms_2007":
+            idade_meses = max(float(idade_meses), min(pontos))
         return interpolar_lms(idade_meses, pontos)
 
     def calcular(self, indicador, sexo, idade_meses, valor, idade_dias=None, idade_meses_completos=None):
