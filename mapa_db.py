@@ -774,25 +774,42 @@ def _anexar_suplementos(c, registros):
 
 
 def _anexar_evolucao(c, registros):
-    """Anexa rascunho do registro e última evolução fechada para uso operacional."""
+    """Anexa rascunho do registro e última evolução fechada, respeitando o vínculo do paciente."""
     if not registros:
         return registros
     ids = [r["id_registro"] for r in registros]
     marcas = ",".join("?" * len(ids))
-    dados = {r["id_registro"]: r["dados_json"] for r in c.execute(
+    dados_brutos = {r["id_registro"]: r["dados_json"] for r in c.execute(
         f"SELECT id_registro, dados_json FROM Mapa_Evolucao_Dados WHERE id_registro IN ({marcas})", ids)}
     for r in registros:
-        bruto = dados.get(r["id_registro"])
+        bruto = dados_brutos.get(r["id_registro"])
         try:
-            r["evolucao"] = json.loads(bruto) if bruto else {}
+            dados = json.loads(bruto) if bruto else {}
         except (TypeError, ValueError):
-            r["evolucao"] = {}
+            dados = {}
+        id_paciente_dados = dados.get("id_paciente")
+        if dados and id_paciente_dados is None:
+            try:
+                if dados.get("id_evolucao"):
+                    vinculo = c.execute("SELECT id_paciente FROM Pep_Evolucoes WHERE id_evolucao=?",
+                                        (int(dados["id_evolucao"]),)).fetchone()
+                elif dados.get("id_rascunho"):
+                    vinculo = c.execute("SELECT id_paciente FROM Pep_Rascunhos WHERE id_rascunho=?",
+                                        (int(dados["id_rascunho"]),)).fetchone()
+                else:
+                    vinculo = None
+                id_paciente_dados = vinculo["id_paciente"] if vinculo else None
+            except (sqlite3.OperationalError, TypeError, ValueError):
+                id_paciente_dados = None
+        if dados and (id_paciente_dados is None or id_paciente_dados != r.get("id_paciente")):
+            dados, bruto = {}, None
+        r["evolucao"] = dados
         r["evolucao_json"] = bruto
-        operacional = r["evolucao"] if r["evolucao"].get("status_evolucao") == "fechada" else {}
+        operacional = dados if dados.get("status_evolucao") == "fechada" else {}
         if not operacional and r.get("id_paciente"):
             try:
                 anterior = c.execute(
-                    "SELECT cabecalho_json FROM Pep_Evolucoes "
+                    "SELECT id_evolucao, cabecalho_json FROM Pep_Evolucoes "
                     "WHERE id_paciente=? AND data_evolucao<=? AND adendo_de IS NULL "
                     "ORDER BY data_evolucao DESC, id_evolucao DESC LIMIT 1",
                     (r["id_paciente"], r["data"]),
@@ -801,7 +818,10 @@ def _anexar_evolucao(c, registros):
                     cabecalho = json.loads(anterior["cabecalho_json"] or "{}")
                     operacional = cabecalho.get("dados") or {}
                     if operacional:
-                        operacional["status_evolucao"] = "fechada"
+                        operacional = dict(operacional)
+                        operacional.update({"status_evolucao": "fechada",
+                                            "id_evolucao": anterior["id_evolucao"],
+                                            "id_paciente": r["id_paciente"]})
             except (sqlite3.OperationalError, TypeError, ValueError):
                 operacional = {}
         r["evolucao_operacional"] = operacional
