@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+import sys
+import webbrowser
+from pathlib import Path
+from urllib.parse import quote
+
 import customtkinter as ctk
+import qrcode
 from tkinter import messagebox
 import db_service
 import tema
 import nrs2002 as nrs
+from mobile import servidor as servidor_mobile
 
 CAMINHO = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
 
@@ -41,7 +49,9 @@ class ConfiguracoesUI:
         self.app.limpar_area_principal()
         ctk.CTkLabel(raiz, text="Configurações", font=tema.fonte(24, "bold"),
                       text_color=tema.VERDE).pack(anchor="w", padx=24, pady=(22, 8))
-        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+        conteudo = ctk.CTkScrollableFrame(raiz, fg_color="transparent")
+        conteudo.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        card = ctk.CTkFrame(conteudo, fg_color=tema.BRANCO, border_width=1,
                            border_color=tema.BORDA, corner_radius=12)
         card.pack(fill="x", padx=24, pady=12)
         ctk.CTkLabel(card, text="Aparência do aplicativo", font=tema.fonte(16, "bold"),
@@ -62,10 +72,11 @@ class ConfiguracoesUI:
         seletor.pack(anchor="w", padx=18, pady=(0, 16))
         self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
         self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
-        self._nrs(raiz)
-        self._backups(raiz)
-        ctk.CTkButton(raiz, text="Voltar ao início", fg_color=tema.VERDE,
-                     hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=24, pady=10)
+        self._distribuicao(conteudo)
+        self._nrs(conteudo)
+        self._backups(conteudo)
+        ctk.CTkButton(conteudo, text="Voltar ao início", fg_color=tema.VERDE,
+                     hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=14, pady=10)
 
     def _nrs(self, raiz):
         """Permite ajustar os intervalos de reavaliação, armazenados no banco oficial do Mapa."""
