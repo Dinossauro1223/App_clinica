@@ -216,6 +216,17 @@ def _vazio(campo, v):
     return _cmp(campo, v) in (None, 0, "")
 
 
+def _timestamp_maior(novo, atual):
+    if not novo:
+        return True
+    if not atual:
+        return True
+    try:
+        return datetime.fromisoformat(str(novo).replace("Z", "+00:00")) > datetime.fromisoformat(str(atual).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return str(novo) > str(atual)
+
+
 def _assinatura(row):
     base = [_mapear(row), _t(row.get("dieta")), _t(row.get("diagnostico"))]
     return hashlib.sha1(json.dumps(base, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
@@ -266,6 +277,10 @@ def propostas_mapa(db, ex):
                 continue
             id_leito = _achar_leito(c, setor, codigo)
             reg = mdb.obter_registro(db, data, id_leito) if id_leito else None
+            # Estado sincronizado usa "última alteração" como autoridade. Uma cópia mobile
+            # mais antiga não pode ressuscitar ou apagar um estado que o PC já atualizou.
+            if reg and row.get("atualizado_em") and reg.get("atualizado_em") and not _timestamp_maior(row.get("atualizado_em"), reg.get("atualizado_em")):
+                continue
             if reg is None:
                 if not mob["nome_paciente"]:
                     continue
