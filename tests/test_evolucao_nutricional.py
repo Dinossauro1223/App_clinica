@@ -29,10 +29,10 @@ class TestEvolucaoNutricional(unittest.TestCase):
     def test_volume_e_progressao_sem_ultrapassar_meta(self):
         meta = ev.volume_meta_enteral(1800, 1.5)
         self.assertEqual(meta, 1200)
-        plano = ev.planejar_progressao_enteral(900, meta, 50, dias_alvo=4)
-        self.assertEqual([p["volume_total_ml"] for p in plano["passos"]], [950, 1000, 1050, 1100])
+        plano = ev.planejar_progressao_enteral(900, meta, 35, dias_alvo=4)
+        self.assertEqual([p["volume_total_ml"] for p in plano["passos"]], [935, 970, 1005, 1040])
         self.assertFalse(plano["atinge_meta_no_prazo"])
-        plano = ev.planejar_progressao_enteral(1050, meta, 50, dias_alvo=4)
+        plano = ev.planejar_progressao_enteral(1095, meta, 35, dias_alvo=4)
         self.assertEqual(plano["passos"][-1]["volume_total_ml"], 1200)
         self.assertTrue(plano["atinge_meta_no_prazo"])
 
