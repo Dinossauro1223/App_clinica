@@ -403,6 +403,10 @@ class MobileTest(unittest.TestCase):
             self.assertEqual((historico["por_nome"], historico["por_perfil"], historico["origem"]),
                              ("cop", "copa", "mobile"))
             self.assertIn("nome", json.loads(historico["campos_alterados"]))
+        ranking = self.chamar(self.adm, "GET", "/api/admin/mapa/atividade?periodo=ano&ano=2026")[1]
+        self.assertGreaterEqual(ranking["total"], 1)
+        self.assertIn("cop", [x["nome"] for x in ranking["ranking"]])
+        self.assertEqual(self.chamar(cop, "GET", "/api/admin/mapa/atividade?periodo=ano&ano=2026")[0], 403)
 
 
 if __name__ == "__main__":
