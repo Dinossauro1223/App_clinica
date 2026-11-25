@@ -443,7 +443,7 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
             else:
                 value = t.get(key, "")
             valores.append("" if value is None else str(value))
-        itens.append((t, valores))
+        itens.append((t, valores, item.get("registro")))
 
     def cabecalho():
         pdf.set_text_color(0, 0, 0)
@@ -466,7 +466,7 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
     pdf.add_page()
     cabecalho()
     y = 31
-    for t, values in itens:
+    for t, values, registro in itens:
         altura = 17 if t["paciente"] else 9
         if y + altura > 198:
             pdf.add_page()
@@ -479,24 +479,30 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
             if not value:
                 continue
             key = colunas[i][0]
+            if key == "paciente" and registro:
+                # A célula clínica tem quatro linhas compactas; a classificação do IMC
+                # ocupa a quarta linha para não ser cortada pelo limite vertical do PDF.
+                blocos = linhas_paciente(registro, abreviar=True)
+                if blocos and registro.get("data"):
+                    nome = blocos[0][0][0]
+                    blocos[0][0] = (f"{nome} — {_fmt_data(registro.get('data'))}", "nome")
+                for j, segmentos in enumerate(blocos):
+                    x_texto, y_texto = xs[i] + 0.5, y + 3 + j * 3.0
+                    for texto, estilo in segmentos:
+                        texto_pdf = _l1(texto)
+                        pdf.set_font("Arial", "B" if estilo == "nome" else "", 6 if estilo == "nome" else 5)
+                        pdf.set_text_color(*(VERMELHO_PDF if estilo == "alerta" else (0, 0, 0)))
+                        pdf.text(x_texto, y_texto, texto_pdf)
+                        x_texto += pdf.get_string_width(texto_pdf)
+                pdf.set_text_color(0, 0, 0)
+                continue
             pdf.set_text_color(0, 0, 0)
-            pdf.set_font("Arial", "B" if key == "leito" else "", 5 if key != "paciente" else 6)
+            pdf.set_font("Arial", "B" if key == "leito" else "", 5)
             linhas = _l1(value).splitlines() or [""]
             max_linhas = max(1, int((altura - 1) / 2.4))
             for j, line in enumerate(linhas[:max_linhas]):
                 limite = max(2, int(larguras[i] * 1.3))
-                line = line[:limite]
-                x_texto, y_texto = xs[i] + 0.5, y + 3 + j * 2.3
-                # Mantém a classificação antropométrica destacada em vermelho no PDF.
-                if key == "paciente" and "IMC (" in line and " (" in line:
-                    base, classificacao = line.rsplit(" (", 1)
-                    pdf.text(x_texto, y_texto, base)
-                    x_classe = x_texto + pdf.get_string_width(base)
-                    pdf.set_text_color(*VERMELHO_PDF)
-                    pdf.text(x_classe, y_texto, " (" + classificacao)
-                    pdf.set_text_color(0, 0, 0)
-                else:
-                    pdf.text(x_texto, y_texto, line)
+                pdf.text(xs[i] + 0.5, y + 3 + j * 2.3, line[:limite])
         y += altura
     pdf.output(caminho)
     return caminho
