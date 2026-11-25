@@ -404,11 +404,18 @@ _PEP_EVOLUCAO_UP = (
         criado_em TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS ix_pep_rascunho_hist ON Pep_Rascunho_Historico(id_rascunho, id_historico)",
-    "ALTER TABLE Pep_Evolucoes ADD COLUMN dados_json TEXT",
-    "ALTER TABLE Pep_Evolucoes ADD COLUMN id_elaborador INTEGER REFERENCES Pep_Equipe(id_membro)",
-    "ALTER TABLE Pep_Evolucoes ADD COLUMN elaborador_nome TEXT",
-    "ALTER TABLE Pep_Evolucoes ADD COLUMN fechada_em TEXT",
-    "ALTER TABLE Pep_Evolucoes ADD COLUMN confirmacao_json TEXT",
+    """CREATE TABLE IF NOT EXISTS Pep_Evolucao_Metadados (
+        id_evolucao INTEGER PRIMARY KEY REFERENCES Pep_Evolucoes(id_evolucao),
+        id_elaborador INTEGER NOT NULL REFERENCES Pep_Equipe(id_membro),
+        elaborador_nome TEXT NOT NULL,
+        fechada_em TEXT NOT NULL,
+        dados_json TEXT NOT NULL,
+        confirmacao_json TEXT NOT NULL
+    )""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucao_meta_update_imutavel BEFORE UPDATE ON Pep_Evolucao_Metadados
+       BEGIN SELECT RAISE(ABORT, 'Metadados da evolução fechada são imutáveis.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucao_meta_delete_imutavel BEFORE DELETE ON Pep_Evolucao_Metadados
+       BEGIN SELECT RAISE(ABORT, 'Metadados da evolução fechada não podem ser apagados.'); END""",
     """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_hist_update_imutavel BEFORE UPDATE ON Pep_Rascunho_Historico
        BEGIN SELECT RAISE(ABORT, 'Histórico de rascunho é imutável.'); END""",
     """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_hist_delete_imutavel BEFORE DELETE ON Pep_Rascunho_Historico
@@ -421,6 +428,8 @@ _PEP_EVOLUCAO_UP = (
        BEGIN SELECT RAISE(ABORT, 'Rascunho fechado não pode ser apagado.'); END""",
 )
 _PEP_EVOLUCAO_DOWN = (
+    "DROP TRIGGER IF EXISTS tr_pep_evolucao_meta_delete_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_evolucao_meta_update_imutavel",
     "DROP TRIGGER IF EXISTS tr_pep_rascunho_fechado_delete_imutavel",
     "DROP TRIGGER IF EXISTS tr_pep_rascunho_fechado_update_imutavel",
     "DROP TRIGGER IF EXISTS tr_pep_rascunho_hist_delete_imutavel",
@@ -429,14 +438,10 @@ _PEP_EVOLUCAO_DOWN = (
     "DROP INDEX IF EXISTS ix_pep_rascunhos_status",
     "DROP INDEX IF EXISTS ix_pep_rascunhos_paciente",
     "DROP INDEX IF EXISTS ux_pep_equipe_usuario",
+    "DROP TABLE IF EXISTS Pep_Evolucao_Metadados",
     "DROP TABLE IF EXISTS Pep_Rascunho_Historico",
     "DROP TABLE IF EXISTS Pep_Rascunhos",
     "DROP TABLE IF EXISTS Pep_Equipe",
-    "ALTER TABLE Pep_Evolucoes DROP COLUMN confirmacao_json",
-    "ALTER TABLE Pep_Evolucoes DROP COLUMN fechada_em",
-    "ALTER TABLE Pep_Evolucoes DROP COLUMN elaborador_nome",
-    "ALTER TABLE Pep_Evolucoes DROP COLUMN id_elaborador",
-    "ALTER TABLE Pep_Evolucoes DROP COLUMN dados_json",
 )
 
 # Lista oficial. NOVAS migrações entram SEMPRE ao final, com versão contígua; nunca editar uma já publicada.
