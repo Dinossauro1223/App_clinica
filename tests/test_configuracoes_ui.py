@@ -41,6 +41,8 @@ class TestPreferenciasConfiguracoes(unittest.TestCase):
             self.assertIn(f"'{modulo}'", spec, f"{modulo} precisa ser incluído no PyInstaller")
         self.assertIn("oms_lms_pediatricos.csv", spec)
         self.assertTrue((raiz / "dados" / "oms_lms_pediatricos.csv").is_file())
+        self.assertIn("oms_classificacoes_pediatricas.json", spec)
+        self.assertTrue((raiz / "dados" / "oms_classificacoes_pediatricas.json").is_file())
 
     def test_falha_de_escrita_retorna_false(self):
         with mock.patch.object(cfg.os, "makedirs", side_effect=OSError("sem permissão")):
