@@ -19,7 +19,7 @@ import json
 import os
 import sys
 from contextlib import closing
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import mapa_db as mdb
 
@@ -216,6 +216,22 @@ def _vazio(campo, v):
     return _cmp(campo, v) in (None, 0, "")
 
 
+def _timestamp_maior(novo, atual):
+    if not novo:
+        return True
+    if not atual:
+        return True
+    try:
+        a = datetime.fromisoformat(str(novo).replace("Z", "+00:00"))
+        b = datetime.fromisoformat(str(atual).replace("Z", "+00:00"))
+        local = timezone(timedelta(hours=-3))
+        if a.tzinfo is None: a = a.replace(tzinfo=local)
+        if b.tzinfo is None: b = b.replace(tzinfo=local)
+        return a > b
+    except (TypeError, ValueError):
+        return str(novo).replace("T", " ") > str(atual).replace("T", " ")
+
+
 def _assinatura(row):
     base = [_mapear(row), _t(row.get("dieta")), _t(row.get("diagnostico"))]
     return hashlib.sha1(json.dumps(base, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
@@ -266,6 +282,10 @@ def propostas_mapa(db, ex):
                 continue
             id_leito = _achar_leito(c, setor, codigo)
             reg = mdb.obter_registro(db, data, id_leito) if id_leito else None
+            # Estado sincronizado usa "última alteração" como autoridade. Uma cópia mobile
+            # mais antiga não pode ressuscitar ou apagar um estado que o PC já atualizou.
+            if reg and row.get("atualizado_em") and reg.get("atualizado_em") and not _timestamp_maior(row.get("atualizado_em"), reg.get("atualizado_em")):
+                continue
             if reg is None:
                 if not mob["nome_paciente"]:
                     continue
@@ -501,7 +521,9 @@ def _linha_mobile(reg, vivo):
             "constipante": bool(reg.get("constipante")), "drc": bool(reg.get("drc")),
             "suplementos": suplementos,
             "dieta": dieta_para_mobile(reg) or vivo.get("dieta", ""),
-            "diagnostico": diagnostico_para_mobile(reg) or vivo.get("diagnostico", "")}
+            "diagnostico": diagnostico_para_mobile(reg) or vivo.get("diagnostico", ""),
+            "atualizado_em": reg.get("atualizado_em"),
+            "alta_em": reg.get("alta_em")}
 
 
 def _enviar_setor(db, sv, c, adm, nome, itens, data_iso, texto):
@@ -519,20 +541,25 @@ def _enviar_setor(db, sv, c, adm, nome, itens, data_iso, texto):
         if reg:
             linhas.append({"id_leito": lid, **_linha_mobile(reg, vivo.get(lid, {}))})
             marcas.append((cod, lid, 1))
-        elif enviados.get((nome, cod)):  # foi o desktop que pôs o paciente aí e agora o leito está vazio: libera na copa
-            linhas.append({"id_leito": lid})
+        else:
+            # Envio completo: até leitos vazios entram na fotografia. Sem timestamp, o servidor não
+            # sobrescreve um estado que possa ter sido criado pela copa.
+            ultimo = mdb.ultimo_registro_leito(db, it["leito"]["id_leito"], data_iso)
+            linhas.append({"id_leito": lid, "nome": "", "ocupado": 0,
+                           "atualizado_em": (ultimo or {}).get("atualizado_em"),
+                           "alta_em": (ultimo or {}).get("alta_em")})
             marcas.append((cod, lid, 0))
-        # leito vazio no desktop e nunca preenchido por ele: pode ter dado novo da copa; não mexe
     if not linhas:
         return {"setor": nome, "leitos": 0}
     s = {"id": sid, "nome": nome}
-    sv.post_mapa(c, adm, s, data_iso, linhas)
-    try:
-        n = sv.publicar(c, adm, s, data_iso, texto)["leitos"]
-    except sv.Erro as e:
-        if "Não há alterações" not in e.msg:
-            raise
-        n = 0
+    sync = sv.post_mapa(c, adm, s, data_iso, linhas, completo=True)
+    n = sync.get("ok", 0)
+    if n:
+        mud = [{"leito": cod, "tipo": "alterado" if com else "liberado"} for cod, _, com in marcas]
+        c.execute("INSERT INTO avisos(criado_em,por_usuario,tipo,id_setor,titulo,texto,leitos) VALUES(?,?,?,?,?,?,?)",
+                  (sv.agora(), adm["id"], "mapa", sid,
+                   "Mapa de %s/%s sincronizado" % (data_iso[8:10], data_iso[5:7]),
+                   str(texto or "").strip()[:300], json.dumps(mud, ensure_ascii=False)))
     depois = {l["id_leito"]: l for l in sv.linhas_mapa(c, sid, data_iso)}
     with closing(mdb.conectar(db)) as d:  # o que acabou de ser enviado não volta como "novidade do mobile"
         for cod, lid, com in marcas:
