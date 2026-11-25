@@ -204,6 +204,8 @@ class GestaoAlimentarUI:
         _btn(topo, "Atualizar agora", self.sincronizar, 125, cor=CINZA, hover=tema.SUAVE).pack(side="right")
         _btn(topo, "Editar / vincular TBCA", lambda: self._editar_produto_almox(False), 175, cor=tema.AZUL).pack(side="right", padx=5)
         _btn(topo, "＋ Novo produto", lambda: self._editar_produto_almox(True), 135).pack(side="right", padx=5)
+        _btn(topo, "Pedidos de reposição", self._abrir_pedidos_almox, 155, cor=CINZA, hover=tema.SUAVE).pack(side="right", padx=5)
+        _btn(topo, "Prazo médio", self._abrir_prazos_almox, 115, cor=CINZA, hover=tema.SUAVE).pack(side="right", padx=5)
         ctk.CTkLabel(self.tab_almox,
                      text="O saldo é lido do mobile. Preço unitário refere-se à unidade de estoque cadastrada; conteúdo da embalagem informa quantos g/ml/un essa unidade contém.",
                      font=ctk.CTkFont(size=11), text_color=tema.SUAVE, anchor="w", justify="left", wraplength=900).pack(fill="x", padx=10, pady=4)
@@ -441,6 +443,18 @@ class GestaoAlimentarUI:
             tbca.configure(state="disabled")
             ctk.CTkLabel(form, text="Importe a base TBCA na aba Base TBCA para habilitar o vínculo.",
                          font=ctk.CTkFont(size=10), text_color=tema.SUAVE).grid(row=7, column=1, sticky="w", padx=4)
+        if item:
+            try:
+                self.mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
+                prazo = im.prazo_medio_produto(self.mobile_db, id_item)
+            except Exception:
+                prazo = None
+            texto_prazo = ("Prazo médio de recebimento: %.1f dia(s) corrido(s) · %d pedido(s) recebido(s) · %d pendente(s)" %
+                           (prazo["prazo_medio_dias"] or 0, prazo["pedidos_recebidos"], prazo["pendentes"])) if prazo
+                           else "Ainda não há histórico de pedidos e recebimentos para este insumo.")
+            ctk.CTkLabel(form, text=texto_prazo, font=ctk.CTkFont(size=11),
+                         text_color=tema.SUAVE, wraplength=690, justify="left").grid(
+                             row=7, column=0, columnspan=2, sticky="w", padx=4, pady=(8, 2))
         rodape = ctk.CTkFrame(janela, fg_color="transparent")
         rodape.pack(fill="x", padx=18, pady=14)
         def salvar():
@@ -459,7 +473,140 @@ class GestaoAlimentarUI:
             self.sincronizar(silencioso=True)
             self.lbl_status.configure(text="Produto salvo no catálogo compartilhado. Sincronizando o espelho da ficha técnica…")
         _btn(rodape, "Cancelar", janela.destroy, 100, cor=CINZA, hover=tema.SUAVE).pack(side="right", padx=4)
+        if item:
+            _btn(rodape, "＋ Pedido de reposição", lambda: self._novo_pedido_almox(id_item, janela),
+                 165, cor=tema.AZUL, hover=tema.AZUL_HOVER).pack(side="left", padx=4)
         _btn(rodape, "Salvar produto", salvar, 140).pack(side="right", padx=4)
+
+
+    def _mobile_db_path(self):
+        self.mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
+        return self.mobile_db
+
+    def _novo_pedido_almox(self, id_item, parent=None):
+        produto = next((p for p in ga.listar_produtos_almox(self.db) if int(p["id_mobile"]) == int(id_item)), None)
+        if not produto:
+            messagebox.showwarning("Pedido de reposição", "Produto não encontrado.")
+            return
+        janela = ctk.CTkToplevel(parent or self.app)
+        janela.title("Registrar pedido de reposição")
+        janela.geometry("460x360")
+        janela.transient(parent or self.app)
+        janela.grab_set()
+        ctk.CTkLabel(janela, text="Pedido de reposição",
+                     font=ctk.CTkFont(size=17, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(janela, text=produto["nome"], font=ctk.CTkFont(size=13, weight="bold")).pack(
+            anchor="w", padx=18, pady=(0, 12))
+        ctk.CTkLabel(janela, text="Quantidade de embalagens/unidades solicitadas").pack(anchor="w", padx=18)
+        qtd = ctk.CTkEntry(janela, placeholder_text="Ex.: 20")
+        qtd.pack(fill="x", padx=18, pady=(4, 10))
+        ctk.CTkLabel(janela, text="Fornecedor (opcional)").pack(anchor="w", padx=18)
+        fornecedor = ctk.CTkEntry(janela, placeholder_text="Nome do fornecedor")
+        fornecedor.pack(fill="x", padx=18, pady=(4, 10))
+        ctk.CTkLabel(janela, text="Observação (opcional)").pack(anchor="w", padx=18)
+        obs = ctk.CTkEntry(janela, placeholder_text="Prazo informado, número do pedido…")
+        obs.pack(fill="x", padx=18, pady=(4, 12))
+        def salvar_pedido():
+            try:
+                im.criar_pedido_almox(self._mobile_db_path(), id_item, qtd.get(),
+                                      fornecedor.get(), obs.get(), getpass.getuser())
+            except Exception as exc:
+                messagebox.showwarning("Pedido de reposição", str(exc), parent=janela)
+                return
+            janela.destroy()
+            messagebox.showinfo("Pedido registrado",
+                                "O pedido foi registrado. Quando o material chegar, marque o recebimento para calcular o prazo e atualizar o estoque.",
+                                parent=parent or self.app)
+            self._abrir_pedidos_almox()
+        rodape = ctk.CTkFrame(janela, fg_color="transparent")
+        rodape.pack(fill="x", padx=18, pady=12)
+        _btn(rodape, "Cancelar", janela.destroy, 100, cor=CINZA, hover=tema.SUAVE).pack(side="right", padx=4)
+        _btn(rodape, "Registrar pedido", salvar_pedido, 140).pack(side="right", padx=4)
+
+    def _abrir_pedidos_almox(self):
+        try:
+            pedidos = im.listar_pedidos_almox(self._mobile_db_path(), apenas_pendentes=True)
+        except Exception as exc:
+            messagebox.showwarning("Pedidos de reposição", str(exc))
+            return
+        janela = ctk.CTkToplevel(self.app)
+        janela.title("Pedidos de reposição pendentes")
+        janela.geometry("820x500")
+        ctk.CTkLabel(janela, text="Pedidos aguardando recebimento",
+                     font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=18, pady=(16, 8))
+        frame, arvore = _tree(janela, [
+            ("item", "Insumo", 220, "w"), ("qtd", "Quantidade", 100, "e"),
+            ("data", "Solicitado em", 150, "center"), ("por", "Solicitado por", 130, "w"),
+            ("forn", "Fornecedor", 150, "w")], altura=12)
+        frame.pack(fill="both", expand=True, padx=14, pady=8)
+        for pedido in pedidos:
+            arvore.insert("", "end", iid=str(pedido["id"]), values=(
+                pedido["item"], _fmt_num(pedido["qtd"]), pedido["solicitado_em"],
+                pedido["solicitado_nome"] or "—", pedido["fornecedor"] or "—"))
+        def receber():
+            sel = arvore.selection()
+            if not sel:
+                messagebox.showinfo("Recebimento", "Selecione um pedido pendente.", parent=janela)
+                return
+            pedido_id = int(sel[0])
+            if not messagebox.askyesno("Confirmar recebimento",
+                                       "Confirmar a chegada do pedido? A quantidade será adicionada ao estoque do almoxarifado.",
+                                       parent=janela):
+                return
+            try:
+                im.receber_pedido_almox(self._mobile_db_path(), pedido_id, getpass.getuser())
+            except Exception as exc:
+                messagebox.showwarning("Recebimento", str(exc), parent=janela)
+                return
+            janela.destroy()
+            self.sincronizar(silencioso=True)
+            messagebox.showinfo("Recebimento registrado",
+                                "A entrada foi registrada no estoque e o prazo de recebimento foi calculado.",
+                                parent=self.app)
+        rodape = ctk.CTkFrame(janela, fg_color="transparent")
+        rodape.pack(fill="x", padx=14, pady=(0, 14))
+        _btn(rodape, "Atualizar lista", lambda: (janela.destroy(), self._abrir_pedidos_almox()),
+             130, cor=CINZA, hover=tema.SUAVE).pack(side="left")
+        _btn(rodape, "Registrar recebimento", receber, 170).pack(side="right")
+
+    def _abrir_prazos_almox(self):
+        try:
+            prazos = im.listar_prazos_almox(self._mobile_db_path())
+        except Exception as exc:
+            messagebox.showwarning("Prazo médio de reposição", str(exc))
+            return
+        janela = ctk.CTkToplevel(self.app)
+        janela.title("Prazo médio de recebimento por insumo")
+        janela.geometry("760x540")
+        ctk.CTkLabel(janela, text="Prazo médio de reposição",
+                     font=ctk.CTkFont(size=19, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=20, pady=(18, 4))
+        ctk.CTkLabel(janela, text="Dias corridos entre o registro do pedido e a confirmação do recebimento. A média é calculada apenas com pedidos recebidos.",
+                     font=ctk.CTkFont(size=11), text_color=tema.SUAVE, wraplength=700,
+                     justify="left").pack(anchor="w", padx=20, pady=(0, 12))
+        lista = ctk.CTkScrollableFrame(janela, fg_color="transparent")
+        lista.pack(fill="both", expand=True, padx=16, pady=8)
+        if not prazos:
+            ctk.CTkLabel(lista, text="Ainda não há pedidos e recebimentos registrados.").pack(anchor="w", padx=8, pady=8)
+            return
+        maximo = max([float(p["prazo_medio_dias"] or 0) for p in prazos] + [1.0])
+        for p in prazos:
+            linha = ctk.CTkFrame(lista, corner_radius=10)
+            linha.pack(fill="x", padx=4, pady=5)
+            cab = ctk.CTkFrame(linha, fg_color="transparent")
+            cab.pack(fill="x", padx=12, pady=(8, 2))
+            ctk.CTkLabel(cab, text=p["nome"], font=ctk.CTkFont(size=12, weight="bold")).pack(side="left")
+            prazo = p["prazo_medio_dias"]
+            ctk.CTkLabel(cab, text=("%.1f dia(s)" % prazo) if prazo is not None else "Sem recebimentos",
+                         text_color=VERDE_ESC, font=ctk.CTkFont(size=12, weight="bold")).pack(side="right")
+            barra = ctk.CTkProgressBar(linha, height=9, progress_color=VERDE)
+            barra.pack(fill="x", padx=12, pady=3)
+            barra.set(float(prazo or 0) / maximo)
+            ctk.CTkLabel(linha, text="%d pedido(s) recebido(s) · %d pendente(s)" %
+                         (p["pedidos_recebidos"], p["pendentes"] or 0),
+                         font=ctk.CTkFont(size=10), text_color=tema.SUAVE).pack(anchor="w", padx=12, pady=(0, 8))
 
     def carregar_produtos(self):
         if not self.produtos_tree:
