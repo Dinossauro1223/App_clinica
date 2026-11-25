@@ -597,6 +597,8 @@ class TestExportacao(unittest.TestCase):
                        "Obs. (Sim/Não)", "F. Int."):
             self.assertIn(mex._l1(titulo), textos)
         self.assertTrue(any("Francisca Aparecida" in t[3] for t in pdf.textos))
+        self.assertTrue(any(t[4] == mex.VERMELHO_PDF and t[3].startswith(" (")
+                            for t in pdf.textos), "classificação do IMC deve permanecer em vermelho")
         # nada ultrapassa a largura da página
         for _, x, _, txt, _ in pdf.textos:
             self.assertLess(x, 297 - 8)
