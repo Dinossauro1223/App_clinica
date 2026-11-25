@@ -267,7 +267,7 @@ class ConfiguracoesUI:
         )
         qr.add_data(conteudo)
         qr.make(fit=True)
-        imagem = qr.make_image(fill_color="#102d2a", back_color="#ffffff").get_image()
+        imagem = qr.make_image(fill_color=tema.VERDE_ESC, back_color=tema.BRANCO).get_image()
         return ctk.CTkImage(light_image=imagem, dark_image=imagem, size=(tamanho, tamanho))
 
     def _distribuicao(self, raiz):
