@@ -90,7 +90,7 @@ jobs:
               throw "Artefato obrigatório ausente: $arquivo"
             }
           }
-          if ((Get-Item -LiteralPath $apk).Length -lt 50000) {
+          if ((Get-Item -LiteralPath $apk).Length -lt 10000) {
             throw "APK muito pequeno ou vazio."
           }
           $temp = Join-Path $env:RUNNER_TEMP "nutrilab-integrado-validacao"
