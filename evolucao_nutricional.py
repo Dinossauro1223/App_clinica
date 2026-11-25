@@ -119,13 +119,19 @@ def planejar_progressao_enteral(volume_atual_ml, volume_meta_ml, incremento_diar
         return {"ativa": False, "motivo": motivo, "volume_atual_ml": atual,
                 "volume_meta_ml": meta, "volume_limite_ml": limite, "passos": [],
                 "dias_estimados": 0, "atinge_meta_no_prazo": False}
+    # Calcula o prazo total para atingir o limite, mas expõe somente os passos
+    # dentro da janela solicitada (3 ou 4 dias). O restante continua estimado em dias.
+    dias_estimados = 0
+    volume_estimado = atual
+    while volume_estimado < limite and dias_estimados < 365:
+        volume_estimado = min(limite, volume_estimado + incremento)
+        dias_estimados += 1
     passos, volume = [], atual
-    while volume < limite and len(passos) < 365:
+    for dia in range(1, min(dias_estimados, int(dias_alvo)) + 1):
         proximo = min(limite, volume + incremento)
-        passos.append({"dia": len(passos) + 1, "volume_total_ml": proximo,
+        passos.append({"dia": dia, "volume_total_ml": proximo,
                        "incremento_ml": proximo - volume})
         volume = proximo
-    dias_estimados = len(passos)
     return {"ativa": True, "motivo": None, "volume_atual_ml": atual,
             "volume_meta_ml": meta, "volume_limite_ml": limite, "passos": passos,
             "dias_estimados": dias_estimados,
