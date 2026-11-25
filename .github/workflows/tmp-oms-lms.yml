@@ -2,6 +2,8 @@ name: Temporary WHO LMS extraction
 on:
   push:
     branches: [tmp/oms-lms-extract]
+  pull_request:
+    branches: [main]
 permissions:
   contents: read
 jobs:
