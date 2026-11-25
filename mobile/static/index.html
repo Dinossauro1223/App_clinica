@@ -315,6 +315,7 @@ function aplicarConteudoQR(valor){
 }
 async function abrirLeitorQR(){
  const box=$('#qrLeitor');box.hidden=false;
+ if(window.Android&&typeof Android.escanearQR==='function'){Android.escanearQR();return}
  const aviso=$('#qrAviso');
  if(!('BarcodeDetector' in window)){
   aviso.textContent='Este navegador não oferece leitura de QR integrada. Use o endereço manual abaixo ou atualize o navegador.';
