@@ -30,6 +30,8 @@ set "JDKDIR=%FERR%\jdk"
 set "SDK=%FERR%\sdk"
 set "DL=%FERR%\downloads"
 set "KS=%FERR%\nutrilab.keystore"
+set "ZXING=%DL%\zxing-core-3.5.4.jar"
+set "ZXINGURL=https://maven-central.storage-download.googleapis.com/maven2/com/google/zxing/core/3.5.4/core-3.5.4.jar"
 set "W=%FERR%\work"
 set "BTV=34.0.0"
 set "PLAT=android-34"
@@ -96,6 +98,12 @@ if errorlevel 1 goto :falha_download
 if not exist "%BT%\aapt2.exe" goto :falha
 if not exist "%AJAR%" goto :falha
 :sdk_ok
+set "PASSO=ZXing Core 3.5.4 para leitura nativa de QR"
+if exist "%ZXING%" goto :zxing_ok
+call :baixar "%ZXINGURL%" "%ZXING%"
+if errorlevel 1 goto :falha_download
+:zxing_ok
+for %%F in ("%ZXING%") do if %%~zF LSS 500000 goto :falha
 if exist "%KS%" goto :ks_ok
 echo       Criando a chave de assinatura do app, uma vez so...
 "%JAVA_HOME%\bin\keytool.exe" -genkeypair -keystore "%KS%" -alias nutrilab -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=NutriLab, OU=Nutricao, O=NutriLab, C=BR" >nul 2>&1
@@ -141,13 +149,13 @@ set "PASSO=aapt2 link - manifesto e paginas"
 "%BT%\aapt2.exe" link -o "%OBJ%\base.apk" -I "%AJAR%" --manifest "%APP%\AndroidManifest.xml" -A "%APP%\assets" --min-sdk-version 26 --target-sdk-version 34 --version-code %VCODE% --version-name 1.0 "%OBJ%\res.zip" >>"%LOG%" 2>&1
 if errorlevel 1 goto :falha_build
 set "PASSO=javac - codigo Java"
-"%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 --release 8 -classpath "%AJAR%" -d "%OBJ%\classes" "%APP%\src\br\nutrilab\mobile\MainActivity.java" >>"%LOG%" 2>&1
+"%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 --release 8 -classpath "%AJAR%;%ZXING%" -d "%OBJ%\classes" "%APP%\src\br\nutrilab\mobile\MainActivity.java" "%APP%\src\br\nutrilab\mobile\QRScannerActivity.java" >>"%LOG%" 2>&1
 if errorlevel 1 goto :falha_build
 set "PASSO=jar - empacotar as classes"
 "%JAVA_HOME%\bin\jar.exe" cf "%OBJ%\classes.jar" -C "%OBJ%\classes" . >>"%LOG%" 2>&1
 if errorlevel 1 goto :falha_build
 set "PASSO=d8 - converter para Android"
-call "%BT%\d8.bat" --lib "%AJAR%" --min-api 26 --output "%OBJ%\dex" "%OBJ%\classes.jar" >>"%LOG%" 2>&1
+call "%BT%\d8.bat" --lib "%AJAR%" --min-api 26 --output "%OBJ%\dex" "%OBJ%\classes.jar" "%ZXING%" >>"%LOG%" 2>&1
 if errorlevel 1 goto :falha_build
 set "PASSO=aapt add - juntar o codigo ao APK"
 pushd "%OBJ%\dex"
