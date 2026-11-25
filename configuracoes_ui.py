@@ -64,6 +64,7 @@ class ConfiguracoesUI:
         self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
         self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
         self._nrs(raiz)
+        self._progressao_oral(raiz)
         self._equipe(raiz)
         self._backups(raiz)
         ctk.CTkButton(raiz, text="Voltar ao início", fg_color=tema.VERDE,
@@ -110,6 +111,40 @@ class ConfiguracoesUI:
         ctk.CTkButton(card, text="Salvar intervalos", command=salvar, fg_color=tema.VERDE,
                       hover_color=tema.VERDE_HOVER, font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
 
+
+    def _progressao_oral(self, raiz):
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                           border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=(4, 12))
+        ctk.CTkLabel(card, text="Progressão de porções orais", font=tema.fonte(15, "bold"),
+                     text_color=tema.TEXTO).pack(anchor="w", padx=18, pady=(14, 4))
+        ctk.CTkLabel(card, text="Defina a sequência de volumes disponíveis para autorização do nutricionista. A passagem do tempo não altera a porção automaticamente.",
+                     font=tema.fonte(12), text_color=tema.SUAVE, wraplength=760,
+                     justify="left").pack(anchor="w", padx=18, pady=(0, 8))
+        caminho_db = getattr(getattr(self.app, "mapa", None), "db", None)
+        if not caminho_db:
+            ctk.CTkLabel(card, text="Banco de dados do Mapa não disponível.",
+                         text_color=tema.LARANJA_TEXTO).pack(anchor="w", padx=18, pady=(0, 12))
+            return
+        atual = mapa_db.obter_config(caminho_db, "porcoes_orais_ml", "70,100,130,160,200")
+        entrada = ctk.CTkEntry(card, width=360, placeholder_text="70,100,130,160,200")
+        entrada.insert(0, str(atual))
+        entrada.pack(side="left", padx=18, pady=(0, 14))
+        status = ctk.CTkLabel(card, text="", font=tema.fonte(11), text_color=tema.SUAVE)
+        status.pack(side="left", padx=8, pady=(0, 14))
+        def salvar():
+            try:
+                valores = [int(x.strip()) for x in entrada.get().split(",") if x.strip()]
+                if len(valores) < 2 or any(x <= 0 for x in valores):
+                    raise ValueError("Informe ao menos duas porções positivas.")
+                if valores != sorted(set(valores)):
+                    raise ValueError("As porções devem estar em ordem crescente e sem repetição.")
+                mapa_db.definir_config(caminho_db, "porcoes_orais_ml", ",".join(map(str, valores)))
+                status.configure(text="Sequência salva.", text_color=tema.VERDE)
+            except (ValueError, TypeError) as erro:
+                status.configure(text=str(erro), text_color=tema.LARANJA_TEXTO)
+        ctk.CTkButton(card, text="Salvar sequência", command=salvar,
+                      fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER).pack(side="left", padx=8, pady=(0, 14))
 
     def _equipe(self, raiz):
         """Cadastro de estagiários e nutricionistas vinculados ao fluxo de evolução."""
