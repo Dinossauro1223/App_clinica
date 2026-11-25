@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -18,7 +19,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "mobile" / "apk" / "app"
 STATIC = ROOT / "mobile" / "static" / "index.html"
-JAVA = APP / "src" / "br" / "nutrilab" / "mobile" / "MainActivity.java"
+JAVA_DIR = APP / "src" / "br" / "nutrilab" / "mobile"
+JAVA = JAVA_DIR / "MainActivity.java"
+QR_JAVA = JAVA_DIR / "QRScannerActivity.java"
+ZXING_URL = "https://maven-central.storage-download.googleapis.com/maven2/com/google/zxing/core/3.5.4/core-3.5.4.jar"
 
 
 def executar(comando: list[str], cwd: Path | None = None) -> None:
@@ -62,8 +66,8 @@ def main() -> int:
                     tools / "apksigner", android_jar):
         if not arquivo.is_file():
             raise FileNotFoundError(f"Ferramenta Android ausente: {arquivo}")
-    if not JAVA.is_file() or not STATIC.is_file():
-        raise FileNotFoundError("MainActivity.java ou mobile/static/index.html ausente.")
+    if not JAVA.is_file() or not QR_JAVA.is_file() or not STATIC.is_file():
+        raise FileNotFoundError("MainActivity.java, QRScannerActivity.java ou mobile/static/index.html ausente.")
 
     output = Path(args.output).resolve()
     keystore = Path(args.keystore).resolve()
@@ -75,6 +79,11 @@ def main() -> int:
         app = work / "app"
         shutil.copytree(APP, app)
         shutil.copy2(STATIC, app / "assets" / "index.html")
+        zxing = work / "zxing-core-3.5.4.jar"
+        print("+ download ZXing Core 3.5.4", flush=True)
+        urllib.request.urlretrieve(ZXING_URL, zxing)
+        if zxing.stat().st_size < 500_000:
+            raise RuntimeError("O arquivo ZXing Core baixado está incompleto.")
         obj = work / "obj"
         classes = obj / "classes"
         dex = obj / "dex"
@@ -92,12 +101,15 @@ def main() -> int:
         # Não use android.jar como bootclasspath: isso esconde java.lang.invoke.LambdaMetafactory
         # do javac 17 e gera o erro reportado no Windows. API Java 8 + Android API como classpath.
         executar([
-            "javac", "-encoding", "UTF-8", "--release", "8", "-classpath", android_jar,
-            "-d", classes, app / "src" / "br" / "nutrilab" / "mobile" / "MainActivity.java",
+            "javac", "-encoding", "UTF-8", "--release", "8",
+            "-classpath", os.pathsep.join((str(android_jar), str(zxing))),
+            "-d", classes,
+            app / "src" / "br" / "nutrilab" / "mobile" / "MainActivity.java",
+            app / "src" / "br" / "nutrilab" / "mobile" / "QRScannerActivity.java",
         ])
         executar(["jar", "cf", obj / "classes.jar", "-C", classes, "."])
         executar([tools / "d8", "--lib", android_jar, "--min-api", "26",
-                  "--output", dex, obj / "classes.jar"])
+                  "--output", dex, obj / "classes.jar", zxing])
         executar([tools / "aapt", "add", obj / "base.apk", "classes.dex"], cwd=dex)
         executar([tools / "zipalign", "-f", "-p", "4", obj / "base.apk", obj / "alinhado.apk"])
 
