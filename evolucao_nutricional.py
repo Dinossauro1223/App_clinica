@@ -288,11 +288,17 @@ def resumo_painel_evolucao(registro, data_destino):
     volume_atual = atual_etapa * etapas
     energia_atual = volume_atual * kcal_100 / 100
     ptn_100 = dieta.get("ptn_100")
-    proteina_atual = volume_atual * float(ptn_100) / 100 if ptn_100 not in (None, "") else None
+    try:
+        proteina_atual = volume_atual * _numero(ptn_100, "Proteína por 100 mL", minimo=0.000001) / 100
+    except ValueError:
+        proteina_atual = None
     meta_ptn = metas.get("proteina_g_dia")
     adequacao_kcal = energia_atual / meta_kcal * 100
-    adequacao_ptn = (proteina_atual / float(meta_ptn) * 100
-                     if proteina_atual is not None and meta_ptn not in (None, 0) else None)
+    try:
+        adequacao_ptn = (proteina_atual / _numero(meta_ptn, "Meta proteica", minimo=0.000001) * 100
+                         if proteina_atual is not None else None)
+    except ValueError:
+        adequacao_ptn = None
     evoluiu = atual_etapa > inicial_etapa
     motivo = None
     if not progressao.get("solicitada"):
@@ -303,7 +309,8 @@ def resumo_painel_evolucao(registro, data_destino):
         motivo = "Restrição clínica"
     elif not progressao.get("tolerancia", True):
         motivo = "Intolerância enteral"
-    elif volume_atual >= float(oferta.get("volume_meta_ml") or progressao.get("volume_meta_ml") or float("inf")):
+    elif volume_atual >= (float(oferta.get("volume_meta_ml") or progressao.get("volume_meta_ml"))
+                           if (oferta.get("volume_meta_ml") or progressao.get("volume_meta_ml")) else float("inf")):
         motivo = "Meta energética atingida"
     elif not evoluiu:
         motivo = "Progressão ainda não iniciada"
