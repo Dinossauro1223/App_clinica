@@ -379,7 +379,7 @@ class MapaUI:
         grupos = {"evoluiram": [], "nao_evoluiram": [], "abaixo_meta": []}
         for item in self.linhas:
             registro = item.get("registro")
-            if not registro:
+            if not registro or not registro.get("evolucao_operacional"):
                 continue
             resumo = ev.resumo_painel_evolucao(registro, self.data.isoformat())
             paciente = registro.get("nome_paciente") or "Paciente"
