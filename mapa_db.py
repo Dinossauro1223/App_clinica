@@ -879,11 +879,13 @@ def ultimo_registro_leito(db_path, id_leito, data_iso):
 
 
 def dados_operacionais_copa(registro, data_destino=None):
-    """Extrai somente instruções operacionais autorizadas; nunca expõe metas, TNE, DVA ou diagnósticos."""
+    """Extrai instruções operacionais apenas de evolução fechada e autorizada."""
     if not registro:
         return {}
-    via = str(registro.get("via") or "").casefold()
     dados = registro.get("evolucao") or {}
+    if dados.get("status_evolucao") != "fechada" and not dados.get("fechada"):
+        return {}
+    via = str(registro.get("via") or "").casefold()
     if via == "oral":
         if dados.get("porcao_oral_autorizada") and dados.get("porcao_oral_ml") not in (None, ""):
             porcao = int(float(dados["porcao_oral_ml"]))
@@ -895,8 +897,8 @@ def dados_operacionais_copa(registro, data_destino=None):
     dieta = dados.get("dieta_enteral") or {}
     if not dieta.get("nome") or dieta.get("volume_por_etapa_ml") in (None, ""):
         return {}
-    volume = float(dieta["volume_por_etapa_ml"])
     etapas = int(dieta.get("etapas") or 1)
+    volume_total = float(dieta["volume_por_etapa_ml"]) * etapas
     progressao = dados.get("progressao_enteral") or {}
     if progressao.get("autorizada") and progressao.get("plano", {}).get("passos"):
         inicio_bruto = dados.get("data_evolucao") or registro["data"]
@@ -905,11 +907,20 @@ def dados_operacionais_copa(registro, data_destino=None):
         dias = max(0, (destino - inicio).days)
         passos = progressao["plano"]["passos"]
         if dias:
-            volume = float(passos[min(dias - 1, len(passos) - 1)]["volume_etapa_ml"])
-    total = volume * etapas
-    return {"via": "Enteral", "formula": dieta["nome"], "volume_por_etapa_ml": volume,
-            "etapas": etapas, "volume_total_ml": total,
-            "instrucao": f"{str(dieta['nome'])[:18]} {volume:g}mL/etapa x{etapas}={total:g}mL/d"}
+            volume_total = float(passos[min(dias - 1, len(passos) - 1)]["volume_total_ml"])
+    total_inteiro = int(round(volume_total))
+    base, resto = divmod(total_inteiro, etapas)
+    volumes_etapas = [base + 1] * resto + [base] * (etapas - resto)
+    volume_medio = volume_total / etapas
+    if len(set(volumes_etapas)) <= 1:
+        detalhe = f"{volumes_etapas[0]}mL/etapa x{etapas}"
+    else:
+        detalhe = f"{volumes_etapas[0]}mL x{resto} + {base}mL x{etapas-resto}"
+    nome_curto = str(dieta["nome"])[:16]
+    instrucao = f"{nome_curto} {detalhe}={total_inteiro}mL/d"
+    return {"via": "Enteral", "formula": dieta["nome"], "volume_por_etapa_ml": volume_medio,
+            "volumes_etapas_ml": volumes_etapas, "etapas": etapas,
+            "volume_total_ml": volume_total, "instrucao": instrucao}
 
 
 def mapa_do_dia(db_path, data_iso, id_setor=None):
