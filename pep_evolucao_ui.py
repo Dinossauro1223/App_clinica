@@ -301,11 +301,17 @@ class FormEvolucaoUI(ctk.CTkFrame):
         if not resultado.get("ajustou"):
             self.lbl_correcao.configure(text="")
             return
+        original = resultado.get("peso")
+        final = resultado.get("ajustado", av.get("peso_ajustado"))
+        if original in (None, "") or final in (None, ""):
+            avisos = resultado.get("avisos") or av.get("avisos") or []
+            self.lbl_correcao.configure(
+                text="Correção antropométrica não calculável. " + " ".join(str(x) for x in avisos),
+                text_color=tema.ERRO)
+            return
         dados_av = resultado.get("dados") or av.get("dados") or {}
         edema = avaliacao.EDEMA.get(dados_av.get("edema"), 0)
         ascite = avaliacao.ASCITE.get(dados_av.get("ascite"), 0)
-        original = resultado.get("peso")
-        final = resultado.get("ajustado", av.get("peso_ajustado"))
         amputacao = resultado.get("amput_pct", 0)
         self.lbl_correcao.configure(
             text=("Correção antropométrica — " +
@@ -332,6 +338,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
             av = {}
         resultado = av.get("resultado") or av
         peso = resultado.get("ajustado", av.get("peso_ajustado"))
+        if peso in (None, "") and resultado.get("ajustou"):
+            return None
         if peso in (None, ""):
             peso = self.reg.get("peso_kg")
         return float(peso) if peso not in (None, "") else None
