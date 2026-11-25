@@ -399,7 +399,6 @@ class MapaUI:
             return
         import evolucao_nutricional as evolucao
         grupos = evolucao.gerar_alertas_mapa(self.linhas, self.data.isoformat())
-        total = sum(len(v) for v in grupos.values())
         self.lbl_resumo_alertas.configure(
             text=f"{len(grupos['evoluiram'])} evoluíram · {len(grupos['nao_evoluiram'])} sem evolução · {len(grupos['abaixo_meta'])} abaixo da meta")
         for chave, lista in self.alerta_lists.items():
@@ -415,7 +414,7 @@ class MapaUI:
                 nome = item.get("nome") or "Paciente sem nome"
                 leito = item.get("leito") or "Leito"
                 if chave == "evoluiram":
-                    detalhe = (f"{formatar_numero_pt(item.get('volume_anterior_ml', 0))} → "
+                    detalhe = (f"{evolucao.formatar_numero_pt(item.get('volume_anterior_ml', 0))} → "
                                f"{formatar_numero_pt(item.get('volume_atual_ml', 0))} mL/dia "
                                f"(+{formatar_numero_pt(item.get('incremento_ml', 0))} mL); "
                                f"meta {formatar_numero_pt(item.get('volume_meta_ml', 0))} mL/dia")
