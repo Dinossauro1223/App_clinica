@@ -8,7 +8,7 @@
 
 ## Referências e fronteiras
 
-- OMS 2006: WHO Child Growth Standards, tabelas diárias de 0 a 1826 dias.
+- OMS 2006: WHO Child Growth Standards, tabelas diárias de 0 a 1856 dias.
 - OMS 2007: WHO Growth Reference 5–19 years, tabelas mensais. A seleção do algoritmo AnthroPlus começa em 60 meses completos; os limites clínicos superiores são 228 meses para IMC/estatura e 120 meses para peso.
 - Os registros de 229 meses (IMC/estatura) e 121 meses (peso) são âncoras técnicas para interpolar idades decimais abaixo do limite superior exclusivo; não autorizam classificar pacientes nessas idades.
 
