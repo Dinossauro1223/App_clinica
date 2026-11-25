@@ -367,6 +367,24 @@ def norm(l):
     return n
 
 
+def timestamp_novo(novo, atual):
+    """Compara timestamps ISO, aceitando registros antigos sem fuso e novos com fuso."""
+    if not novo:
+        return False
+    if not atual:
+        return True
+    try:
+        a = datetime.fromisoformat(str(novo).replace("Z", "+00:00"))
+        b = datetime.fromisoformat(str(atual).replace("Z", "+00:00"))
+        if a.tzinfo is None:
+            a = a.replace(tzinfo=TZ)
+        if b.tzinfo is None:
+            b = b.replace(tzinfo=TZ)
+        return a > b
+    except (TypeError, ValueError):
+        return str(novo).replace("T", " ") > str(atual).replace("T", " ")
+
+
 def atual(c, tipo, data, chave):
     if tipo == "mapa":
         r = c.execute("SELECT ocupado,acompanhante,COALESCE(dieta,'') dieta,COALESCE(nome,'') nome,idade_anos,idade_meses,"
@@ -387,7 +405,7 @@ def atual(c, tipo, data, chave):
 
 
 def gravar(c, tipo, data, chave, v, uid, perfil):
-    t = agora()
+    t = v.get("_atualizado_em") or agora()
     if tipo == "mapa":
         c.execute("INSERT INTO mapa_dia(data,id_leito,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
                   "cor,consistencia,via,dm,has,laxativa,constipante,drc,suplementos_json,por_usuario,por_perfil,atualizado_em) "
@@ -503,21 +521,33 @@ def saldo(c, est, iid, d):
 
 
 # ------------------------------------------------------------ operações (POST)
-def post_mapa(c, u, s, d, linhas):
-    """Copa: grava direto (com a regra de correção). Nutrição/admin: grava RASCUNHO, que só chega à copa ao publicar."""
+def post_mapa(c, u, s, d, linhas, completo=False):
+    """Grava o mapa. No modo completo, aplica por leito somente o estado com timestamp mais novo."""
     cods = {r["id"]: r["codigo"] for r in c.execute("SELECT id,codigo FROM leitos WHERE id_setor=?", (s["id"],))}
     staff = u["perfil"] in STAFF
-    vivo = {l["id_leito"]: l for l in linhas_mapa(c, s["id"], d)} if staff else {}
-    res = {"ok": 0, "igual": 0, "pendente": 0, "rascunho": 0}
+    vivo = {l["id_leito"]: l for l in linhas_mapa(c, s["id"], d)}
+    res = {"ok": 0, "igual": 0, "pendente": 0, "rascunho": 0, "ignorados": 0}
     for l in linhas:
         lid = int(l["id_leito"])
         if lid not in cods:
             raise Erro("Leito de outro setor.", 403)
         n = norm(l)
-        n.pop("suplementos", None)  # a forma persistida é o JSON; a leitura decodifica para a interface
+        n.pop("suplementos", None)
+        if completo:
+            n["_atualizado_em"] = l.get("atualizado_em")
+            atual_l = vivo.get(lid) or {}
+            if not n["_atualizado_em"] and not n.get("ocupado"):
+                res["ignorados"] += 1
+                continue
+            if n["_atualizado_em"] and not timestamp_novo(n["_atualizado_em"], atual_l.get("atualizado_em")):
+                res["igual"] += 1
+                continue
+            gravar(c, "mapa", d, str(lid), n, u["id"], u["perfil"])
+            res["ok"] += 1
+            continue
         if not staff:
             res[salvar(c, u, "mapa", d, str(lid), "Leito %s (%s)" % (cods[lid], s["nome"]), n, s["id"])] += 1
-        elif all(vivo[lid].get(k) == v for k, v in n.items() if k != "suplementos_json") and vivo[lid].get("suplementos", []) == json.loads(n["suplementos_json"]):  # igual ao que a copa já vê: descarta rascunho antigo
+        elif all(vivo[lid].get(k) == v for k, v in n.items() if k != "suplementos_json") and vivo[lid].get("suplementos", []) == json.loads(n["suplementos_json"]):
             c.execute("DELETE FROM mapa_rascunho WHERE data=? AND id_leito=?", (d, lid))
             res["igual"] += 1
         else:
@@ -730,9 +760,19 @@ def criar_setor(c, b):
 def exportar(c, d):
     def t(sql, *a):
         return [dict(r) for r in c.execute(sql, a)]
-    return {"esquema": 3, "data": d, "gerado_em": agora(), "setores": t("SELECT * FROM setores"), "leitos": t("SELECT * FROM leitos"),
+    setores = t("SELECT * FROM setores")
+    leitos = t("SELECT * FROM leitos")
+    mapa_completo = []
+    # O estado sincronizado é sempre um snapshot completo: cada leito é enviado,
+    # mesmo vazio, herdando o último registro até que exista uma alta explícita.
+    for setor in setores:
+        for linha in linhas_mapa(c, setor["id"], d):
+            linha["id_setor"] = setor["id"]
+            linha["data"] = d
+            mapa_completo.append(linha)
+    return {"esquema": 4, "data": d, "gerado_em": agora(), "setores": setores, "leitos": leitos,
             "suplementos_catalogo": t("SELECT * FROM suplementos_catalogo WHERE ativo=1 ORDER BY nome"),
-            "itens": t("SELECT * FROM itens"), "mapa": t("SELECT * FROM mapa_dia WHERE data=?", d),
+            "itens": t("SELECT * FROM itens"), "mapa": mapa_completo,
             "mapa_rascunho": t("SELECT * FROM mapa_rascunho WHERE data=?", d),
             "refeicoes_cfg": t("SELECT * FROM refeicoes_cfg"), "janelas": t("SELECT * FROM janelas"),
             "refeicoes": t("SELECT * FROM refeicoes_dia WHERE data=?", d), "estoque": t("SELECT * FROM estoque_dia WHERE data=?", d),
@@ -770,12 +810,20 @@ def _rotear(c, ip, m, p, q, b, auth):
     if p in ("/api/mapa", "/api/refeicoes"):
         if perfil not in ("admin", "nutricionista", "copa"):
             raise Erro("Sem permissão.", 403)
-        s, d = setor_alvo(c, u, q.get("setor") or b.get("setor")), dia_alvo(u, q.get("data") or b.get("data"))
         mapa = p == "/api/mapa"
+        if m == "GET" and perfil == "copa" and q.get("setor"):
+            s = c.execute("SELECT * FROM setores WHERE id=?", (int(q.get("setor")),)).fetchone()
+            if not s:
+                raise Erro("Setor não encontrado.", 404)
+            s = dict(s)
+            d = hoje()
+            lin = linhas_mapa(c, s["id"], d, staff) if mapa else linhas_refeicoes(c, s["id"], d)
+            return {"data": d, "setor": s, "linhas": lin, "pendentes": pendentes(c, "mapa" if mapa else "refeicao", d)}
+        s, d = setor_alvo(c, u, q.get("setor") or b.get("setor")), dia_alvo(u, q.get("data") or b.get("data"))
         if m == "GET":
             lin = linhas_mapa(c, s["id"], d, staff) if mapa else linhas_refeicoes(c, s["id"], d)
             return {"data": d, "setor": s, "linhas": lin, "pendentes": pendentes(c, "mapa" if mapa else "refeicao", d)}
-        return (post_mapa if mapa else post_refeicoes)(c, u, s, d, b.get("linhas", []))
+        return (post_mapa if mapa else post_refeicoes)(c, u, s, d, b.get("linhas", []), bool(b.get("completo"))) if mapa else post_refeicoes(c, u, s, d, b.get("linhas", []))
     if p == "/api/estoque":
         est, d = estoque_alvo(u, q.get("estoque") or b.get("estoque")), dia_alvo(u, q.get("data") or b.get("data"))
         if m == "GET":
