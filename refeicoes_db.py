@@ -16,9 +16,19 @@ PUBLICOS = ("paciente", "funcionario", "acompanhante")
 REFEICOES = ("desjejum", "colacao", "almoco", "lanche", "jantar", "ceia")
 
 
+class _ConexaoFechavel(sqlite3.Connection):
+    """Fecha também o handle ao sair de um bloco 'with'."""
+
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            return super().__exit__(exc_type, exc, tb)
+        finally:
+            self.close()
+
+
 def conectar(db_path):
     os.makedirs(os.path.dirname(os.path.abspath(str(db_path))), exist_ok=True)
-    conn = sqlite3.connect(str(db_path), timeout=15)
+    conn = sqlite3.connect(str(db_path), timeout=15, factory=_ConexaoFechavel)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA busy_timeout=15000")
