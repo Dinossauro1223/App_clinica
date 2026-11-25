@@ -1,80 +1,48 @@
 # Referências antropométricas pediátricas — OMS
 
-## Escopo extraído do PDF enviado
+## Indicadores implementados
 
-O documento contém curvas por sexo para:
-- IMC por idade: nascimento–5 anos e 5–19 anos;
-- peso por idade: nascimento–5 anos e 5–10 anos;
-- estatura/comprimento por idade: nascimento–5 anos e 5–19 anos.
+- IMC por idade: OMS 2006 e OMS 2007, até 228 meses completos.
+- Peso por idade: OMS 2006 e OMS 2007, até 120 meses completos (10 anos). Não usar peso/idade para classificar excesso de peso.
+- Comprimento/estatura por idade: OMS 2006 e OMS 2007, até 228 meses completos.
 
-As páginas 1–10 apresentam as curvas OMS 2006/2007 em escore-z. As páginas 11–12 apresentam IMC por idade de meninas e meninos de 0 a 5 anos.
+## Referências e fronteiras
 
-## Referências e faixas de uso
+- OMS 2006: WHO Child Growth Standards, tabelas diárias de 0 a 1826 dias.
+- OMS 2007: WHO Growth Reference 5–19 years, tabelas mensais. A seleção do algoritmo AnthroPlus começa em 60 meses completos; os limites clínicos superiores são 228 meses para IMC/estatura e 120 meses para peso.
+- Os registros de 229 meses (IMC/estatura) e 121 meses (peso) são âncoras técnicas para interpolar idades decimais abaixo do limite superior exclusivo; não autorizam classificar pacientes nessas idades.
 
-- OMS 2006 (WHO Anthro 1.1.0): idade inferior a 60 meses, usando idade exata em dias.
-- OMS 2007 (WHO AnthroPlus 1.1.0): a partir de 60 meses; IMC/idade e estatura/idade até antes de 229 meses; peso/idade até antes de 121 meses.
-- IMC/idade: 0–19 anos.
-- Estatura/idade: 0–19 anos.
-- Peso/idade: 0–10 anos; não disponibilizar a partir de 121 meses completos.
-- As linhas de 229 meses (IMC/estatura) e 121 meses (peso) são âncoras técnicas para interpolar idades decimais abaixo do limite; não são pontos clínicos nem autorizam extrapolação.
+Fontes:
+- [WHO Child Growth Standards](https://www.who.int/tools/child-growth-standards)
+- [WHO Growth Reference 5–19 years](https://www.who.int/toolkits/growth-reference-data-for-5to19-years)
+- [WHO anthro](https://github.com/WorldHealthOrganization/anthro)
+- [WHO anthroplus](https://github.com/WorldHealthOrganization/anthroplus)
 
-Fontes oficiais:
-- https://www.who.int/tools/child-growth-standards
-- https://www.who.int/toolkits/growth-reference-data-for-5to19-years
-- https://www.who.int/tools/growth-reference-data-for-5to19-years/indicators/bmi-for-age
-- https://www.who.int/tools/growth-reference-data-for-5to19-years/indicators/height-for-age
-- https://www.who.int/tools/growth-reference-data-for-5to19-years/indicators/weight-for-age-5to10-years
-- https://github.com/WorldHealthOrganization/anthro
-- https://github.com/WorldHealthOrganization/anthroplus
-- https://cran.r-project.org/package=anthro
-- https://cran.r-project.org/package=anthroplus
+## Dados e classificação
 
-## Classificação
+- Os parâmetros L, M e S estão em dados/oms_lms_pediatricos.csv, derivados dos pacotes WHO anthro 1.1.0 e anthroplus 1.1.0.
+- Os pontos de corte e rótulos de classificação estão em dados/oms_classificacoes_pediatricas.json. O módulo carrega esse arquivo para selecionar as faixas e aplicar as regras por referência.
+- O CSV guarda sexo, referência, indicador, idade em dias ou meses, L, M, S e, para comprimento/estatura, o tipo de medida da tabela original.
+- OMS 2006 usa idade exata em dias. OMS 2007 usa idade decimal em meses e interpolação linear de L, M e S. A referência e a classe são selecionadas com meses completos.
+- Nenhum valor LMS é estimado. Ausência de data de nascimento para menores de 5 anos, sexo, medida ou parâmetro aplicável resulta em avaliação pendente.
 
-Os pontos de corte estruturados estão em `dados/oms_classificacoes_pediatricas.json`. A classificação de IMC/idade muda entre menores de 5 anos e 5–19 anos. Peso/idade não deve ser usado para diagnosticar excesso de peso; para isso, usar IMC/idade. Estatura/idade avalia crescimento linear.
+## Interpretação clínica
 
-## Tabelas LMS versionadas e proveniência
+- IMC/idade é o indicador para classificação de magreza, eutrofia, risco de sobrepeso, sobrepeso e obesidade, com pontos de corte diferentes entre OMS 2006 e OMS 2007.
+- Peso/idade avalia baixo peso; não diagnostica sobrepeso ou obesidade e não tem referência OMS depois de 10 anos.
+- Estatura/idade avalia crescimento linear; valores muito elevados exigem interpretação no contexto clínico.
+- Para menores de 24 meses, medir comprimento deitado. A partir de 24 meses, medir estatura em pé. A medida deve seguir o protocolo da referência.
+- Valores extremos além de ±3 DP seguem o método OMS específico; não se deve extrapolar a fórmula LMS convencional.
 
-Os parâmetros LMS estão versionados em `dados/oms_lms_pediatricos.csv`. O arquivo foi extraído das tabelas de referência distribuídas pelos pacotes mantidos pela Organização Mundial da Saúde:
+## Integração no prontuário
 
-- WHO `anthro` 1.1.0 — padrões OMS 2006; repositório [WorldHealthOrganization/anthro](https://github.com/WorldHealthOrganization/anthro).
-- WHO `anthroplus` 1.1.0 — referência OMS 2007; repositório [WorldHealthOrganization/anthroplus](https://github.com/WorldHealthOrganization/anthroplus).
+A avaliação pediátrica está incorporada ao formulário de registro do leito, junto aos demais dados antropométricos. Usa data de nascimento do cadastro do paciente, sexo, peso e comprimento/estatura, calcula IMC e apresenta escores-z e classificações. Os resultados são persistidos em pediatria_oms_json, aparecem no histórico e alimentam a classificação exibida no mapa. O botão Curvas OMS abre os gráficos por sexo com a medida do paciente sobreposta.
 
-A licença dos pacotes de origem é GPL-3. O CSV mantém os parâmetros L, M e S originais, por sexo e idade, sem digitalizar curvas nem fabricar valores. A cobertura presente no arquivo é:
+Cada registro guarda um snapshot com data de avaliação, data de nascimento, idade em dias/meses, sexo, medidas, IMC, resultados por indicador e versão/fonte das referências. A aferição anterior não é sobrescrita por um novo registro.
 
-- OMS 2006: 0–1826 dias para IMC/idade, peso/idade e comprimento/estatura/idade.
-- OMS 2007: 60–229 meses como faixa de dados de interpolação para IMC/idade e estatura/idade.
-- OMS 2007: 60–121 meses como faixa de dados de interpolação para peso/idade.
+## Limitações e segurança
 
-Os limites superiores 229 e 121 são apenas âncoras técnicas: a avaliação clínica permanece limitada a menos de 229 meses para IMC/estatura e menos de 121 meses para peso. O motor não extrapola além dessas âncoras. Para OMS 2006, usa idade exata em dias e não calcula quando a data de nascimento ou o parâmetro correspondente estiver ausente.
-
-O arquivo `dados/oms_classificacoes_pediatricas.json` contém os metadados e pontos de corte de classificação; ele não substitui as tabelas LMS. Se uma combinação de sexo, indicador ou idade não existir na tabela, o resultado deve permanecer pendente. Nunca estimar ou inventar parâmetros.
-
-## Regras para persistência e gráficos
-
-Cada aferição deve ser preservada como evento histórico, sem sobrescrever a anterior, contendo no mínimo:
-- paciente e leito vinculados;
-- data/hora da aferição;
-- data de nascimento ou idade exata em meses completos na data da aferição;
-- sexo utilizado para selecionar a referência;
-- peso (kg), comprimento/estatura (cm), IMC (kg/m²);
-- origem da medida (aferida ou estimada) e método, quando aplicável;
-- indicador, escore-z, classificação, referência/versão e avisos;
-- registro dos dados de entrada que produziram o resultado.
-
-Os gráficos individuais devem usar idade em meses no eixo X, valor antropométrico no eixo Y, curva de referência apropriada por sexo/idade e pontos históricos aferidos. Distinguir visualmente medidas aferidas e estimadas.
-
-## Integração no NutriLab
-
-A interface de edição do leito já reúne NRS-2002 e avaliação nutricional em `mapa_ui.py`; a avaliação pediátrica deve ser incorporada nesse formulário, sem criar uma aba de consulta independente. A persistência atual de `Mapa_Registros` guarda dados do registro diário, mas a série histórica de antropometria deve ter tabela própria para permitir várias aferições no mesmo dia e preservar a evolução clínica.
-
-A NRS-2002 não deve ser considerada substituta da avaliação pediátrica por crescimento. A escolha de uma ferramenta específica de triagem de risco nutricional pediátrico deve ser validada separadamente com protocolo institucional.
-
-## Validação antes de ativar cálculos
-
-- Conferir os dados oficiais com a documentação OMS/Anthro/AnthroPlus.
-- Testar os limites de idade (60/61 meses, 120/121 meses e 228/229 meses).
-- Testar ambos os sexos, limites de classificação e valores ausentes.
-- Verificar a continuidade das referências aos 5 anos.
-- Não aplicar peso/idade acima de 120 meses.
-- Testar cálculos LMS e classificação com casos de referência publicados.
+- Sem data de nascimento, o cálculo OMS 2006 de menores de 5 anos fica pendente; idade aproximada em anos/meses não substitui idade exata em dias.
+- Fora da cobertura de cada indicador, o sistema informa que não é aplicável e não extrapola.
+- Testes com valores sintéticos validam apenas a matemática e a integração; não são dados clínicos nem validação de curvas.
+- A triagem nutricional pediátrica deve ser interpretada por profissional habilitado e não substitui avaliação clínica.
