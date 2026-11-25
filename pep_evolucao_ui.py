@@ -214,9 +214,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             self._somente_leitura()
 
     def _preencher(self):
-        dados = self.dados_existentes
-        if not dados:
-            return
+        dados = self.dados_existentes if isinstance(self.dados_existentes, dict) else {}
         self.seg_dva.set("Sim" if dados.get("dva") else "Não")
         if dados.get("tno") in regras.TNO_PERCENTUAIS:
             self.cb_tno.set(dados["tno"])
