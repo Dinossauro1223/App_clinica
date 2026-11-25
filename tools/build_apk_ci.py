@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "mobile" / "apk" / "app"
 STATIC = ROOT / "mobile" / "static" / "index.html"
+JSQR = ROOT / "mobile" / "static" / "jsQR.js"
 JAVA_DIR = APP / "src" / "br" / "nutrilab" / "mobile"
 JAVA = JAVA_DIR / "MainActivity.java"
 QR_JAVA = JAVA_DIR / "QRScannerActivity.java"
@@ -39,13 +40,15 @@ def validar_apk(apk: Path, app_dir: Path) -> None:
         obrigatorios = {
             "AndroidManifest.xml", "classes.dex", "resources.arsc",
             "assets/index.html", "assets/config.html", "assets/erro.html",
-            "assets/THIRD_PARTY_NOTICES.txt",
+            "assets/THIRD_PARTY_NOTICES.txt", "assets/jsQR.js",
         }
         faltando = sorted(obrigatorios - nomes)
         if faltando:
             raise RuntimeError("APK sem arquivos obrigatórios: " + ", ".join(faltando))
         if pacote.read("assets/index.html") != STATIC.read_bytes():
             raise RuntimeError("A interface HTML embutida no APK está desatualizada.")
+        if pacote.read("assets/jsQR.js") != JSQR.read_bytes():
+            raise RuntimeError("O decodificador QR offline embutido no APK está desatualizado.")
         dex = pacote.read("classes.dex")
         if b"QRScannerActivity" not in dex or b"MultiFormatReader" not in dex:
             raise RuntimeError("O APK não contém o leitor QR nativo/ZXing.");
@@ -70,7 +73,7 @@ def main() -> int:
                     tools / "apksigner", android_jar):
         if not arquivo.is_file():
             raise FileNotFoundError(f"Ferramenta Android ausente: {arquivo}")
-    if not JAVA.is_file() or not QR_JAVA.is_file() or not STATIC.is_file():
+    if not JAVA.is_file() or not QR_JAVA.is_file() or not STATIC.is_file() or not JSQR.is_file():
         raise FileNotFoundError("MainActivity.java, QRScannerActivity.java ou mobile/static/index.html ausente.")
 
     output = Path(args.output).resolve()
@@ -83,6 +86,7 @@ def main() -> int:
         app = work / "app"
         shutil.copytree(APP, app)
         shutil.copy2(STATIC, app / "assets" / "index.html")
+        shutil.copy2(JSQR, app / "assets" / "jsQR.js")
         zxing = work / "zxing-core-3.5.4.jar"
         print("+ download ZXing Core 3.5.4", flush=True)
         urllib.request.urlretrieve(ZXING_URL, zxing)
