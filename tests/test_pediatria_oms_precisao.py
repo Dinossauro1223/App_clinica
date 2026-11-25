@@ -5,7 +5,7 @@ interpolação e correção das caudas; não são referências antropométricas.
 """
 import unittest
 
-from pediatria_oms import calcular_escore_z, calcular_idade_dias, interpolar_lms
+from pediatria_oms import (calcular_escore_z, calcular_idade_dias, interpolar_lms,\n                            TabelaReferenciaOMS, avaliar_indicador)
 
 
 class TestIdadeExataEmDias(unittest.TestCase):
