@@ -27,7 +27,11 @@ powershell -NoProfile -Command "if ('%FERR%' -cmatch '[^\x00-\x7F]') { exit 1 }"
 if errorlevel 1 call :ferr_alternativa
 
 set "JDKDIR=%FERR%\jdk"
-set "SDK=%FERR%\sdk"
+if defined NUTRILAB_ANDROID_SDK (
+    set "SDK=%NUTRILAB_ANDROID_SDK%"
+) else (
+    set "SDK=%FERR%\sdk"
+)
 set "DL=%FERR%\downloads"
 set "KS=%FERR%\nutrilab.keystore"
 set "ZXING=%DL%\zxing-core-3.4.1.jar"
