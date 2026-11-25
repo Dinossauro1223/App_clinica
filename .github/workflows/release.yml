@@ -63,6 +63,7 @@ jobs:
           mkdir -p "$WORK/obj/classes" "$WORK/obj/dex" "$WORK/app"
           cp -R mobile/apk/app/. "$WORK/app/"
           cp mobile/static/index.html "$WORK/app/assets/index.html"
+          cp mobile/static/jsQR.js "$WORK/app/assets/jsQR.js"
           "$BT/aapt2" compile --dir "$WORK/app/res" -o "$WORK/obj/res.zip"
           "$BT/aapt2" link -o "$WORK/obj/base.apk" -I "$SDK/platforms/android-34/android.jar" \
             --manifest "$WORK/app/AndroidManifest.xml" -A "$WORK/app/assets" \
