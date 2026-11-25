@@ -415,19 +415,25 @@ class MapaUI:
                 leito = item.get("leito") or "Leito"
                 if chave == "evoluiram":
                     detalhe = (f"{evolucao.formatar_numero_pt(item.get('volume_anterior_ml', 0))} → "
-                               f"{formatar_numero_pt(item.get('volume_atual_ml', 0))} mL/dia "
-                               f"(+{formatar_numero_pt(item.get('incremento_ml', 0))} mL); "
-                               f"meta {formatar_numero_pt(item.get('volume_meta_ml', 0))} mL/dia")
+                               f"{evolucao.formatar_numero_pt(item.get('volume_atual_ml', 0))} mL/dia "
+                               f"(+{evolucao.formatar_numero_pt(item.get('incremento_ml', 0))} mL); "
+                               f"meta {evolucao.formatar_numero_pt(item.get('volume_meta_ml', 0))} mL/dia")
+                    if item.get("adequacao_kcal_pct") is not None:
+                        detalhe += (f" · Adeq. {evolucao.formatar_numero_pt(item['adequacao_kcal_pct'], 1)}% kcal"
+                                    f" / {evolucao.formatar_numero_pt(item.get('adequacao_proteina_pct') or 0, 1)}% PTN")
                 elif chave == "nao_evoluiram":
                     detalhe = item.get("motivo", "sem progressão")
                     if item.get("volume_atual_ml") is not None:
-                        detalhe += f" · {formatar_numero_pt(item['volume_atual_ml'])} mL/dia"
+                        detalhe += f" · {evolucao.formatar_numero_pt(item['volume_atual_ml'])} mL/dia"
+                    if item.get("adequacao_kcal_pct") is not None:
+                        detalhe += (f" · Adeq. {evolucao.formatar_numero_pt(item['adequacao_kcal_pct'], 1)}% kcal"
+                                    f" / {evolucao.formatar_numero_pt(item.get('adequacao_proteina_pct') or 0, 1)}% PTN")
                 else:
-                    detalhe = (f"{formatar_numero_pt(item.get('kcal_atual', 0))}/"
-                               f"{formatar_numero_pt(item.get('meta_kcal', 0))} kcal/dia · "
-                               f"{formatar_numero_pt(item.get('adequacao_kcal_pct', 0), 1)}% · "
-                               f"Déficit {formatar_numero_pt(item.get('deficit_kcal', 0))} kcal · "
-                               f"+{formatar_numero_pt(item.get('volume_adicional_ml', 0))} mL")
+                    detalhe = (f"{evolucao.formatar_numero_pt(item.get('kcal_atual', 0))}/"
+                               f"{evolucao.formatar_numero_pt(item.get('meta_kcal', 0))} kcal/dia · "
+                               f"{evolucao.formatar_numero_pt(item.get('adequacao_kcal_pct', 0), 1)}% · "
+                               f"Déficit {evolucao.formatar_numero_pt(item.get('deficit_kcal', 0))} kcal · "
+                               f"+{evolucao.formatar_numero_pt(item.get('volume_adicional_ml', 0))} mL")
                 linha = ctk.CTkFrame(lista, fg_color=tema.BRANCO, corner_radius=6)
                 linha.pack(fill="x", padx=2, pady=2)
                 ctk.CTkLabel(linha, text=f"{leito} — {nome}\n{detalhe}",
