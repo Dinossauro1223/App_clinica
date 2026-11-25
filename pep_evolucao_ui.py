@@ -166,6 +166,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
         ctk.CTkCheckBox(linha, text="Boa tolerância", variable=self.var_tolerancia).pack(side="left", padx=(0, 12))
         self.var_restricao = tk.IntVar(value=0)
         ctk.CTkCheckBox(linha, text="Restrição clínica", variable=self.var_restricao).pack(side="left")
+        ctk.CTkLabel(self.q_enteral,
+                     text="Referência: incremento total de 30–40 mL/dia, com meta em 3–4 dias quando matematicamente possível. A execução depende de tolerância, volume máximo e autorização do nutricionista.",
+                     font=tema.fonte(10), text_color=tema.SUAVE, wraplength=760,
+                     justify="left").pack(anchor="w", padx=12, pady=(0, 8))
 
         q = self._secao(raiz, "Suplementação por etapa")
         self.sup_fields = []
