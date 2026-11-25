@@ -14,6 +14,17 @@ class TestPreferenciasConfiguracoes(unittest.TestCase):
             "Claro": "Light", "Escuro": "Dark", "Sistema": "System"
         })
 
+
+    def test_perfis_de_contas_compartilhadas_sao_copa_e_almoxarifado(self):
+        self.assertEqual(cfg.PERFIS_COMPARTILHADOS, {
+            "Copa": "copa", "Almoxarifado": "estoque_almox"
+        })
+        codigo = Path(cfg.__file__).read_text(encoding="utf-8")
+        self.assertIn("def _criar_conta_compartilhada", codigo)
+        self.assertIn("def _atualizar_contas_compartilhadas", codigo)
+        self.assertIn("def _alterar_estado_conta", codigo)
+        self.assertIn("def _redefinir_senha_conta", codigo)
+
     def test_le_e_salva_preferencias_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             caminho = Path(tmp) / "perfil" / "preferencias.json"
