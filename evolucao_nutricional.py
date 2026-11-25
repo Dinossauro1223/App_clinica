@@ -231,6 +231,69 @@ def aviso_bomba(volume_atual_ml, volume_meta_ml, usa_bomba, taxa_estimativa_ml_h
                       f"esse volume corresponde a aproximadamente {horas:.1f} horas estimadas adicionais de infusão.")}
 
 
+
+def resumo_painel_evolucao(registro, data_destino):
+    """Resume a evolução enteral para avisos operacionais do mapa, sem alterar prescrição."""
+    if not registro:
+        return None
+    dados = registro.get("evolucao") or {}
+    if str(registro.get("via") or dados.get("via") or "").casefold() != "enteral":
+        return None
+    metas = dados.get("metas") or {}
+    dieta = dados.get("dieta_enteral") or {}
+    progressao = dados.get("progressao_enteral") or {}
+    oferta = dados.get("oferta") or {}
+    try:
+        meta_kcal = _numero(metas.get("kcal_dia"), "Meta energética", minimo=0.000001)
+        kcal_100 = _numero(dieta.get("kcal_100"), "Energia da fórmula", minimo=0.000001)
+        etapas = int(_numero(dieta.get("etapas"), "Etapas", minimo=1))
+        inicial_etapa = _numero(dieta.get("volume_por_etapa_ml"), "Volume por etapa", minimo=0.000001)
+    except (TypeError, ValueError):
+        return None
+    inicio = _data_br_ou_iso(dados.get("data_evolucao") or registro.get("data"))
+    destino = _data_br_ou_iso(data_destino or registro.get("data"))
+    dias = max(0, (date.fromisoformat(destino) - date.fromisoformat(inicio)).days)
+    atual_etapa = inicial_etapa
+    autorizada = bool(progressao.get("autorizada"))
+    passos = (progressao.get("plano") or {}).get("passos") or []
+    if autorizada and passos and dias:
+        atual_etapa = float(passos[min(dias - 1, len(passos) - 1)]["volume_etapa_ml"])
+    volume_atual = atual_etapa * etapas
+    energia_atual = volume_atual * kcal_100 / 100
+    ptn_100 = dieta.get("ptn_100")
+    proteina_atual = volume_atual * float(ptn_100) / 100 if ptn_100 not in (None, "") else None
+    meta_ptn = metas.get("proteina_g_dia")
+    adequacao_kcal = energia_atual / meta_kcal * 100
+    adequacao_ptn = (proteina_atual / float(meta_ptn) * 100
+                     if proteina_atual is not None and meta_ptn not in (None, 0) else None)
+    evoluiu = atual_etapa > inicial_etapa
+    motivo = None
+    if not progressao.get("solicitada"):
+        motivo = "Progressão automática desativada"
+    elif not autorizada:
+        motivo = "Aguardando autorização do nutricionista"
+    elif progressao.get("restricao"):
+        motivo = "Restrição clínica"
+    elif not progressao.get("tolerancia", True):
+        motivo = "Intolerância enteral"
+    elif volume_atual >= float(oferta.get("volume_meta_ml") or progressao.get("volume_meta_ml") or float("inf")):
+        motivo = "Meta energética atingida"
+    elif not evoluiu:
+        motivo = "Progressão ainda não iniciada"
+    deficit = max(0.0, meta_kcal - energia_atual)
+    volume_adicional = deficit / (kcal_100 / 100)
+    return {
+        "via": "Enteral", "volume_inicial_ml": inicial_etapa * etapas,
+        "volume_atual_ml": volume_atual, "volume_meta_ml": float(oferta.get("volume_meta_ml") or progressao.get("volume_meta_ml") or 0),
+        "incremento_ml": volume_atual - inicial_etapa * etapas, "energia_kcal": energia_atual,
+        "meta_kcal": meta_kcal, "adequacao_kcal_pct": adequacao_kcal,
+        "proteina_g": proteina_atual, "adequacao_ptn_pct": adequacao_ptn,
+        "deficit_kcal": deficit, "volume_adicional_ml": volume_adicional,
+        "evoluiu": evoluiu, "motivo_nao_evolucao": motivo,
+        "data_inicio": inicio, "data_destino": destino,
+    }
+
+
 def formatar_antropometria(dados):
     """Formata antropometria compacta, preservando origem e rastreabilidade."""
     data = dados.get("data") or date.today().strftime("%d/%m/%Y")
