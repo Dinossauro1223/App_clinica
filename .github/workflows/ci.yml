@@ -115,10 +115,18 @@ jobs:
           yes | sdkmanager --licenses >/dev/null
           sdkmanager "platforms;android-34"
 
-      - name: Compilar MainActivity.java
+      - name: Baixar ZXing Core
+        run: |
+          mkdir -p build/apk-libs
+          curl --fail --location --retry 3 \
+            https://repo.maven.apache.org/maven2/com/google/zxing/core/3.4.1/core-3.4.1.jar \
+            --output build/apk-libs/zxing-core-3.4.1.jar
+
+      - name: Compilar atividades Android
         run: |
           mkdir -p build/apk-classes
           javac -encoding UTF-8 --release 8 \
-            -classpath "$ANDROID_HOME/platforms/android-34/android.jar" \
+            -classpath "$ANDROID_HOME/platforms/android-34/android.jar:build/apk-libs/zxing-core-3.4.1.jar" \
             -d build/apk-classes \
-            mobile/apk/app/src/br/nutrilab/mobile/MainActivity.java
+            mobile/apk/app/src/br/nutrilab/mobile/MainActivity.java \
+            mobile/apk/app/src/br/nutrilab/mobile/QRScannerActivity.java

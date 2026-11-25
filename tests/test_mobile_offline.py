@@ -93,24 +93,60 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertIn("loadDataWithBaseURL", java)
         self.assertIn("AES/GCM/NoPadding", java)
         self.assertIn("AndroidKeyStore", java)
+        self.assertIn('getAssets().open("jsQR.js")', java)
+        self.assertIn(r"..\static\jsQR.js", bat)
         self.assertIn(r"..\static\index.html", bat)
         self.assertIn("--release 8", bat)
-        self.assertIn('-classpath "%AJAR%"', bat)
+        self.assertIn('-classpath "%AJAR%;%ZXING%"', bat)
+        self.assertIn("QRScannerActivity.java", bat)
+        self.assertIn("ZXINGURL", bat)
         self.assertNotIn("-bootclasspath", bat)
         # Uma única fonte versionada; os builds CI/local geram o asset dentro do APK.
         asset = ROOT / "mobile" / "apk" / "app" / "assets" / "index.html"
         self.assertFalse(asset.exists(), "Não manter segunda cópia versionada de index.html")
         builder = (ROOT / "tools" / "build_apk_ci.py").read_text(encoding="utf-8")
         self.assertIn('shutil.copy2(STATIC, app / "assets" / "index.html")', builder)
+        self.assertIn('shutil.copy2(JSQR, app / "assets" / "jsQR.js")', builder)
         self.assertIn('copy /y "%~dp0..\\static\\index.html" "%APP%\\assets\\index.html"', bat)
         release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         self.assertIn("setup-android@v4", release)
+        self.assertIn("QRScannerActivity.java", release)
+        self.assertIn("zxing-core-3.4.1.jar", release)
+        self.assertIn('cp mobile/static/jsQR.js "$WORK/app/assets/jsQR.js"', release)
         self.assertIn("--release 8 -classpath", release)
         self.assertNotIn("-bootclasspath", release)
         self.assertIn('tags: ["v*"]', release)
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("apk-java:", workflow)
         self.assertIn("android-34", workflow)
+
+
+    def test_login_mobile_oferece_qr_e_apk_tem_leitor_nativo(self):
+        self.assertIn("Escanear QR code", self.html)
+        self.assertIn("Android.escanearQR()", self.html)
+        self.assertIn("nutrilab-server", self.html)
+        self.assertIn("Prazo médio de reposição dos insumos", self.html)
+        self.assertIn("carregaPrazos", self.html)
+        self.assertIn("novoPedidoMobile", self.html)
+        self.assertIn('/static/jsQR.js', self.html)
+        jsqr = ROOT / "mobile" / "static" / "jsQR.js"
+        self.assertTrue(jsqr.is_file())
+        scanner = JAVA.parent / "QRScannerActivity.java"
+        self.assertTrue(scanner.is_file(), "O APK precisa do leitor QR nativo para funcionar em HTTP local.")
+        java = scanner.read_text(encoding="utf-8")
+        self.assertIn("MultiFormatReader", java)
+        self.assertIn("Camera.open()", java)
+        aviso_terceiros = ROOT / "mobile" / "apk" / "app" / "assets" / "THIRD_PARTY_NOTICES.txt"
+        self.assertTrue(aviso_terceiros.is_file(), "A licença do ZXing deve acompanhar o APK.")
+        manifest = (ROOT / "mobile" / "apk" / "app" / "AndroidManifest.xml").read_text(encoding="utf-8")
+        self.assertIn('android:name=".QRScannerActivity"', manifest)
+
+
+    def test_sintaxe_do_decodificador_qr_offline(self):
+        node = self.node()
+        jsqr = ROOT / "mobile" / "static" / "jsQR.js"
+        r = subprocess.run([node, "--check", str(jsqr)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
 
 
 if __name__ == "__main__":

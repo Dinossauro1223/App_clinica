@@ -4,13 +4,25 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+import sys
+import webbrowser
+from pathlib import Path
+import tkinter as tk
+from tkinter import ttk
+from urllib.parse import quote
+
 import customtkinter as ctk
+import qrcode
 from tkinter import messagebox
 import db_service
 import tema
 import nrs2002 as nrs
+import integracao_mobile
+from mobile import servidor as servidor_mobile
 
 CAMINHO = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
+PERFIS_COMPARTILHADOS = {"Copa": "copa", "Almoxarifado": "estoque_almox"}
 
 def _ler():
     try:
@@ -41,7 +53,9 @@ class ConfiguracoesUI:
         self.app.limpar_area_principal()
         ctk.CTkLabel(raiz, text="Configurações", font=tema.fonte(24, "bold"),
                       text_color=tema.VERDE).pack(anchor="w", padx=24, pady=(22, 8))
-        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+        conteudo = ctk.CTkScrollableFrame(raiz, fg_color="transparent")
+        conteudo.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        card = ctk.CTkFrame(conteudo, fg_color=tema.BRANCO, border_width=1,
                            border_color=tema.BORDA, corner_radius=12)
         card.pack(fill="x", padx=24, pady=12)
         ctk.CTkLabel(card, text="Aparência do aplicativo", font=tema.fonte(16, "bold"),
@@ -62,10 +76,303 @@ class ConfiguracoesUI:
         seletor.pack(anchor="w", padx=18, pady=(0, 16))
         self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
         self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
-        self._nrs(raiz)
-        self._backups(raiz)
-        ctk.CTkButton(raiz, text="Voltar ao início", fg_color=tema.VERDE,
-                     hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=24, pady=10)
+        self._distribuicao(conteudo)
+        self._contas_compartilhadas(conteudo)
+        self._nrs(conteudo)
+        self._backups(conteudo)
+        ctk.CTkButton(conteudo, text="Voltar ao início", fg_color=tema.VERDE,
+                     hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=14, pady=10)
+
+
+
+    def _mobile_db_path(self):
+        banco_clinica = getattr(getattr(self.app, "mapa", None), "db", None)
+        if not banco_clinica:
+            raise RuntimeError("Não foi possível localizar o banco principal do NutriLab.")
+        return integracao_mobile.caminho_mobile_db(banco_clinica, Path(__file__).resolve().parent)
+
+    def _contas_compartilhadas(self, raiz):
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                            border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=12)
+        ctk.CTkLabel(card, text="Contas compartilhadas da Copa e do Almoxarifado",
+                     font=tema.fonte(16, "bold"), text_color=tema.TEXTO).pack(
+                         anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(card,
+                     text="Cadastre aqui os acessos que serão usados no celular e no painel web. Todas as contas se conectam ao mesmo servidor e compartilham o mapa e os registros, respeitando as permissões de cada perfil.",
+                     font=tema.fonte(12), text_color=tema.SUAVE, wraplength=820,
+                     justify="left").pack(anchor="w", padx=18, pady=(0, 12))
+        form = ctk.CTkFrame(card, fg_color="transparent")
+        form.pack(fill="x", padx=14, pady=4)
+        form.grid_columnconfigure((0, 1), weight=1)
+        self.conta_nome = ctk.CTkEntry(form, placeholder_text="Nome da pessoa / equipe")
+        self.conta_nome.grid(row=0, column=0, sticky="ew", padx=4, pady=4)
+        self.conta_login = ctk.CTkEntry(form, placeholder_text="Login para entrar")
+        self.conta_login.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
+        self.conta_senha = ctk.CTkEntry(form, placeholder_text="Senha inicial (mín. 6 caracteres)", show="•")
+        self.conta_senha.grid(row=1, column=0, sticky="ew", padx=4, pady=4)
+        self.conta_perfil = ctk.CTkOptionMenu(
+            form, values=["Copa", "Almoxarifado"],
+            fg_color=tema.VERDE, button_color=tema.VERDE,
+            button_hover_color=tema.VERDE_HOVER)
+        self.conta_perfil.set("Copa")
+        self.conta_perfil.grid(row=1, column=1, sticky="ew", padx=4, pady=4)
+        acoes = ctk.CTkFrame(card, fg_color="transparent")
+        acoes.pack(fill="x", padx=18, pady=(4, 10))
+        ctk.CTkButton(acoes, text="＋ Criar conta", command=self._criar_conta_compartilhada,
+                      fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER,
+                      font=tema.fonte(12, "bold")).pack(side="left", padx=4)
+        ctk.CTkButton(acoes, text="Atualizar lista", command=self._atualizar_contas_compartilhadas,
+                      fg_color=tema.SUAVE, hover_color=tema.BORDA, text_color=tema.TEXTO).pack(side="left", padx=4)
+        self.lista_contas = ctk.CTkScrollableFrame(card, height=190, fg_color="transparent")
+        self.lista_contas.pack(fill="x", padx=14, pady=(0, 14))
+        self._atualizar_contas_compartilhadas()
+
+    def _atualizar_contas_compartilhadas(self):
+        try:
+            sv = servidor_mobile
+            caminho = self._mobile_db_path()
+            sv.preparar_banco(caminho)
+            c = sv.conectar(caminho)
+            try:
+                contas = [dict(r) for r in c.execute(
+                    "SELECT id,login,nome,perfil,ativo,criado_em FROM usuarios "
+                    "WHERE perfil IN ('copa','estoque_almox') ORDER BY perfil,nome COLLATE NOCASE")]
+            finally:
+                c.close()
+        except Exception as exc:
+            if hasattr(self, "lista_contas"):
+                for w in self.lista_contas.winfo_children():
+                    w.destroy()
+                ctk.CTkLabel(self.lista_contas, text="Não foi possível carregar as contas: " + str(exc),
+                             text_color=tema.SUAVE, wraplength=760).pack(anchor="w", padx=8, pady=8)
+            return
+        for w in self.lista_contas.winfo_children():
+            w.destroy()
+        if not contas:
+            ctk.CTkLabel(self.lista_contas, text="Nenhuma conta da Copa ou do Almoxarifado cadastrada ainda.",
+                         text_color=tema.SUAVE).pack(anchor="w", padx=8, pady=8)
+            return
+        rotulos = {"copa": "Copa", "estoque_almox": "Almoxarifado"}
+        for conta in contas:
+            linha = ctk.CTkFrame(self.lista_contas, fg_color=tema.FUNDO, corner_radius=8)
+            linha.pack(fill="x", padx=3, pady=3)
+            info = ctk.CTkFrame(linha, fg_color="transparent")
+            info.pack(side="left", fill="x", expand=True, padx=10, pady=7)
+            estado = "Ativa" if conta["ativo"] else "Desativada"
+            ctk.CTkLabel(info, text=conta["nome"] + " · " + rotulos[conta["perfil"]],
+                         font=tema.fonte(12, "bold"), text_color=tema.TEXTO).pack(anchor="w")
+            ctk.CTkLabel(info, text=conta["login"] + " · " + estado,
+                         font=tema.fonte(11), text_color=tema.SUAVE).pack(anchor="w")
+            if conta["ativo"]:
+                ctk.CTkButton(linha, text="Desativar", width=92, height=30,
+                              fg_color=tema.SUAVE, hover_color=tema.BORDA,
+                              text_color=tema.TEXTO,
+                              command=lambda uid=conta["id"]: self._alterar_estado_conta(uid, False)).pack(
+                                  side="right", padx=8, pady=6)
+            else:
+                ctk.CTkButton(linha, text="Reativar", width=92, height=30,
+                              fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER,
+                              command=lambda uid=conta["id"]: self._alterar_estado_conta(uid, True)).pack(
+                                  side="right", padx=8, pady=6)
+            ctk.CTkButton(linha, text="Nova senha", width=92, height=30,
+                          fg_color=tema.SUAVE, hover_color=tema.BORDA,
+                          text_color=tema.TEXTO,
+                          command=lambda uid=conta["id"], nome=conta["nome"]: self._redefinir_senha_conta(uid, nome)).pack(
+                              side="right", padx=4, pady=6)
+
+    def _criar_conta_compartilhada(self):
+        nome, login, senha = self.conta_nome.get().strip(), self.conta_login.get().strip(), self.conta_senha.get()
+        perfil = PERFIS_COMPARTILHADOS[self.conta_perfil.get()]
+        if not nome or not login or not senha:
+            messagebox.showwarning("Criar conta", "Preencha nome, login e senha.", parent=self.app)
+            return
+        try:
+            caminho = self._mobile_db_path()
+            servidor_mobile.preparar_banco(caminho)
+            c = servidor_mobile.conectar(caminho)
+            try:
+                servidor_mobile.criar_usuario(c, login, nome, perfil, None, senha)
+                c.commit()
+            finally:
+                c.close()
+        except Exception as exc:
+            messagebox.showwarning("Criar conta", str(exc), parent=self.app)
+            return
+        self.conta_nome.delete(0, "end")
+        self.conta_login.delete(0, "end")
+        self.conta_senha.delete(0, "end")
+        self._atualizar_contas_compartilhadas()
+        messagebox.showinfo("Conta criada", "A conta foi criada no banco compartilhado. A pessoa já pode entrar pelo aplicativo ou pelo site usando o servidor configurado.", parent=self.app)
+
+    def _alterar_estado_conta(self, uid, ativo):
+        acao = "reativar" if ativo else "desativar"
+        if not messagebox.askyesno("Contas compartilhadas", "Deseja " + acao + " esta conta?", parent=self.app):
+            return
+        try:
+            caminho = self._mobile_db_path()
+            c = servidor_mobile.conectar(caminho)
+            try:
+                c.execute("UPDATE usuarios SET ativo=? WHERE id=? AND perfil IN ('copa','estoque_almox')",
+                          (int(bool(ativo)), int(uid)))
+                c.commit()
+            finally:
+                c.close()
+        except Exception as exc:
+            messagebox.showwarning("Contas compartilhadas", str(exc), parent=self.app)
+            return
+        self._atualizar_contas_compartilhadas()
+
+    def _redefinir_senha_conta(self, uid, nome):
+        janela = ctk.CTkInputDialog(text="Nova senha para " + nome + " (mínimo 6 caracteres):",
+                                    title="Redefinir senha")
+        senha = janela.get_input()
+        if not senha:
+            return
+        try:
+            caminho = self._mobile_db_path()
+            c = servidor_mobile.conectar(caminho)
+            try:
+                servidor_mobile.definir_senha(c, int(uid), senha)
+                c.commit()
+            finally:
+                c.close()
+        except Exception as exc:
+            messagebox.showwarning("Redefinir senha", str(exc), parent=self.app)
+            return
+        messagebox.showinfo("Senha atualizada", "A nova senha já pode ser usada no aplicativo e no site.", parent=self.app)
+
+    def _base_recursos(self):
+        return Path(__file__).resolve().parent
+
+    def _caminho_apk(self):
+        return self._base_recursos() / "mobile" / "apk" / "saida" / "NutriLab-Mobile.apk"
+
+    def _pasta_compartilhamento(self):
+        base = self._base_recursos()
+        candidatos = []
+        if getattr(sys, "frozen", False):
+            candidatos.append(Path(sys.executable).resolve().parent / "_internal" / "compartilhamento")
+        candidatos.extend([
+            base / "Distribuicao",
+            base / "Executavel do programa" / "_internal" / "compartilhamento",
+        ])
+        return next((p for p in candidatos if p.is_dir()), candidatos[0])
+
+    @staticmethod
+    def _imagem_qr(conteudo, tamanho=190):
+        qr = qrcode.QRCode(
+            version=None, error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=7, border=4,
+        )
+        qr.add_data(conteudo)
+        qr.make(fit=True)
+        imagem = qr.make_image(fill_color=tema.VERDE_ESC, back_color=tema.BRANCO).get_image()
+        return ctk.CTkImage(light_image=imagem, dark_image=imagem, size=(tamanho, tamanho))
+
+    def _distribuicao(self, raiz):
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                            border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=(4, 12))
+        ctk.CTkLabel(card, text="Aplicativo mobile e compartilhamento",
+                     font=tema.fonte(16, "bold"), text_color=tema.TEXTO).pack(
+                         anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(card,
+                     text="Use o primeiro QR code para baixar o APK no celular. Use o segundo para configurar o endereço deste servidor no aplicativo. O celular precisa estar na mesma rede Wi-Fi do computador.",
+                     font=tema.fonte(12), text_color=tema.SUAVE, wraplength=820, justify="left").pack(
+                         anchor="w", padx=18, pady=(0, 10))
+        linha = ctk.CTkFrame(card, fg_color="transparent")
+        linha.pack(fill="x", padx=12, pady=4)
+        install = ctk.CTkFrame(linha, fg_color="transparent")
+        install.pack(side="left", expand=True, fill="x", padx=6)
+        connect = ctk.CTkFrame(linha, fg_color="transparent")
+        connect.pack(side="left", expand=True, fill="x", padx=6)
+        ctk.CTkLabel(install, text="1. Baixar o aplicativo", font=tema.fonte(13, "bold"),
+                     text_color=tema.TEXTO).pack()
+        self.lbl_qr_apk = ctk.CTkLabel(install, text="Verificando APK…")
+        self.lbl_qr_apk.pack(pady=5)
+        ctk.CTkLabel(install, text="Abre o download do NutriLab-Mobile.apk",
+                     font=tema.fonte(11), text_color=tema.SUAVE).pack()
+        ctk.CTkLabel(connect, text="2. Vincular ao servidor", font=tema.fonte(13, "bold"),
+                     text_color=tema.TEXTO).pack()
+        self.lbl_qr_servidor = ctk.CTkLabel(connect, text="Gerando QR code…")
+        self.lbl_qr_servidor.pack(pady=5)
+        ctk.CTkLabel(connect, text="Configura o endereço e a porta 8765",
+                     font=tema.fonte(11), text_color=tema.SUAVE).pack()
+        self.lbl_qr_status = ctk.CTkLabel(card, text="", font=tema.fonte(11),
+                                          text_color=tema.SUAVE, wraplength=820, justify="left")
+        self.lbl_qr_status.pack(anchor="w", padx=18, pady=(4, 8))
+        linha_acoes = ctk.CTkFrame(card, fg_color="transparent")
+        linha_acoes.pack(fill="x", padx=14, pady=(0, 8))
+        ctk.CTkButton(linha_acoes, text="Atualizar QR codes", command=self._atualizar_qr,
+                      fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER,
+                      font=tema.fonte(12, "bold")).pack(side="left", padx=4)
+        ctk.CTkButton(linha_acoes, text="WhatsApp · APK", command=lambda: self._compartilhar("apk", "whatsapp"),
+                      fg_color=tema.SUAVE, hover_color=tema.BORDA, text_color=tema.TEXTO).pack(side="left", padx=4)
+        ctk.CTkButton(linha_acoes, text="E-mail · APK", command=lambda: self._compartilhar("apk", "email"),
+                      fg_color=tema.SUAVE, hover_color=tema.BORDA, text_color=tema.TEXTO).pack(side="left", padx=4)
+        ctk.CTkButton(linha_acoes, text="WhatsApp · programa", command=lambda: self._compartilhar("desktop", "whatsapp"),
+                      fg_color=tema.SUAVE, hover_color=tema.BORDA, text_color=tema.TEXTO).pack(side="left", padx=4)
+        ctk.CTkButton(linha_acoes, text="E-mail · programa", command=lambda: self._compartilhar("desktop", "email"),
+                      fg_color=tema.SUAVE, hover_color=tema.BORDA, text_color=tema.TEXTO).pack(side="left", padx=4)
+        ctk.CTkLabel(card,
+                     text="Observação: WhatsApp Web e links mailto não permitem anexar automaticamente um arquivo local. O NutriLab abre a conversa ou o e-mail e a pasta do arquivo para você anexá-lo.",
+                     font=tema.fonte(11), text_color=tema.SUAVE, wraplength=820, justify="left").pack(
+                         anchor="w", padx=18, pady=(0, 14))
+        self._atualizar_qr()
+
+    def _atualizar_qr(self):
+        ip = servidor_mobile.ip_lan()
+        base = "http://%s:8765" % ip
+        ativo = False
+        try:
+            with socket.create_connection(("127.0.0.1", 8765), timeout=0.7):
+                ativo = True
+        except OSError:
+            pass
+        payload_servidor = json.dumps({"type": "nutrilab-server", "url": base},
+                                      ensure_ascii=False, separators=(",", ":"))
+        self._qr_servidor_img = self._imagem_qr(payload_servidor)
+        self.lbl_qr_servidor.configure(image=self._qr_servidor_img, text="")
+        apk = self._caminho_apk()
+        if apk.is_file():
+            url_apk = base + "/download/NutriLab-Mobile.apk"
+            self._qr_apk_img = self._imagem_qr(url_apk)
+            self.lbl_qr_apk.configure(image=self._qr_apk_img, text="")
+            apk_status = "APK encontrado: %s" % apk
+        else:
+            self._qr_apk_img = None
+            self.lbl_qr_apk.configure(image=None, text="APK ainda não encontrado")
+            apk_status = "Gere o APK executando Gerar_e_Abrir_NutriLab.bat."
+        rede_status = "Servidor ativo em %s" % base if ativo else "Servidor local não responde na porta 8765."
+        if ip == "127.0.0.1":
+            rede_status += " Não foi possível detectar o IP da rede; confira a conexão Wi-Fi/LAN."
+        self.lbl_qr_status.configure(text=rede_status + " · " + apk_status)
+
+    def _compartilhar(self, tipo, canal):
+        pasta = self._pasta_compartilhamento()
+        nome = "NutriLab-Mobile.apk" if tipo == "apk" else "NutriLab-Desktop.zip"
+        arquivo = pasta / nome
+        if not arquivo.is_file():
+            messagebox.showwarning("Compartilhar NutriLab",
+                                   "O arquivo %s ainda não foi gerado. Execute o Gerar_e_Abrir_NutriLab.bat para preparar a distribuição." % nome)
+            return
+        assunto = "NutriLab — " + ("aplicativo Android" if tipo == "apk" else "programa para Windows")
+        mensagem = ("Segue o arquivo %s do NutriLab. O APK é para instalação no celular; o ZIP contém o programa para Windows."
+                    % nome)
+        if canal == "whatsapp":
+            webbrowser.open("https://web.whatsapp.com/send?text=" + quote(mensagem))
+        else:
+            webbrowser.open("mailto:?subject=" + quote(assunto) + "&body=" + quote(mensagem))
+        try:
+            if os.name == "nt":
+                os.startfile(str(pasta))
+            else:
+                webbrowser.open(pasta.as_uri())
+        except OSError as exc:
+            messagebox.showwarning("Compartilhar NutriLab", "Não foi possível abrir a pasta do arquivo: %s" % exc)
+        messagebox.showinfo("Compartilhar NutriLab",
+                            "A conversa ou o e-mail foi aberto. Anexe o arquivo %s que está na pasta aberta." % nome)
 
     def _nrs(self, raiz):
         """Permite ajustar os intervalos de reavaliação, armazenados no banco oficial do Mapa."""

@@ -43,6 +43,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .alerta{border-left:5px solid var(--alerta)}
 .nums{font-variant-numeric:tabular-nums;font-size:1.5rem;font-weight:800}
 .mini{font-size:.85rem;color:var(--suave)}
+.scan-qr{display:none}@media(max-width:640px){.scan-qr{display:block;width:100%;margin-top:10px}}
 .passo{display:flex;gap:6px}.passo .btn{padding:0 14px}
 .seg label{display:block;padding:10px;border:1px solid var(--linha);border-radius:6px;margin-bottom:6px}
 .seg input{margin-right:8px;accent-color:var(--cor)}.seg .off{opacity:.45}
@@ -91,6 +92,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 </head>
 <body>
 <div id="app"></div>
+<script src="/static/jsQR.js"></script>
 <script>
 /* Cache offline do APK: no Android os valores ficam cifrados no Android Keystore. */
 (function(){
@@ -260,7 +262,7 @@ const ABAS={admin:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições
  copa:[['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoque'],['orientacoes','Orientações']],
  estoque_cozinha:[['estoque','Estoque'],['orientacoes','Orientações']],estoque_almox:[['estoque','Estoque'],['orientacoes','Orientações']]};
 const ehStaff=()=>S.u.perfil==='admin'||S.u.perfil==='nutricionista';
-const escolheSetor=()=>S.u.perfil==='admin'||(S.u.perfil==='nutricionista'&&!S.u.id_setor);
+const escolheSetor=()=>S.u.perfil==='admin'||((S.u.perfil==='nutricionista'||S.u.perfil==='copa')&&!S.u.id_setor);
 const br=i=>i?i.slice(8,10)+'/'+i.slice(5,7):'';
 async function api(p,b){
   const r=await fetch(p,{method:b?'POST':'GET',headers:{'Content-Type':'application/json',...(S.tok?{Authorization:'Bearer '+S.tok}:{})},body:b?JSON.stringify(b):undefined});
@@ -277,8 +279,95 @@ function telaLogin(msg){
   $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
   <label class=f>Login<input type=text id=lg autocapitalize=none autocomplete=username></label>
   <label class=f>Senha<input type=password id=sn autocomplete=current-password></label>
-  <button class=btn style="width:100%" onclick="entrar()">Entrar</button></div><footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
+  <button class=btn style="width:100%" onclick="entrar()">Entrar</button>
+  <button class="btn sec scan-qr" onclick="abrirLeitorQR()">Escanear QR code</button>
+  <section id=qrLeitor class=cartao hidden style="margin-top:12px">
+   <b>Vincular a outro servidor</b><p id=qrAviso class=mini>Aponte a câmera para o QR code de conexão exibido nas configurações do NutriLab.</p>
+   <video id=qrVideo playsinline muted style="display:none;width:100%;max-height:260px;border-radius:8px;background:#111"></video>
+   <label class=f>Fotografar ou escolher uma imagem do QR code<input id=qrArquivo type=file accept="image/*" capture="environment" onchange="lerImagemQR(this)"></label>
+   <label class=f>Ou digitar o endereço do servidor<input id=qrManual type=text inputmode=url placeholder="http://192.168.0.10:8765"></label>
+   <button class="btn" onclick="usarEnderecoQR($('#qrManual').value)">Conectar a este servidor</button>
+   <button class="btn sec" style="margin-top:6px" onclick="fecharLeitorQR()">Cancelar</button>
+  </section></div><footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   $('#sn').onkeydown=e=>{if(e.key==='Enter')entrar()};
+}
+
+let qrStream=null, qrLoop=null;
+function fecharLeitorQR(){
+ const box=$('#qrLeitor');if(box)box.hidden=true;
+ if(qrLoop)cancelAnimationFrame(qrLoop);qrLoop=null;
+ if(qrStream){qrStream.getTracks().forEach(t=>t.stop());qrStream=null}
+ const video=$('#qrVideo');if(video){video.pause();video.srcObject=null;video.style.display='none'}
+}
+function usarEnderecoQR(valor){
+ const endereco=String(valor||'').trim();
+ if(!/^https?:\/\//i.test(endereco)||!/:\d{2,5}(?:\/|$)/.test(endereco)){
+  const aviso=$('#qrAviso');if(aviso)aviso.textContent='QR code inválido. Use o QR de conexão do NutriLab ou informe o endereço com a porta 8765.';return;
+ }
+ fecharLeitorQR();
+ if(window.Android&&typeof Android.salvar==='function'){Android.salvar(endereco);return}
+ window.location.assign(endereco);
+}
+function aplicarConteudoQR(valor){
+ let endereco='';
+ try{const dado=JSON.parse(valor);if(dado&&dado.type==='nutrilab-server')endereco=dado.url||''}catch(e){}
+ if(!endereco&&/^https?:\\/\\//i.test(String(valor||'')))endereco=String(valor).trim();
+ usarEnderecoQR(endereco);
+}
+async function abrirLeitorQR(){
+ const box=$('#qrLeitor');box.hidden=false;
+ if(window.Android&&typeof Android.escanearQR==='function'){Android.escanearQR();return}
+ const aviso=$('#qrAviso');
+ if(!('BarcodeDetector' in window)&&!window.jsQR){
+  aviso.textContent='Leitor QR indisponível neste navegador. Digite o endereço do servidor abaixo.';
+  return;
+ }
+ try{
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Câmera ao vivo indisponível neste endereço HTTP.');
+  const detector=('BarcodeDetector' in window)?new BarcodeDetector({formats:['qr_code']}):null;
+  qrStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+  const video=$('#qrVideo');video.srcObject=qrStream;video.style.display='block';await video.play();
+  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const ler=async()=>{
+   if(box.hidden||!qrStream)return;
+   try{
+    if(detector){const codigos=await detector.detect(video);if(codigos.length){aplicarConteudoQR(codigos[0].rawValue);return}}
+    else if(video.videoWidth&&video.videoHeight){
+     canvas.width=video.videoWidth;canvas.height=video.videoHeight;ctx.drawImage(video,0,0,canvas.width,canvas.height);
+     const dados=ctx.getImageData(0,0,canvas.width,canvas.height),codigo=window.jsQR(dados.data,dados.width,dados.height,{inversionAttempts:'attemptBoth'});
+     if(codigo){aplicarConteudoQR(codigo.data);return}
+    }
+   }catch(e){}
+   qrLoop=requestAnimationFrame(ler);
+  };
+  ler();
+ }catch(e){
+  if(qrStream){qrStream.getTracks().forEach(t=>t.stop());qrStream=null}
+  aviso.textContent='A câmera ao vivo não está disponível nesta rede/navegador. Fotografe o QR code ou digite o endereço abaixo.';
+  const arquivo=$('#qrArquivo');arquivo.style.display='block';
+ }
+}
+function lerImagemQR(input){
+ const arquivo=input.files&&input.files[0];if(!arquivo)return;
+ try{
+  const url=URL.createObjectURL(arquivo),imagem=new Image();
+  imagem.onload=async()=>{
+   try{
+    let valor='';
+    if('BarcodeDetector' in window){try{const codigos=await new BarcodeDetector({formats:['qr_code']}).detect(imagem);if(codigos.length)valor=codigos[0].rawValue}catch(e){}}
+    if(!valor&&window.jsQR){
+     const canvas=document.createElement('canvas');canvas.width=imagem.naturalWidth;canvas.height=imagem.naturalHeight;
+     const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(imagem,0,0);
+     const dados=ctx.getImageData(0,0,canvas.width,canvas.height),codigo=window.jsQR(dados.data,dados.width,dados.height,{inversionAttempts:'attemptBoth'});
+     if(codigo)valor=codigo.data;
+    }
+    URL.revokeObjectURL(url);
+    if(valor)aplicarConteudoQR(valor);else $('#qrAviso').textContent='Não encontrei um QR code nessa imagem. Tente novamente.';
+   }catch(e){URL.revokeObjectURL(url);$('#qrAviso').textContent='Não foi possível ler essa imagem.'}
+  };
+  imagem.onerror=()=>{URL.revokeObjectURL(url);$('#qrAviso').textContent='Não foi possível abrir a imagem.'};
+  imagem.src=url;
+ }catch(e){$('#qrAviso').textContent='Não foi possível ler a imagem do QR code.'}
 }
 async function entrar(){
   try{
@@ -349,7 +438,7 @@ function atualizaSup(el){
 }
 function removeSup(el){el.closest('[data-sup]').remove()}
 function adicionaSup(el){const c=el.closest('details'),box=c.querySelector('.lista-sup'),n=box.querySelectorAll('[data-sup]').length;box.insertAdjacentHTML('beforeend',suplementoHtml({},n))}
-const leito=(l,P)=>`<details class="cartao leito" data-id=${l.id_leito}><summary><b class=cod>${esc(l.codigo)}</b>${l.nome?esc(l.nome)+(idade(l)?', '+idade(l):''):'<i class=mini>livre</i>'} <span class=mini>${esc(l.dieta)}</span><br>${chips(l,l.id_leito,P)}</summary>
+const leito=(l,P)=>`<details class="cartao leito" data-id=${l.id_leito}><summary><b class=cod>${esc(l.codigo)}</b>${l.nome?esc(l.nome)+(idade(l)?', '+idade(l):''):'<i class=mini>livre</i>'} <span class=mini>${esc(l.dieta)}</span><br>${chips(l,l.id_leito,P)}<br><span class=mini>${l.atualizado_em?'Atualizado por '+esc(l.por_nome||'usuário')+' · '+esc(l.por_perfil||'')+' · '+esc(l.atualizado_em.replace('T',' ').slice(0,16)):'Sem atualização registrada'}</span></summary>
  <label class=f>Paciente (nome)<input type=text class=nm value="${esc(l.nome)}"></label>
  <div class=filtros><label class=f>Idade (anos)<input type=number inputmode=numeric min=0 max=130 class=ia value="${v(l.idade_anos)}"></label><label class=f>Meses<input type=number inputmode=numeric min=0 max=11 class=im value="${v(l.idade_meses)}"></label></div>
  <label class=f>Cor<select class=cor>${[['','— selecione —'],['B','Branco'],['N','Negro']].map(([val,label])=>`<option value="${val}" ${String(l.cor||'')===val?'selected':''}>${label}</option>`).join('')}</select></label>
@@ -387,7 +476,7 @@ const coleta=()=>[...document.querySelectorAll('details.leito[data-id]')].map(e=
 async function vMapa(){
   if(!S.setor){$('#vista').innerHTML=filtros('setor')+semSetor;return}
   const j=await api(`/api/mapa?setor=${S.setor}&data=${S.data}`),st=ehStaff(),n=j.linhas.filter(l=>l.rascunho).length;
-  $('#vista').innerHTML=filtros('setor')+`<datalist id=dietas>${['Geral','Branda','Pastosa','Líquida','Hipossódica','Hipoglicídica','Zero','Enteral','Jejum'].map(d=>`<option>${d}</option>`).join('')}</datalist>`+
+  $('#vista').innerHTML=filtros('setor')+'<button class="btn sec peq" onclick="vMapa()">Atualizar mapa agora</button>'+`<datalist id=dietas>${['Geral','Branda','Pastosa','Líquida','Hipossódica','Hipoglicídica','Zero','Enteral','Jejum'].map(d=>`<option>${d}</option>`).join('')}</datalist>`+
   (st?`<div class="cartao ${n?'alerta':''}"><b>${n?n+' leito(s) com mudanças ainda não publicadas para a copa':'Nenhuma mudança pendente de publicação'}</b>
     <p class=mini>O que você salva aqui fica em rascunho. A copa só recebe os dados (e o aviso com os leitos alterados) quando você publicar.</p>
     <input type=text id=pt placeholder="Recado opcional junto com o aviso"><button class=btn style="width:100%;margin-top:8px" onclick="publica()">Salvar e publicar para a copa</button></div>`
@@ -568,12 +657,29 @@ async function vCad(){
   const opSet=(sel,vazio)=>`<option value="">${vazio}</option>`+S.setores.map(s=>`<option value=${s.id} ${s.id===sel?'selected':''}>${esc(s.nome)}</option>`).join('');
   $('#vista').innerHTML=`<div class=grade><div class=cartao><h2 style="margin-top:0">Novo usuário</h2>
   <label class=f>Login<input type=text id=nl autocapitalize=none></label><label class=f>Nome<input type=text id=nn></label>
-  <label class=f>Perfil<select id=np onchange="$('#ns').parentNode.style.display=(this.value==='copa'||this.value==='nutricionista')?'block':'none'">${Object.keys(NOME).map(k=>`<option value=${k}>${NOME[k]}${k==='copa'?' (copeira: mapa, refeições e estoque da copa)':k==='nutricionista'?' (publica mapa, avisos, horários)':''}</option>`).join('')}</select></label>
-  <label class=f style="display:none">Setor (vazio = nutrição de todos os setores / copa só com estoque)<select id=ns>${opSet(null,'— nenhum / todos —')}</select></label>
+  <label class=f>Perfil<select id=np onchange="$('#ns').parentNode.style.display=(this.value==='nutricionista')?'block':'none'">${Object.keys(NOME).map(k=>`<option value=${k}>${NOME[k]}${k==='copa'?' (copeira: mapa compartilhado, refeições e estoque da copa)':k==='nutricionista'?' (publica mapa, avisos, horários)':''}</option>`).join('')}</select></label>
+  <label class=f style="display:none">Setor da nutrição (vazio = todos os setores)<select id=ns>${opSet(null,'— todos os setores —')}</select></label>
   <label class=f>Senha inicial (mín. 6)<input type=text id=nx></label><button class=btn onclick="novoUsuario()">Criar usuário</button></div>
   <div class=cartao><h2 style="margin-top:0">Usuários</h2>${u.usuarios.map(x=>`<div style="padding:6px 0;border-bottom:1px solid var(--linha)"><b>${esc(x.nome)}</b> <span class=mini>${esc(x.login)} · ${NOME[x.perfil]}${x.ativo?'':' · desativado'}</span><br>
-   ${x.perfil==='copa'||x.perfil==='nutricionista'?`<select onchange="trocaSetor(${x.id},this.value)" style="width:auto;min-height:36px">${opSet(x.id_setor,x.perfil==='copa'?'sem setor':'todos os setores')}</select> `:''}
+   ${x.perfil==='copa'?'<span class=mini>Todos os setores · mapa compartilhado</span>':x.perfil==='nutricionista'?`<select onchange="trocaSetor(${x.id},this.value)" style="width:auto;min-height:36px">${opSet(x.id_setor,'todos os setores')}</select> `:''}
    <button class="btn sec peq" onclick="ativa(${x.id},${x.ativo?0:1})">${x.ativo?'Desativar':'Reativar'}</button> <button class="btn sec peq" onclick="senha(${x.id})">Nova senha</button></div>`).join('')}</div>
+  <div class=cartao><h2 style="margin-top:0">Atividade de atualização dos mapas</h2>
+   <p class=mini>Conta alterações efetivamente aplicadas no mapa, por copeira. Salvamentos sem mudança e propostas pendentes não entram no ranking.</p>
+   <label class=f>Período<select id=periodoAtividade><option value=mes>Mês atual</option><option value=ano>Ano atual</option></select></label>
+   <button class="btn sec" onclick="carregaAtividade()">Atualizar gráfico</button>
+   <div id=graficoAtividade class=mini style="margin-top:10px">Carregando atividade…</div>
+  </div>
+  <div class=cartao><h2 style="margin-top:0">Prazo médio de reposição dos insumos</h2>
+   <p class=mini>Tempo em dias corridos entre o registro do pedido e a confirmação do recebimento. A média considera apenas pedidos recebidos.</p>
+   <button class="btn sec" onclick="carregaPrazos()">Atualizar prazos</button>
+   <div id=graficoPrazos class=mini style="margin-top:10px">Carregando prazos…</div>
+   <h3>Pedidos aguardando recebimento</h3><div id=pedidosPendentes class=mini>Carregando pedidos…</div>
+   <h3>Registrar novo pedido</h3>
+   <label class=f>Insumo<select id=pedidoItem></select></label>
+   <div class=filtros><label class=f>Quantidade de embalagens<input type=number id=pedidoQtd min=0.001 step=any></label>
+   <label class=f>Fornecedor<input type=text id=pedidoFornecedor></label></div>
+   <button class=btn onclick="novoPedidoMobile()">Registrar pedido</button>
+  </div>
   <div class=cartao><h2 style="margin-top:0">Refeições contadas</h2><p class=mini>Habilite outras refeições quando quiser. O horário vale para todos os setores; a nutrição de cada setor pode ajustar o do seu.</p>
   ${r.refeicoes.map(x=>`<div data-cf=${x.refeicao} style="margin-bottom:8px"><label class=tg><input type=checkbox class=ca ${x.ativa?'checked':''}><b>${REF[x.refeicao]}</b></label>
    <div class=filtros><label class=f>Abre<input type=time class=cb value="${v(x.abre)}"></label><label class=f>Fecha<input type=time class=cc value="${v(x.fecha)}"></label></div></div>`).join('')}
@@ -583,19 +689,64 @@ async function vCad(){
   <div class=filtros><label class=f>De<input type=number id=si value=1></label><label class=f>Até<input type=number id=sf></label></div><button class=btn onclick="novoSetor()">Salvar setor/leitos</button></div>
   <div class=cartao><h2 style="margin-top:0">Itens do almoxarifado</h2>
   <label class=f>Nome do produto<input type=text id=in></label>
-  <label class=f>Unidade de estoque (kg, pacote, un…)<input type=text id=iu></label>
+  <label class=f>Unidade de estoque (ex.: pacote, frasco ou lata)<input type=text id=iu placeholder="Ex.: pacote"></label>
   <div class=filtros><label class=f>Preço unitário (R$)<input type=number id=ip min=0 step=0.01 placeholder="Ex.: 8,50"></label>
-  <label class=f>Conteúdo por unidade<input type=number id=ie min=0.000001 step=any placeholder="Ex.: 500"></label>
-  <label class=f>Unidade do conteúdo<select id=ieu><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">L</option><option value="mg">mg</option><option value="un">un</option></select></label></div>
-  <p class=mini>O preço corresponde à unidade de estoque cadastrada. Informe também o conteúdo da embalagem para permitir converter o custo nas fichas técnicas.</p>
+  <label class=f>Conteúdo por embalagem<input type=number id=ie min=0.000001 step=any placeholder="Ex.: 500"></label></div>
+  <div class=f><b>Unidade do conteúdo</b><div class=seg id=unidadeConteudo>
+   <label><input type=radio name=ieu value="g" checked> Gramas (g)</label>
+   <label><input type=radio name=ieu value="ml"> Mililitros (mL)</label>
+   <label><input type=radio name=ieu value="un"> Unidade (un)</label>
+  </div></div>
+  <p class=mini>Informe o conteúdo de cada pacote/frasco e, separadamente, quantas embalagens existem no estoque, na tela Estoque. Para massa use g; para volume use mL. O programa converte automaticamente kg para g e L para mL em cadastros antigos ou importados.</p>
   <button class=btn id=btnSalvarItem onclick="novoItem()">Adicionar item</button>
   <h3>Itens cadastrados (${S.itens.length})</h3>
   ${S.itens.map(i=>`<div style="padding:7px 0;border-bottom:1px solid var(--linha)"><b>${esc(i.nome)}</b>
    <span class=mini>${esc(i.unidade)} · ${i.preco_unitario==null?'preço pendente':'R$ '+Number(i.preco_unitario).toFixed(2)} · ${i.embalagem_qtd==null?'conteúdo pendente':esc(i.embalagem_qtd+' '+i.embalagem_un)}</span>
    <button class="btn sec peq" onclick="editarItem(${i.id})">Editar preço/embalagem</button></div>`).join('')}
   </div></div>`;
+  $('#pedidoItem').innerHTML=S.itens.map(i=>'<option value="'+i.id+'">'+esc(i.nome)+'</option>').join('');
+  await Promise.all([carregaAtividade(),carregaPrazos()]);
 }
-const novoUsuario=tenta(async()=>{await api('/api/admin/usuarios',{login:$('#nl').value,nome:$('#nn').value,perfil:$('#np').value,id_setor:+$('#ns').value||null,senha:$('#nx').value});await vCad();aviso('Usuário criado.',0)});
+
+const carregaAtividade=tenta(async()=>{
+ const periodo=$('#periodoAtividade')?.value||'mes';
+ const [ano,mes]=(S.hoje||'').split('-');
+ const j=await api(`/api/admin/mapa/atividade?periodo=${periodo}&ano=${ano||''}&mes=${mes||''}`);
+ const alvo=$('#graficoAtividade');if(!alvo)return;
+ if(!j.ranking.length){alvo.innerHTML='<p>Nenhuma atualização de mapa registrada neste período.</p>';return}
+ const max=Math.max(1,...j.ranking.map(x=>x.atualizacoes));
+ alvo.innerHTML='<p><b>'+j.total+'</b> atualização(ões) aplicadas · '+esc(j.chave)+'</p>'+j.ranking.map((x,i)=>`<div style="display:grid;grid-template-columns:minmax(95px,1fr) 2fr auto;gap:8px;align-items:center;margin:9px 0"><span>${i+1}. ${esc(x.nome)}</span><span style="height:12px;background:var(--linha);border-radius:8px;overflow:hidden"><i style="display:block;height:100%;width:${Math.max(2,x.atualizacoes/max*100)}%;background:var(--cor);border-radius:8px"></i></span><b>${x.atualizacoes}</b></div><div class=mini>${x.dias_ativos} dia(s) ativo(s) · ${x.setores} setor(es)</div>`).join('');
+});
+
+const carregaPrazos=tenta(async()=>{
+ const [r,p]=await Promise.all([api('/api/admin/almox/prazos'),api('/api/admin/almox/pedidos')]);
+ const alvo=$('#graficoPrazos');if(!alvo)return;
+ if(!r.prazos.length){alvo.innerHTML='<p>Nenhum pedido recebido ainda. Registre pedidos e confirme o recebimento para formar a média.</p>'}
+ else{
+  const max=Math.max(1,...r.prazos.map(x=>Number(x.prazo_medio_dias)||0));
+  alvo.innerHTML=r.prazos.map(x=>{
+   const dias=Number(x.prazo_medio_dias)||0;
+   return '<div style="display:grid;grid-template-columns:minmax(90px,1fr) 2fr auto;gap:8px;align-items:center;margin:9px 0"><span>'+esc(x.nome)+'</span><span style="height:12px;background:var(--linha);border-radius:8px;overflow:hidden"><i style="display:block;height:100%;width:'+Math.max(2,dias/max*100)+'%;background:var(--cor);border-radius:8px"></i></span><b>'+(x.prazo_medio_dias==null?'—':dias.toFixed(1)+' d')+'</b></div><div class=mini>'+x.pedidos_recebidos+' recebimento(s) · '+(x.pendentes||0)+' pendente(s)</div>';
+  }).join('');
+ }
+ const pendentes=p.pedidos.filter(x=>x.status==='pendente');
+ $('#pedidosPendentes').innerHTML=pendentes.length?pendentes.map(x=>
+  '<div style="padding:8px 0;border-bottom:1px solid var(--linha)"><b>'+esc(x.item)+'</b> · '+x.qtd+' unidade(s)<div class=mini>Solicitado em '+esc(x.solicitado_em)+' por '+esc(x.solicitado_nome||'—')+' · '+esc(x.fornecedor||'sem fornecedor')+'</div><button class="btn sec peq" onclick="receberPedidoMobile('+x.id+')">Confirmar recebimento</button></div>'
+ ).join(''):'<p>Nenhum pedido pendente.</p>';
+});
+const novoPedidoMobile=tenta(async()=>{
+ const id=+$('#pedidoItem').value,qtd=+$('#pedidoQtd').value;
+ if(!id||!qtd||qtd<=0){aviso('Informe o insumo e a quantidade solicitada.',1);return}
+ await api('/api/admin/almox/pedidos',{id_item:id,qtd,fornecedor:$('#pedidoFornecedor').value});
+ $('#pedidoQtd').value='';$('#pedidoFornecedor').value='';
+ await carregaPrazos();aviso('Pedido de reposição registrado.',0);
+});
+const receberPedidoMobile=tenta(async id=>{
+ if(!confirm('Confirmar que o pedido chegou? A quantidade será adicionada ao estoque do almoxarifado.'))return;
+ await api('/api/admin/almox/pedidos/'+id+'/receber',{});
+ await carregaPrazos();await recarregaBase();aviso('Recebimento registrado e estoque atualizado.',0);
+});
+const novoUsuario=tenta(async()=>{const perfil=$('#np').value;await api('/api/admin/usuarios',{login:$('#nl').value,nome:$('#nn').value,perfil,id_setor:perfil==='nutricionista'?(+$('#ns').value||null):null,senha:$('#nx').value});await vCad();aviso('Usuário criado.',0)});
 const ativa=tenta(async(id,a)=>{await api('/api/admin/usuarios/'+id,{ativo:a});await vCad()});
 const trocaSetor=tenta(async(id,s)=>{await api('/api/admin/usuarios/'+id,{id_setor:+s||null});aviso('Setor do usuário atualizado.',0)});
 const senha=tenta(async id=>{const s=prompt('Nova senha (mín. 6 caracteres):');if(s){await api('/api/admin/usuarios/'+id,{senha:s});aviso('Senha alterada.',0)}});
@@ -610,13 +761,14 @@ function editarItem(id){
  S.itemEditando=id;
  $('#in').value=item.nome;$('#iu').value=item.unidade;
  $('#ip').value=item.preco_unitario??'';$('#ie').value=item.embalagem_qtd??'';
- $('#ieu').value=item.embalagem_un||'g';
+ document.querySelectorAll('input[name=ieu]').forEach(r=>{r.checked=r.value===(item.embalagem_un||'g')});
  $('#btnSalvarItem').textContent='Salvar alterações do item';
  $('#in').scrollIntoView({behavior:'smooth',block:'center'});
 }
 const novoItem=tenta(async()=>{
+ const unidadeConteudo=document.querySelector('input[name=ieu]:checked');
  const corpo={nome:$('#in').value,unidade:$('#iu').value,preco_unitario:$('#ip').value,
-  embalagem_qtd:$('#ie').value,embalagem_un:$('#ieu').value};
+  embalagem_qtd:$('#ie').value,embalagem_un:unidadeConteudo?unidadeConteudo.value:'g'};
  if(S.itemEditando)await api('/api/admin/itens/'+S.itemEditando,corpo);
  else await api('/api/admin/itens',corpo);
  S.itemEditando=null;await recarregaBase();await vCad();aviso('Item salvo.',0);

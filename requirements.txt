@@ -14,6 +14,7 @@
 customtkinter==5.2.2   # última 5.x (2024-01-10). O major 6.0.0 (2026-06-24) exige tarefa própria com teste de interface
 fpdf2==2.8.9
 pillow==12.3.0
+qrcode==8.2       # geração local dos QR codes de instalação e conexão
 openpyxl==3.1.5
 matplotlib==3.10.9
 tzdata==2026.5         # banco de fusos IANA; no Windows é obrigatório para zoneinfo "America/Recife"

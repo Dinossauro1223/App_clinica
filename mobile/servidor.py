@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, login TEXT UNIQUE NO
 CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL);
 CREATE TABLE IF NOT EXISTS leitos(id INTEGER PRIMARY KEY, id_setor INTEGER NOT NULL, codigo TEXT NOT NULL, UNIQUE(id_setor, codigo));
 CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL,
-  preco_unitario REAL, embalagem_qtd REAL, embalagem_un TEXT);
+  preco_unitario REAL, embalagem_qtd REAL, embalagem_un TEXT, tbca_id TEXT);
 CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
   idade_anos INTEGER, idade_meses INTEGER, diagnostico TEXT, pref_sim TEXT, pref_nao TEXT,
   cor TEXT, consistencia TEXT, via TEXT, dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
@@ -56,12 +56,35 @@ CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, ocupado INTEGER
 CREATE TABLE IF NOT EXISTS suplementos_catalogo(
   id_suplemento INTEGER PRIMARY KEY, nome TEXT NOT NULL, modulo TEXT, emb_qtd REAL, emb_un TEXT,
   kcal_100 REAL, ptn_100 REAL, lip_100 REAL, carb_100 REAL, sod_100 REAL, ativo INTEGER DEFAULT 1);
+CREATE TABLE IF NOT EXISTS mapa_historico(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, id_setor INTEGER, id_leito INTEGER NOT NULL,
+  por_usuario INTEGER, por_nome TEXT NOT NULL, por_perfil TEXT NOT NULL, atualizado_em TEXT NOT NULL,
+  origem TEXT NOT NULL DEFAULT 'mobile', campos_alterados TEXT NOT NULL,
+  antes_json TEXT, depois_json TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_mapa_historico_periodo ON mapa_historico(atualizado_em, por_usuario);
+CREATE INDEX IF NOT EXISTS ix_mapa_historico_leito ON mapa_historico(data, id_setor, id_leito, atualizado_em);
 CREATE TABLE IF NOT EXISTS mapa_rascunho(data TEXT, id_leito INTEGER, campos TEXT, por_usuario INTEGER, atualizado_em TEXT,
   PRIMARY KEY(data, id_leito));
 CREATE TABLE IF NOT EXISTS refeicoes_cfg(refeicao TEXT PRIMARY KEY, ativa INTEGER, abre TEXT, fecha TEXT);
 CREATE TABLE IF NOT EXISTS janelas(id_setor INTEGER, refeicao TEXT, abre TEXT, fecha TEXT, PRIMARY KEY(id_setor, refeicao));
 CREATE TABLE IF NOT EXISTS refeicoes_dia(data TEXT, id_setor INTEGER, refeicao TEXT, qtd REAL,
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, id_setor, refeicao));
+CREATE TABLE IF NOT EXISTS pedidos_estoque(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ id_item INTEGER NOT NULL REFERENCES itens(id),
+ qtd REAL NOT NULL CHECK(qtd>0),
+ solicitado_em TEXT NOT NULL,
+ solicitado_por INTEGER,
+ solicitado_nome TEXT,
+ fornecedor TEXT,
+ observacao TEXT,
+ status TEXT NOT NULL DEFAULT 'pendente' CHECK(status IN ('pendente','recebido','cancelado')),
+ recebido_em TEXT,
+ recebido_por INTEGER,
+ recebido_nome TEXT,
+ id_movimento INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_pedidos_estoque_item_status ON pedidos_estoque(id_item,status);
 CREATE TABLE IF NOT EXISTS estoque_dia(data TEXT, estoque TEXT, id_item INTEGER, qtd REAL,
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, estoque, id_item));
 CREATE TABLE IF NOT EXISTS movimentos(id INTEGER PRIMARY KEY, data TEXT, hora TEXT, origem TEXT, destino TEXT,
@@ -112,12 +135,27 @@ def agora():
 
 def num(v, nome="valor"):
     try:
+        if isinstance(v, str):
+            v = v.strip().replace(".", "").replace(",", ".") if "," in v else v.strip()
         x = float(v)
     except (TypeError, ValueError):
         raise Erro("Número inválido em %s." % nome)
     if not 0 <= x <= 1e9:
         raise Erro("Valor fora do limite em %s." % nome)
     return x
+
+
+def normalizar_embalagem(qtd, unidade):
+    """Converte unidades equivalentes para g/mL; não converte massa em volume."""
+    if qtd is None:
+        return None, None
+    unidade = str(unidade or "").strip().lower()
+    fatores = {"g": (1.0, "g"), "kg": (1000.0, "g"), "mg": (0.001, "g"),
+               "ml": (1.0, "ml"), "l": (1000.0, "ml"), "un": (1.0, "un")}
+    if unidade not in fatores:
+        raise Erro("Escolha a unidade do conteúdo: gramas (g), mililitros (mL) ou unidade.")
+    fator, base = fatores[unidade]
+    return qtd * fator, base
 
 
 def dia_valido(txt):
@@ -156,7 +194,7 @@ def criar_usuario(c, login, nome, perfil, id_setor, senha):
         raise Erro("Informe login e nome.")
     if perfil not in PERFIS:
         raise Erro("Perfil inválido.")
-    sid = id_setor if perfil in ("copa", "nutricionista") and id_setor not in (None, "") else None
+    sid = id_setor if perfil == "nutricionista" and id_setor not in (None, "") else None
     if sid is not None and not c.execute("SELECT 1 FROM setores WHERE id=?", (sid,)).fetchone():
         raise Erro("Setor inexistente.")
     try:
@@ -180,15 +218,27 @@ def migrar(c):
         if col not in cols("mapa_dia"):
             c.execute("ALTER TABLE mapa_dia ADD COLUMN %s %s" % (col, tipo))
     # Metadados comerciais e snapshots de custo são aditivos: bancos antigos mantêm todo o histórico.
-    for col, tipo in (("preco_unitario", "REAL"), ("embalagem_qtd", "REAL"), ("embalagem_un", "TEXT")):
+    for col, tipo in (("preco_unitario", "REAL"), ("embalagem_qtd", "REAL"), ("embalagem_un", "TEXT"), ("ativo", "INTEGER NOT NULL DEFAULT 1")):
         if col not in cols("itens"):
             c.execute("ALTER TABLE itens ADD COLUMN %s %s" % (col, tipo))
+    # Unidades antigas são convertidas para a unidade-base, preservando o conteúdo físico.
+    # O valor por embalagem/preço não muda; apenas a representação da quantidade é normalizada.
+    c.execute("UPDATE itens SET embalagem_qtd=embalagem_qtd*1000, embalagem_un='g' "
+              "WHERE lower(trim(embalagem_un))='kg' AND embalagem_qtd IS NOT NULL")
+    c.execute("UPDATE itens SET embalagem_qtd=embalagem_qtd/1000, embalagem_un='g' "
+              "WHERE lower(trim(embalagem_un))='mg' AND embalagem_qtd IS NOT NULL")
+    c.execute("UPDATE itens SET embalagem_qtd=embalagem_qtd*1000, embalagem_un='ml' "
+              "WHERE lower(trim(embalagem_un))='l' AND embalagem_qtd IS NOT NULL")
+    c.execute("UPDATE itens SET embalagem_un=lower(trim(embalagem_un)) "
+              "WHERE embalagem_un IS NOT NULL")
     for col in ("preco_unitario_snapshot", "custo_snapshot"):
         if col not in cols("movimentos"):
             c.execute("ALTER TABLE movimentos ADD COLUMN %s REAL" % col)
     if "id_setor" not in cols("correcoes"):
         c.execute("ALTER TABLE correcoes ADD COLUMN id_setor INTEGER")
     c.execute("UPDATE usuarios SET perfil='copa' WHERE perfil IN ('setor','estoque_copa')")
+    # A copa passa a compartilhar o mapa inteiro; o setor continua identificando cada leito.
+    c.execute("UPDATE usuarios SET id_setor=NULL WHERE perfil='copa'")
     c.executemany("INSERT OR IGNORE INTO refeicoes_cfg VALUES(?,?,?,?)", CFG_INICIAL)
     for slug, titulo, texto, ordem in ORIENTACOES_INICIAIS:
         c.execute("INSERT OR IGNORE INTO orientacoes(slug,titulo,texto,ordem,atualizado_em) VALUES(?,?,?,?,?)",
@@ -266,14 +316,17 @@ def usuario(c, auth):
 
 
 def setor_alvo(c, u, pedido):
-    """Admin e nutricionista sem setor escolhem o setor; copa e nutricionista de um setor ficam no próprio."""
+    """Admin, nutrição sem setor e copa global escolhem o setor; contas setoriais ficam no próprio."""
     p, sid = u["perfil"], u["id_setor"]
-    if p == "admin" or (p == "nutricionista" and sid is None):
+    if p == "admin" or (p in ("nutricionista", "copa") and sid is None):
         sid = pedido
+        if p == "copa" and not sid:
+            primeiro = c.execute("SELECT id FROM setores ORDER BY id LIMIT 1").fetchone()
+            sid = primeiro["id"] if primeiro else None
     elif p not in ("nutricionista", "copa"):
         raise Erro("Sem permissão para este setor.", 403)
     if not sid:
-        raise Erro("Escolha o setor." if p in STAFF else "Seu usuário não tem setor definido. Fale com o administrador.")
+        raise Erro("Escolha o setor." if p in STAFF or p == "copa" else "Seu usuário não tem setor definido. Fale com o administrador.")
     s = c.execute("SELECT * FROM setores WHERE id=?", (int(sid),)).fetchone()
     if not s:
         raise Erro("Setor não encontrado.", 404)
@@ -404,9 +457,25 @@ def atual(c, tipo, data, chave):
     return dict(r) if r else None
 
 
-def gravar(c, tipo, data, chave, v, uid, perfil):
+def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
     t = v.get("_atualizado_em") or agora()
     if tipo == "mapa":
+        anterior = atual(c, "mapa", data, chave)
+        if anterior:
+            anterior.pop("por_perfil", None)
+        campos = [k for k in CAMPOS if (anterior or {}).get(k) != v.get(k)]
+        if campos:
+            leito = c.execute("SELECT id_setor FROM leitos WHERE id=?", (int(chave),)).fetchone()
+            usuario = c.execute("SELECT nome FROM usuarios WHERE id=?", (int(uid),)).fetchone()
+            c.execute(
+                "INSERT INTO mapa_historico(data,id_setor,id_leito,por_usuario,por_nome,por_perfil,atualizado_em,origem,campos_alterados,antes_json,depois_json) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (data, leito["id_setor"] if leito else None, int(chave), uid,
+                 usuario["nome"] if usuario else "Usuário removido", perfil, t, origem,
+                 json.dumps(campos, ensure_ascii=False),
+                 json.dumps(anterior, ensure_ascii=False) if anterior is not None else None,
+                 json.dumps({k: v.get(k) for k in CAMPOS}, ensure_ascii=False)),
+            )
         c.execute("INSERT INTO mapa_dia(data,id_leito,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
                   "cor,consistencia,via,dm,has,laxativa,constipante,drc,suplementos_json,por_usuario,por_perfil,atualizado_em) "
                   "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
@@ -461,6 +530,8 @@ def linhas_mapa(c, sid, d, rascunho=False):
            "LEFT JOIN mapa_dia h ON h.id_leito=l.id AND h.data=(SELECT MAX(data) FROM mapa_dia WHERE id_leito=l.id AND data<=?) "
            "WHERE l.id_setor=? ORDER BY l.codigo")
     out = []
+    sql = sql.replace("h.por_perfil,h.atualizado_em FROM", "h.por_perfil,h.atualizado_em,u.nome por_nome FROM", 1)
+    sql = sql.replace("WHERE l.id_setor=?", "LEFT JOIN usuarios u ON u.id=h.por_usuario WHERE l.id_setor=?", 1)
     for r in c.execute(sql, (d, sid)):
         item = dict(r)
         try:
@@ -568,7 +639,7 @@ def publicar(c, u, s, d, texto):
         lid, n, b = r["id_leito"], json.loads(r["campos"]), vivo[r["id_leito"]]
         tipo = "liberado" if b["ocupado"] and not n["ocupado"] else ("novo" if n["ocupado"] and not b["ocupado"] else "alterado")
         mud.append({"leito": cods[lid], "tipo": tipo, "campos": [k for k in CAMPOS if b[k] != n[k]]})
-        gravar(c, "mapa", d, str(lid), n, u["id"], u["perfil"])
+        gravar(c, "mapa", d, str(lid), n, u["id"], u["perfil"], origem="publicacao")
     if not mud:
         raise Erro("Não há alterações do mapa para publicar neste setor e dia.")
     c.execute("DELETE FROM mapa_rascunho WHERE data=? AND id_leito IN (SELECT id FROM leitos WHERE id_setor=?)", (d, s["id"]))
@@ -677,9 +748,10 @@ def avisos_do_usuario(c, u):
     """Avisos ainda não lidos pela copa (do setor dela ou gerais, criados depois do cadastro dela)."""
     if u["perfil"] != "copa":
         return []
-    rs = c.execute("SELECT a.*,x.nome por_nome FROM avisos a JOIN usuarios x ON x.id=a.por_usuario WHERE (a.id_setor IS NULL OR a.id_setor=?) "
+    rs = c.execute("SELECT a.*,x.nome por_nome FROM avisos a JOIN usuarios x ON x.id=a.por_usuario "
+                   "WHERE (a.id_setor IS NULL OR a.id_setor=? OR ? IS NULL) "
                    "AND a.criado_em>=? AND a.id NOT IN (SELECT id_aviso FROM avisos_lidos WHERE id_usuario=?) ORDER BY a.id",
-                   (u["id_setor"], u["criado_em"], u["id"]))
+                   (u["id_setor"], u["id_setor"], u["criado_em"], u["id"]))
     return [{**dict(r), "leitos": json.loads(r["leitos"] or "[]")} for r in rs]
 
 
@@ -730,7 +802,7 @@ def decidir(c, u, cid, acao):
     if acao not in ("aprovar", "recusar"):
         raise Erro("Ação inválida.")
     if acao == "aprovar":  # valor aprovado passa a valer como valor da equipe (admin/nutrição)
-        gravar(c, k["tipo"], k["data"], k["chave"], json.loads(k["valor_proposto"]), u["id"], u["perfil"])
+        gravar(c, k["tipo"], k["data"], k["chave"], json.loads(k["valor_proposto"]), u["id"], u["perfil"], origem="aprovacao")
     c.execute("UPDATE correcoes SET status=?, decidido_em=? WHERE id=?", ("aprovada" if acao == "aprovar" else "recusada", agora(), cid))
     return {"ok": True}
 
@@ -800,7 +872,7 @@ def _rotear(c, ip, m, p, q, b, auth):
             "SELECT id_suplemento,nome,modulo,emb_qtd,emb_un,kcal_100,ptn_100,lip_100,carb_100,sod_100 "
             "FROM suplementos_catalogo WHERE ativo=1 ORDER BY nome")]}
     if (m, p) == ("GET", "/api/setores"):
-        todos = adm or (perfil == "nutricionista" and not u["id_setor"])
+        todos = adm or (perfil in ("nutricionista", "copa") and not u["id_setor"])
         sql = "SELECT s.id,s.nome,(SELECT COUNT(*) FROM leitos WHERE id_setor=s.id) leitos FROM setores s %s ORDER BY s.nome"
         return {"setores": [dict(r) for r in c.execute(sql % ("" if todos else "WHERE s.id=%d" % (u["id_setor"] or 0)))]}
     if (m, p) == ("GET", "/api/avisos"):
@@ -869,6 +941,30 @@ def _rotear(c, ip, m, p, q, b, auth):
                 c.execute("INSERT INTO orientacoes(slug,titulo,texto,ordem,atualizado_por,atualizado_em) VALUES(?,?,?,?,?,?)",
                           (slug, titulo, texto, ordem, u["id"], agora()))
             return {"ok": True}
+        if (m == "GET" and p == "/api/admin/mapa/atividade"):
+            periodo = str(q.get("periodo") or "mes")
+            ano = int(q.get("ano") or hoje()[:4])
+            if not 2000 <= ano <= 2100:
+                raise Erro("Ano inválido.")
+            if periodo == "mes":
+                mes = int(q.get("mes") or hoje()[5:7])
+                if not 1 <= mes <= 12:
+                    raise Erro("Mês inválido.")
+                chave = "%04d-%02d" % (ano, mes)
+                filtro = "substr(atualizado_em,1,7)=?"
+            elif periodo == "ano":
+                chave = "%04d" % ano
+                filtro = "substr(atualizado_em,1,4)=?"
+            else:
+                raise Erro("Período inválido.")
+            ranking = [dict(r) for r in c.execute(
+                "SELECT por_usuario id_usuario,por_nome nome,por_perfil perfil,COUNT(*) atualizacoes,"
+                "COUNT(DISTINCT data) dias_ativos,COUNT(DISTINCT id_setor) setores "
+                "FROM mapa_historico WHERE por_perfil='copa' AND " + filtro +
+                " GROUP BY por_usuario,por_nome,por_perfil ORDER BY atualizacoes DESC,nome COLLATE NOCASE",
+                (chave,))]
+            return {"periodo": periodo, "chave": chave, "ranking": ranking,
+                    "total": sum(x["atualizacoes"] for x in ranking)}
         if (m, p) == ("GET", "/api/admin/exportar"):
             return exportar(c, dia_alvo(u, q.get("data")))
         if (m, p) == ("GET", "/api/admin/refeicoes"):
@@ -890,10 +986,71 @@ def _rotear(c, ip, m, p, q, b, auth):
             if "id_setor" in b:
                 if b["id_setor"] and not c.execute("SELECT 1 FROM setores WHERE id=?", (b["id_setor"],)).fetchone():
                     raise Erro("Setor inexistente.")
-                c.execute("UPDATE usuarios SET id_setor=? WHERE id=? AND perfil IN ('copa','nutricionista')", (b["id_setor"] or None, uid))
+                c.execute("UPDATE usuarios SET id_setor=? WHERE id=? AND perfil='nutricionista'", (b["id_setor"] or None, uid))
             if b.get("senha"):
                 definir_senha(c, uid, b["senha"])
             return {"ok": True}
+
+        if (m, p) == ("GET", "/api/admin/almox/pedidos"):
+            if not adm:
+                raise Erro("Apenas administradores podem consultar pedidos.", 403)
+            pedidos = [dict(r) for r in c.execute(
+                """SELECT p.id,p.id_item,i.nome AS item,p.qtd,p.solicitado_em,p.solicitado_nome,
+                          p.fornecedor,p.observacao,p.status,p.recebido_em,p.recebido_nome,p.id_movimento
+                   FROM pedidos_estoque p JOIN itens i ON i.id=p.id_item
+                   ORDER BY CASE p.status WHEN 'pendente' THEN 0 ELSE 1 END,p.solicitado_em DESC
+                   LIMIT 200""")]
+            return {"pedidos": pedidos}
+        if (m, p) == ("GET", "/api/admin/almox/prazos"):
+            if not adm:
+                raise Erro("Apenas administradores podem consultar prazos.", 403)
+            prazos = [dict(r) for r in c.execute(
+                """SELECT i.id AS id_item,i.nome,
+                          COUNT(CASE WHEN p.status='recebido' THEN 1 END) AS pedidos_recebidos,
+                          ROUND(AVG(CASE WHEN p.status='recebido'
+                              THEN julianday(substr(p.recebido_em,1,10))-julianday(substr(p.solicitado_em,1,10))
+                              END),1) AS prazo_medio_dias,
+                          SUM(CASE WHEN p.status='pendente' THEN 1 ELSE 0 END) AS pendentes
+                   FROM itens i LEFT JOIN pedidos_estoque p ON p.id_item=i.id
+                   GROUP BY i.id,i.nome
+                   HAVING pedidos_recebidos>0 OR pendentes>0
+                   ORDER BY prazo_medio_dias DESC,i.nome COLLATE NOCASE""")]
+            return {"prazos": prazos}
+        if (m, p) == ("POST", "/api/admin/almox/pedidos"):
+            if not adm:
+                raise Erro("Apenas administradores podem registrar pedidos.", 403)
+            iid = int(b.get("id_item") or 0)
+            qtd = num(b.get("qtd"), "quantidade solicitada")
+            if qtd <= 0:
+                raise Erro("A quantidade solicitada precisa ser maior que zero.")
+            if not c.execute("SELECT 1 FROM itens WHERE id=? AND ativo=1", (iid,)).fetchone():
+                raise Erro("Insumo não encontrado ou inativo.", 404)
+            cur = c.execute(
+                """INSERT INTO pedidos_estoque(id_item,qtd,solicitado_em,solicitado_por,
+                           solicitado_nome,fornecedor,observacao,status)
+                   VALUES(?,?,?,?,?,?,?,'pendente')""",
+                (iid,qtd,agora(),u["id"],u["nome"],
+                 str(b.get("fornecedor") or "").strip() or None,
+                 str(b.get("observacao") or "").strip() or None))
+            return {"ok": True, "id": cur.lastrowid}
+        if m == "POST" and p.startswith("/api/admin/almox/pedidos/") and p.endswith("/receber"):
+            if not adm:
+                raise Erro("Apenas administradores podem registrar recebimentos.", 403)
+            pid = int(p.split("/")[-2])
+            pedido = c.execute("SELECT * FROM pedidos_estoque WHERE id=?", (pid,)).fetchone()
+            if not pedido:
+                raise Erro("Pedido não encontrado.", 404)
+            if pedido["status"] != "pendente":
+                raise Erro("Este pedido já foi finalizado.")
+            saldo = post_reposicao(c,u,"almox",{
+                "id_item": pedido["id_item"], "qtd": pedido["qtd"], "origem": "externo"
+            })
+            id_movimento = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            c.execute(
+                """UPDATE pedidos_estoque SET status='recebido',recebido_em=?,
+                   recebido_por=?,recebido_nome=?,id_movimento=? WHERE id=?""",
+                (agora(),u["id"],u["nome"],id_movimento,pid))
+            return {"ok": True, "saldo": saldo, "id_movimento": id_movimento}
         if (m, p) == ("POST", "/api/admin/setores"):
             return criar_setor(c, b)
         if (m == "POST" and p == "/api/admin/itens") or (m == "POST" and p.startswith("/api/admin/itens/")):
@@ -902,27 +1059,27 @@ def _rotear(c, ip, m, p, q, b, auth):
             preco = None if b.get("preco_unitario") in (None, "") else num(b.get("preco_unitario"), "preço unitário")
             emb_qtd = None if b.get("embalagem_qtd") in (None, "") else num(b.get("embalagem_qtd"), "conteúdo da embalagem")
             emb_un = str(b.get("embalagem_un") or "").strip().lower() or None
-            unidades = {"g", "kg", "mg", "ml", "l", "un"}
             if emb_qtd is not None and emb_qtd <= 0:
                 raise Erro("O conteúdo da embalagem precisa ser maior que zero.")
-            if emb_qtd is not None and emb_un not in unidades:
-                raise Erro("Informe a unidade do conteúdo (g, kg, mg, ml, L ou un).")
-            if emb_qtd is None:
-                emb_un = None
+            emb_qtd, emb_un = normalizar_embalagem(emb_qtd, emb_un)
+            tbca_id = str(b.get("tbca_id") or "").strip() or None
             if p == "/api/admin/itens":
                 if not nome:
                     raise Erro("Informe o nome do item.")
                 try:
-                    cur = c.execute("INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un) VALUES(?,?,?,?,?)",
-                                    (nome, unidade, preco, emb_qtd, emb_un))
+                    cur = c.execute("INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,tbca_id) VALUES(?,?,?,?,?,?)",
+                                    (nome, unidade, preco, emb_qtd, emb_un, tbca_id))
                 except sqlite3.IntegrityError:
                     raise Erro("Esse item já existe.")
                 return {"ok": True, "id": cur.lastrowid}
             iid = int(p.rsplit("/", 1)[1])
             if not c.execute("SELECT 1 FROM itens WHERE id=?", (iid,)).fetchone():
                 raise Erro("Item não encontrado.", 404)
-            c.execute("UPDATE itens SET preco_unitario=?,embalagem_qtd=?,embalagem_un=? WHERE id=?",
-                      (preco, emb_qtd, emb_un, iid))
+            if "tbca_id" not in b:
+                existente = c.execute("SELECT tbca_id FROM itens WHERE id=?", (iid,)).fetchone()
+                tbca_id = existente["tbca_id"] if existente else None
+            c.execute("UPDATE itens SET preco_unitario=?,embalagem_qtd=?,embalagem_un=?,tbca_id=? WHERE id=?",
+                      (preco, emb_qtd, emb_un, tbca_id, iid))
             return {"ok": True}
     raise Erro("Rota não encontrada.", 404)
 
@@ -955,12 +1112,28 @@ class Manipulador(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(corpo)
 
+    def _enviar_apk(self, arquivo):
+        corpo = arquivo.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/vnd.android.package-archive")
+        self.send_header("Content-Length", str(len(corpo)))
+        self.send_header("Content-Disposition", 'attachment; filename="NutriLab-Mobile.apk"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        self.wfile.write(corpo)
+
     def _tratar(self, m):
         try:
             if not ipaddress.ip_address(self.client_address[0]).is_private:
                 raise Erro("Acesso permitido somente pela rede local.", 403)
             u = urlparse(self.path)
             q = {k: v[0] for k, v in parse_qs(u.query).items()}
+            if m == "GET" and u.path == "/download/NutriLab-Mobile.apk":
+                apk = (AQUI / "apk" / "saida" / "NutriLab-Mobile.apk").resolve()
+                if not apk.is_file() or AQUI.resolve() not in apk.parents:
+                    raise Erro("APK não encontrado nesta instalação. Recompile o pacote do NutriLab.", 404)
+                return self._enviar_apk(apk)
             if m == "GET" and not u.path.startswith("/api/"):
                 raiz = (AQUI / "static").resolve()
                 if u.path in ("/", "/index.html"):

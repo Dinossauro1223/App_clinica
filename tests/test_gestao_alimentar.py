@@ -159,5 +159,95 @@ class TestGestaoAlimentar(unittest.TestCase):
         self.assertEqual(ga.listar_fichas(self.db, incluir_inativas=True)[0]["id_ficha"], ficha_id)
 
 
+    def criar_movimento_mobile(self, hora="12:00", qtd=2):
+        with ga._conexao(self.db) as conn:
+            conn.execute("""CREATE TABLE IF NOT EXISTS Mobile_Movimentos(
+                data TEXT NOT NULL,id_mobile INTEGER NOT NULL,hora TEXT,origem TEXT,destino TEXT,
+                item TEXT,unidade TEXT,qtd REAL,divergente INTEGER,id_item_mobile INTEGER,
+                por_usuario TEXT,valor_unitario_snapshot REAL,custo_snapshot REAL,
+                PRIMARY KEY(data,id_mobile))""")
+            conn.execute("""INSERT INTO Mobile_Movimentos(
+                data,id_mobile,hora,origem,destino,item,unidade,qtd,divergente,id_item_mobile,
+                por_usuario,valor_unitario_snapshot,custo_snapshot)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                ("2026-11-24", 501, hora, "almox", "cozinha", "Pacote alimento",
+                 "pacote", qtd, 0, 7, "almoxarife", 10.0, qtd * 10.0))
+
+    def test_gera_ficha_rascunho_com_base_no_horario_e_vinculo_tbca(self):
+        ga.importar_tbca_excel(self.db, self.planilha_tbca())
+        ga.sincronizar_produtos_almox(self.db, [{
+            "id_item": 7, "nome": "Pacote alimento", "unidade": "pacote",
+            "preco_unitario": 10.0, "embalagem_qtd": 500, "embalagem_un": "g",
+            "tbca_id": "T001", "qtd": 4, "data_base": "2026-11-24",
+        }])
+        with ga._conexao(self.db) as conn:
+            conn.execute("""INSERT INTO GA_Preparacoes_Dia(
+                data,refeicao,nome,porcoes_previstas,id_ficha,ativa,criado_em,atualizado_em)
+                VALUES(?,?,?,?,NULL,1,?,?)""",
+                ("2026-11-24", "almoco", "Preparação do almoço", 10, "2026-11-24", "2026-11-24"))
+        self.criar_movimento_mobile()
+        movimentos = ga.listar_movimentos_cozinha(self.db, "2026-11-24", "2026-11-24")
+        resultado = ga.gerar_rascunhos_por_horario(
+            self.db, "2026-11-24", movimentos,
+            {"almoco": {"abre": "11:00", "fecha": "14:00"}}
+        )
+        self.assertEqual(resultado["alocadas"], 1)
+        self.assertEqual(resultado["rascunhos"], 1)
+        preparacao = ga.listar_preparacoes_dia(self.db, "2026-11-24")[0]
+        self.assertIsNotNone(preparacao["id_ficha"])
+        ficha = ga.obter_ficha(self.db, preparacao["id_ficha"])
+        ingrediente = ficha["ingredientes"][0]
+        self.assertEqual(ingrediente["tbca_id"], "T001")
+        self.assertEqual(ingrediente["unidade"], "g")
+        self.assertAlmostEqual(ingrediente["qtd_per_capita"], 100)
+        self.assertAlmostEqual(ingrediente["fator_correcao"], 1.2)
+        self.assertEqual(ingrediente["npu"], 70)
+        movimentos = ga.listar_movimentos_cozinha(self.db, "2026-11-24", "2026-11-24")
+        segunda = ga.gerar_rascunhos_por_horario(
+            self.db, "2026-11-24", movimentos,
+            {"almoco": {"abre": "11:00", "fecha": "14:00"}}
+        )
+        self.assertEqual(segunda["rascunhos"], 0)
+
+    def test_nao_aloca_automaticamente_quando_houver_duas_preparacoes_na_refeicao(self):
+        with ga._conexao(self.db) as conn:
+            conn.execute("""CREATE TABLE Mobile_Movimentos(
+                data TEXT NOT NULL,id_mobile INTEGER NOT NULL,hora TEXT,origem TEXT,destino TEXT,
+                item TEXT,unidade TEXT,qtd REAL,divergente INTEGER,id_item_mobile INTEGER,
+                por_usuario TEXT,valor_unitario_snapshot REAL,custo_snapshot REAL,
+                PRIMARY KEY(data,id_mobile))""")
+            for nome in ("Preparação A", "Preparação B"):
+                conn.execute("""INSERT INTO GA_Preparacoes_Dia(
+                    data,refeicao,nome,porcoes_previstas,id_ficha,ativa,criado_em,atualizado_em)
+                    VALUES(?,?,?,?,NULL,1,?,?)""",
+                    ("2026-11-24", "almoco", nome, 10, "2026-11-24", "2026-11-24"))
+            conn.execute("""INSERT INTO Mobile_Movimentos(
+                data,id_mobile,hora,origem,destino,item,unidade,qtd,divergente,id_item_mobile,
+                por_usuario,valor_unitario_snapshot,custo_snapshot)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                ("2026-11-24", 502, "12:00", "almox", "cozinha", "Arroz",
+                 "pacote", 1, 0, 99, "almoxarife", 5.0, 5.0))
+        movimentos = ga.listar_movimentos_cozinha(self.db, "2026-11-24", "2026-11-24")
+        resultado = ga.gerar_rascunhos_por_horario(
+            self.db, "2026-11-24", movimentos,
+            {"almoco": {"abre": "11:00", "fecha": "14:00"}}
+        )
+        self.assertEqual(resultado["varias_preparacoes"], 1)
+        self.assertEqual(resultado["alocadas"], 0)
+
+
+
+    def test_produto_de_almoxarifado_persiste_vinculo_tbca(self):
+        ga.importar_tbca_excel(self.db, self.planilha_tbca())
+        ga.sincronizar_produtos_almox(self.db, [{
+            "id_item": 22, "nome": "Farinha vinculada", "unidade": "pacote",
+            "preco_unitario": 7.0, "embalagem_qtd": 500, "embalagem_un": "g",
+            "tbca_id": "T001", "qtd": 3, "data_base": "2026-11-24",
+        }])
+        produto = ga.listar_produtos_almox(self.db)[0]
+        self.assertEqual(produto["tbca_id"], "T001")
+        self.assertEqual(produto["tbca_alimento"], "Alimento teste")
+
+
 if __name__ == "__main__":
     unittest.main()

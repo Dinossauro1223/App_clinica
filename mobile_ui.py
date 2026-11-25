@@ -101,6 +101,7 @@ class MobileUI:
         topo.pack(fill="x", padx=20, pady=(15, 2))
         ctk.CTkLabel(topo, text="Mobile (copa)", font=ctk.CTkFont(size=24, weight="bold"), text_color=VERDE_ESC).pack(side="left")
         _btn(topo, "Abrir painel web", self._abrir_painel, 140, CINZA, CINZA_HOVER).pack(side="right")
+        _btn(topo, "Atividade das copeiras", self._abrir_atividade, 180, AZUL, AZUL_HOVER).pack(side="right", padx=6)
         _btn(topo, "Trocar banco", self._trocar_banco, 120, CINZA, CINZA_HOVER).pack(side="right", padx=6)
         self.lbl_banco = ctk.CTkLabel(area, text="", font=ctk.CTkFont(size=12), text_color=tema.SUAVE, anchor="w", justify="left")
         self.lbl_banco.pack(fill="x", padx=22)
@@ -389,6 +390,80 @@ class MobileUI:
                                   else "O mobile já estava igual ao mapa do desktop: nada a avisar.")
 
     # ------------------------------------------------------------------ outros
+
+    def _abrir_atividade(self):
+        if not os.path.exists(self.mobile_db):
+            messagebox.showwarning("Atividade das copeiras", "O banco do mobile não foi encontrado.")
+            return
+        janela = ctk.CTkToplevel(self.app)
+        janela.title("Atividade das copeiras — atualizações do mapa")
+        janela.geometry("760x560")
+        janela.transient(self.app)
+        ctk.CTkLabel(janela, text="Atualizações aplicadas ao mapa",
+                     font=ctk.CTkFont(size=20, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=20, pady=(18, 4))
+        ctk.CTkLabel(janela,
+                     text="O ranking conta alterações efetivas por leito. Salvamentos sem mudança e propostas pendentes não entram na contagem.",
+                     font=ctk.CTkFont(size=12), text_color=tema.SUAVE, wraplength=700,
+                     justify="left").pack(anchor="w", padx=20, pady=(0, 10))
+        topo = ctk.CTkFrame(janela, fg_color="transparent")
+        topo.pack(fill="x", padx=20)
+        periodo = ctk.StringVar(value="Mês atual")
+        ctk.CTkOptionMenu(topo, variable=periodo, values=["Mês atual", "Ano atual"],
+                          command=lambda _v: carregar()).pack(side="left")
+        resumo = ctk.CTkLabel(topo, text="", font=ctk.CTkFont(size=12, weight="bold"),
+                              text_color=VERDE_ESC)
+        resumo.pack(side="left", padx=12)
+        lista = ctk.CTkScrollableFrame(janela, fg_color="transparent")
+        lista.pack(fill="both", expand=True, padx=16, pady=12)
+
+        def carregar():
+            for filho in lista.winfo_children():
+                filho.destroy()
+            hoje = date.today()
+            if periodo.get() == "Mês atual":
+                chave = hoje.strftime("%Y-%m")
+                filtro = "substr(atualizado_em,1,7)=?"
+            else:
+                chave = hoje.strftime("%Y")
+                filtro = "substr(atualizado_em,1,4)=?"
+            try:
+                with servidor_mobile.conectar(self.mobile_db) as banco:
+                    linhas = [dict(r) for r in banco.execute(
+                        "SELECT por_usuario,por_nome,por_perfil,COUNT(*) atualizacoes,"
+                        "COUNT(DISTINCT data) dias_ativos,COUNT(DISTINCT id_setor) setores "
+                        "FROM mapa_historico WHERE por_perfil='copa' AND " + filtro +
+                        " GROUP BY por_usuario,por_nome,por_perfil "
+                        "ORDER BY atualizacoes DESC,por_nome COLLATE NOCASE", (chave,))]
+            except Exception as exc:
+                resumo.configure(text="Histórico indisponível")
+                ctk.CTkLabel(lista, text="Não foi possível ler o histórico. Verifique se o servidor mobile está atualizado.\n%s" % exc,
+                             text_color=tema.SUAVE, justify="left").pack(anchor="w", padx=8, pady=8)
+                return
+            total = sum(x["atualizacoes"] for x in linhas)
+            resumo.configure(text="%s · %d atualização(ões)" % (chave, total))
+            if not linhas:
+                ctk.CTkLabel(lista, text="Ainda não há atualizações registradas neste período.",
+                             text_color=tema.SUAVE).pack(anchor="w", padx=8, pady=8)
+                return
+            maior = max(x["atualizacoes"] for x in linhas) or 1
+            for posicao, item in enumerate(linhas, 1):
+                linha = ctk.CTkFrame(lista, corner_radius=10)
+                linha.pack(fill="x", padx=4, pady=5)
+                cab = ctk.CTkFrame(linha, fg_color="transparent")
+                cab.pack(fill="x", padx=12, pady=(9, 2))
+                ctk.CTkLabel(cab, text="%d. %s" % (posicao, item["por_nome"]),
+                             font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+                ctk.CTkLabel(cab, text="%d atualizações" % item["atualizacoes"],
+                             font=ctk.CTkFont(size=12, weight="bold"), text_color=VERDE_ESC).pack(side="right")
+                barra = ctk.CTkProgressBar(linha, height=10, progress_color=VERDE)
+                barra.pack(fill="x", padx=12, pady=3)
+                barra.set(item["atualizacoes"] / maior)
+                ctk.CTkLabel(linha, text="%d dia(s) ativo(s) · %d setor(es)" %
+                             (item["dias_ativos"], item["setores"]), font=ctk.CTkFont(size=11),
+                             text_color=tema.SUAVE).pack(anchor="w", padx=12, pady=(0, 8))
+        carregar()
+
     def _abrir_painel(self):
         webbrowser.open("http://localhost:8765")
 
