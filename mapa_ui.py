@@ -1326,6 +1326,7 @@ class FormRegistro(_Janela):
         self._catalogo_visivel = list(self._catalogo)
         self._via_anterior = None
         self._resultado_nrs = {}
+        self._reav_manual = bool(self.reg.get("data_reavaliacao"))
         self._resultado_avaliacao = {}
         self._resultado_pediatria = {}
         self._montar()
@@ -1427,6 +1428,7 @@ class FormRegistro(_Janela):
         q = self._secao("Dieta")
         l = self._linha(q)
         self.e_reav = self._entrada(l, "Reavaliação prevista (DD/MM/AAAA)", 100)
+        self.e_reav.bind("<KeyRelease>", self._marcar_reavaliacao_manual)
         self.seg_via = self._seg(l, "Via", mdb.VIAS, cmd=self._via_mudou)
         l = self._linha(q)
         ctk.CTkLabel(l, text="Características:").pack(side="left", padx=(0, 6))
@@ -1587,6 +1589,7 @@ class FormRegistro(_Janela):
         if r.get("peso_origem"):
             self.seg_peso.set({"E": "Estimado", "R": "Real"}[r["peso_origem"]])
         _set_entry(self.e_reav, mdb.iso_para_br(r.get("data_reavaliacao")))
+        self._reav_manual = bool(r.get("data_reavaliacao"))
         if r.get("via"):
             self.seg_via.set(r["via"])
         _set_entry(self.e_meta_kcal, _fmt(r.get("meta_kcal")).replace(",0", "") if r.get("meta_kcal") is not None else "")
@@ -1833,6 +1836,19 @@ class FormRegistro(_Janela):
         }
         self.lbl_nrs_classificacao.configure(
             text=f"Classificação NRS-2002: {resultado.get('rotulo') or 'Não preenchida'}")
+        if not self._reav_manual:
+            if resultado.get("completo") and resultado.get("grau"):
+                try:
+                    intervalos = nrs.ler_intervalos(self.ui.db)
+                    alvo = nrs.proxima_reavaliacao(date.fromisoformat(self.data_iso), resultado["grau"], intervalos)
+                    _set_entry(self.e_reav, alvo.strftime("%d/%m/%Y"))
+                except (ValueError, TypeError, sqlite3.Error):
+                    _set_entry(self.e_reav, "")
+            else:
+                _set_entry(self.e_reav, "")
+
+    def _marcar_reavaliacao_manual(self, _evento=None):
+        self._reav_manual = True
 
     def _recalcular_avaliacao(self):
         dados = {
