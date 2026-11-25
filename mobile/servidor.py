@@ -318,8 +318,6 @@ def usuario(c, auth):
 def setor_alvo(c, u, pedido):
     """Admin, nutrição sem setor e copa global escolhem o setor; contas setoriais ficam no próprio."""
     p, sid = u["perfil"], u["id_setor"]
-    if p == "copa" and sid is not None and pedido not in (None, "") and int(pedido) != int(sid):
-        raise Erro("A Copa só pode gravar no próprio setor.", 403)
     if p == "admin" or (p in ("nutricionista", "copa") and sid is None):
         sid = pedido
         if p == "copa" and not sid:
