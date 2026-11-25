@@ -130,7 +130,7 @@ class ConfiguracoesUI:
         try:
             import pep_db
             import pep_evolucao_db as evdb
-            equipe_inicial = evdb.listar_equipe(caminho_db, ativos=False)
+            evdb.listar_equipe(caminho_db, ativos=False)
         except Exception as erro:
             ctk.CTkLabel(card, text=f"Cadastro de equipe indisponível. Reinicie o NutriLab para aplicar as migrações PEP. Detalhe: {erro}",
                          text_color=tema.LARANJA_TEXTO, wraplength=760, justify="left").pack(
@@ -210,17 +210,18 @@ class ConfiguracoesUI:
         lista.pack(fill="x", padx=18, pady=(0, 14))
         ctk.CTkLabel(lista, text="Integrantes cadastrados", font=tema.fonte(13, "bold"),
                      text_color=tema.TEXTO).pack(anchor="w", pady=(4, 6))
+        lista_itens = ctk.CTkFrame(lista, fg_color="transparent")
+        lista_itens.pack(fill="x")
         def atualizar_lista():
-            for filho in lista.winfo_children():
-                if filho.winfo_name() != "!ctklabel":
-                    filho.destroy()
+            for filho in lista_itens.winfo_children():
+                filho.destroy()
             try:
                 membros = evdb.listar_equipe(caminho_db, ativos=False)
             except Exception as erro:
                 status.configure(text=str(erro), text_color=tema.LARANJA_TEXTO)
                 return
             for membro in membros:
-                linha = ctk.CTkFrame(lista, fg_color="transparent")
+                linha = ctk.CTkFrame(lista_itens, fg_color="transparent")
                 linha.pack(fill="x", pady=2)
                 situacao = "Ativo" if membro["ativo"] else "Inativo"
                 detalhe = f"{membro['nome']} — {membro['funcao']} — {membro['crn'] or 'sem CRN'} — {situacao}"
