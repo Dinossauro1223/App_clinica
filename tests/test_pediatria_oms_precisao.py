@@ -76,6 +76,33 @@ class TestLMSPorDiasEMeses(unittest.TestCase):
         self.assertEqual(resultado["status"], "calculado")
         self.assertEqual(resultado["classificacao"], "Risco de sobrepeso")
 
+
+    def test_oms_2007_aceita_idade_completa_60_com_mes_decimal_abaixo_de_60(self):
+        tabela = TabelaReferenciaOMS.de_linhas([
+            {"indicador": "imc_idade", "referencia": "oms_2007", "sexo": "H",
+             "idade_meses": "60", "L": "1", "M": "10", "S": "0.1"},
+            {"indicador": "imc_idade", "referencia": "oms_2007", "sexo": "H",
+             "idade_meses": "61", "L": "1", "M": "11", "S": "0.1"},
+        ])
+        resultado = avaliar_indicador("imc_idade", 11.5, "H", 59.99, tabela,
+                                      idade_meses_completos=60)
+        self.assertEqual(resultado["status"], "calculado")
+        self.assertEqual(resultado["referencia"], "oms_2007")
+        self.assertEqual(resultado["classificacao"], "Sobrepeso")
+
+    def test_interpolacao_usa_ancora_superior_229_sem_classificar_229(self):
+        tabela = TabelaReferenciaOMS.de_linhas([
+            {"indicador": "imc_idade", "referencia": "oms_2007", "sexo": "M",
+             "idade_meses": "228", "L": "1", "M": "20", "S": "0.1"},
+            {"indicador": "imc_idade", "referencia": "oms_2007", "sexo": "M",
+             "idade_meses": "229", "L": "1", "M": "21", "S": "0.1"},
+        ])
+        self.assertIsNotNone(tabela.calcular("imc_idade", "M", 228.5, 25.0,
+                                             idade_meses_completos=228))
+        resultado = avaliar_indicador("imc_idade", 25.0, "M", 229, tabela,
+                                      idade_meses_completos=229)
+        self.assertEqual(resultado["status"], "fora_faixa")
+
     def test_curva_expoe_centros_e_limites_da_tabela(self):
         tabela = TabelaReferenciaOMS.de_linhas([
             {"indicador": "estatura_idade", "referencia": "oms_2007", "sexo": "M",
