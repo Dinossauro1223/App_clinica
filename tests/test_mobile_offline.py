@@ -126,6 +126,8 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         java = scanner.read_text(encoding="utf-8")
         self.assertIn("MultiFormatReader", java)
         self.assertIn("Camera.open()", java)
+        aviso_terceiros = ROOT / "mobile" / "apk" / "app" / "assets" / "THIRD_PARTY_NOTICES.txt"
+        self.assertTrue(aviso_terceiros.is_file(), "A licença do ZXing deve acompanhar o APK.")
         manifest = (ROOT / "mobile" / "apk" / "app" / "AndroidManifest.xml").read_text(encoding="utf-8")
         self.assertIn('android:name=".QRScannerActivity"', manifest)
 
