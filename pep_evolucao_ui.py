@@ -99,6 +99,13 @@ class FormEvolucaoUI(ctk.CTkFrame):
                                     font=tema.fonte(11), text_color=tema.SUAVE)
         self.lbl_via.pack(anchor="w", padx=12, pady=(0, 8))
 
+        cfg_porcoes = mdb.obter_config(self.db, "porcoes_orais_ml", "70,100,130,160,200")
+        try:
+            self.porcoes_orais = sorted({int(x.strip()) for x in str(cfg_porcoes).split(",") if int(x.strip()) > 0})
+        except (TypeError, ValueError):
+            self.porcoes_orais = [70, 100, 130, 160, 200]
+        if not self.porcoes_orais:
+            self.porcoes_orais = [70, 100, 130, 160, 200]
         self.q_oral = self._secao(raiz, "Via oral — TNO e porção autorizada")
         linha = ctk.CTkFrame(self.q_oral, fg_color="transparent")
         linha.pack(fill="x", padx=12, pady=(0, 8))
@@ -107,8 +114,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.cb_tno.set("—")
         self.cb_tno.pack(side="left", padx=(0, 12))
         ctk.CTkLabel(linha, text="Porção (mL):", anchor="w").pack(side="left")
-        self.cb_porcao = ctk.CTkComboBox(linha, values=["70", "100", "130", "160", "200"], width=100, state="readonly")
-        self.cb_porcao.set("70")
+        self.cb_porcao = ctk.CTkComboBox(linha, values=[str(x) for x in self.porcoes_orais], width=100, state="readonly")
+        self.cb_porcao.set(str(self.porcoes_orais[0]))
         self.cb_porcao.pack(side="left", padx=8)
         self.var_solicitar_porcao = tk.IntVar(value=0)
         ctk.CTkCheckBox(self.q_oral, text="Solicitar atualização da porção no mapa das copeiras",
@@ -132,8 +139,13 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.cb_formula = ctk.CTkComboBox(linha, values=nomes, width=260, state="readonly")
         self.cb_formula.set(nomes[0])
         self.cb_formula.pack(side="left", padx=(0, 10))
-        self.e_volume_etapa = self._entry(linha, "mL/etapa", largura=95)
-        self.e_etapas = self._entry(linha, "etapas/dia", "1", largura=90)
+        formula_inicial = self.formulas[0] if self.formulas else {}
+        etapas_iniciais = len(formula_inicial.get("refeicoes") or []) or 1
+        qtd_dia_inicial = float(formula_inicial.get("qtd_dia") or 0)
+        volume_inicial_etapa = qtd_dia_inicial / etapas_iniciais if qtd_dia_inicial else ""
+        self.e_volume_etapa = self._entry(linha, "mL/etapa", volume_inicial_etapa, largura=95)
+        self.e_etapas = self._entry(linha, "etapas/dia", str(etapas_iniciais), largura=90)
+        self.cb_formula.bind("<<ComboboxSelected>>", self._atualizar_formula)
         linha = ctk.CTkFrame(self.q_enteral, fg_color="transparent")
         linha.pack(fill="x", padx=12, pady=(0, 6))
         self.var_bomba = tk.IntVar(value=0)
@@ -142,8 +154,9 @@ class FormEvolucaoUI(ctk.CTkFrame):
         ctk.CTkCheckBox(linha, text="Solicitar progressão enteral automática", variable=self.var_progressao).pack(side="left")
         linha = ctk.CTkFrame(self.q_enteral, fg_color="transparent")
         linha.pack(fill="x", padx=12, pady=(0, 8))
-        self.e_incremento = self._entry(linha, "mL/etapa/dia", "10", largura=120)
+        self.e_incremento = self._entry(linha, "incremento diário (mL)", "35", largura=150)
         self.e_dias = self._entry(linha, "prazo (dias)", "4", largura=100)
+        self.e_volume_maximo = self._entry(linha, "volume máximo/dia (mL)", "", largura=170)
         self.var_tolerancia = tk.IntVar(value=1)
         ctk.CTkCheckBox(linha, text="Boa tolerância", variable=self.var_tolerancia).pack(side="left", padx=(0, 12))
         self.var_restricao = tk.IntVar(value=0)
@@ -156,9 +169,12 @@ class FormEvolucaoUI(ctk.CTkFrame):
             linha.pack(fill="x", padx=12, pady=2)
             ctk.CTkLabel(linha, text=s.get("nome", "Suplemento"), width=220,
                          anchor="w", text_color=tema.TEXTO).pack(side="left")
-            qtd = self._entry(linha, "quantidade/etapa", s.get("qtd_dia"), 105)
+            etapas_padrao = len(s.get("refeicoes") or []) or 1
+            total_padrao = float(s.get("qtd_dia") or 0)
+            qtd_padrao = total_padrao / etapas_padrao if total_padrao else ""
+            qtd = self._entry(linha, "quantidade/etapa", qtd_padrao, 105)
             ctk.CTkLabel(linha, text=s.get("unidade") or "", width=35).pack(side="left")
-            etapas = self._entry(linha, "etapas/dia", "1", 85)
+            etapas = self._entry(linha, "etapas/dia", str(etapas_padrao), 85)
             self.sup_fields.append((s, qtd, etapas))
 
         q = self._secao(raiz, "Observações e conduta")
@@ -216,6 +232,19 @@ class FormEvolucaoUI(ctk.CTkFrame):
                       fg_color=tema.SUAVE, hover_color=tema.VERDE_ESC).pack(side="right")
         if self._rascunho_fechado:
             self._somente_leitura()
+
+    def _atualizar_formula(self, _evento=None):
+        ficha = self.formula_por_nome.get(self.cb_formula.get())
+        if not ficha:
+            return
+        etapas = len(ficha.get("refeicoes") or []) or 1
+        total = float(ficha.get("qtd_dia") or 0)
+        volume = total / etapas if total else ""
+        self.e_volume_etapa.delete(0, "end")
+        if volume != "":
+            self.e_volume_etapa.insert(0, str(round(volume, 2)))
+        self.e_etapas.delete(0, "end")
+        self.e_etapas.insert(0, str(etapas))
 
     def _preencher(self):
         dados = self.dados_existentes if isinstance(self.dados_existentes, dict) else {}
@@ -368,7 +397,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
             volume_txt = self.e_volume_etapa.get().strip()
             etapas_txt = self.e_etapas.get().strip() or "1"
             volume_etapa = float(volume_txt.replace(",", ".")) if volume_txt else 0
-            etapas = int(float(etapas_txt.replace(",", ".")))
+            etapas_num = float(etapas_txt.replace(",", "."))
+            if not etapas_num.is_integer():
+                raise ValueError("Número de etapas da dieta enteral deve ser inteiro.")
+            etapas = int(etapas_num)
             if ficha and volume_etapa > 0 and etapas > 0 and metas:
                 oferta = regras.calcular_oferta_enteral(
                     volume_etapa, etapas, ficha["kcal_100"], ficha["ptn_100"])
@@ -384,8 +416,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     "solicitada": bool(self.var_progressao.get()), "autorizada": False,
                     "volume_atual_ml": oferta["volume_total_ml"], "volume_meta_ml": volume_meta,
                     "volume_etapa_atual_ml": volume_etapa, "etapas": etapas,
-                    "incremento_por_etapa_ml": float((self.e_incremento.get().strip() or "10").replace(",", ".")),
+                    "incremento_diario_ml": float((self.e_incremento.get().strip() or "35").replace(",", ".")),
                     "dias_alvo": int(float((self.e_dias.get().strip() or "4").replace(",", "."))),
+                    "volume_maximo_ml": (float(self.e_volume_maximo.get().strip().replace(",", "."))
+                                         if self.e_volume_maximo.get().strip() else None),
                     "tolerancia": bool(self.var_tolerancia.get()), "restricao": bool(self.var_restricao.get()),
                 }
             else:
