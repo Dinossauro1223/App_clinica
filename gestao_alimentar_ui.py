@@ -449,9 +449,11 @@ class GestaoAlimentarUI:
                 prazo = im.prazo_medio_produto(self.mobile_db, id_item)
             except Exception:
                 prazo = None
-            texto_prazo = ("Prazo médio de recebimento: %.1f dia(s) corrido(s) · %d pedido(s) recebido(s) · %d pendente(s)" %
-                           (prazo["prazo_medio_dias"] or 0, prazo["pedidos_recebidos"], prazo["pendentes"]))
-                           if prazo else "Ainda não há histórico de pedidos e recebimentos para este insumo.")
+            if prazo:
+                texto_prazo = "Prazo médio de recebimento: %.1f dia(s) corrido(s) · %d pedido(s) recebido(s) · %d pendente(s)" % (
+                    prazo["prazo_medio_dias"] or 0, prazo["pedidos_recebidos"], prazo["pendentes"])
+            else:
+                texto_prazo = "Ainda não há histórico de pedidos e recebimentos para este insumo."
             ctk.CTkLabel(form, text=texto_prazo, font=ctk.CTkFont(size=11),
                          text_color=tema.SUAVE, wraplength=690, justify="left").grid(
                              row=7, column=0, columnspan=2, sticky="w", padx=4, pady=(8, 2))
