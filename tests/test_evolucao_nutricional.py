@@ -76,17 +76,18 @@ class TestEvolucaoNutricional(unittest.TestCase):
     def test_correcao_de_peso_reutiliza_protocolo_antropometrico_existente(self):
         r = avaliacao.calcular({
             "peso": 70, "altura": 165, "idade": 72, "sexo": "F", "cor": "Branca",
-            "edema": "Sem edema", "ascite": "Moderada", "amputacoes": ["Pé"],
+            "edema": "Ausente", "ascite": "Moderada (6 kg)", "amputacoes": {"Pé": 1},
         })
         self.assertAlmostEqual(r["fluidos"], 6)
         self.assertAlmostEqual(r["amput_pct"], 1.5)
         self.assertAlmostEqual(r["ajustado"], (70 - 6) / (1 - 0.015), places=5)
         self.assertTrue(r["ajustou"])
-        with self.assertRaises(ValueError):
-            avaliacao.calcular({
-                "peso": 5, "altura": 165, "idade": 72, "sexo": "F", "cor": "Branca",
-                "edema": "Sem edema", "ascite": "Grave", "amputacoes": [],
-            })
+        invalido = avaliacao.calcular({
+            "peso": 5, "altura": 165, "idade": 72, "sexo": "F", "cor": "Branca",
+            "edema": "Ausente", "ascite": "Grave (14 kg)", "amputacoes": {},
+        })
+        self.assertIsNone(invalido["ajustado"])
+        self.assertTrue(any("iguais ou maiores" in aviso for aviso in invalido["avisos"]))
 
     def test_oferta_enteral_calcula_energia_e_proteina_da_ficha(self):
         r = ev.calcular_oferta_enteral(180, 6, 150, 7.5)
