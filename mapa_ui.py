@@ -558,7 +558,7 @@ class MapaUI:
         fd, caminho = tempfile.mkstemp(prefix="NutriLab_Mapa_", suffix=".pdf")
         os.close(fd)
         try:
-            nome = self._nome_setor() if grupo == "Ambos" else "Grupo_" + grupo
+            nome = "Todos_os_setores" if grupo == "Ambos" else "Grupo_" + grupo
             mex.exportar_pdf(caminho, linhas, self.data.isoformat(), nome, incluir_vagos=True)
             abrir = getattr(os, "startfile", None)
             if abrir is not None:
