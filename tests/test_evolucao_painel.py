@@ -6,6 +6,7 @@ import evolucao_nutricional as regras
 class TestPainelEvolucao(unittest.TestCase):
     def registro(self, **progressao):
         dados = {
+            "status_evolucao": "fechada",
             "data_evolucao": "2026-11-20",
             "via": "Enteral",
             "metas": {"kcal_dia": 1800, "proteina_g_dia": 80},
@@ -100,6 +101,11 @@ class TestPainelEvolucao(unittest.TestCase):
         self.assertIn("Estimativa de bomba", texto)
         self.assertIn("30.0 horas estimadas", texto)
         self.assertNotIn("Orientação operacional", texto)
+
+    def test_rascunho_nao_aparece_no_painel_operacional(self):
+        registro = self.registro()
+        registro["evolucao"]["status_evolucao"] = "rascunho"
+        self.assertIsNone(regras.resumo_painel_evolucao(registro, "2026-11-22"))
 
     def test_paciente_oral_nao_entra_no_painel_enteral(self):
         self.assertIsNone(regras.resumo_painel_evolucao(
