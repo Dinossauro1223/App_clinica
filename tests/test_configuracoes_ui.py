@@ -37,8 +37,10 @@ class TestPreferenciasConfiguracoes(unittest.TestCase):
         raiz = Path(__file__).resolve().parents[1]
         spec = (raiz / "app_clinica.spec").read_text(encoding="utf-8")
         for modulo in ("configuracoes_ui", "mobile_ui", "almox_ui",
-                       "gestao_alimentar_ui", "nrs_ui", "avaliacao_ui"):
+                       "gestao_alimentar_ui", "nrs_ui", "avaliacao_ui", "pediatria_oms"):
             self.assertIn(f"'{modulo}'", spec, f"{modulo} precisa ser incluído no PyInstaller")
+        self.assertIn("oms_lms_pediatricos.csv", spec)
+        self.assertTrue((raiz / "dados" / "oms_lms_pediatricos.csv").is_file())
 
     def test_falha_de_escrita_retorna_false(self):
         with mock.patch.object(cfg.os, "makedirs", side_effect=OSError("sem permissão")):
