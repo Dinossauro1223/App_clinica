@@ -299,6 +299,11 @@ def resumo_painel_evolucao(registro, data_destino):
                          if proteina_atual is not None else None)
     except ValueError:
         adequacao_ptn = None
+    try:
+        volume_meta_total = _numero(oferta.get("volume_meta_ml") or progressao.get("volume_meta_ml") or 0,
+                                    "Volume-meta")
+    except ValueError:
+        volume_meta_total = 0.0
     evoluiu = atual_etapa > inicial_etapa
     motivo = None
     if not progressao.get("solicitada"):
@@ -309,18 +314,12 @@ def resumo_painel_evolucao(registro, data_destino):
         motivo = "Restrição clínica"
     elif not progressao.get("tolerancia", True):
         motivo = "Intolerância enteral"
-    elif volume_atual >= (float(oferta.get("volume_meta_ml") or progressao.get("volume_meta_ml"))
-                           if (oferta.get("volume_meta_ml") or progressao.get("volume_meta_ml")) else float("inf")):
+    elif volume_meta_total > 0 and volume_atual >= volume_meta_total:
         motivo = "Meta energética atingida"
     elif not evoluiu:
         motivo = "Progressão ainda não iniciada"
     deficit = max(0.0, meta_kcal - energia_atual)
     volume_adicional = deficit / (kcal_100 / 100)
-    try:
-        volume_meta_total = _numero(oferta.get("volume_meta_ml") or progressao.get("volume_meta_ml") or 0,
-                                    "Volume-meta")
-    except ValueError:
-        volume_meta_total = 0.0
     return {
         "via": "Enteral", "volume_inicial_ml": inicial_etapa * etapas,
         "volume_atual_ml": volume_atual, "volume_meta_ml": volume_meta_total,
