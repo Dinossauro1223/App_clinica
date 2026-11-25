@@ -271,12 +271,8 @@ class TabelaReferenciaOMS:
         pontos = (self._dados_dias if unidade == "dias" else self._dados_meses).get(chave, {})
         saida = []
         for idade, parametros in sorted(pontos.items()):
-            # As âncoras superiores permanecem no índice LMS para interpolação,
-            # mas não são expostas como pontos clínicos da curva.
-            if referencia == "oms_2007":
-                limite = 120 if indicador == "peso_idade" else 228
-                if idade > limite:
-                    continue
+            # Inclui âncoras superiores oficiais para interpolação sem extrapolação.
+            # A interface filtra os pontos exibidos pelos limites clínicos do indicador.
             l_, m_, s_ = parametros
             saida.append({
                 "idade": idade,
