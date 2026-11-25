@@ -342,7 +342,7 @@ def formatar_antropometria(dados):
     imc = calcular_imc(peso, altura)
     classificacao = str(dados.get("imc_class") or "classificação pendente")
     imc_txt = f"{imc:.1f}".replace(".", ",")
-    return f"**Antropometria {data}:** " + "; ".join(partes) + f"; IMC: {imc_txt} kg/m² ({classificacao})."
+    return f"**Antropometria {data}:** " + "; ".join(partes) + f". IMC: {imc_txt} kg/m² ({classificacao})."
 
 
 def gerar_evolucao(dados):
