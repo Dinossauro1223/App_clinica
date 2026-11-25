@@ -1502,6 +1502,13 @@ class AppClinica(ctk.CTk):
             nasc_date = datetime.strptime(self.paciente_atual_nasc, "%d/%m/%Y")
             hoje = datetime.now()
             idade = hoje.year - nasc_date.year - ((hoje.month, hoje.day) < (nasc_date.month, nasc_date.day))
+            if idade < 19:
+                self.tmb_atual = ""
+                self.vet_atual = ""
+                self.lbl_resultado_metabolismo.configure(
+                    text="Equações de TMB adultas não se aplicam a menores de 19 anos. Use avaliação pediátrica específica.",
+                    text_color=tema.LARANJA_TEXTO)
+                return
             metodo = self.combo_metodo_tmb.get()
             sexo = self.paciente_atual_sexo.lower()
             tmb = 0.0
