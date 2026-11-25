@@ -317,28 +317,36 @@ async function abrirLeitorQR(){
  const box=$('#qrLeitor');box.hidden=false;
  if(window.Android&&typeof Android.escanearQR==='function'){Android.escanearQR();return}
  const aviso=$('#qrAviso');
- if(!('BarcodeDetector' in window)){
-  aviso.textContent='Este navegador não oferece leitura de QR integrada. Use o endereço manual abaixo ou atualize o navegador.';
+ if(!('BarcodeDetector' in window)&&!window.jsQR){
+  aviso.textContent='Leitor QR indisponível neste navegador. Digite o endereço do servidor abaixo.';
   return;
  }
  try{
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Câmera indisponível neste endereço HTTP.');
-  const detector=new BarcodeDetector({formats:['qr_code']});
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Câmera ao vivo indisponível neste endereço HTTP.');
+  const detector=('BarcodeDetector' in window)?new BarcodeDetector({formats:['qr_code']}):null;
   qrStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
   const video=$('#qrVideo');video.srcObject=qrStream;video.style.display='block';await video.play();
+  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
   const ler=async()=>{
    if(box.hidden||!qrStream)return;
-   try{const codigos=await detector.detect(video);if(codigos.length){aplicarConteudoQR(codigos[0].rawValue);return}}catch(e){}
+   try{
+    if(detector){const codigos=await detector.detect(video);if(codigos.length){aplicarConteudoQR(codigos[0].rawValue);return}}
+    else if(video.videoWidth&&video.videoHeight){
+     canvas.width=video.videoWidth;canvas.height=video.videoHeight;ctx.drawImage(video,0,0,canvas.width,canvas.height);
+     const dados=ctx.getImageData(0,0,canvas.width,canvas.height),codigo=window.jsQR(dados.data,dados.width,dados.height,{inversionAttempts:'attemptBoth'});
+     if(codigo){aplicarConteudoQR(codigo.data);return}
+    }
+   }catch(e){}
    qrLoop=requestAnimationFrame(ler);
   };
   ler();
  }catch(e){
   if(qrStream){qrStream.getTracks().forEach(t=>t.stop());qrStream=null}
-  aviso.textContent='A câmera ao vivo não está disponível nesta rede/navegador. Tente fotografar o QR code ou digite o endereço abaixo.';
+  aviso.textContent='A câmera ao vivo não está disponível nesta rede/navegador. Fotografe o QR code ou digite o endereço abaixo.';
   const arquivo=$('#qrArquivo');arquivo.style.display='block';
  }
 }
-async function lerImagemQR(input){
+function lerImagemQR(input){
  const arquivo=input.files&&input.files[0];if(!arquivo)return;
  if(!('BarcodeDetector' in window)){aviso('Leitura de imagem não suportada. Digite o endereço do servidor.',1);return}
  try{
