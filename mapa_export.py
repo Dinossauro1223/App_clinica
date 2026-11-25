@@ -185,8 +185,11 @@ def textos_linha(leito, reg, abreviar=True):
     """Prepara os campos clínicos do mapa; registro None representa leito vago."""
     sigla = leito.get("sigla_setor")
     t = {"leito": (f"{sigla} {leito['codigo']}" if sigla else str(leito["codigo"]))}
-    if setor := leito.get("setor"):
-        t["setor"] = setor
+    nome_setor = leito.get("setor")
+    grupo_setor = leito.get("grupo_setor")
+    if nome_setor:
+        t["setor"] = (f"{grupo_setor} · {nome_setor} ({sigla})"
+                      if grupo_setor and sigla else nome_setor)
     if reg is None:
         t.update(acomp="", paciente=None, idade="", reav="", via="",
                  consistencias={k: "" for k in ("LV", "BR", "PAS", "LÍQ. PAS", "LÍQ")},
@@ -226,11 +229,27 @@ def textos_linha(leito, reg, abreviar=True):
                        "lanche":"Lanche", "jantar":"Jant", "ceia":"Ceia"}
     suplementos = []
     for s in reg.get("suplementos") or []:
+        nome_sup = s.get("nome") or ""
         qtd = s.get("qtd_dia")
-        texto = f"{s.get('nome') or ''}: {_fmt_num_pt(qtd, 0)} {s.get('unidade') or 'mL'}/Etapa" if qtd is not None else (s.get("nome") or "")
+        ml_oferta = s.get("ml_oferta")
         refeicoes = [nomes_refeicoes.get(x, x) for x in (s.get("refeicoes") or [])]
+        if ml_oferta is not None:
+            n_ofertas = len(refeicoes)
+            texto = f"{nome_sup}: {_fmt_num_pt(ml_oferta, 0)} mL/oferta"
+            if n_ofertas and qtd is not None:
+                texto += f" × {n_ofertas} = {_fmt_num_pt(qtd, 0)} mL/d"
+            elif qtd is not None:
+                texto += f" = {_fmt_num_pt(qtd, 0)} mL/d"
+        else:
+            texto = (f"{nome_sup}: {_fmt_num_pt(qtd, 0)} {s.get('unidade') or 'mL'}/Etapa"
+                     if qtd is not None else nome_sup)
         if refeicoes:
             texto += " (" + ", ".join(refeicoes) + ")"
+        agua = s.get("agua_ml")
+        if agua is not None and float(agua or 0) > 0:
+            texto += f"; água: {_fmt_num_pt(agua, 0)} mL/oferta"
+        if s.get("batido_fruta"):
+            texto += " (batido com fruta)"
         suplementos.append(texto)
     preferencias = []
     if (reg.get("obs_sim") or "").strip():
@@ -330,7 +349,7 @@ def exportar_excel(caminho, linhas_mapa, data_iso, setor_nome, abreviar=False, i
             cell.alignment = Alignment(horizontal="center" if central else "left",
                                        vertical="top", wrap_text=True)
             cell.border = caixa
-            if key == "supl" and value:
+            if key in ("supl", "supl_inst") and value:
                 cell.fill = PatternFill("solid", fgColor="FCE4D6")
         ws.row_dimensions[row_idx].height = 66 if item["registro"] else 28
 
@@ -465,7 +484,18 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
             max_linhas = max(1, int((altura - 1) / 2.4))
             for j, line in enumerate(linhas[:max_linhas]):
                 limite = max(2, int(larguras[i] * 1.3))
-                pdf.text(xs[i] + 0.5, y + 3 + j * 2.3, line[:limite])
+                line = line[:limite]
+                x_texto, y_texto = xs[i] + 0.5, y + 3 + j * 2.3
+                # Mantém a classificação antropométrica destacada em vermelho no PDF.
+                if key == "paciente" and "IMC (" in line and " (" in line:
+                    base, classificacao = line.rsplit(" (", 1)
+                    pdf.text(x_texto, y_texto, base)
+                    x_classe = x_texto + pdf.get_string_width(base)
+                    pdf.set_text_color(*VERMELHO_PDF)
+                    pdf.text(x_classe, y_texto, " (" + classificacao)
+                    pdf.set_text_color(0, 0, 0)
+                else:
+                    pdf.text(x_texto, y_texto, line)
         y += altura
     pdf.output(caminho)
     return caminho
