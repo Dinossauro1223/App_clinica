@@ -202,13 +202,18 @@ class GestaoAlimentarUI:
         ctk.CTkLabel(topo, text="Itens recebidos do estoque Almoxarifado no mobile",
                      font=ctk.CTkFont(size=14, weight="bold"), text_color=VERDE_ESC).pack(side="left")
         _btn(topo, "Atualizar agora", self.sincronizar, 125, cor=CINZA, hover=tema.SUAVE).pack(side="right")
+        _btn(topo, "Editar / vincular TBCA", lambda: self._editar_produto_almox(False), 175, cor=tema.AZUL).pack(side="right", padx=5)
+        _btn(topo, "＋ Novo produto", lambda: self._editar_produto_almox(True), 135).pack(side="right", padx=5)
+        _btn(topo, "Pedidos de reposição", self._abrir_pedidos_almox, 155, cor=CINZA, hover=tema.SUAVE).pack(side="right", padx=5)
+        _btn(topo, "Prazo médio", self._abrir_prazos_almox, 115, cor=CINZA, hover=tema.SUAVE).pack(side="right", padx=5)
         ctk.CTkLabel(self.tab_almox,
                      text="O saldo é lido do mobile. Preço unitário refere-se à unidade de estoque cadastrada; conteúdo da embalagem informa quantos g/ml/un essa unidade contém.",
                      font=ctk.CTkFont(size=11), text_color=tema.SUAVE, anchor="w", justify="left", wraplength=900).pack(fill="x", padx=10, pady=4)
         frame, self.produtos_tree = _tree(self.tab_almox, [
-            ("nome", "Produto", 220, "w"), ("un", "Un. estoque", 95, "center"),
-            ("preco", "Preço unitário", 110, "e"), ("emb", "Conteúdo/unidade", 125, "e"),
-            ("saldo", "Qtd. em estoque", 115, "e"), ("data", "Data do saldo", 125, "center")], altura=18)
+            ("nome", "Produto", 190, "w"), ("un", "Un. estoque", 85, "center"),
+            ("preco", "Preço unitário", 105, "e"), ("emb", "Conteúdo/unidade", 115, "e"),
+            ("saldo", "Qtd. em estoque", 105, "e"), ("data", "Data do saldo", 110, "center"),
+            ("tbca", "Alimento TBCA vinculado", 250, "w")], altura=18)
         frame.pack(fill="both", expand=True, padx=8, pady=(4, 8))
 
     def _montar_tab_tbca(self):
@@ -380,6 +385,231 @@ class GestaoAlimentarUI:
         except Exception:
             return False
 
+
+    def _editar_produto_almox(self, novo=False):
+        selecionado = self.produtos_tree.selection() if self.produtos_tree else ()
+        if not novo and not selecionado:
+            messagebox.showinfo("Almoxarifado", "Selecione um produto para editar ou vincular à TBCA.")
+            return
+        id_item = None if novo else int(selecionado[0])
+        item = None if novo else next((p for p in ga.listar_produtos_almox(self.db) if int(p["id_mobile"]) == id_item), None)
+        if not novo and not item:
+            messagebox.showwarning("Almoxarifado", "Produto não encontrado. Sincronize o catálogo e tente novamente.")
+            return
+        janela = _PainelJanela(self.app, "Cadastrar produto do Almoxarifado" if novo else "Editar produto e vínculo TBCA")
+        janela.title("Cadastrar produto do Almoxarifado" if novo else "Editar produto e vínculo TBCA")
+        janela.geometry("760x600")
+        janela.minsize(650, 520)
+        janela.transient(self.app)
+        janela.grab_set()
+        ctk.CTkLabel(janela, text="Catálogo compartilhado com o mobile",
+                     font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=20, pady=(16, 4))
+        ctk.CTkLabel(janela,
+                     text="O conteúdo da embalagem (g/mL/un) é diferente da quantidade de embalagens em estoque. O vínculo TBCA será reutilizado ao montar fichas técnicas.",
+                     font=ctk.CTkFont(size=11), text_color=tema.SUAVE, wraplength=700,
+                     justify="left").pack(anchor="w", padx=20, pady=(0, 10))
+        form = ctk.CTkFrame(janela, fg_color="transparent")
+        form.pack(fill="both", expand=True, padx=18)
+        form.grid_columnconfigure(1, weight=1)
+        def campo(rotulo, linha, valor="", placeholder=""):
+            ctk.CTkLabel(form, text=rotulo).grid(row=linha, column=0, sticky="w", padx=4, pady=6)
+            entrada = ctk.CTkEntry(form, placeholder_text=placeholder)
+            entrada.grid(row=linha, column=1, sticky="ew", padx=4, pady=6)
+            if valor not in (None, ""):
+                entrada.insert(0, str(valor))
+            return entrada
+        nome = campo("Nome do produto *", 0, item.get("nome") if item else "", "Ex.: Leite integral")
+        unidade = campo("Unidade de estoque *", 1, item.get("unidade_estoque") if item else "pacote", "Ex.: pacote, frasco, lata")
+        preco = campo("Preço por unidade de estoque (R$)", 2, item.get("preco_unitario") if item else "", "Ex.: 8,50")
+        conteudo = campo("Conteúdo de cada embalagem", 3, item.get("embalagem_qtd") if item else "", "Ex.: 500")
+        ctk.CTkLabel(form, text="Unidade do conteúdo").grid(row=4, column=0, sticky="w", padx=4, pady=6)
+        unidade_var = ctk.StringVar(value=(item.get("embalagem_un") if item else None) or "g")
+        seg = ctk.CTkSegmentedButton(form, values=["g", "mL", "un"], variable=unidade_var)
+        seg.grid(row=4, column=1, sticky="w", padx=4, pady=6)
+        saldo = campo("Saldo do almoxarifado (embalagens)", 5, "", "Deixe vazio para não alterar o saldo")
+        alimentos = ga.listar_alimentos(self.db, limite=10000)
+        rotulos = ["— sem vínculo com a TBCA —"] + [f"{a['id_tbca']} | {a['alimento']}" for a in alimentos]
+        por_id = {str(a["id_tbca"]): a for a in alimentos}
+        ctk.CTkLabel(form, text="Alimento da TBCA").grid(row=6, column=0, sticky="w", padx=4, pady=6)
+        tbca = ctk.CTkComboBox(form, values=rotulos, width=480)
+        tbca.grid(row=6, column=1, sticky="ew", padx=4, pady=6)
+        tbca.set("— sem vínculo com a TBCA —")
+        if item and item.get("tbca_id"):
+            alimento = por_id.get(str(item["tbca_id"]))
+            if alimento:
+                tbca.set(f"{alimento['id_tbca']} | {alimento['alimento']}")
+        if not alimentos:
+            tbca.configure(state="disabled")
+            ctk.CTkLabel(form, text="Importe a base TBCA na aba Base TBCA para habilitar o vínculo.",
+                         font=ctk.CTkFont(size=10), text_color=tema.SUAVE).grid(row=7, column=1, sticky="w", padx=4)
+        if item:
+            try:
+                self.mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
+                prazo = im.prazo_medio_produto(self.mobile_db, id_item)
+            except Exception:
+                prazo = None
+            if prazo:
+                texto_prazo = "Prazo médio de recebimento: %.1f dia(s) corrido(s) · %d pedido(s) recebido(s) · %d pendente(s)" % (
+                    prazo["prazo_medio_dias"] or 0, prazo["pedidos_recebidos"], prazo["pendentes"])
+            else:
+                texto_prazo = "Ainda não há histórico de pedidos e recebimentos para este insumo."
+            ctk.CTkLabel(form, text=texto_prazo, font=ctk.CTkFont(size=11),
+                         text_color=tema.SUAVE, wraplength=690, justify="left").grid(
+                             row=7, column=0, columnspan=2, sticky="w", padx=4, pady=(8, 2))
+        rodape = ctk.CTkFrame(janela, fg_color="transparent")
+        rodape.pack(fill="x", padx=18, pady=14)
+        def salvar():
+            escolha = tbca.get().strip()
+            tbca_id = None if not escolha or escolha.startswith("—") else escolha.split(" | ", 1)[0].strip()
+            dados = {"nome": nome.get(), "unidade": unidade.get(), "preco_unitario": preco.get(),
+                     "embalagem_qtd": conteudo.get(), "embalagem_un": unidade_var.get(), "tbca_id": tbca_id}
+            try:
+                self.mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
+                im.salvar_produto_almox(self.mobile_db, dados, id_item=id_item,
+                                        estoque_inicial=saldo.get().strip() or None)
+            except Exception as exc:
+                messagebox.showwarning("Almoxarifado", str(exc))
+                return
+            janela.destroy()
+            self.sincronizar(silencioso=True)
+            self.lbl_status.configure(text="Produto salvo no catálogo compartilhado. Sincronizando o espelho da ficha técnica…")
+        _btn(rodape, "Cancelar", janela.destroy, 100, cor=CINZA, hover=tema.SUAVE).pack(side="right", padx=4)
+        if item:
+            _btn(rodape, "＋ Pedido de reposição", lambda: self._novo_pedido_almox(id_item, janela),
+                 165, cor=tema.AZUL, hover=tema.AZUL_HOVER).pack(side="left", padx=4)
+        _btn(rodape, "Salvar produto", salvar, 140).pack(side="right", padx=4)
+
+
+    def _mobile_db_path(self):
+        self.mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
+        return self.mobile_db
+
+    def _novo_pedido_almox(self, id_item, parent=None):
+        produto = next((p for p in ga.listar_produtos_almox(self.db) if int(p["id_mobile"]) == int(id_item)), None)
+        if not produto:
+            messagebox.showwarning("Pedido de reposição", "Produto não encontrado.")
+            return
+        janela = _PainelJanela(self.app, "Registrar pedido de reposição")
+        janela.title("Registrar pedido de reposição")
+        janela.geometry("460x360")
+        janela.transient(parent or self.app)
+        janela.grab_set()
+        ctk.CTkLabel(janela, text="Pedido de reposição",
+                     font=ctk.CTkFont(size=17, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(janela, text=produto["nome"], font=ctk.CTkFont(size=13, weight="bold")).pack(
+            anchor="w", padx=18, pady=(0, 12))
+        ctk.CTkLabel(janela, text="Quantidade de embalagens/unidades solicitadas").pack(anchor="w", padx=18)
+        qtd = ctk.CTkEntry(janela, placeholder_text="Ex.: 20")
+        qtd.pack(fill="x", padx=18, pady=(4, 10))
+        ctk.CTkLabel(janela, text="Fornecedor (opcional)").pack(anchor="w", padx=18)
+        fornecedor = ctk.CTkEntry(janela, placeholder_text="Nome do fornecedor")
+        fornecedor.pack(fill="x", padx=18, pady=(4, 10))
+        ctk.CTkLabel(janela, text="Observação (opcional)").pack(anchor="w", padx=18)
+        obs = ctk.CTkEntry(janela, placeholder_text="Prazo informado, número do pedido…")
+        obs.pack(fill="x", padx=18, pady=(4, 12))
+        def salvar_pedido():
+            try:
+                im.criar_pedido_almox(self._mobile_db_path(), id_item, qtd.get(),
+                                      fornecedor.get(), obs.get(), getpass.getuser())
+            except Exception as exc:
+                messagebox.showwarning("Pedido de reposição", str(exc), parent=janela)
+                return
+            janela.destroy()
+            messagebox.showinfo("Pedido registrado",
+                                "O pedido foi registrado. Quando o material chegar, marque o recebimento para calcular o prazo e atualizar o estoque.",
+                                parent=parent or self.app)
+            self._abrir_pedidos_almox()
+        rodape = ctk.CTkFrame(janela, fg_color="transparent")
+        rodape.pack(fill="x", padx=18, pady=12)
+        _btn(rodape, "Cancelar", janela.destroy, 100, cor=CINZA, hover=tema.SUAVE).pack(side="right", padx=4)
+        _btn(rodape, "Registrar pedido", salvar_pedido, 140).pack(side="right", padx=4)
+
+    def _abrir_pedidos_almox(self):
+        try:
+            pedidos = im.listar_pedidos_almox(self._mobile_db_path(), apenas_pendentes=True)
+        except Exception as exc:
+            messagebox.showwarning("Pedidos de reposição", str(exc))
+            return
+        janela = _PainelJanela(self.app, "Pedidos de reposição pendentes")
+        janela.title("Pedidos de reposição pendentes")
+        janela.geometry("820x500")
+        ctk.CTkLabel(janela, text="Pedidos aguardando recebimento",
+                     font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=18, pady=(16, 8))
+        frame, arvore = _tree(janela, [
+            ("item", "Insumo", 220, "w"), ("qtd", "Quantidade", 100, "e"),
+            ("data", "Solicitado em", 150, "center"), ("por", "Solicitado por", 130, "w"),
+            ("forn", "Fornecedor", 150, "w")], altura=12)
+        frame.pack(fill="both", expand=True, padx=14, pady=8)
+        for pedido in pedidos:
+            arvore.insert("", "end", iid=str(pedido["id"]), values=(
+                pedido["item"], _fmt_num(pedido["qtd"]), pedido["solicitado_em"],
+                pedido["solicitado_nome"] or "—", pedido["fornecedor"] or "—"))
+        def receber():
+            sel = arvore.selection()
+            if not sel:
+                messagebox.showinfo("Recebimento", "Selecione um pedido pendente.", parent=janela)
+                return
+            pedido_id = int(sel[0])
+            if not messagebox.askyesno("Confirmar recebimento",
+                                       "Confirmar a chegada do pedido? A quantidade será adicionada ao estoque do almoxarifado.",
+                                       parent=janela):
+                return
+            try:
+                im.receber_pedido_almox(self._mobile_db_path(), pedido_id, getpass.getuser())
+            except Exception as exc:
+                messagebox.showwarning("Recebimento", str(exc), parent=janela)
+                return
+            janela.destroy()
+            self.sincronizar(silencioso=True)
+            messagebox.showinfo("Recebimento registrado",
+                                "A entrada foi registrada no estoque e o prazo de recebimento foi calculado.",
+                                parent=self.app)
+        rodape = ctk.CTkFrame(janela, fg_color="transparent")
+        rodape.pack(fill="x", padx=14, pady=(0, 14))
+        _btn(rodape, "Atualizar lista", lambda: (janela.destroy(), self._abrir_pedidos_almox()),
+             130, cor=CINZA, hover=tema.SUAVE).pack(side="left")
+        _btn(rodape, "Registrar recebimento", receber, 170).pack(side="right")
+
+    def _abrir_prazos_almox(self):
+        try:
+            prazos = im.listar_prazos_almox(self._mobile_db_path())
+        except Exception as exc:
+            messagebox.showwarning("Prazo médio de reposição", str(exc))
+            return
+        janela = _PainelJanela(self.app, "Prazo médio de recebimento por insumo")
+        janela.title("Prazo médio de recebimento por insumo")
+        janela.geometry("760x540")
+        ctk.CTkLabel(janela, text="Prazo médio de reposição",
+                     font=ctk.CTkFont(size=19, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=20, pady=(18, 4))
+        ctk.CTkLabel(janela, text="Dias corridos entre o registro do pedido e a confirmação do recebimento. A média é calculada apenas com pedidos recebidos.",
+                     font=ctk.CTkFont(size=11), text_color=tema.SUAVE, wraplength=700,
+                     justify="left").pack(anchor="w", padx=20, pady=(0, 12))
+        lista = ctk.CTkScrollableFrame(janela, fg_color="transparent")
+        lista.pack(fill="both", expand=True, padx=16, pady=8)
+        if not prazos:
+            ctk.CTkLabel(lista, text="Ainda não há pedidos e recebimentos registrados.").pack(anchor="w", padx=8, pady=8)
+            return
+        maximo = max([float(p["prazo_medio_dias"] or 0) for p in prazos] + [1.0])
+        for p in prazos:
+            linha = ctk.CTkFrame(lista, corner_radius=10)
+            linha.pack(fill="x", padx=4, pady=5)
+            cab = ctk.CTkFrame(linha, fg_color="transparent")
+            cab.pack(fill="x", padx=12, pady=(8, 2))
+            ctk.CTkLabel(cab, text=p["nome"], font=ctk.CTkFont(size=12, weight="bold")).pack(side="left")
+            prazo = p["prazo_medio_dias"]
+            ctk.CTkLabel(cab, text=("%.1f dia(s)" % prazo) if prazo is not None else "Sem recebimentos",
+                         text_color=VERDE_ESC, font=ctk.CTkFont(size=12, weight="bold")).pack(side="right")
+            barra = ctk.CTkProgressBar(linha, height=9, progress_color=VERDE)
+            barra.pack(fill="x", padx=12, pady=3)
+            barra.set(float(prazo or 0) / maximo)
+            ctk.CTkLabel(linha, text="%d pedido(s) recebido(s) · %d pendente(s)" %
+                         (p["pedidos_recebidos"], p["pendentes"] or 0),
+                         font=ctk.CTkFont(size=10), text_color=tema.SUAVE).pack(anchor="w", padx=12, pady=(0, 8))
+
     def carregar_produtos(self):
         if not self.produtos_tree:
             return
@@ -389,9 +619,10 @@ class GestaoAlimentarUI:
             conteudo = "—"
             if item.get("embalagem_qtd") is not None and item.get("embalagem_un"):
                 conteudo = f"{_fmt_num(item['embalagem_qtd'])} {item['embalagem_un']}"
-            self.produtos_tree.insert("", "end", values=(item["nome"], item.get("unidade_estoque") or "—",
+            self.produtos_tree.insert("", "end", iid=str(item["id_mobile"]), values=(item["nome"], item.get("unidade_estoque") or "—",
                 _fmt_brl(item.get("preco_unitario")), conteudo,
-                _fmt_num(item.get("estoque_qtd")), item.get("estoque_data") or "—"),
+                _fmt_num(item.get("estoque_qtd")), item.get("estoque_data") or "—",
+                item.get("tbca_alimento") or ("ID " + str(item["tbca_id"]) if item.get("tbca_id") else "—")),
                 tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
 
 
@@ -410,6 +641,7 @@ class GestaoAlimentarUI:
         _btn(topo, "Importar retiradas mobile", self.importar_retiradas, 170, cor=VERDE).pack(side="left", padx=4)
         _btn(topo, "Atualizar relatório", self.carregar_consumo, 135, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
         _btn(topo, "Preparações esperadas", self.abrir_preparacoes, 165, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
+        _btn(topo, "Gerar rascunhos por horário", self.gerar_rascunhos_por_horario, 205, cor=AZUL).pack(side="left", padx=4)
         self.lbl_consumo_status = ctk.CTkLabel(self.tab_consumo,
             text="Importe o histórico de retiradas Almoxarifado → Cozinha. Movimentos Cozinha → Copa não entram como novo consumo.",
             anchor="w", justify="left", text_color=tema.SUAVE, font=ctk.CTkFont(size=11))
@@ -449,6 +681,46 @@ class GestaoAlimentarUI:
         frame.pack(fill="both",expand=True,padx=6,pady=6)
         ctk.CTkLabel(tab_prep,text="As quantidades associadas são observacionais. Porção média só aparece quando as porções previstas foram informadas em todas as execuções contabilizadas.",
                      text_color=tema.SUAVE,font=ctk.CTkFont(size=10),wraplength=850,justify="left").pack(anchor="w",padx=9,pady=(0,8))
+
+
+    def gerar_rascunhos_por_horario(self):
+        """Importa retiradas e sugere fichas quando horário + agenda identificam uma única preparação."""
+        try:
+            inicio, fim = self._periodo_consumo()
+            self.mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
+            importacao = im.importar_movimentos_cozinha(self.db, self.mobile_db, inicio, fim)
+            janelas = im.ler_janelas_refeicoes(self.mobile_db)
+            primeiro = __import__("datetime").date.fromisoformat(inicio)
+            ultimo = __import__("datetime").date.fromisoformat(fim)
+            totais = {"alocadas": 0, "rascunhos": 0, "sem_horario": 0,
+                      "horario_ambiguo": 0, "sem_preparacao": 0, "varias_preparacoes": 0,
+                      "ja_alocadas": 0, "sem_porcoes": 0}
+            erros = []
+            dia = primeiro
+            while dia <= ultimo:
+                data = dia.isoformat()
+                movimentos = ga.listar_movimentos_cozinha(self.db, data, data)
+                resultado = ga.gerar_rascunhos_por_horario(self.db, data, movimentos, janelas)
+                for chave in totais:
+                    totais[chave] += int(resultado.get(chave, 0))
+                erros.extend(resultado.get("erros", []))
+                dia += __import__("datetime").timedelta(days=1)
+            self.carregar_consumo()
+            texto = (
+                "Importação de movimentos: %s retirada(s) Almoxarifado → Cozinha.\n\n"
+                "Alocações automáticas: %d\nRascunhos de fichas criados: %d\n"
+                "Sem horário compatível: %d\nHorários sobrepostos: %d\n"
+                "Sem preparação agendada: %d\nMais de uma preparação na refeição: %d\n"
+                "Já alocadas/sem saldo pendente: %d\nPreparações sem porções: %d"
+            ) % (importacao.get("retiradas_cozinha", 0), totais["alocadas"], totais["rascunhos"],
+                 totais["sem_horario"], totais["horario_ambiguo"], totais["sem_preparacao"],
+                 totais["varias_preparacoes"], totais["ja_alocadas"], totais["sem_porcoes"])
+            if erros:
+                texto += "\n\nOcorrências: " + " | ".join(erros[:4])
+            texto += "\n\nAs fichas geradas estão marcadas como 'Rascunho automático'. Revise quantidades, unidades e vínculos TBCA antes de utilizá-las."
+            messagebox.showinfo("Geração automática por horário", texto, parent=self.tab_consumo)
+        except Exception as exc:
+            messagebox.showerror("Geração automática por horário", str(exc), parent=self.tab_consumo)
 
     def _periodo_consumo(self):
         ini, fim = self.e_consumo_inicio.get().strip(), self.e_consumo_fim.get().strip()
@@ -628,6 +900,9 @@ class FichaDialog:
         self._tbca_por_rotulo = {
             f"{item['id_tbca']} | {item['alimento']}": item for item in self.tbca
         }
+        self._produtos_por_rotulo = {
+            f"{item['id_mobile']} | {item['nome']}": item for item in self.produtos
+        }
         self._opcoes_tbca = ["— selecionar alimento da TBCA —"] + list(self._tbca_por_rotulo)
         self._montar()
         self._preencher()
@@ -728,7 +1003,8 @@ class FichaDialog:
         linha_estoque.pack(fill="x", padx=6, pady=(2, 6))
         opcoes = ["— sem vínculo com Almoxarifado —"] + [f"{p['id_mobile']} | {p['nome']}" for p in self.produtos]
         ctk.CTkLabel(linha_estoque, text="Almoxarifado:", text_color=tema.SUAVE).pack(side="left", padx=(0, 4))
-        produto = ctk.CTkComboBox(linha_estoque, width=170, values=opcoes)
+        produto = ctk.CTkComboBox(linha_estoque, width=170, values=opcoes,
+                                  command=lambda valor: self._selecionar_produto(registro, valor))
         produto.set(opcoes[0])
         produto.pack(side="left", padx=3, pady=3)
         ctk.CTkLabel(linha_estoque, text="Preço manual (R$/unid.):", width=130,
@@ -788,6 +1064,18 @@ class FichaDialog:
         if alimento.get("npu") is not None:
             registro["npu"].delete(0, "end")
             registro["npu"].insert(0, str(alimento["npu"]))
+
+
+    def _selecionar_produto(self, registro, valor):
+        """Ao escolher um insumo já vinculado, reaproveita automaticamente o alimento TBCA."""
+        produto = self._produtos_por_rotulo.get(valor)
+        if not produto or not produto.get("tbca_id"):
+            return
+        rotulo = next((r for r, a in self._tbca_por_rotulo.items()
+                       if str(a["id_tbca"]) == str(produto["tbca_id"])), None)
+        if rotulo and registro["tbca"].get() == "— selecionar alimento da TBCA —":
+            registro["tbca"].set(rotulo)
+            self._selecionar_tbca(registro, rotulo)
 
     def _remover_linha(self, registro):
         registro["frame"].destroy()

@@ -77,8 +77,11 @@ class MobileTest(unittest.TestCase):
     def em(self, h, m=0):
         return mock.patch.object(sv, "agora_dt", lambda: datetime(2026, 11, 12, h, m, tzinfo=sv.TZ))
 
-    def qtd(self, est):
-        return self.chamar(self.adm, "GET", "/api/estoque?estoque=" + est)[1]["linhas"][0]["qtd"]
+    def qtd(self, est, dia=None):
+        consulta = "/api/estoque?estoque=" + est
+        if dia:
+            consulta += "&data=" + dia
+        return self.chamar(self.adm, "GET", consulta)[1]["linhas"][0]["qtd"]
 
     # ------------------------------------------------------------------ testes
     def test_admin_inicial_usa_credencial_solicitada(self):
@@ -120,12 +123,32 @@ class MobileTest(unittest.TestCase):
             self.assertTrue(senha_redefinida)
             self.assertNotEqual(senha_redefinida, "123456789")
 
-    def test_copa_pode_consultar_mapa_de_outro_setor_sem_poder_gravar(self):
+    def test_copa_pode_consultar_e_gravar_no_mapa_compartilhado_de_outro_setor(self):
         cod, dados = self.chamar(self.t["cop"], "GET", "/api/mapa?setor=2")
         self.assertEqual(cod, 200, dados)
         self.assertEqual(dados["setor"]["id"], 2)
-        self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/mapa",
-                                     {"setor": 2, "linhas": [{"id_leito": 7, "nome": "Não autorizado"}]})[0], 403)
+        cod, resultado = self.chamar(self.t["cop"], "POST", "/api/mapa",
+                                     {"setor": 2, "linhas": [{"id_leito": 7, "nome": "Paciente compartilhado"}]})
+        self.assertEqual(cod, 200, resultado)
+        leitura = self.chamar(self.t["cop2"], "GET", "/api/mapa?setor=2")[1]
+        linha = next(x for x in leitura["linhas"] if x["id_leito"] == 7)
+        self.assertEqual(linha["nome"], "Paciente compartilhado")
+        self.assertEqual(linha["por_nome"], "cop")
+
+
+    def test_download_apk_disponibiliza_arquivo_do_bundle_com_nome_correto(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            raiz = Path(pasta)
+            destino = raiz / "apk" / "saida" / "NutriLab-Mobile.apk"
+            destino.parent.mkdir(parents=True)
+            conteudo = b"APK-DE-TESTE-SINTETICO"
+            destino.write_bytes(conteudo)
+            with mock.patch.object(sv, "AQUI", raiz):
+                with urllib.request.urlopen(self.base + "/download/NutriLab-Mobile.apk") as resposta:
+                    self.assertEqual(resposta.status, 200)
+                    self.assertEqual(resposta.headers.get_content_type(), "application/vnd.android.package-archive")
+                    self.assertIn('filename="NutriLab-Mobile.apk"', resposta.headers.get("Content-Disposition", ""))
+                    self.assertEqual(resposta.read(), conteudo)
 
     def test_login_invalido(self):
         self.assertEqual(self.chamar(None, "POST", "/api/login", {"login": "admin", "senha": "errada"})[0], 401)
@@ -195,7 +218,7 @@ class MobileTest(unittest.TestCase):
         })[0], 200)
         atual = next(x for x in self.chamar(self.adm, "GET", "/api/itens")[1]["itens"] if x["id"] == item_id)
         self.assertEqual((atual["preco_unitario"], atual["embalagem_qtd"], atual["embalagem_un"]),
-                         (9.0, 1.0, "kg"))
+                         (9.0, 1000.0, "g"))
         self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/admin/itens/%s" % item_id, {
             "nome": "Farinha Teste", "unidade": "pacote", "preco_unitario": 9.0
         })[0], 403)
@@ -254,6 +277,7 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(self.chamar(t["coz"], "GET", "/api/mapa")[0], 403)
         self.assertEqual(self.chamar(t["nut"], "GET", "/api/estoque")[0], 403)
         self.assertEqual(self.chamar(t["cop"], "GET", "/api/mapa?setor=2")[1]["setor"]["id"], 2)  # a copa pode consultar outro setor
+        self.assertEqual(self.chamar(t["cop2"], "GET", "/api/mapa?setor=1")[1]["setor"]["id"], 1)
         self.assertEqual(self.chamar(t["nut"], "GET", "/api/mapa?setor=2")[1]["setor"]["id"], 1)
         self.assertEqual(self.chamar(t["cop"], "GET", "/api/estoque?estoque=almox")[1]["estoque"], "copa")
 
@@ -303,7 +327,7 @@ class MobileTest(unittest.TestCase):
         av = self.chamar(cop, "GET", "/api/avisos")[1]["avisos"]
         self.assertEqual(len(av), 1)
         self.assertEqual({(x["leito"], x["tipo"]) for x in av[0]["leitos"]}, {("A04", "novo"), ("A05", "novo")})
-        self.assertEqual(self.chamar(cop2, "GET", "/api/avisos")[1]["avisos"], [])  # outro setor não recebe
+        self.assertEqual(len(self.chamar(cop2, "GET", "/api/avisos")[1]["avisos"]), 1)  # todas as copeiras recebem avisos do mapa compartilhado
         self.chamar(cop, "POST", "/api/avisos/lidos", {"ids": [av[0]["id"]]})
         self.assertEqual(self.chamar(cop, "GET", "/api/avisos")[1]["avisos"], [])
         self.chamar(nut, "POST", "/api/nutri/avisos", {"texto": "Dieta zero a partir das 20h"})  # aviso em texto
@@ -353,6 +377,110 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(rep("alm", "cozinha", 1), 400)  # almoxarifado só recebe de fora
         self.assertEqual(rep("alm", "externo", 5), 200)
         self.assertEqual(self.qtd("almox"), 9)
+
+
+    def test_migracao_normaliza_unidades_antigas_sem_alterar_conteudo_fisico(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            banco = str(Path(pasta) / "mobile.db")
+            sv.preparar_banco(banco)
+            c = sv.conectar(banco)
+            try:
+                c.executemany(
+                    "INSERT INTO itens(nome,unidade,embalagem_qtd,embalagem_un) VALUES(?,?,?,?)",
+                    [("Produto kg", "pacote", 0.5, "kg"),
+                     ("Produto L", "frasco", 1.5, "L"),
+                     ("Produto mg", "sache", 250, "mg"),
+                     ("Produto g", "pacote", 500, "g")],
+                )
+                sv.migrar(c)
+                valores = {r["nome"]: (r["embalagem_qtd"], r["embalagem_un"])
+                           for r in c.execute("SELECT nome,embalagem_qtd,embalagem_un FROM itens")}
+                self.assertEqual(valores["Produto kg"], (500.0, "g"))
+                self.assertEqual(valores["Produto L"], (1500.0, "ml"))
+                self.assertEqual(valores["Produto mg"], (0.25, "g"))
+                self.assertEqual(valores["Produto g"], (500.0, "g"))
+            finally:
+                c.close()
+
+    def test_cadastro_mobile_apresenta_unidades_como_opcoes_diretas(self):
+        html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('name=ieu value="g"', html)
+        self.assertIn('name=ieu value="ml"', html)
+        self.assertIn('name=ieu value="un"', html)
+        self.assertNotIn("select id=ieu", html)
+
+
+    def test_todas_as_copeiras_compartilham_mapa_e_historico_identifica_autor(self):
+        cop, cop2 = self.t["cop"], self.t["cop2"]
+        mapa = self.chamar(cop, "GET", "/api/mapa?setor=2")[1]
+        self.assertEqual(mapa["setor"]["id"], 2)
+        leito_id = mapa["linhas"][0]["id_leito"]
+        codigo, resultado = self.chamar(cop, "POST", "/api/mapa", {
+            "setor": 2, "linhas": [{"id_leito": leito_id, "nome": "Paciente compartilhado"}]
+        })
+        self.assertEqual(codigo, 200, resultado)
+        leitura = self.chamar(cop2, "GET", "/api/mapa?setor=2")[1]
+        linha = next(x for x in leitura["linhas"] if x["id_leito"] == leito_id)
+        self.assertEqual(linha["nome"], "Paciente compartilhado")
+        self.assertEqual(linha["por_nome"], "cop")
+        self.assertEqual(linha["por_perfil"], "copa")
+        with closing(sv.conectar(self.db)) as c:
+            historico = c.execute(
+                "SELECT por_nome,por_perfil,origem,campos_alterados FROM mapa_historico "
+                "WHERE id_leito=? ORDER BY id DESC LIMIT 1", (leito_id,)
+            ).fetchone()
+            self.assertIsNotNone(historico)
+            self.assertEqual((historico["por_nome"], historico["por_perfil"], historico["origem"]),
+                             ("cop", "copa", "mobile"))
+            self.assertIn("nome", json.loads(historico["campos_alterados"]))
+        ranking = self.chamar(self.adm, "GET", "/api/admin/mapa/atividade?periodo=ano&ano=2026")[1]
+        self.assertGreaterEqual(ranking["total"], 1)
+        self.assertIn("cop", [x["nome"] for x in ranking["ranking"]])
+        self.assertEqual(self.chamar(cop, "GET", "/api/admin/mapa/atividade?periodo=ano&ano=2026")[0], 403)
+
+
+    def test_configuracoes_exibem_dois_qrs_e_compartilhamento(self):
+        cfg = (Path(__file__).resolve().parents[1] / "configuracoes_ui.py").read_text(encoding="utf-8")
+        servidor = (Path(__file__).resolve().parents[1] / "mobile" / "servidor.py").read_text(encoding="utf-8")
+        self.assertIn("nutrilab-server", cfg)
+        self.assertIn("/download/NutriLab-Mobile.apk", cfg)
+        self.assertIn("WhatsApp", cfg)
+        self.assertIn("mailto:", cfg)
+        self.assertIn('u.path == "/download/NutriLab-Mobile.apk"', servidor)
+        import qrcode
+        qr = qrcode.QRCode()
+        qr.add_data("http://192.168.0.10:8765")
+        qr.make(fit=True)
+        self.assertIsNotNone(qr.make_image().get_image())
+
+
+    def test_pedido_almox_registra_recebimento_e_prazo_medio(self):
+        data_recebimento = "2026-11-12"
+        saldo_anterior = self.qtd("almox", data_recebimento)
+        with mock.patch.object(sv, "agora_dt",
+                               lambda: datetime(2026, 11, 10, 9, 0, tzinfo=sv.TZ)):
+            cod, criado = self.chamar(self.adm, "POST", "/api/admin/almox/pedidos",
+                                      {"id_item": 1, "qtd": 3, "fornecedor": "Fornecedor teste"})
+        self.assertEqual(cod, 200, criado)
+        pedido_id = criado["id"]
+        cod, lista = self.chamar(self.adm, "GET", "/api/admin/almox/pedidos")
+        self.assertEqual(cod, 200)
+        self.assertEqual(next(p for p in lista["pedidos"] if p["id"] == pedido_id)["status"], "pendente")
+        with mock.patch.object(sv, "agora_dt",
+                               lambda: datetime(2026, 11, 12, 10, 0, tzinfo=sv.TZ)):
+            cod, recebido = self.chamar(self.adm, "POST",
+                                        "/api/admin/almox/pedidos/%d/receber" % pedido_id, {})
+        self.assertEqual(cod, 200, recebido)
+        self.assertEqual(self.qtd("almox", data_recebimento), saldo_anterior + 3)
+        cod, prazos = self.chamar(self.adm, "GET", "/api/admin/almox/prazos")
+        self.assertEqual(cod, 200, prazos)
+        arroz = next(p for p in prazos["prazos"] if p["id_item"] == 1)
+        self.assertEqual(arroz["pedidos_recebidos"], 1)
+        self.assertAlmostEqual(arroz["prazo_medio_dias"], 2.0)
+        self.assertEqual(arroz["pendentes"], 0)
+        cod, negado = self.chamar(self.t["cop"], "GET", "/api/admin/almox/prazos")
+        self.assertEqual(cod, 403)
+
 
 
 if __name__ == "__main__":

@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS {TABELA_PRODUTOS} (
     preco_unitario REAL,
     embalagem_qtd REAL,
     embalagem_un TEXT,
+    tbca_id TEXT,
     estoque_qtd REAL,
     estoque_data TEXT,
     sincronizado_em TEXT NOT NULL
@@ -153,6 +154,9 @@ def inicializar(db_path):
         colunas_ingredientes = {r[1] for r in conn.execute(f"PRAGMA table_info({TABELA_INGREDIENTES})")}
         if "preco_unitario_manual" not in colunas_ingredientes:
             conn.execute(f"ALTER TABLE {TABELA_INGREDIENTES} ADD COLUMN preco_unitario_manual REAL")
+        colunas_produtos = {r[1] for r in conn.execute(f"PRAGMA table_info({TABELA_PRODUTOS})")}
+        if "tbca_id" not in colunas_produtos:
+            conn.execute(f"ALTER TABLE {TABELA_PRODUTOS} ADD COLUMN tbca_id TEXT")
 
 
 def _normalizar_cabecalho(valor):
@@ -299,10 +303,10 @@ def sincronizar_produtos_almox(db_path, linhas_mobile):
     """Atualiza o espelho local dos produtos e saldos do estoque almoxarifado."""
     agora = _agora()
     sql = f"""INSERT INTO {TABELA_PRODUTOS}
-        (id_mobile,nome,unidade_estoque,preco_unitario,embalagem_qtd,embalagem_un,estoque_qtd,estoque_data,sincronizado_em)
-        VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id_mobile) DO UPDATE SET
+        (id_mobile,nome,unidade_estoque,preco_unitario,embalagem_qtd,embalagem_un,tbca_id,estoque_qtd,estoque_data,sincronizado_em)
+        VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id_mobile) DO UPDATE SET
         nome=excluded.nome,unidade_estoque=excluded.unidade_estoque,preco_unitario=excluded.preco_unitario,
-        embalagem_qtd=excluded.embalagem_qtd,embalagem_un=excluded.embalagem_un,
+        embalagem_qtd=excluded.embalagem_qtd,embalagem_un=excluded.embalagem_un,tbca_id=excluded.tbca_id,
         estoque_qtd=excluded.estoque_qtd,estoque_data=excluded.estoque_data,sincronizado_em=excluded.sincronizado_em"""
     normalizados = []
     for item in linhas_mobile or []:
@@ -311,7 +315,7 @@ def sincronizar_produtos_almox(db_path, linhas_mobile):
         if iid is None or not nome:
             continue
         normalizados.append((int(iid), nome, item.get("unidade"), _numero(item.get("preco_unitario")),
-                             _numero(item.get("embalagem_qtd")), item.get("embalagem_un"),
+                             _numero(item.get("embalagem_qtd")), item.get("embalagem_un"), item.get("tbca_id"),
                              _numero(item.get("qtd")), item.get("data_base"), agora))
     with _conexao(db_path) as conn:
         conn.executemany(sql, normalizados)
@@ -320,10 +324,12 @@ def sincronizar_produtos_almox(db_path, linhas_mobile):
 
 def listar_produtos_almox(db_path, termo=""):
     with _conexao(db_path) as conn:
+        sql = (f"SELECT p.*,t.alimento AS tbca_alimento FROM {TABELA_PRODUTOS} p "
+               f"LEFT JOIN {TABELA_TBCA} t ON t.id_tbca=p.tbca_id ")
         if termo:
-            rows = conn.execute(f"SELECT * FROM {TABELA_PRODUTOS} WHERE nome LIKE ? ORDER BY nome", (f"%{termo}%",)).fetchall()
+            rows = conn.execute(sql + "WHERE p.nome LIKE ? ORDER BY p.nome", (f"%{termo}%",)).fetchall()
         else:
-            rows = conn.execute(f"SELECT * FROM {TABELA_PRODUTOS} ORDER BY nome").fetchall()
+            rows = conn.execute(sql + "ORDER BY p.nome").fetchall()
         return [dict(r) for r in rows]
 
 
@@ -786,6 +792,137 @@ def salvar_alocacoes_retirada(db_path, data, id_movimento_mobile, alocacoes, usu
             conn.rollback()
             raise
 
+
+
+def gerar_rascunhos_por_horario(db_path, data, movimentos, janelas):
+    """Aloca retiradas sem destinação quando horário identifica uma única refeição e cria fichas preliminares."""
+    data = _data_iso(data)
+    preparacoes = listar_preparacoes_dia(db_path, data)
+    por_refeicao = {}
+    for prep in preparacoes:
+        por_refeicao.setdefault(str(prep["refeicao"]).lower(), []).append(prep)
+
+    def corresponde(hora, janela):
+        if not hora or not janela:
+            return False
+        try:
+            h = datetime.strptime(str(hora).strip()[:5], "%H:%M").time()
+            abre = datetime.strptime(str(janela.get("abre") or "").strip()[:5], "%H:%M").time()
+            fecha = datetime.strptime(str(janela.get("fecha") or "").strip()[:5], "%H:%M").time()
+        except (TypeError, ValueError):
+            return False
+        return abre <= h <= fecha if abre <= fecha else (h >= abre or h <= fecha)
+
+    relatorio = {
+        "alocadas": 0, "rascunhos": 0, "sem_horario": 0,
+        "horario_ambiguo": 0, "sem_preparacao": 0, "varias_preparacoes": 0,
+        "ja_alocadas": 0, "sem_porcoes": 0, "erros": [],
+    }
+    for mov in movimentos:
+        restante = float(mov.get("qtd_disponivel_para_alocar") or 0)
+        if restante <= 0 or float(mov.get("qtd_alocada") or 0) > 0:
+            relatorio["ja_alocadas"] += 1
+            continue
+        matches = [ref for ref, janela in (janelas or {}).items() if corresponde(mov.get("hora"), janela)]
+        if len(matches) == 0:
+            relatorio["sem_horario"] += 1
+            continue
+        if len(matches) > 1:
+            relatorio["horario_ambiguo"] += 1
+            continue
+        opcoes = por_refeicao.get(matches[0], [])
+        if not opcoes:
+            relatorio["sem_preparacao"] += 1
+            continue
+        if len(opcoes) != 1:
+            relatorio["varias_preparacoes"] += 1
+            continue
+        prep = opcoes[0]
+        try:
+            salvar_alocacoes_retirada(
+                db_path, data, mov["id_mobile"],
+                [{"tipo_destino": "preparacao",
+                  "id_preparacao_dia": prep["id_preparacao_dia"],
+                  "quantidade": restante}],
+                usuario="Automático por horário",
+            )
+            relatorio["alocadas"] += 1
+        except Exception as exc:
+            relatorio["erros"].append("Movimento %s: %s" % (mov.get("id_mobile"), exc))
+
+    alimentos = {str(a["id_tbca"]): a for a in listar_alimentos(db_path, limite=10000)}
+    for prep in preparacoes:
+        if prep.get("id_ficha"):
+            continue
+        porcoes = _numero(prep.get("porcoes_previstas"))
+        if porcoes is None or porcoes <= 0:
+            relatorio["sem_porcoes"] += 1
+            continue
+        with _conexao(db_path) as conn:
+            itens = [dict(r) for r in conn.execute(
+                f"""SELECT a.id_item_mobile,SUM(a.quantidade) AS qtd_estoque,
+                           COALESCE(p.nome,m.item) AS nome,p.embalagem_qtd,p.embalagem_un,p.tbca_id
+                    FROM GA_Consumo_Alocacoes a
+                    JOIN Mobile_Movimentos m
+                      ON m.data=a.data_movimento AND m.id_mobile=a.id_movimento_mobile
+                    LEFT JOIN {TABELA_PRODUTOS} p ON p.id_mobile=a.id_item_mobile
+                    WHERE a.id_preparacao_dia=? AND a.data_movimento=?
+                      AND a.ativa=1 AND a.tipo_destino='preparacao'
+                    GROUP BY a.id_item_mobile,p.nome,m.item,p.embalagem_qtd,p.embalagem_un,p.tbca_id
+                    ORDER BY nome COLLATE NOCASE""",
+                (prep["id_preparacao_dia"], data))]
+        ingredientes = []
+        for item in itens:
+            qtd_estoque = _numero(item.get("qtd_estoque"))
+            if qtd_estoque is None or qtd_estoque <= 0:
+                continue
+            conteudo = _numero(item.get("embalagem_qtd"))
+            unidade = str(item.get("embalagem_un") or "").strip().lower()
+            if conteudo is not None and conteudo > 0 and unidade in {"g", "ml", "un"}:
+                quantidade_total = qtd_estoque * conteudo
+            else:
+                quantidade_total, unidade = qtd_estoque, "un"
+            alimento = alimentos.get(str(item.get("tbca_id") or ""))
+            fc = _numero(alimento.get("fc_referencia")) if alimento else None
+            if fc is None or fc <= 0:
+                fc = 1.0
+            ingredientes.append({
+                "tbca_id": item.get("tbca_id"),
+                "nome": item.get("nome") or "Insumo sem nome",
+                "id_produto_mobile": item.get("id_item_mobile"),
+                "unidade": unidade,
+                "qtd_per_capita": quantidade_total / porcoes,
+                "fator_correcao": fc,
+                "medida_caseira": alimento.get("medida_caseira") if alimento else None,
+                "npu": _numero(alimento.get("npu")) if alimento else None,
+                "observacao": ("Quantidade calculada a partir das retiradas do almoxarifado; revisar."
+                               if not alimento else "Rascunho automático por horário; revisar antes de validar."),
+            })
+        if not ingredientes:
+            continue
+        descricao = (
+            "RASCUNHO AUTOMÁTICO — gerado a partir das retiradas do almoxarifado para a cozinha em %s. "
+            "A associação por refeição usou os horários configurados no mobile. Revise ingredientes, "
+            "quantidades, unidades, fatores de correção e vínculos TBCA antes de aprovar."
+        ) % data
+        try:
+            id_ficha = salvar_ficha(
+                db_path, prep["nome"], "Rascunho automático", porcoes,
+                ingredientes, descricao=descricao,
+            )
+            with _conexao(db_path) as conn:
+                atualizado = conn.execute(
+                    "UPDATE GA_Preparacoes_Dia SET id_ficha=?,atualizado_em=? "
+                    "WHERE id_preparacao_dia=? AND id_ficha IS NULL",
+                    (id_ficha, _agora(), prep["id_preparacao_dia"]),
+                ).rowcount
+            if atualizado:
+                relatorio["rascunhos"] += 1
+            else:
+                inativar_ficha(db_path, id_ficha)
+        except Exception as exc:
+            relatorio["erros"].append("Preparação %s: %s" % (prep.get("nome"), exc))
+    return relatorio
 
 def listar_alocacoes_retirada(db_path, data, id_movimento_mobile, incluir_revisoes=False):
     """Lista destinações de uma retirada; por padrão retorna somente a revisão ativa."""

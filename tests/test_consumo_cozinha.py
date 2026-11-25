@@ -38,7 +38,7 @@ class TestConsumoCozinha(unittest.TestCase):
             c.close()
         feijao = next(x for x in im.ler_produtos_almox(self.mobile_db) if x["id_item"] == 1)
         self.assertEqual(feijao["preco_unitario"], 8.0)
-        self.assertEqual((feijao["embalagem_qtd"], feijao["embalagem_un"]), (1.0, "kg"))
+        self.assertEqual((feijao["embalagem_qtd"], feijao["embalagem_un"]), (1000.0, "g"))
         self.assertEqual((feijao["qtd"], feijao["data_base"]), (8.0, "2026-11-21"))
 
     def test_custo_alocado_fica_indefinido_quando_preco_nao_existe(self):

@@ -17,6 +17,7 @@ Descrição completa: docs/mobile/INTEGRACAO_DESKTOP.md
 import hashlib
 import json
 import os
+import sqlite3
 import sys
 from contextlib import closing
 from datetime import datetime, timezone, timedelta
@@ -125,13 +126,164 @@ def ler_produtos_almox(mobile_db):
     try:
         with sv.LOCK:
             rows = c.execute("""SELECT i.id AS id_item,i.nome,i.unidade,i.preco_unitario,
-                    i.embalagem_qtd,i.embalagem_un,e.qtd,e.data AS data_base
+                    i.embalagem_qtd,i.embalagem_un,i.tbca_id,e.qtd,e.data AS data_base
                 FROM itens i
                 LEFT JOIN estoque_dia e ON e.id_item=i.id AND e.estoque='almox'
                   AND e.data=(SELECT MAX(e2.data) FROM estoque_dia e2
                               WHERE e2.id_item=i.id AND e2.estoque='almox')
                 ORDER BY i.nome COLLATE NOCASE""").fetchall()
             return [dict(row) for row in rows]
+    finally:
+        c.close()
+
+
+
+def ler_janelas_refeicoes(mobile_db):
+    """Lê os horários ativos configurados no servidor mobile para classificar retiradas por refeição."""
+    sv, c = _abrir_mobile(mobile_db)
+    try:
+        with sv.LOCK:
+            return {
+                str(r["refeicao"]).strip().lower(): {"abre": r["abre"], "fecha": r["fecha"]}
+                for r in c.execute("SELECT refeicao,abre,fecha FROM refeicoes_cfg WHERE ativa=1")
+            }
+    finally:
+        c.close()
+
+def criar_pedido_almox(mobile_db, id_item, qtd, fornecedor=None, observacao=None, usuario_nome=None):
+    sv, c = _abrir_mobile(mobile_db)
+    try:
+        with sv.LOCK:
+            iid = int(id_item)
+            quantidade = sv.num(qtd, "quantidade solicitada")
+            if quantidade <= 0:
+                raise ErroMobile("A quantidade solicitada precisa ser maior que zero.")
+            if not c.execute("SELECT 1 FROM itens WHERE id=? AND ativo=1", (iid,)).fetchone():
+                raise ErroMobile("Insumo não encontrado ou inativo.")
+            admin = _admin(c)
+            nome = str(usuario_nome or admin["nome"]).strip()
+            cur = c.execute(
+                """INSERT INTO pedidos_estoque(id_item,qtd,solicitado_em,solicitado_por,
+                           solicitado_nome,fornecedor,observacao,status)
+                   VALUES(?,?,?,?,?,?,?,'pendente')""",
+                (iid,quantidade,sv.agora(),admin["id"],nome,
+                 str(fornecedor or "").strip() or None,
+                 str(observacao or "").strip() or None))
+            c.commit()
+            return int(cur.lastrowid)
+    finally:
+        c.close()
+
+
+def receber_pedido_almox(mobile_db, id_pedido, usuario_nome=None):
+    sv, c = _abrir_mobile(mobile_db)
+    try:
+        with sv.LOCK:
+            pid = int(id_pedido)
+            pedido = c.execute("SELECT * FROM pedidos_estoque WHERE id=?", (pid,)).fetchone()
+            if not pedido:
+                raise ErroMobile("Pedido não encontrado.")
+            if pedido["status"] != "pendente":
+                raise ErroMobile("Este pedido já foi finalizado.")
+            admin = _admin(c)
+            nome = str(usuario_nome or admin["nome"]).strip()
+            saldo = sv.post_reposicao(c, admin, "almox", {
+                "id_item": pedido["id_item"], "qtd": pedido["qtd"], "origem": "externo"
+            })
+            id_movimento = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            c.execute(
+                """UPDATE pedidos_estoque SET status='recebido',recebido_em=?,
+                   recebido_por=?,recebido_nome=?,id_movimento=? WHERE id=?""",
+                (sv.agora(),admin["id"],nome,id_movimento,pid))
+            c.commit()
+            return {"saldo": saldo, "id_movimento": id_movimento}
+    finally:
+        c.close()
+
+
+def listar_pedidos_almox(mobile_db, apenas_pendentes=False):
+    sv, c = _abrir_mobile(mobile_db)
+    try:
+        with sv.LOCK:
+            where = "WHERE p.status='pendente'" if apenas_pendentes else ""
+            return [dict(r) for r in c.execute(
+                """SELECT p.*,i.nome AS item FROM pedidos_estoque p
+                   JOIN itens i ON i.id=p.id_item """ + where +
+                " ORDER BY CASE p.status WHEN 'pendente' THEN 0 ELSE 1 END,p.solicitado_em DESC LIMIT 300")]
+    finally:
+        c.close()
+
+
+def listar_prazos_almox(mobile_db):
+    sv, c = _abrir_mobile(mobile_db)
+    try:
+        with sv.LOCK:
+            return [dict(r) for r in c.execute(
+                """SELECT i.id AS id_item,i.nome,
+                          COUNT(CASE WHEN p.status='recebido' THEN 1 END) AS pedidos_recebidos,
+                          ROUND(AVG(CASE WHEN p.status='recebido'
+                              THEN julianday(substr(p.recebido_em,1,10))-julianday(substr(p.solicitado_em,1,10))
+                              END),1) AS prazo_medio_dias,
+                          SUM(CASE WHEN p.status='pendente' THEN 1 ELSE 0 END) AS pendentes
+                   FROM itens i LEFT JOIN pedidos_estoque p ON p.id_item=i.id
+                   GROUP BY i.id,i.nome
+                   HAVING pedidos_recebidos>0 OR pendentes>0
+                   ORDER BY prazo_medio_dias DESC,i.nome COLLATE NOCASE""")]
+    finally:
+        c.close()
+
+
+def prazo_medio_produto(mobile_db, id_item):
+    return next((p for p in listar_prazos_almox(mobile_db)
+                 if int(p["id_item"]) == int(id_item)), None)
+
+
+def salvar_produto_almox(mobile_db, dados, id_item=None, estoque_inicial=None):
+    """Cria/edita um item compartilhado pelo desktop, preservando o histórico do saldo inicial."""
+    sv, c = _abrir_mobile(mobile_db)
+    try:
+        with sv.LOCK:
+            nome = str(dados.get("nome") or "").strip()
+            unidade = str(dados.get("unidade") or "").strip()
+            if not nome:
+                raise ErroMobile("Informe o nome do produto.")
+            if not unidade:
+                raise ErroMobile("Informe a unidade de estoque (ex.: pacote, frasco ou lata).")
+            preco = None if dados.get("preco_unitario") in (None, "") else sv.num(dados.get("preco_unitario"), "preço unitário")
+            if preco is not None and preco < 0:
+                raise ErroMobile("O preço unitário não pode ser negativo.")
+            emb_qtd = None if dados.get("embalagem_qtd") in (None, "") else sv.num(dados.get("embalagem_qtd"), "conteúdo da embalagem")
+            emb_un = str(dados.get("embalagem_un") or "").strip().lower() or None
+            if emb_qtd is not None and emb_qtd <= 0:
+                raise ErroMobile("O conteúdo da embalagem precisa ser maior que zero.")
+            emb_qtd, emb_un = sv.normalizar_embalagem(emb_qtd, emb_un)
+            tbca_id = str(dados.get("tbca_id") or "").strip() or None
+            if id_item is None:
+                try:
+                    cur = c.execute(
+                        "INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,tbca_id) VALUES(?,?,?,?,?,?)",
+                        (nome, unidade, preco, emb_qtd, emb_un, tbca_id))
+                except sqlite3.IntegrityError as exc:
+                    raise ErroMobile("Já existe um produto com esse nome.") from exc
+                iid = int(cur.lastrowid)
+            else:
+                iid = int(id_item)
+                if not c.execute("SELECT 1 FROM itens WHERE id=?", (iid,)).fetchone():
+                    raise ErroMobile("Produto não encontrado.")
+                try:
+                    c.execute(
+                        "UPDATE itens SET nome=?,unidade=?,preco_unitario=?,embalagem_qtd=?,embalagem_un=?,tbca_id=? WHERE id=?",
+                        (nome, unidade, preco, emb_qtd, emb_un, tbca_id, iid))
+                except sqlite3.IntegrityError as exc:
+                    raise ErroMobile("Já existe outro produto com esse nome.") from exc
+            if estoque_inicial not in (None, ""):
+                qtd = sv.num(estoque_inicial, "quantidade inicial em estoque")
+                if qtd < 0:
+                    raise ErroMobile("O estoque inicial não pode ser negativo.")
+                admin = _admin(c)
+                sv.gravar(c, "estoque", sv.hoje(), "almox|%d" % iid, {"qtd": qtd}, admin["id"], "admin")
+            c.commit()
+            return iid
     finally:
         c.close()
 
