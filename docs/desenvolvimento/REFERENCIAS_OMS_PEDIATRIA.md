@@ -11,11 +11,12 @@ As páginas 1–10 apresentam as curvas OMS 2006/2007 em escore-z. As páginas 1
 
 ## Referências e faixas de uso
 
-- OMS 2006: padrões de crescimento de 0 a 60 meses.
-- OMS 2007: referência de 61 a 228 meses.
+- OMS 2006 (WHO Anthro 1.1.0): idade inferior a 60 meses, usando idade exata em dias.
+- OMS 2007 (WHO AnthroPlus 1.1.0): a partir de 60 meses; IMC/idade e estatura/idade até antes de 229 meses; peso/idade até antes de 121 meses.
 - IMC/idade: 0–19 anos.
 - Estatura/idade: 0–19 anos.
-- Peso/idade: 0–10 anos; não disponibilizar após 10 anos.
+- Peso/idade: 0–10 anos; não disponibilizar a partir de 121 meses completos.
+- As linhas de 229 meses (IMC/estatura) e 121 meses (peso) são âncoras técnicas para interpolar idades decimais abaixo do limite; não são pontos clínicos nem autorizam extrapolação.
 
 Fontes oficiais:
 - https://www.who.int/tools/child-growth-standards
@@ -23,16 +24,31 @@ Fontes oficiais:
 - https://www.who.int/tools/growth-reference-data-for-5to19-years/indicators/bmi-for-age
 - https://www.who.int/tools/growth-reference-data-for-5to19-years/indicators/height-for-age
 - https://www.who.int/tools/growth-reference-data-for-5to19-years/indicators/weight-for-age-5to10-years
+- https://github.com/WorldHealthOrganization/anthro
+- https://github.com/WorldHealthOrganization/anthroplus
+- https://cran.r-project.org/package=anthro
+- https://cran.r-project.org/package=anthroplus
 
 ## Classificação
 
 Os pontos de corte estruturados estão em `dados/oms_classificacoes_pediatricas.json`. A classificação de IMC/idade muda entre menores de 5 anos e 5–19 anos. Peso/idade não deve ser usado para diagnosticar excesso de peso; para isso, usar IMC/idade. Estatura/idade avalia crescimento linear.
 
-## Pendência crítica: tabelas numéricas
+## Tabelas LMS versionadas e proveniência
 
-O PDF contém gráficos, não as tabelas LMS completas. Não digitalizar visualmente os traçados como se fossem valores exatos. Para cálculo reproduzível dos escores-z e desenho correto das curvas, obter e versionar as tabelas numéricas oficiais por indicador, sexo e idade, incluindo os parâmetros L, M e S (ou as tabelas oficiais de valores por escore-z quando a referência não disponibilizar LMS).
+Os parâmetros LMS estão versionados em `dados/oms_lms_pediatricos.csv`. O arquivo foi extraído das tabelas de referência distribuídas pelos pacotes mantidos pela Organização Mundial da Saúde:
 
-O arquivo JSON atual contém metadados, cobertura e regras de classificação; **não contém valores antropométricos LMS**. O módulo deve manter a classificação como indisponível/pendente enquanto faltar a tabela aplicável. Nunca estimar ou inventar parâmetros.
+- WHO `anthro` 1.1.0 — padrões OMS 2006; repositório [WorldHealthOrganization/anthro](https://github.com/WorldHealthOrganization/anthro).
+- WHO `anthroplus` 1.1.0 — referência OMS 2007; repositório [WorldHealthOrganization/anthroplus](https://github.com/WorldHealthOrganization/anthroplus).
+
+A licença dos pacotes de origem é GPL-3. O CSV mantém os parâmetros L, M e S originais, por sexo e idade, sem digitalizar curvas nem fabricar valores. A cobertura presente no arquivo é:
+
+- OMS 2006: 0–1826 dias para IMC/idade, peso/idade e comprimento/estatura/idade.
+- OMS 2007: 60–229 meses como faixa de dados de interpolação para IMC/idade e estatura/idade.
+- OMS 2007: 60–121 meses como faixa de dados de interpolação para peso/idade.
+
+Os limites superiores 229 e 121 são apenas âncoras técnicas: a avaliação clínica permanece limitada a menos de 229 meses para IMC/estatura e menos de 121 meses para peso. O motor não extrapola além dessas âncoras. Para OMS 2006, usa idade exata em dias e não calcula quando a data de nascimento ou o parâmetro correspondente estiver ausente.
+
+O arquivo `dados/oms_classificacoes_pediatricas.json` contém os metadados e pontos de corte de classificação; ele não substitui as tabelas LMS. Se uma combinação de sexo, indicador ou idade não existir na tabela, o resultado deve permanecer pendente. Nunca estimar ou inventar parâmetros.
 
 ## Regras para persistência e gráficos
 
