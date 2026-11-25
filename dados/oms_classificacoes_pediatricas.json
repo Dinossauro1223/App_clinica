@@ -11,7 +11,11 @@
         "min": 0,
         "max": 60
       },
-      "source_url": "https://www.who.int/tools/child-growth-standards"
+      "source_url": "https://www.who.int/tools/child-growth-standards",
+      "source_age_days": {
+        "min": 0,
+        "max": 1856
+      }
     },
     "who_2007": {
       "name": "WHO Growth Reference for school-aged children and adolescents",
