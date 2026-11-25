@@ -34,7 +34,8 @@ def _agora():
 
 def _exigir_schema(conn):
     tabelas = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    obrigatorias = {"Pep_Equipe", "Pep_Rascunhos", "Pep_Rascunho_Historico", "Pep_Evolucoes", "Pep_Usuarios"}
+    obrigatorias = {"Pep_Equipe", "Pep_Rascunhos", "Pep_Rascunho_Historico", "Pep_Evolucoes", "Pep_Usuarios",
+                    "Pep_Rascunho_Equipe", "Pep_Evolucao_Equipe", "Pep_Evolucao_Metadados"}
     if not obrigatorias.issubset(tabelas):
         raise EvolucaoPEPError("Banco sem migração PEP v7. Reinicie o NutriLab para aplicar as migrações.")
 
@@ -126,7 +127,7 @@ def desativar_membro(db_path, id_membro):
         conn.commit()
 
 
-def salvar_rascunho(db_path, id_paciente, data_evolucao, dados, id_elaborador, id_rascunho=None):
+def salvar_rascunho(db_path, id_paciente, data_evolucao, dados, id_elaborador, id_rascunho=None, colaboradores_ids=None):
     """Cria ou atualiza rascunho clínico e acrescenta um snapshot auditável."""
     if isinstance(id_paciente, bool) or not isinstance(id_paciente, int) or id_paciente < 1:
         raise ValueError("Vínculo de paciente inválido.")
@@ -137,6 +138,9 @@ def salvar_rascunho(db_path, id_paciente, data_evolucao, dados, id_elaborador, i
     data_iso = _data_iso(data_evolucao)
     dados_json = json.dumps(dados, ensure_ascii=False, sort_keys=True, allow_nan=False)
     agora = _agora()
+    selecionados = list(dict.fromkeys([id_elaborador] + list(colaboradores_ids or [])))
+    if any(isinstance(i, bool) or not isinstance(i, int) or i < 1 for i in selecionados):
+        raise ValueError("IDs dos colaboradores inválidos.")
     with closing(_conectar(db_path)) as conn:
         _exigir_schema(conn)
         paciente = conn.execute("SELECT nome FROM Pacientes WHERE id_paciente=?", (id_paciente,)).fetchone()
@@ -145,6 +149,13 @@ def salvar_rascunho(db_path, id_paciente, data_evolucao, dados, id_elaborador, i
         membro = conn.execute("SELECT nome, ativo FROM Pep_Equipe WHERE id_membro=?", (id_elaborador,)).fetchone()
         if not membro or not membro[1]:
             raise EvolucaoPEPError("Integrante inexistente ou inativo.")
+        membros = conn.execute(
+            f"SELECT id_membro, funcao FROM Pep_Equipe WHERE ativo=1 AND id_membro IN ({','.join('?' for _ in selecionados)})",
+            selecionados,
+        ).fetchall()
+        if len(membros) != len(selecionados):
+            raise EvolucaoPEPError("Um ou mais colaboradores não existem ou estão inativos.")
+        papeis = {m["id_membro"]: m["funcao"] for m in membros}
         if id_rascunho is None:
             cur = conn.execute(
                 "INSERT INTO Pep_Rascunhos (id_paciente, paciente_nome, data_evolucao, dados_json, "
@@ -168,7 +179,15 @@ def salvar_rascunho(db_path, id_paciente, data_evolucao, dados, id_elaborador, i
                 (paciente[0], data_iso, dados_json, id_elaborador, agora, int(id_rascunho)),
             )
             novo_id, acao = int(id_rascunho), "atualizado"
-        _snapshot(conn, novo_id, id_elaborador, acao, dados, agora)
+        conn.execute("DELETE FROM Pep_Rascunho_Equipe WHERE id_rascunho=?", (novo_id,))
+        for id_membro in selecionados:
+            conn.execute(
+                "INSERT INTO Pep_Rascunho_Equipe (id_rascunho, id_membro, papel) VALUES (?, ?, ?)",
+                (novo_id, id_membro, papeis[id_membro]),
+            )
+        snapshot = dict(dados)
+        snapshot["_colaboradores_ids"] = selecionados
+        _snapshot(conn, novo_id, id_elaborador, acao, snapshot, agora)
         conn.commit()
         return novo_id
 
@@ -185,6 +204,12 @@ def obter_rascunho(db_path, id_rascunho):
         return None
     item = dict(row)
     item["dados"] = json.loads(item.pop("dados_json"))
+    with closing(_conectar(db_path)) as conn:
+        item["colaboradores"] = [dict(r) for r in conn.execute(
+            "SELECT E.id_membro, E.nome, E.funcao, E.crn FROM Pep_Rascunho_Equipe R "
+            "JOIN Pep_Equipe E ON E.id_membro=R.id_membro WHERE R.id_rascunho=? ORDER BY E.funcao, E.nome",
+            (int(id_rascunho),),
+        )]
     return item
 
 
@@ -250,12 +275,27 @@ def fechar_rascunho(db_path, id_rascunho, id_usuario, senha, *, confirmado=False
             conn.rollback()
             raise ValueError("A antropometria estruturada é obrigatória para gerar a evolução.")
         dados["antropometria"].setdefault("data", datetime.strptime(r[2], "%Y-%m-%d").strftime("%d/%m/%Y"))
+        membros = [dict(x) for x in conn.execute(
+            "SELECT E.id_membro, E.nome, E.funcao, E.crn FROM Pep_Rascunho_Equipe R "
+            "JOIN Pep_Equipe E ON E.id_membro=R.id_membro WHERE R.id_rascunho=? AND E.ativo=1",
+            (int(id_rascunho),),
+        )]
+        if not membros:
+            membro_base = conn.execute("SELECT id_membro, nome, funcao, crn FROM Pep_Equipe WHERE id_membro=? AND ativo=1",
+                                       (r[4],)).fetchone()
+            if membro_base:
+                membros = [dict(membro_base)]
         membro = conn.execute("SELECT nome FROM Pep_Equipe WHERE id_membro=? AND ativo=1", (r[4],)).fetchone()
         if not membro:
             conn.rollback()
             raise EvolucaoPEPError("O elaborador do rascunho está inativo ou não existe.")
-        dados["estagiarios"] = dados.get("estagiarios") or ([membro[0]] if membro else [])
-        dados["nutricionistas"] = [f"{conta[0]} — {conta[1]}"]
+        estagiarios = [m["nome"] for m in membros if m["funcao"] == "estagiario"]
+        nutricionistas = [f"{m['nome']} — {m['crn']}" for m in membros if m["funcao"] == "nutricionista"]
+        dados["estagiarios"] = estagiarios or dados.get("estagiarios") or ([membro[0]] if membro else [])
+        assinatura = f"{conta[0]} — {conta[1]}"
+        if assinatura not in nutricionistas:
+            nutricionistas.append(assinatura)
+        dados["nutricionistas"] = nutricionistas
         texto = regras.gerar_evolucao(dados)
         dados_json = json.dumps(dados, ensure_ascii=False, sort_keys=True, allow_nan=False)
         confirmacao = json.dumps({
@@ -275,6 +315,19 @@ def fechar_rascunho(db_path, id_rascunho, id_usuario, senha, *, confirmado=False
             "dados_json, confirmacao_json) VALUES (?, ?, ?, ?, ?, ?)",
             (id_evolucao, r[4], membro[0], agora, dados_json, confirmacao),
         )
+        ids_equipe = {m["id_membro"] for m in membros}
+        assinante_equipe = conn.execute(
+            "SELECT id_membro, nome, funcao, crn FROM Pep_Equipe WHERE id_usuario=? AND funcao='nutricionista' AND ativo=1",
+            (int(id_usuario),),
+        ).fetchone()
+        if assinante_equipe:
+            ids_equipe.add(assinante_equipe["id_membro"])
+        for integrante in membros + ([dict(assinante_equipe)] if assinante_equipe and assinante_equipe["id_membro"] not in {m["id_membro"] for m in membros} else []):
+            conn.execute(
+                "INSERT INTO Pep_Evolucao_Equipe (id_evolucao, id_membro, papel, nome_snapshot, crn_snapshot) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (id_evolucao, integrante["id_membro"], integrante["funcao"], integrante["nome"], integrante["crn"]),
+            )
         conn.execute(
             "UPDATE Pep_Rascunhos SET status='fechada', id_evolucao=?, fechado_em=?, fechado_por=?, atualizado_em=? "
             "WHERE id_rascunho=?",
