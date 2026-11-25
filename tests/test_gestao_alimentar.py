@@ -237,5 +237,17 @@ class TestGestaoAlimentar(unittest.TestCase):
 
 
 
+    def test_produto_de_almoxarifado_persiste_vinculo_tbca(self):
+        ga.importar_tbca_excel(self.db, self.planilha_tbca())
+        ga.sincronizar_produtos_almox(self.db, [{
+            "id_item": 22, "nome": "Farinha vinculada", "unidade": "pacote",
+            "preco_unitario": 7.0, "embalagem_qtd": 500, "embalagem_un": "g",
+            "tbca_id": "T001", "qtd": 3, "data_base": "2026-11-24",
+        }])
+        produto = ga.listar_produtos_almox(self.db)[0]
+        self.assertEqual(produto["tbca_id"], "T001")
+        self.assertEqual(produto["tbca_alimento"], "Alimento teste")
+
+
 if __name__ == "__main__":
     unittest.main()
