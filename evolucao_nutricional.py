@@ -259,7 +259,9 @@ def resumo_painel_evolucao(registro, data_destino):
     """Resume a evolução enteral para avisos operacionais do mapa, sem alterar prescrição."""
     if not registro:
         return None
-    dados = registro.get("evolucao") or {}
+    dados = registro.get("evolucao_operacional") or registro.get("evolucao") or {}
+    if dados.get("status_evolucao") != "fechada":
+        return None
     if str(registro.get("via") or dados.get("via") or "").casefold() != "enteral":
         return None
     metas = dados.get("metas") or {}
