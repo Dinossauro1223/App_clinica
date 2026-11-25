@@ -50,6 +50,14 @@ class TestPainelEvolucao(unittest.TestCase):
             self.registro(solicitada=False, autorizada=False, plano={}), "2026-11-20")
         self.assertEqual(resumo["motivo_nao_evolucao"], "Progressão automática desativada")
 
+    def test_progressao_oral_configuravel_exige_cinco_valores_crescentes(self):
+        self.assertEqual(regras.validar_progressao_oral([60, 90, 120, 150, 180]),
+                         [60, 90, 120, 150, 180])
+        with self.assertRaises(ValueError):
+            regras.validar_progressao_oral([70, 100, 100, 160, 200])
+        with self.assertRaises(ValueError):
+            regras.validar_progressao_oral([70, 100, 130, 160])
+
     def test_paciente_oral_nao_entra_no_painel_enteral(self):
         self.assertIsNone(regras.resumo_painel_evolucao(
             {"via": "Oral", "evolucao": {"via": "Oral"}}, "2026-11-22"))
