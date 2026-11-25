@@ -297,7 +297,7 @@ class MobileTest(unittest.TestCase):
         av = self.chamar(cop, "GET", "/api/avisos")[1]["avisos"]
         self.assertEqual(len(av), 1)
         self.assertEqual({(x["leito"], x["tipo"]) for x in av[0]["leitos"]}, {("A04", "novo"), ("A05", "novo")})
-        self.assertEqual(self.chamar(cop2, "GET", "/api/avisos")[1]["avisos"], [])  # outro setor não recebe
+        self.assertEqual(len(self.chamar(cop2, "GET", "/api/avisos")[1]["avisos"]), 1)  # todas as copeiras recebem avisos do mapa compartilhado
         self.chamar(cop, "POST", "/api/avisos/lidos", {"ids": [av[0]["id"]]})
         self.assertEqual(self.chamar(cop, "GET", "/api/avisos")[1]["avisos"], [])
         self.chamar(nut, "POST", "/api/nutri/avisos", {"texto": "Dieta zero a partir das 20h"})  # aviso em texto
