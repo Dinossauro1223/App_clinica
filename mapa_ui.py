@@ -1860,7 +1860,9 @@ class FormRegistro(_Janela):
                 _set_entry(self.e_reav, "")
 
     def _marcar_reavaliacao_manual(self, _evento=None):
-        self._reav_manual = True
+        self._reav_manual = bool(self.e_reav.get().strip())
+        if not self._reav_manual:
+            self._recalcular_nrs()
 
     def _recalcular_avaliacao(self):
         dados = {
