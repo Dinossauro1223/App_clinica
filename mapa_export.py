@@ -485,7 +485,18 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
             max_linhas = max(1, int((altura - 1) / 2.4))
             for j, line in enumerate(linhas[:max_linhas]):
                 limite = max(2, int(larguras[i] * 1.3))
-                pdf.text(xs[i] + 0.5, y + 3 + j * 2.3, line[:limite])
+                line = line[:limite]
+                x_texto, y_texto = xs[i] + 0.5, y + 3 + j * 2.3
+                # Mantém a classificação antropométrica destacada em vermelho no PDF.
+                if key == "paciente" and "IMC (" in line and " (" in line:
+                    base, classificacao = line.rsplit(" (", 1)
+                    pdf.text(x_texto, y_texto, base)
+                    x_classe = x_texto + pdf.get_string_width(base)
+                    pdf.set_text_color(*VERMELHO_PDF)
+                    pdf.text(x_classe, y_texto, " (" + classificacao)
+                    pdf.set_text_color(0, 0, 0)
+                else:
+                    pdf.text(x_texto, y_texto, line)
         y += altura
     pdf.output(caminho)
     return caminho
