@@ -102,7 +102,7 @@ class TestTabelaReferenciaOMS(unittest.TestCase):
         resultado = avaliar_indicador("imc_idade", 13.2, "H", 1, self.tabela)
         self.assertEqual(resultado["status"], "calculado")
         self.assertAlmostEqual(resultado["escore_z"], 2.0)
-        self.assertEqual(resultado["classificacao"], "Sobrepeso")
+        self.assertEqual(resultado["classificacao"], "Risco de sobrepeso")
 
 
 if __name__ == "__main__":
