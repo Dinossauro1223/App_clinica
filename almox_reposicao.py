@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS Almox_Pedidos_Reposicao(
    CHECK(status IN ('pendente','recebido','cancelado')),
  recebido_em TEXT,
  recebido_por TEXT,
+ quantidade_recebida REAL,
+ custo_total_recebido REAL,
  id_movimento INTEGER UNIQUE
 );
 CREATE INDEX IF NOT EXISTS ix_almox_pedido_item_data
@@ -27,6 +29,9 @@ CREATE INDEX IF NOT EXISTS ix_almox_pedido_item_data
 def inicializar(db):
     with closing(adb.conectar(db)) as c:
         c.executescript(DDL)
+        colunas={r[1] for r in c.execute("PRAGMA table_info(Almox_Pedidos_Reposicao)")}
+        if "quantidade_recebida" not in colunas:c.execute("ALTER TABLE Almox_Pedidos_Reposicao ADD COLUMN quantidade_recebida REAL")
+        if "custo_total_recebido" not in colunas:c.execute("ALTER TABLE Almox_Pedidos_Reposicao ADD COLUMN custo_total_recebido REAL")
         c.commit()
 
 def solicitar(db, id_item, quantidade, *, solicitado_por=None, fornecedor=None, observacao=None, quando=None):
@@ -52,7 +57,7 @@ def solicitar(db, id_item, quantidade, *, solicitado_por=None, fornecedor=None, 
             c.rollback()
             raise
 
-def receber(db, id_pedido, *, recebido_por=None, quando=None, valor_unitario=None):
+def receber(db, id_pedido, *, recebido_por=None, quando=None, valor_unitario=None, valor_total_compra=None, quantidade_recebida=None):
     data = adb._data(quando or adb.hoje())
     nome = str(recebido_por or "").strip() or None
     with closing(adb.conectar(db)) as c:
@@ -68,27 +73,36 @@ def receber(db, id_pedido, *, recebido_por=None, quando=None, valor_unitario=Non
                 raise ValueError("Este pedido já foi finalizado.")
             if data < pedido["solicitado_em"]:
                 raise ValueError("A data de recebimento não pode anteceder a solicitação.")
-            if pedido["valor_unitario"] is None and valor_unitario in (None, ""):
-                raise ValueError("Informe o valor unitário da compra para registrar a entrada.")
-            preco = adb._d(valor_unitario if valor_unitario not in (None, "") else pedido["valor_unitario"],
-                           "valor unitário recebido", True, 0)
+            qtd_recebida=adb._d(quantidade_recebida if quantidade_recebida not in (None,"") else pedido["quantidade"],
+                                "quantidade recebida",True,Decimal("0.0000001"))
+            if valor_total_compra not in (None,""):
+                total=adb._d(valor_total_compra,"custo total da compra",True,0)
+                preco=total/qtd_recebida
+            elif valor_unitario not in (None,""):
+                preco=adb._d(valor_unitario,"valor unitário recebido",True,0)
+                total=(qtd_recebida*preco).quantize(Decimal("0.01"))
+            elif pedido["valor_unitario"] is not None:
+                preco=adb._d(pedido["valor_unitario"],"valor unitário recebido",True,0)
+                total=(qtd_recebida*preco).quantize(Decimal("0.01"))
+            else:
+                raise ValueError("Informe o preço unitário ou o custo total do lote.")
             saldo = Decimal(str(adb._saldo(c, int(pedido["id_item"]))))
             anterior = adb._d(pedido["valor_unitario"], "valor atual", minimo=0)
-            media = ((saldo * anterior) + (Decimal(str(pedido["quantidade"])) * preco)) / (saldo + Decimal(str(pedido["quantidade"]))) if saldo > 0 and anterior is not None else preco
+            media = ((saldo * anterior) + (qtd_recebida * preco)) / (saldo + qtd_recebida) if saldo > 0 and anterior is not None else preco
             c.execute("UPDATE Almox_Itens SET valor_unitario=?,atualizado_em=? WHERE id_item=?",
                       (float(media), adb.agora(), int(pedido["id_item"])))
             c.execute("INSERT INTO Almox_Historico_Preco(id_item,valor_unitario,origem,fonte,registrado_em) VALUES(?,?,?,?,?)",
                       (int(pedido["id_item"]), float(media), "compra", "Pedido de reposição #%s" % id_pedido, adb.agora()))
             mid = adb._insert_mov(c, data, int(pedido["id_item"]), "entrada", "compra",
-                                  Decimal(str(pedido["quantidade"])), preco,
+                                  qtd_recebida, preco,
                                   obs=("Recebimento do pedido #%s. %s" %
                                        (id_pedido, pedido["observacao"] or "")).strip(),
                                   usuario=nome, origem="pedido_reposicao")
             cur = c.execute(
                 """UPDATE Almox_Pedidos_Reposicao
-                   SET status='recebido',recebido_em=?,recebido_por=?,id_movimento=?
+                   SET status='recebido',recebido_em=?,recebido_por=?,quantidade_recebida=?,custo_total_recebido=?,id_movimento=?
                    WHERE id_pedido=? AND status='pendente'""",
-                (data, nome, mid, int(id_pedido)))
+                (data, nome, float(qtd_recebida), float(total), mid, int(id_pedido)))
             if cur.rowcount != 1:
                 raise ValueError("Não foi possível finalizar o pedido.")
             c.commit()
