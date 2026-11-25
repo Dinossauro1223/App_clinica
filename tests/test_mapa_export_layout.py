@@ -52,7 +52,7 @@ class TestContratoTextoMapa(unittest.TestCase):
         self.assertIsInstance(p, str)
         self.assertIn("Paciente Exemplo", p.splitlines()[0])
         self.assertIn("20/11/2026", p)
-        self.assertIn("AJ (cm): 50,3", p)
+        self.assertIn("AJ: 50,3", p)
         self.assertIn("PP (cm): 19,8", p)
         self.assertIn("PB: 21,9", p)
         self.assertIn("ALT (E): 1,56", p)
