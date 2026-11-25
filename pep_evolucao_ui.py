@@ -416,19 +416,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
         try:
             dados = self._dados(para_fechamento=True)
             progressao = dados.get("progressao_enteral") or {}
-            if progressao.get("solicitada"):
-                autorizada = bool(self.var_autorizar_progressao.get())
-                progressao["autorizada"] = autorizada
-                if autorizada:
-                    plano = regras.planejar_progressao_por_etapa(
-                        progressao["volume_etapa_atual_ml"], progressao["etapas"],
-                        progressao["volume_meta_ml"] / progressao["etapas"],
-                        progressao["incremento_por_etapa_ml"], progressao["dias_alvo"],
-                        habilitada=True, autorizada=True, tolerancia=progressao["tolerancia"],
-                        restricao=progressao["restricao"])
-                    progressao["plano"] = plano
-            if dados.get("porcao_oral_solicitada"):
-                dados["porcao_oral_autorizada"] = bool(self.var_autorizar_porcao.get())
+            progressao["autorizada"] = False
+            progressao.pop("plano", None)
+            dados["progressao_enteral"] = progressao
+            dados["porcao_oral_autorizada"] = False
             id_elaborador, colaboradores = self._colaboradores()
             self.id_rascunho = evdb.salvar_rascunho(
                 self.db, self.reg["id_paciente"], self.reg["data"], dados, id_elaborador,
@@ -442,7 +433,12 @@ class FormEvolucaoUI(ctk.CTkFrame):
                 parent=self.app):
                 return
             id_evolucao = evdb.fechar_rascunho(
-                self.db, self.id_rascunho, revisor["id_usuario"], senha, confirmado=True)
+                self.db, self.id_rascunho, revisor["id_usuario"], senha, confirmado=True,
+                autorizar_progressao=bool(self.var_autorizar_progressao.get()),
+                autorizar_porcao_oral=bool(self.var_autorizar_porcao.get()))
+            finalizado = evdb.obter_rascunho(self.db, self.id_rascunho)
+            dados = finalizado["dados"]
+            dados["id_rascunho"] = self.id_rascunho
             dados["id_evolucao"] = id_evolucao
             dados["status_evolucao"] = "fechada"
             dados["fechada"] = True
