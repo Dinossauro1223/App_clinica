@@ -62,6 +62,14 @@ jobs:
           name: identidade-visual-gerada
           path: assets/identidade
 
+      - name: Preparar aceite não interativo da licença Android SDK
+        shell: pwsh
+        run: |
+          $sdk = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'NutriLabApk/sdk'
+          $licenses = Join-Path $sdk 'licenses'
+          New-Item -ItemType Directory -Force -Path $licenses | Out-Null
+          Set-Content -Path (Join-Path $licenses 'android-sdk-license') -Value '8933bad161af4178b1185d1a37fbf41ea5269c55' -Encoding ascii
+
       - name: Executar o launcher real para compilar APK e desktop
         shell: cmd
         run: call Gerar_e_Abrir_NutriLab.bat /recompilar-sem-abrir
