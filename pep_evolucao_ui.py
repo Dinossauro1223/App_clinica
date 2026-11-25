@@ -87,20 +87,23 @@ class FormEvolucaoUI(ctk.CTkFrame):
         linha = ctk.CTkFrame(q, fg_color="transparent")
         linha.pack(fill="x", padx=12, pady=(0, 8))
         ctk.CTkLabel(linha, text="DVA:", width=55, anchor="w").pack(side="left")
-        self.seg_dva = ctk.CTkSegmentedButton(linha, values=["Sim", "Não"], width=160)
-        self.seg_dva.set("Não")
+        self.seg_dva = ctk.CTkSegmentedButton(linha, values=["Sim", "Não", "—"], width=160)
+        self.seg_dva.set("—")
         self.seg_dva.pack(side="left")
         ctk.CTkLabel(linha, text=f"Via: {self.reg.get('via') or 'não informada'}",
                      font=tema.fonte(12, "bold"), text_color=tema.TEXTO).pack(side="left", padx=18)
-        self.lbl_via = ctk.CTkLabel(q, text="", font=tema.fonte(11), text_color=tema.SUAVE)
+        reav = mdb.iso_para_br(self.reg.get("data_reavaliacao"))
+        nrs_class = self.reg.get("nrs2002_classificacao") or "não classificado"
+        self.lbl_via = ctk.CTkLabel(q, text=f"NRS-2002: {nrs_class} · Próxima reavaliação: {reav or 'não definida'}",
+                                    font=tema.fonte(11), text_color=tema.SUAVE)
         self.lbl_via.pack(anchor="w", padx=12, pady=(0, 8))
 
         self.q_oral = self._secao(raiz, "Via oral — TNO e porção autorizada")
         linha = ctk.CTkFrame(self.q_oral, fg_color="transparent")
         linha.pack(fill="x", padx=12, pady=(0, 8))
         ctk.CTkLabel(linha, text="TNO:", width=55, anchor="w").pack(side="left")
-        self.cb_tno = ctk.CTkComboBox(linha, values=list(regras.TNO_PERCENTUAIS), width=150, state="readonly")
-        self.cb_tno.set("Ótima")
+        self.cb_tno = ctk.CTkComboBox(linha, values=["—"] + list(regras.TNO_PERCENTUAIS), width=150, state="readonly")
+        self.cb_tno.set("—")
         self.cb_tno.pack(side="left", padx=(0, 12))
         ctk.CTkLabel(linha, text="Porção (mL):", anchor="w").pack(side="left")
         self.cb_porcao = ctk.CTkComboBox(linha, values=["70", "100", "130", "160", "200"], width=100, state="readonly")
@@ -215,7 +218,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
 
     def _preencher(self):
         dados = self.dados_existentes if isinstance(self.dados_existentes, dict) else {}
-        self.seg_dva.set("Sim" if dados.get("dva") else "Não")
+        self.seg_dva.set("Sim" if dados.get("dva") is True else "Não" if dados.get("dva") is False else "—")
         if dados.get("tno") in regras.TNO_PERCENTUAIS:
             self.cb_tno.set(dados["tno"])
         if dados.get("porcao_oral_ml") is not None:
@@ -324,8 +327,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
             "antropometria": antropometria,
             "metas": metas,
             "via": self.reg.get("via"),
-            "dva": self.seg_dva.get() == "Sim",
-            "tno": self.cb_tno.get() if via == "oral" else None,
+            "dva": True if self.seg_dva.get() == "Sim" else False if self.seg_dva.get() == "Não" else None,
+            "tno": self.cb_tno.get() if via == "oral" and self.cb_tno.get() != "—" else None,
             "tne_motivos": [m for m, v in self.tne_vars.items() if v.get()] if via == "enteral" else [],
             "dieta_oral": {
                 "consistencia": self.reg.get("consistencia"),
