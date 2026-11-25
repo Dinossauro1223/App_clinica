@@ -239,7 +239,8 @@ def historico_rascunho(db_path, id_rascunho):
         )]
 
 
-def fechar_rascunho(db_path, id_rascunho, id_usuario, senha, *, confirmado=False):
+def fechar_rascunho(db_path, id_rascunho, id_usuario, senha, *, confirmado=False,
+                    autorizar_progressao=False, autorizar_porcao_oral=False):
     """Fecha apenas após autenticação de nutricionista com CRN conferido e confirmação explícita."""
     if confirmado is not True:
         raise EvolucaoPEPError("O nutricionista precisa confirmar explicitamente a revisão e o fechamento.")
@@ -274,6 +275,31 @@ def fechar_rascunho(db_path, id_rascunho, id_usuario, senha, *, confirmado=False
         if not isinstance(dados, dict) or not isinstance(dados.get("antropometria"), dict):
             conn.rollback()
             raise ValueError("A antropometria estruturada é obrigatória para gerar a evolução.")
+        if not dados.get("metas"):
+            conn.rollback()
+            raise ValueError("As metas energéticas e proteicas precisam estar calculadas antes do fechamento.")
+        via = str(dados.get("via") or "").casefold()
+        if via == "oral" and dados.get("tno") not in regras.TNO_PERCENTUAIS:
+            conn.rollback()
+            raise ValueError("Classifique o TNO antes do fechamento.")
+        if via == "enteral" and not dados.get("oferta"):
+            conn.rollback()
+            raise ValueError("A oferta enteral e sua adequação precisam ser calculadas com a ficha técnica.")
+        progressao = dados.get("progressao_enteral") or {}
+        progressao["autorizada"] = bool(autorizar_progressao and progressao.get("solicitada"))
+        if progressao["autorizada"]:
+            progressao["plano"] = regras.planejar_progressao_por_etapa(
+                progressao["volume_etapa_atual_ml"], progressao["etapas"],
+                progressao["volume_meta_ml"] / progressao["etapas"],
+                progressao["incremento_por_etapa_ml"], progressao["dias_alvo"],
+                habilitada=True, autorizada=True,
+                tolerancia=progressao.get("tolerancia", True),
+                restricao=progressao.get("restricao", False))
+        elif progressao:
+            progressao.pop("plano", None)
+        dados["progressao_enteral"] = progressao
+        dados["porcao_oral_autorizada"] = bool(
+            autorizar_porcao_oral and dados.get("porcao_oral_solicitada") and via == "oral")
         dados["antropometria"].setdefault("data", datetime.strptime(r[2], "%Y-%m-%d").strftime("%d/%m/%Y"))
         membros = [dict(x) for x in conn.execute(
             "SELECT E.id_membro, E.nome, E.funcao, E.crn FROM Pep_Rascunho_Equipe R "
@@ -329,9 +355,9 @@ def fechar_rascunho(db_path, id_rascunho, id_usuario, senha, *, confirmado=False
                 (id_evolucao, integrante["id_membro"], integrante["funcao"], integrante["nome"], integrante["crn"]),
             )
         conn.execute(
-            "UPDATE Pep_Rascunhos SET status='fechada', id_evolucao=?, fechado_em=?, fechado_por=?, atualizado_em=? "
+            "UPDATE Pep_Rascunhos SET dados_json=?, status='fechada', id_evolucao=?, fechado_em=?, fechado_por=?, atualizado_em=? "
             "WHERE id_rascunho=?",
-            (id_evolucao, agora, int(id_usuario), agora, int(id_rascunho)),
+            (dados_json, id_evolucao, agora, int(id_usuario), agora, int(id_rascunho)),
         )
         _snapshot(conn, int(id_rascunho), r[4], "fechado", dados, agora)
         conn.commit()
