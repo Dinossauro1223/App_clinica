@@ -45,7 +45,7 @@ class TestEvolucaoNutricional(unittest.TestCase):
             "imc_class": "Eutrofia"})
         self.assertIn("Antropometria 25/11/2026:", texto)
         self.assertNotIn("AJ:", texto)
-        self.assertIn("ALT: 1.65 m (A)", texto)
+        self.assertIn("ALT: 1,65 m (A)", texto)
 
     def test_estimativas_exibem_medidas_auxiliares(self):
         texto = ev.formatar_antropometria({
