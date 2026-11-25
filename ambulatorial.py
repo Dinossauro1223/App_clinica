@@ -160,7 +160,7 @@ def montar_texto_anamnese(campos, recordatorio_24h="", antropometria=None, neces
     oms_salvo = antro.get("pediatria_oms") or {}
     resultados_oms = oms_salvo.get("resultados") or {}
     if oms_salvo:
-        linhas.append("\\nAVALIAÇÃO ANTROPOMÉTRICA PEDIÁTRICA — OMS")
+        linhas.append("\nAVALIAÇÃO ANTROPOMÉTRICA PEDIÁTRICA — OMS")
         if oms_salvo.get("data_nascimento"):
             linhas.append(f"Data de nascimento: {oms_salvo['data_nascimento']}")
         if oms_salvo.get("idade_dias") is not None:
