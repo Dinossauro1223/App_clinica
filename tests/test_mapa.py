@@ -496,6 +496,70 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
     return leitos
 
 
+    def test_dados_estruturados_da_evolucao_acompanham_historico_e_copia_do_mapa(self):
+        dados = {
+            "via": "Enteral", "dva": False,
+            "dieta_enteral": {"nome": "Fórmula Sintética", "volume_por_etapa_ml": 180, "etapas": 6},
+            "progressao_enteral": {"autorizada": True, "incremento_por_etapa_ml": 10},
+            "tne_motivos": []
+        }
+        reg = registro_base(self.db, self.leitos[0]["id_leito"], "2026-10-25",
+                            evolucao_json=json.dumps(dados, ensure_ascii=False))
+        id_reg = mdb.salvar_registro(self.db, reg)
+        obtido = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])
+        self.assertEqual(obtido["evolucao"], dados)
+        dia = mdb.mapa_do_dia(self.db, "2026-10-25")
+        linha = next(x for x in dia if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
+        self.assertEqual(linha["registro"]["evolucao"], dados)
+        historico = mdb.historico_paciente(self.db, obtido["id_paciente"])
+        self.assertEqual(historico[0]["evolucao"], dados)
+        self.assertEqual(mdb.copiar_mapa(self.db, "2026-10-25", "2026-10-26"), 1)
+        copia = mdb.obter_registro(self.db, "2026-10-26", self.leitos[0]["id_leito"])
+        self.assertEqual(copia["evolucao"], dados)
+        mdb.remover_registro(self.db, copia["id_registro"])
+        with conexao(self.db) as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM Mapa_Evolucao_Dados WHERE id_registro=?",
+                                       (copia["id_registro"],)).fetchone()[0], 0)
+        self.assertIsNotNone(id_reg)
+
+
+    def test_progressao_enteral_diaria_e_porcoes_orais_autorizadas_para_copa(self):
+        dados = {
+            "via": "Enteral",
+            "dieta_enteral": {"nome": "Fórmula Clínica", "volume_por_etapa_ml": 150, "etapas": 6},
+            "progressao_enteral": {"autorizada": True, "plano": {"passos": [
+                {"dia": 1, "volume_etapa_ml": 160},
+                {"dia": 2, "volume_etapa_ml": 170},
+                {"dia": 3, "volume_etapa_ml": 180},
+                {"dia": 4, "volume_etapa_ml": 190},
+                {"dia": 5, "volume_etapa_ml": 200},
+            ]}}
+        }
+        reg = registro_base(self.db, self.leitos[0]["id_leito"], "2026-10-25",
+                            via="Enteral", evolucao_json=json.dumps(dados, ensure_ascii=False))
+        mdb.salvar_registro(self.db, reg)
+        esperado = {"2026-10-25": 150, "2026-10-26": 160, "2026-10-29": 190, "2026-10-30": 200}
+        for data, volume in esperado.items():
+            linha = next(x for x in mdb.mapa_do_dia(self.db, data)
+                         if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
+            self.assertEqual(linha["registro"]["dados_copa"]["volume_por_etapa_ml"], volume)
+            self.assertEqual(linha["registro"]["dados_copa"]["volume_total_ml"], volume * 6)
+        oral = dict(dados, via="Oral", porcao_oral_ml=100, porcao_oral_autorizada=False)
+        reg["data"] = "2026-10-31"
+        reg["via"] = "Oral"
+        reg["evolucao_json"] = json.dumps(oral, ensure_ascii=False)
+        mdb.salvar_registro(self.db, reg)
+        linha = next(x for x in mdb.mapa_do_dia(self.db, "2026-10-31")
+                     if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
+        self.assertEqual(linha["registro"]["dados_copa"], {})
+        oral["porcao_oral_autorizada"] = True
+        reg["evolucao_json"] = json.dumps(oral, ensure_ascii=False)
+        mdb.salvar_registro(self.db, reg)
+        linha = next(x for x in mdb.mapa_do_dia(self.db, "2026-10-31")
+                     if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
+        self.assertEqual(linha["registro"]["dados_copa"]["porcao_oral_ml"], 100)
+
+
 class TestExportacao(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
