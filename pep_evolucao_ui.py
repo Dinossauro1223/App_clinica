@@ -278,7 +278,17 @@ class FormEvolucaoUI(ctk.CTkFrame):
             av = json.loads(self.reg.get("avaliacao_json") or "{}")
         except (TypeError, ValueError):
             av = {}
+        dados_av = av.get("dados") or {}
+        ascite = dados_av.get("ascite") not in (None, "", "Ausente")
+        edema = dados_av.get("edema") not in (None, "", "Ausente")
+        amputacoes = dados_av.get("amputacoes") or {}
+        amputacao = any(float(qtd or 0) > 0 for qtd in amputacoes.values())
+        erro_amputacao = any("amputa" in str(aviso).casefold() for aviso in (av.get("avisos") or []))
         peso = av.get("peso_ajustado")
+        if erro_amputacao:
+            raise ValueError("Revise os segmentos amputados: a correção antropométrica contém inconsistências.")
+        if (ascite or edema or amputacao) and peso in (None, ""):
+            raise ValueError("Não foi possível calcular o peso corrigido por ascite/edema/amputação. Revise a avaliação antes de calcular metas.")
         if peso in (None, ""):
             peso = self.reg.get("peso_kg")
         return float(peso) if peso not in (None, "") else None
@@ -304,9 +314,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
                              else "OMS pendente")
         else:
             classificacao = av.get("classe") or self.reg.get("imc_class")
-        peso = av.get("peso_ajustado")
-        if peso in (None, ""):
-            peso = self.reg.get("peso_kg")
+        peso = self._peso_nutricional()
         idade = self.reg.get("idade_anos")
         if idade is None and nascimento:
             idade = regras.idade_em_anos(nascimento, data_ref)
