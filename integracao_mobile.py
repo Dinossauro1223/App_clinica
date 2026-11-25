@@ -19,7 +19,7 @@ import json
 import os
 import sys
 from contextlib import closing
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import mapa_db as mdb
 
@@ -222,9 +222,14 @@ def _timestamp_maior(novo, atual):
     if not atual:
         return True
     try:
-        return datetime.fromisoformat(str(novo).replace("Z", "+00:00")) > datetime.fromisoformat(str(atual).replace("Z", "+00:00"))
+        a = datetime.fromisoformat(str(novo).replace("Z", "+00:00"))
+        b = datetime.fromisoformat(str(atual).replace("Z", "+00:00"))
+        local = timezone(timedelta(hours=-3))
+        if a.tzinfo is None: a = a.replace(tzinfo=local)
+        if b.tzinfo is None: b = b.replace(tzinfo=local)
+        return a > b
     except (TypeError, ValueError):
-        return str(novo) > str(atual)
+        return str(novo).replace("T", " ") > str(atual).replace("T", " ")
 
 
 def _assinatura(row):
