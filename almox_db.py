@@ -16,6 +16,7 @@ DDL = """
 CREATE TABLE IF NOT EXISTS Almox_Itens(
  id_item INTEGER PRIMARY KEY AUTOINCREMENT,nome TEXT NOT NULL,unidade TEXT NOT NULL,
  categoria TEXT NOT NULL DEFAULT 'Gêneros alimentícios',valor_unitario REAL,estoque_minimo REAL,
+ embalagem_qtd REAL,embalagem_un TEXT,
  ativo INTEGER NOT NULL DEFAULT 1,observacao TEXT,criado_em TEXT NOT NULL,atualizado_em TEXT NOT NULL,
  UNIQUE(nome COLLATE NOCASE,unidade COLLATE NOCASE));
 CREATE TABLE IF NOT EXISTS Almox_Historico_Preco(
@@ -68,7 +69,9 @@ def _d(v,campo="valor",obrigatorio=False,minimo=None):
  else:s=s.replace(",",".")
  try:x=Decimal(s)
  except (InvalidOperation,ValueError):raise ValueError(f"Valor inválido em {campo}.")
- if not x.is_finite() or (minimo is not None and x<Decimal(str(minimo))):raise ValueError(f"{campo.capitalize()} inválido.")
+ if not x.is_finite() or (minimo is not None and x<Decimal(str(minimo))):
+  adjetivo = "inválida" if campo.strip().lower().startswith("quantidade") else "inválido"
+  raise ValueError(f"{campo.strip().lower()} {adjetivo}.")
  return x
 def _f(x):return None if x is None else float(x)
 def _ref(v,req=False):
@@ -77,7 +80,12 @@ def _ref(v,req=False):
  if r not in REFEICOES_LABEL:raise ValueError("Selecione uma refeição válida.")
  return r
 def inicializar(db):
- with closing(conectar(db)) as c:c.executescript(DDL);c.commit()
+ with closing(conectar(db)) as c:
+  c.executescript(DDL)
+  colunas={r[1] for r in c.execute("PRAGMA table_info(Almox_Itens)")}
+  if "embalagem_qtd" not in colunas:c.execute("ALTER TABLE Almox_Itens ADD COLUMN embalagem_qtd REAL")
+  if "embalagem_un" not in colunas:c.execute("ALTER TABLE Almox_Itens ADD COLUMN embalagem_un TEXT")
+  c.commit()
 
 def _saldo(c,iid):
  r=c.execute("SELECT COALESCE(SUM(CASE WHEN operacao='entrada' THEN quantidade ELSE -quantidade END),0) s FROM Almox_Movimentos WHERE id_item=?",(iid,)).fetchone()
@@ -90,6 +98,14 @@ def salvar_item(db,d):
  if not un:raise ValueError("Informe a unidade padrão do item.")
  if cat not in CATEGORIAS:raise ValueError("Selecione uma categoria válida.")
  p=_d(d.get("valor_unitario"),"valor por unidade",minimo=0);mn=_d(d.get("estoque_minimo"),"estoque mínimo",minimo=0)
+ embalagem_qtd=_d(d.get("embalagem_qtd"),"conteúdo da embalagem",minimo=Decimal("0.0000001"))
+ embalagem_un=str(d.get("embalagem_un") or "").strip().lower() or None
+ if (embalagem_qtd is None) != (embalagem_un is None):
+  raise ValueError("Informe quantidade e unidade do conteúdo da embalagem.")
+ if embalagem_qtd is not None and un.strip().lower() not in ("un","unidade","unidades"):
+  raise ValueError("O conteúdo da embalagem só deve ser informado quando a unidade de estoque for un.")
+ if embalagem_un not in (None,"g","kg","mg","ml","l"):
+  raise ValueError("Unidade do conteúdo deve ser g, kg, mg, ml ou L.")
  now=agora()
  with closing(conectar(db)) as c:
   iid=d.get("id_item")
@@ -98,12 +114,12 @@ def salvar_item(db,d):
     old=c.execute("SELECT * FROM Almox_Itens WHERE id_item=?",(int(iid),)).fetchone()
     if not old:raise ValueError("Item não encontrado.")
     anterior=old["valor_unitario"]
-    c.execute("UPDATE Almox_Itens SET nome=?,unidade=?,categoria=?,valor_unitario=?,estoque_minimo=?,observacao=?,atualizado_em=? WHERE id_item=?",
-      (nome,un,cat,_f(p),_f(mn),str(d.get("observacao") or "").strip(),now,int(iid)))
+    c.execute("UPDATE Almox_Itens SET nome=?,unidade=?,categoria=?,valor_unitario=?,estoque_minimo=?,embalagem_qtd=?,embalagem_un=?,observacao=?,atualizado_em=? WHERE id_item=?",
+      (nome,un,cat,_f(p),_f(mn),_f(embalagem_qtd),embalagem_un,str(d.get("observacao") or "").strip(),now,int(iid)))
     iid=int(iid)
    else:
-    cur=c.execute("INSERT INTO Almox_Itens(nome,unidade,categoria,valor_unitario,estoque_minimo,observacao,criado_em,atualizado_em) VALUES(?,?,?,?,?,?,?,?)",
-      (nome,un,cat,_f(p),_f(mn),str(d.get("observacao") or "").strip(),now,now))
+    cur=c.execute("INSERT INTO Almox_Itens(nome,unidade,categoria,valor_unitario,estoque_minimo,embalagem_qtd,embalagem_un,observacao,criado_em,atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?)",
+      (nome,un,cat,_f(p),_f(mn),_f(embalagem_qtd),embalagem_un,str(d.get("observacao") or "").strip(),now,now))
     iid=cur.lastrowid;anterior=None
   except sqlite3.IntegrityError as e:c.rollback();raise ValueError("Já existe um item com esse nome e unidade.") from e
   if p is not None and (anterior is None or round(float(anterior),8)!=float(p)):

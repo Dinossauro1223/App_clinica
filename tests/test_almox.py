@@ -125,7 +125,8 @@ class TestMenuAlmox(unittest.TestCase):
         source = (raiz / "main.py").read_text(encoding="utf-8")
         self.assertIn('("Almoxarifado", self.tela_almoxarifado)', source)
         self.assertIn("def tela_almoxarifado(self):", source)
-        self.assertIn("AlmoxUI(self, caminho_do_banco()).mostrar()", source)
+        self.assertIn("from almox_ui import AlmoxUI", source)
+        self.assertIn("AlmoxUI(self, caminho_do_banco(), get_base_path()).mostrar()", source)
 
 
 if __name__ == "__main__":

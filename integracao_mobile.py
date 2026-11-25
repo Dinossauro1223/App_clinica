@@ -138,6 +138,107 @@ def ler_produtos_almox(mobile_db):
 
 
 
+def sincronizar_catalogo_almox_desktop(db, mobile_db):
+    """Publica itens do Almoxarifado desktop no catálogo central mobile e atualiza o espelho da Gestão Alimentar.
+
+    O vínculo entre IDs é persistente e independente dos autoincrementos dos dois bancos. A sincronização
+    nunca replica saldos/movimentos: cada estoque mantém seu próprio livro-razão.
+    """
+    import unicodedata
+    import almox_db as adb
+    import gestao_alimentar_db as gadb
+
+    adb.inicializar(db)
+    with closing(mdb.conectar(db)) as local:
+        local.executescript("""
+            CREATE TABLE IF NOT EXISTS Almox_Mobile_Vinculos(
+                id_item_desktop INTEGER PRIMARY KEY,
+                id_item_mobile INTEGER NOT NULL UNIQUE,
+                sincronizado_em TEXT NOT NULL
+            );
+        """)
+        local.commit()
+        itens = [dict(r) for r in local.execute(
+            "SELECT * FROM Almox_Itens ORDER BY id_item").fetchall()]
+
+    sv, mobile = _abrir_mobile(mobile_db)
+    sincronizados, criados, atualizados, erros = [], 0, 0, []
+    try:
+        with sv.LOCK:
+            mobile.execute("BEGIN IMMEDIATE")
+            try:
+                for item in itens:
+                    nome = str(item.get("nome") or "").strip()
+                    unidade = str(item.get("unidade") or "").strip()
+                    if not nome or not unidade:
+                        erros.append({"id_item": item["id_item"], "erro": "Nome ou unidade vazios."})
+                        continue
+                    vinculo = mdb.conectar(db)
+                    try:
+                        link = vinculo.execute(
+                            "SELECT id_item_mobile FROM Almox_Mobile_Vinculos WHERE id_item_desktop=?",
+                            (item["id_item"],)).fetchone()
+                    finally:
+                        vinculo.close()
+                    mobile_id = int(link["id_item_mobile"]) if link else None
+                    existente = mobile.execute("SELECT id,nome,unidade FROM itens WHERE id=?", (mobile_id,)).fetchone() if mobile_id else None
+                    if mobile_id and not existente:
+                        mobile_id = None
+                    if mobile_id is None:
+                        normalizar = lambda v: "".join(ch for ch in unicodedata.normalize("NFKD", str(v or "").casefold())
+                                                       if not unicodedata.combining(ch)).strip()
+                        iguais = mobile.execute("SELECT id,nome,unidade FROM itens WHERE lower(trim(nome))=lower(trim(?))",
+                                                 (nome,)).fetchall()
+                        correspondentes = [r for r in iguais if normalizar(r["unidade"]) == normalizar(unidade)]
+                        if len(correspondentes) > 1:
+                            erros.append({"id_item": item["id_item"], "erro": "Mais de um produto correspondente no catálogo mobile."})
+                            continue
+                        if correspondentes:
+                            mobile_id = int(correspondentes[0]["id"])
+                            existente = correspondentes[0]
+                        elif iguais:
+                            erros.append({"id_item": item["id_item"], "erro": "Já existe produto com o mesmo nome e unidade diferente no mobile; revise o cadastro antes de sincronizar."})
+                            continue
+                    valores = (nome, unidade, item.get("valor_unitario"), item.get("embalagem_qtd"),
+                               item.get("embalagem_un"), int(bool(item.get("ativo", 1))))
+                    if mobile_id is None:
+                        try:
+                            cur = mobile.execute(
+                                "INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,ativo) VALUES(?,?,?,?,?,?)",
+                                valores)
+                        except sqlite3.IntegrityError:
+                            erros.append({"id_item": item["id_item"], "erro": "Conflito de nome no catálogo mobile; nenhum item foi duplicado."})
+                            continue
+                        mobile_id = int(cur.lastrowid)
+                        criados += 1
+                    else:
+                        mobile.execute(
+                            "UPDATE itens SET nome=?,unidade=?,preco_unitario=?,embalagem_qtd=?,embalagem_un=?,ativo=? WHERE id=?",
+                            (*valores, mobile_id))
+                        atualizados += 1
+                    sincronizados.append((int(item["id_item"]), mobile_id))
+                mobile.commit()
+            except Exception:
+                mobile.rollback()
+                raise
+    finally:
+        mobile.close()
+
+    agora = _agora()
+    with closing(mdb.conectar(db)) as local:
+        local.executemany(
+            "INSERT INTO Almox_Mobile_Vinculos(id_item_desktop,id_item_mobile,sincronizado_em) VALUES(?,?,?) "
+            "ON CONFLICT(id_item_desktop) DO UPDATE SET id_item_mobile=excluded.id_item_mobile,sincronizado_em=excluded.sincronizado_em",
+            [(a, b, agora) for a, b in sincronizados])
+        local.commit()
+
+    produtos = ler_produtos_almox(mobile_db)
+    gadb.inicializar(db)
+    gadb.sincronizar_produtos_almox(db, produtos)
+    return {"sincronizados": len(sincronizados), "criados": criados, "atualizados": atualizados,
+            "erros": erros, "produtos_espelhados": len(produtos)}
+
+
 def ler_janelas_refeicoes(mobile_db):
     """Lê os horários ativos configurados no servidor mobile para classificar retiradas por refeição."""
     sv, c = _abrir_mobile(mobile_db)
