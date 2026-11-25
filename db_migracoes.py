@@ -364,6 +364,133 @@ _PEP_DOWN = (
     "DROP TABLE IF EXISTS Pep_Config",
 )
 
+# --- v7: rascunhos, equipe clínica e trilha de revisão da evolução nutricional ----------------
+_PEP_EVOLUCAO_UP = (
+    """CREATE TABLE IF NOT EXISTS Pep_Equipe (
+        id_membro INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        funcao TEXT NOT NULL CHECK (funcao IN ('estagiario', 'nutricionista')),
+        crn TEXT,
+        crn_conferido INTEGER NOT NULL DEFAULT 0 CHECK (crn_conferido IN (0, 1)),
+        id_usuario INTEGER REFERENCES Pep_Usuarios(id_usuario),
+        ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
+        criado_em TEXT NOT NULL,
+        CHECK ((funcao = 'estagiario' AND crn IS NULL AND crn_conferido = 0)
+            OR (funcao = 'nutricionista' AND crn IS NOT NULL))
+    )""",
+    "CREATE UNIQUE INDEX IF NOT EXISTS ux_pep_equipe_usuario ON Pep_Equipe(id_usuario) WHERE id_usuario IS NOT NULL",
+    """CREATE TABLE IF NOT EXISTS Pep_Rascunhos (
+        id_rascunho INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_paciente INTEGER NOT NULL,
+        paciente_nome TEXT NOT NULL,
+        data_evolucao TEXT NOT NULL,
+        dados_json TEXT NOT NULL,
+        id_elaborador INTEGER NOT NULL REFERENCES Pep_Equipe(id_membro),
+        status TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho', 'em_revisao', 'fechada')),
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL,
+        id_evolucao INTEGER REFERENCES Pep_Evolucoes(id_evolucao),
+        fechado_em TEXT,
+        fechado_por INTEGER REFERENCES Pep_Usuarios(id_usuario)
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_pep_rascunhos_paciente ON Pep_Rascunhos(id_paciente, atualizado_em)",
+    "CREATE INDEX IF NOT EXISTS ix_pep_rascunhos_status ON Pep_Rascunhos(status, atualizado_em)",
+    """CREATE TABLE IF NOT EXISTS Pep_Rascunho_Historico (
+        id_historico INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_rascunho INTEGER NOT NULL REFERENCES Pep_Rascunhos(id_rascunho),
+        id_autor INTEGER NOT NULL REFERENCES Pep_Equipe(id_membro),
+        acao TEXT NOT NULL,
+        snapshot_json TEXT NOT NULL,
+        criado_em TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS ix_pep_rascunho_hist ON Pep_Rascunho_Historico(id_rascunho, id_historico)",
+    """CREATE TABLE IF NOT EXISTS Pep_Evolucao_Metadados (
+        id_evolucao INTEGER PRIMARY KEY REFERENCES Pep_Evolucoes(id_evolucao),
+        id_elaborador INTEGER NOT NULL REFERENCES Pep_Equipe(id_membro),
+        elaborador_nome TEXT NOT NULL,
+        fechada_em TEXT NOT NULL,
+        dados_json TEXT NOT NULL,
+        confirmacao_json TEXT NOT NULL
+    )""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucao_meta_update_imutavel BEFORE UPDATE ON Pep_Evolucao_Metadados
+       BEGIN SELECT RAISE(ABORT, 'Metadados da evolução fechada são imutáveis.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucao_meta_delete_imutavel BEFORE DELETE ON Pep_Evolucao_Metadados
+       BEGIN SELECT RAISE(ABORT, 'Metadados da evolução fechada não podem ser apagados.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_hist_update_imutavel BEFORE UPDATE ON Pep_Rascunho_Historico
+       BEGIN SELECT RAISE(ABORT, 'Histórico de rascunho é imutável.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_hist_delete_imutavel BEFORE DELETE ON Pep_Rascunho_Historico
+       BEGIN SELECT RAISE(ABORT, 'Histórico de rascunho é imutável.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_fechado_update_imutavel BEFORE UPDATE ON Pep_Rascunhos
+       WHEN OLD.status = 'fechada'
+       BEGIN SELECT RAISE(ABORT, 'Rascunho fechado: correções devem ser registradas como adendo.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_fechado_delete_imutavel BEFORE DELETE ON Pep_Rascunhos
+       WHEN OLD.status = 'fechada'
+       BEGIN SELECT RAISE(ABORT, 'Rascunho fechado não pode ser apagado.'); END""",
+)
+_PEP_EVOLUCAO_DOWN = (
+    "DROP TRIGGER IF EXISTS tr_pep_evolucao_meta_delete_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_evolucao_meta_update_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_rascunho_fechado_delete_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_rascunho_fechado_update_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_rascunho_hist_delete_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_rascunho_hist_update_imutavel",
+    "DROP INDEX IF EXISTS ix_pep_rascunho_hist",
+    "DROP INDEX IF EXISTS ix_pep_rascunhos_status",
+    "DROP INDEX IF EXISTS ix_pep_rascunhos_paciente",
+    "DROP INDEX IF EXISTS ux_pep_equipe_usuario",
+    "DROP TABLE IF EXISTS Pep_Evolucao_Metadados",
+    "DROP TABLE IF EXISTS Pep_Rascunho_Historico",
+    "DROP TABLE IF EXISTS Pep_Rascunhos",
+    "DROP TABLE IF EXISTS Pep_Equipe",
+)
+
+# --- v8: colaboração multiprofissional e dados de evolução vinculados ao mapa ----------------
+_PEP_MAPA_UP = (
+    """CREATE TABLE IF NOT EXISTS Mapa_Evolucao_Dados (
+        id_registro INTEGER PRIMARY KEY REFERENCES Mapa_Registros(id_registro) ON DELETE CASCADE,
+        dados_json TEXT NOT NULL,
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS Pep_Rascunho_Equipe (
+        id_rascunho INTEGER NOT NULL REFERENCES Pep_Rascunhos(id_rascunho),
+        id_membro INTEGER NOT NULL REFERENCES Pep_Equipe(id_membro),
+        papel TEXT NOT NULL CHECK (papel IN ('estagiario', 'nutricionista')),
+        PRIMARY KEY (id_rascunho, id_membro)
+    )""",
+    """CREATE TABLE IF NOT EXISTS Pep_Evolucao_Equipe (
+        id_evolucao INTEGER NOT NULL REFERENCES Pep_Evolucoes(id_evolucao),
+        id_membro INTEGER NOT NULL REFERENCES Pep_Equipe(id_membro),
+        papel TEXT NOT NULL CHECK (papel IN ('estagiario', 'nutricionista')),
+        nome_snapshot TEXT NOT NULL,
+        crn_snapshot TEXT,
+        PRIMARY KEY (id_evolucao, id_membro)
+    )""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_equipe_ins_fechado BEFORE INSERT ON Pep_Rascunho_Equipe
+       WHEN (SELECT status FROM Pep_Rascunhos WHERE id_rascunho=NEW.id_rascunho) = 'fechada'
+       BEGIN SELECT RAISE(ABORT, 'Equipe de evolução fechada não pode ser alterada.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_equipe_upd_fechado BEFORE UPDATE ON Pep_Rascunho_Equipe
+       WHEN (SELECT status FROM Pep_Rascunhos WHERE id_rascunho=OLD.id_rascunho) = 'fechada'
+       BEGIN SELECT RAISE(ABORT, 'Equipe de evolução fechada não pode ser alterada.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_rascunho_equipe_del_fechado BEFORE DELETE ON Pep_Rascunho_Equipe
+       WHEN (SELECT status FROM Pep_Rascunhos WHERE id_rascunho=OLD.id_rascunho) = 'fechada'
+       BEGIN SELECT RAISE(ABORT, 'Equipe de evolução fechada não pode ser alterada.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucao_equipe_update_imutavel BEFORE UPDATE ON Pep_Evolucao_Equipe
+       BEGIN SELECT RAISE(ABORT, 'Equipe da evolução final é imutável.'); END""",
+    """CREATE TRIGGER IF NOT EXISTS tr_pep_evolucao_equipe_delete_imutavel BEFORE DELETE ON Pep_Evolucao_Equipe
+       BEGIN SELECT RAISE(ABORT, 'Equipe da evolução final não pode ser apagada.'); END""",
+)
+_PEP_MAPA_DOWN = (
+    "DROP TRIGGER IF EXISTS tr_pep_evolucao_equipe_delete_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_evolucao_equipe_update_imutavel",
+    "DROP TRIGGER IF EXISTS tr_pep_rascunho_equipe_del_fechado",
+    "DROP TRIGGER IF EXISTS tr_pep_rascunho_equipe_upd_fechado",
+    "DROP TRIGGER IF EXISTS tr_pep_rascunho_equipe_ins_fechado",
+    "DROP TABLE IF EXISTS Pep_Evolucao_Equipe",
+    "DROP TABLE IF EXISTS Pep_Rascunho_Equipe",
+    "DROP TABLE IF EXISTS Mapa_Evolucao_Dados",
+)
+
 # Lista oficial. NOVAS migrações entram SEMPRE ao final, com versão contígua; nunca editar uma já publicada.
 MIGRACOES = (
     Migracao(versao=1, nome="baseline_esquema_legado", up=(), down=None, baseline=True),
@@ -374,6 +501,8 @@ MIGRACOES = (
              up=_AMBULATORIAL_UP, down=_AMBULATORIAL_DOWN),
     Migracao(versao=5, nome="almoxarifado_custos_programacao", up=_ALMOX_UP, down=_ALMOX_DOWN),
     Migracao(versao=6, nome="pep_evolucoes_immutability", up=_PEP_UP, down=_PEP_DOWN),
+    Migracao(versao=7, nome="pep_rascunhos_equipe_e_revisao", up=_PEP_EVOLUCAO_UP, down=_PEP_EVOLUCAO_DOWN),
+    Migracao(versao=8, nome="pep_colaboradores_e_integracao_mapa", up=_PEP_MAPA_UP, down=_PEP_MAPA_DOWN),
 )
 
 

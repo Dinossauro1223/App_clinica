@@ -18,6 +18,8 @@ from tkinter import messagebox
 import db_service
 import tema
 import nrs2002 as nrs
+import mapa_db as mdb
+import evolucao_nutricional as evregras
 import integracao_mobile
 from mobile import servidor as servidor_mobile
 
@@ -79,6 +81,8 @@ class ConfiguracoesUI:
         self._distribuicao(conteudo)
         self._contas_compartilhadas(conteudo)
         self._nrs(conteudo)
+        self._progressao_oral(conteudo)
+        self._equipe(conteudo)
         self._backups(conteudo)
         ctk.CTkButton(conteudo, text="Voltar ao início", fg_color=tema.VERDE,
                      hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=14, pady=10)
@@ -415,6 +419,184 @@ class ConfiguracoesUI:
         ctk.CTkButton(card, text="Salvar intervalos", command=salvar, fg_color=tema.VERDE,
                       hover_color=tema.VERDE_HOVER, font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
 
+
+    def _progressao_oral(self, raiz):
+        """Sequência operacional oral editável; a porção do paciente continua dependendo de autorização."""
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                           border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=(4, 12))
+        ctk.CTkLabel(card, text="Progressão operacional da oferta oral", font=tema.fonte(16, "bold"),
+                     text_color=tema.TEXTO).pack(anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(card, text="Defina as cinco porções padrão em mL. A sequência é apenas uma referência operacional; "
+                                "cada porção exige seleção e autorização do nutricionista.",
+                     font=tema.fonte(12), text_color=tema.SUAVE, wraplength=720,
+                     justify="left").pack(anchor="w", padx=18, pady=(0, 10))
+        caminho_db = getattr(getattr(self.app, "mapa", None), "db", None)
+        if not caminho_db:
+            ctk.CTkLabel(card, text="Banco de dados do Mapa não disponível nesta sessão.",
+                         text_color=tema.LARANJA_TEXTO).pack(anchor="w", padx=18, pady=(0, 14))
+            return
+        padrao = [70, 100, 130, 160, 200]
+        try:
+            salvos = json.loads(mdb.obter_config(caminho_db, "pep_progressao_oral_etapas", json.dumps(padrao)))
+            atuais = evregras.validar_progressao_oral(salvos)
+        except (ValueError, TypeError):
+            atuais = padrao
+        campos = []
+        linha = ctk.CTkFrame(card, fg_color="transparent")
+        linha.pack(fill="x", padx=18, pady=4)
+        for indice, valor in enumerate(atuais):
+            coluna = ctk.CTkFrame(linha, fg_color="transparent")
+            coluna.pack(side="left", padx=(0, 12))
+            ctk.CTkLabel(coluna, text=("Inicial" if indice == 0 else f"Evolução {indice}"),
+                         font=tema.fonte(11), text_color=tema.SUAVE).pack(anchor="w")
+            entrada = ctk.CTkEntry(coluna, width=78, border_color=tema.BORDA)
+            entrada.insert(0, str(valor))
+            entrada.pack(anchor="w")
+            campos.append(entrada)
+        status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
+        status.pack(anchor="w", padx=18, pady=(4, 8))
+        def salvar():
+            try:
+                novos = evregras.validar_progressao_oral([campo.get().strip() for campo in campos])
+                mdb.salvar_config(caminho_db, "pep_progressao_oral_etapas", json.dumps(novos))
+            except (ValueError, TypeError) as erro:
+                status.configure(text=str(erro), text_color=tema.LARANJA_TEXTO)
+                return
+            status.configure(text="Sequência de porções orais salva no banco local.", text_color=tema.VERDE)
+        ctk.CTkButton(card, text="Salvar sequência", command=salvar, fg_color=tema.VERDE,
+                      hover_color=tema.VERDE_HOVER, font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
+
+    def _equipe(self, raiz):
+        """Cadastro de estagiários e nutricionistas vinculados ao fluxo de evolução."""
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                           border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=(4, 12))
+        ctk.CTkLabel(card, text="Equipe de evolução nutricional", font=tema.fonte(16, "bold"),
+                     text_color=tema.TEXTO).pack(anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(card,
+                     text="Cadastre os estagiários que elaboram rascunhos e os nutricionistas que revisam e fecham evoluções. O CRN precisa ser conferido no conselho antes do cadastro.",
+                     font=tema.fonte(12), text_color=tema.SUAVE, wraplength=760, justify="left"
+        ).pack(anchor="w", padx=18, pady=(0, 10))
+        caminho_db = getattr(getattr(self.app, "mapa", None), "db", None)
+        if not caminho_db:
+            ctk.CTkLabel(card, text="Banco de dados do Mapa não disponível nesta sessão.",
+                         text_color=tema.LARANJA_TEXTO).pack(anchor="w", padx=18, pady=(0, 14))
+            return
+        try:
+            import pep_db
+            import pep_evolucao_db as evdb
+            evdb.listar_equipe(caminho_db, ativos=False)
+        except Exception as erro:
+            ctk.CTkLabel(card, text=f"Cadastro de equipe indisponível. Reinicie o NutriLab para aplicar as migrações PEP. Detalhe: {erro}",
+                         text_color=tema.LARANJA_TEXTO, wraplength=760, justify="left").pack(
+                             anchor="w", padx=18, pady=(0, 14))
+            return
+
+        status = ctk.CTkLabel(card, text="", font=tema.fonte(11), text_color=tema.SUAVE,
+                              wraplength=760, justify="left")
+        status.pack(anchor="w", padx=18, pady=(4, 8))
+
+        est = ctk.CTkFrame(card, fg_color="transparent")
+        est.pack(fill="x", padx=18, pady=(0, 10))
+        ctk.CTkLabel(est, text="Novo estagiário", font=tema.fonte(13, "bold"),
+                     text_color=tema.TEXTO).pack(anchor="w", pady=(4, 4))
+        e_est = ctk.CTkEntry(est, width=320, placeholder_text="Nome completo")
+        e_est.pack(side="left", padx=(0, 8))
+        def adicionar_estagiario():
+            try:
+                evdb.cadastrar_membro(caminho_db, e_est.get(), "estagiario")
+                e_est.delete(0, "end")
+                status.configure(text="Estagiário cadastrado.", text_color=tema.VERDE)
+                atualizar_lista()
+            except Exception as erro:
+                status.configure(text=str(erro), text_color=tema.LARANJA_TEXTO)
+        ctk.CTkButton(est, text="Adicionar estagiário", command=adicionar_estagiario,
+                      fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER).pack(side="left")
+
+        nut = ctk.CTkFrame(card, fg_color="transparent")
+        nut.pack(fill="x", padx=18, pady=(0, 10))
+        ctk.CTkLabel(nut, text="Novo nutricionista (conta individual para assinatura)", font=tema.fonte(13, "bold"),
+                     text_color=tema.TEXTO).pack(anchor="w", pady=(4, 4))
+        linha1 = ctk.CTkFrame(nut, fg_color="transparent")
+        linha1.pack(fill="x", pady=2)
+        e_nome = ctk.CTkEntry(linha1, width=260, placeholder_text="Nome completo")
+        e_nome.pack(side="left", padx=(0, 6))
+        e_crn = ctk.CTkEntry(linha1, width=150, placeholder_text="CRN-6 1234")
+        e_crn.pack(side="left", padx=6)
+        linha2 = ctk.CTkFrame(nut, fg_color="transparent")
+        linha2.pack(fill="x", pady=2)
+        e_login = ctk.CTkEntry(linha2, width=180, placeholder_text="Login individual")
+        e_login.pack(side="left", padx=(0, 6))
+        e_senha = ctk.CTkEntry(linha2, width=180, placeholder_text="Senha (mínimo 8 caracteres)", show="*")
+        e_senha.pack(side="left", padx=6)
+        var_crn = tk.IntVar(value=0)
+        ctk.CTkCheckBox(nut, text="Confirmo que consultei o conselho e conferi a identificação e a situação do CRN.",
+                        variable=var_crn).pack(anchor="w", pady=(4, 6))
+        def adicionar_nutricionista():
+            usuario_id = None
+            try:
+                crn = evdb.validar_crn_formato(e_crn.get())
+                if not crn:
+                    raise ValueError("CRN inválido. Use o formato CRN-6 1234 e confira a regularidade no conselho.")
+                if not var_crn.get():
+                    raise ValueError("Marque a confirmação de conferência do CRN.")
+                usuario_id = pep_db.criar_usuario(
+                    caminho_db, e_login.get(), e_nome.get(), crn, e_senha.get())
+                evdb.cadastrar_membro(
+                    caminho_db, e_nome.get(), "nutricionista", crn=crn,
+                    crn_conferido=True, id_usuario=usuario_id)
+                for campo in (e_nome, e_crn, e_login, e_senha):
+                    campo.delete(0, "end")
+                var_crn.set(0)
+                status.configure(text="Nutricionista cadastrado com conta individual e CRN conferido.",
+                                 text_color=tema.VERDE)
+                atualizar_lista()
+            except Exception as erro:
+                if usuario_id:
+                    try:
+                        pep_db.desativar_usuario(caminho_db, usuario_id)
+                    except Exception:
+                        pass
+                status.configure(text=str(erro), text_color=tema.LARANJA_TEXTO)
+        ctk.CTkButton(nut, text="Adicionar nutricionista", command=adicionar_nutricionista,
+                      fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER).pack(anchor="w", pady=(0, 4))
+
+        lista = ctk.CTkFrame(card, fg_color="transparent")
+        lista.pack(fill="x", padx=18, pady=(0, 14))
+        ctk.CTkLabel(lista, text="Integrantes cadastrados", font=tema.fonte(13, "bold"),
+                     text_color=tema.TEXTO).pack(anchor="w", pady=(4, 6))
+        lista_itens = ctk.CTkFrame(lista, fg_color="transparent")
+        lista_itens.pack(fill="x")
+        def atualizar_lista():
+            for filho in lista_itens.winfo_children():
+                filho.destroy()
+            try:
+                membros = evdb.listar_equipe(caminho_db, ativos=False)
+            except Exception as erro:
+                status.configure(text=str(erro), text_color=tema.LARANJA_TEXTO)
+                return
+            for membro in membros:
+                linha = ctk.CTkFrame(lista_itens, fg_color="transparent")
+                linha.pack(fill="x", pady=2)
+                situacao = "Ativo" if membro["ativo"] else "Inativo"
+                detalhe = f"{membro['nome']} — {membro['funcao']} — {membro['crn'] or 'sem CRN'} — {situacao}"
+                ctk.CTkLabel(linha, text=detalhe, anchor="w", text_color=tema.TEXTO).pack(side="left", fill="x", expand=True)
+                if membro["ativo"]:
+                    def desativar(mid=membro["id_membro"], nome=membro["nome"]):
+                        if not messagebox.askyesno("Desativar integrante",
+                                                   f"Desativar {nome}? Rascunhos pendentes impedem a desativação.",
+                                                   parent=self.app):
+                            return
+                        try:
+                            evdb.desativar_membro(caminho_db, mid)
+                            status.configure(text=f"{nome} desativado.", text_color=tema.VERDE)
+                            atualizar_lista()
+                        except Exception as erro:
+                            status.configure(text=str(erro), text_color=tema.LARANJA_TEXTO)
+                    ctk.CTkButton(linha, text="Desativar", width=78, fg_color=tema.SUAVE,
+                                  hover_color=tema.LARANJA, command=desativar).pack(side="right", padx=4)
+        atualizar_lista()
 
     def _backups(self, raiz):
         """Lista snapshots locais por data e permite restauração protegida."""
