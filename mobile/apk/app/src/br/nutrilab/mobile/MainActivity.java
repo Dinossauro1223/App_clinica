@@ -43,6 +43,8 @@ public class MainActivity extends Activity {
     private static final String PORTA = "8765";
     private static final int PEDIR_CAMERA = 4102;
     private static final int ESCOLHER_IMAGEM_QR = 4103;
+    private static final int ESCANEAR_QR = 4104;
+    private static final int PEDIR_CAMERA_SCANNER = 4105;
 
     /** A pagina do NutriLab tem o elemento #app; qualquer outra pagina (por exemplo a do download do APK) nao tem. */
     private static final String E_NUTRILAB = "(function(){return !!document.getElementById('app')})()";
@@ -60,6 +62,7 @@ public class MainActivity extends Activity {
     private SharedPreferences prefs;
     private PermissionRequest pedidoCamera;
     private ValueCallback<Uri[]> retornoArquivo;
+    private boolean abrirScannerPendente = false;
 
     @Override
     protected void onCreate(Bundle estado) {
@@ -292,19 +295,44 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int codigo, String[] permissoes, int[] resultados) {
         super.onRequestPermissionsResult(codigo, permissoes, resultados);
+        boolean concedida = resultados.length > 0 && resultados[0] == PackageManager.PERMISSION_GRANTED;
         if (codigo == PEDIR_CAMERA && pedidoCamera != null) {
-            if (resultados.length > 0 && resultados[0] == PackageManager.PERMISSION_GRANTED) {
-                pedidoCamera.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
-            } else {
-                pedidoCamera.deny();
-            }
+            if (concedida) pedidoCamera.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+            else pedidoCamera.deny();
             pedidoCamera = null;
+        }
+        if (codigo == PEDIR_CAMERA_SCANNER && abrirScannerPendente) {
+            abrirScannerPendente = false;
+            if (concedida) {
+                startActivityForResult(new Intent(MainActivity.this, QRScannerActivity.class), ESCANEAR_QR);
+            } else {
+                avisar("A câmera é necessária para escanear o QR code. Você também pode informar o endereço manualmente.");
+            }
+        }
+    }
+
+    private void abrirScannerQR() {
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            startActivityForResult(new Intent(this, QRScannerActivity.class), ESCANEAR_QR);
+        } else {
+            abrirScannerPendente = true;
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, PEDIR_CAMERA_SCANNER);
         }
     }
 
     @Override
     protected void onActivityResult(int codigo, int resultado, Intent dados) {
         super.onActivityResult(codigo, resultado, dados);
+        if (codigo == ESCANEAR_QR) {
+            if (resultado == RESULT_OK && dados != null && web != null) {
+                String texto = dados.getStringExtra("qr_result");
+                if (texto != null) {
+                    web.evaluateJavascript("if(typeof aplicarConteudoQR==='function')aplicarConteudoQR("
+                            + JSONObject.quote(texto) + ")", null);
+                }
+            }
+            return;
+        }
         if (codigo == ESCOLHER_IMAGEM_QR && retornoArquivo != null) {
             retornoArquivo.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultado, dados));
             retornoArquivo = null;
@@ -492,6 +520,13 @@ public class MainActivity extends Activity {
                     });
                 }
             }).start();
+        }
+
+        @JavascriptInterface
+        public void escanearQR() {
+            runOnUiThread(new Runnable() {
+                @Override public void run() { abrirScannerQR(); }
+            });
         }
 
         @JavascriptInterface
