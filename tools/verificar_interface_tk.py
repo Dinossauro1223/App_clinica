@@ -148,6 +148,19 @@ class Graficos:
         igual(faixa.deslocamento, alvo, 0.6, f"{rotulo}: deslocamento")
         igual(faixa.canvas.canvasx(0), alvo, 1.5, f"{rotulo}: borda esquerda que o Tk mostra")
 
+    def mover_ate(self, faixa, alvo, acao, rotulo, espera=0.7):
+        """Avança o carrossel com limite explícito; falha com diagnóstico em vez de travar o CI."""
+        tentativas = max(4, faixa.n_posicoes + 2)
+        for _ in range(tentativas):
+            if faixa.ativo == alvo:
+                break
+            acao()
+            bombear(self.raiz, espera)
+        assert faixa.ativo == alvo, (
+            f"{rotulo}: carrossel não chegou à posição {alvo}; ficou em {faixa.ativo} "
+            f"após {tentativas} tentativas"
+        )
+
     def evento_de_mouse(self, canvas, sequencia, x, y=40):
         """Evento de mouse com as coordenadas da tela (x_root) já preenchidas, como um clique de verdade."""
         canvas.event_generate(sequencia, x=int(x), y=y, rootx=canvas.winfo_rootx() + int(x),
@@ -408,9 +421,7 @@ class Graficos:
 
     def botoes_e_pontos(self):
         faixa, ctrl = self.faixa_com_rolagem()
-        while faixa.ativo > 0:
-            ctrl.b_ant.invoke()
-            bombear(self.raiz, 0.7)
+        self.mover_ate(faixa, 0, ctrl.b_ant.invoke, "botão anterior")
         self.na_posicao(faixa, 0, "botão anterior")
         assert ctrl.b_ant.cget("state") == "disabled", "seta da esquerda deveria estar desligada no começo"
         ctrl.b_prox.invoke()
@@ -418,9 +429,7 @@ class Graficos:
         self.na_posicao(faixa, 1, "botão próximo")
         texto = ctrl.pontos.cget("text")
         assert texto == self.gl.pontos(faixa.n_posicoes, 1), f"pontos: {texto!r}"
-        while faixa.ativo < faixa.n_posicoes - 1:
-            ctrl.b_prox.invoke()
-            bombear(self.raiz, 0.7)
+        self.mover_ate(faixa, faixa.n_posicoes - 1, ctrl.b_prox.invoke, "botão próximo, fim")
         self.na_posicao(faixa, faixa.n_posicoes - 1, "botão próximo, fim")
         assert ctrl.b_prox.cget("state") == "disabled", "seta da direita deveria estar desligada no fim"
 
@@ -431,9 +440,7 @@ class Graficos:
         bombear(self.raiz, 0.2)
         if self.raiz.focus_get() is not c:
             raise Pulou("a janela de teste não recebeu o foco do teclado")
-        while faixa.ativo < faixa.n_posicoes - 1:
-            faixa.proximo()
-            bombear(self.raiz, 0.3)
+        self.mover_ate(faixa, faixa.n_posicoes - 1, faixa.proximo, "setas do teclado", espera=0.3)
         c.event_generate("<Left>")
         bombear(self.raiz, 0.6)
         self.na_posicao(faixa, faixa.n_posicoes - 2, "seta esquerda")
@@ -444,9 +451,7 @@ class Graficos:
     def shift_com_a_roda(self):
         faixa, _ = self.faixa_com_rolagem()
         c = faixa.canvas
-        while faixa.ativo < faixa.n_posicoes - 1:
-            faixa.proximo()
-            bombear(self.raiz, 0.3)
+        self.mover_ate(faixa, faixa.n_posicoes - 1, faixa.proximo, "Shift + roda", espera=0.3)
         time.sleep(0.3)
         c.event_generate("<Shift-MouseWheel>", delta=120)         # para cima: volta uma posição
         bombear(self.raiz, 0.6)

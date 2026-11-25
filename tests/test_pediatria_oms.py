@@ -51,6 +51,8 @@ class TestClassificacaoPorIndicador(unittest.TestCase):
                          "Obesidade")
 
     def test_imc_a_partir_de_cinco_anos_usa_referencia_2007(self):
+        self.assertEqual(classificar_escore_z("imc_idade", 1.5, 60),
+                         "Sobrepeso")
         self.assertEqual(classificar_escore_z("imc_idade", 1.5, 61),
                          "Sobrepeso")
         self.assertEqual(classificar_escore_z("imc_idade", 2.5, 61),
@@ -58,19 +60,29 @@ class TestClassificacaoPorIndicador(unittest.TestCase):
         self.assertEqual(classificar_escore_z("imc_idade", -2.5, 61),
                          "Magreza")
 
+    def test_imc_usa_referencia_2007_a_partir_de_60_meses(self):
+        self.assertEqual(classificar_escore_z("imc_idade", 1.5, 60), "Sobrepeso")
+        self.assertEqual(classificar_escore_z("imc_idade", 2.5, 60), "Obesidade")
+
     def test_peso_por_idade_nao_classifica_excesso_de_peso_e_limita_a_10_anos(self):
+        self.assertEqual(classificar_escore_z("peso_idade", -2.5, 60),
+                         "Peso baixo para a idade")
         self.assertEqual(classificar_escore_z("peso_idade", -2.5, 120),
-                         "Peso baixo para idade")
+                         "Peso baixo para a idade")
+        self.assertEqual(classificar_escore_z("peso_idade", -1.0, 120),
+                         "Sem baixo peso pelo indicador")
         with self.assertRaises(ValueError):
             classificar_escore_z("peso_idade", -2.5, 121)
 
     def test_estatura_por_idade_classifica_deficit_linear(self):
         self.assertEqual(classificar_escore_z("estatura_idade", -3.5, 180),
-                         "Estatura muito baixa para idade")
+                         "Estatura muito baixa para a idade")
         self.assertEqual(classificar_escore_z("estatura_idade", -2.5, 180),
-                         "Estatura baixa para idade")
+                         "Estatura baixa para a idade")
         self.assertEqual(classificar_escore_z("estatura_idade", 0, 180),
-                         "Estatura adequada para idade")
+                         "Estatura dentro da faixa de referência")
+        self.assertEqual(classificar_escore_z("estatura_idade", 3.5, 180),
+                         "Estatura muito elevada para a idade — avaliar contexto clínico")
 
 
 class TestTabelaReferenciaOMS(unittest.TestCase):

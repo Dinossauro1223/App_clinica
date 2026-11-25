@@ -22,6 +22,8 @@ class TestWindowsPackageContract(unittest.TestCase):
                 ("NutriLab.exe", b"exe"),
                 ("_internal/modelo_banco/clinica.db", b"modelo"),
                 ("_internal/mobile/static/index.html", b"html"),
+                ("_internal/dados/oms_lms_pediatricos.csv", b"lms"),
+                ("_internal/dados/oms_classificacoes_pediatricas.json", b"json"),
             ])
             verificar_pacote(pacote)
 
@@ -32,6 +34,8 @@ class TestWindowsPackageContract(unittest.TestCase):
                 ("_internal/modelo_banco/clinica.db", b"modelo"),
                 ("clinica.db", b"banco do usuario"),
                 ("_internal/mobile/static/index.html", b"html"),
+                ("_internal/dados/oms_lms_pediatricos.csv", b"lms"),
+                ("_internal/dados/oms_classificacoes_pediatricas.json", b"json"),
             ])
             with self.assertRaisesRegex(ValueError, "somente o modelo"):
                 verificar_pacote(pacote)
@@ -43,6 +47,8 @@ class TestWindowsPackageContract(unittest.TestCase):
                 ("_internal/modelo_banco/clinica.db", b"modelo"),
                 ("clinica.db-wal", b"wal"),
                 ("_internal/mobile/static/index.html", b"html"),
+                ("_internal/dados/oms_lms_pediatricos.csv", b"lms"),
+                ("_internal/dados/oms_classificacoes_pediatricas.json", b"json"),
             ])
             with self.assertRaisesRegex(ValueError, "Arquivos SQLite graváveis"):
                 verificar_pacote(pacote)
@@ -53,6 +59,8 @@ class TestWindowsPackageContract(unittest.TestCase):
             self.criar_zip(pacote, [
                 ("_internal/modelo_banco/clinica.db", b"modelo"),
                 ("_internal/mobile/static/index.html", b"html"),
+                ("_internal/dados/oms_lms_pediatricos.csv", b"lms"),
+                ("_internal/dados/oms_classificacoes_pediatricas.json", b"json"),
                 ("_internal/mobile/apk/app/assets/index.html", b"copia"),
             ])
             with self.assertRaisesRegex(ValueError, "uma única fonte HTML"):
@@ -64,6 +72,8 @@ class TestWindowsPackageContract(unittest.TestCase):
         self.assertIn("${bancoUsuario}-wal", workflow)
         self.assertIn("${bancoUsuario}-shm", workflow)
         self.assertIn("tools/verificar_pacote_windows.py", workflow)
+        self.assertIn("oms_lms_pediatricos.csv", workflow)
+        self.assertIn("oms_classificacoes_pediatricas.json", workflow)
         spec = (ROOT / "app_clinica.spec").read_text(encoding="utf-8")
         self.assertIn("(MODELO_BANCO, 'modelo_banco')", spec)
         main = (ROOT / "main.py").read_text(encoding="utf-8")

@@ -186,7 +186,10 @@ def textos_linha(leito, reg, abreviar=True):
     sigla = leito.get("sigla_setor")
     t = {"leito": (f"{sigla} {leito['codigo']}" if sigla else str(leito["codigo"]))}
     if setor := leito.get("setor"):
-        t["setor"] = setor
+        grupo = leito.get("grupo_setor")
+        sigla_setor = leito.get("sigla_setor")
+        t["setor"] = (f"{grupo} · {setor} ({sigla_setor})"
+                      if grupo and sigla_setor else setor)
     if reg is None:
         t.update(acomp="", paciente=None, idade="", reav="", via="",
                  consistencias={k: "" for k in ("LV", "BR", "PAS", "LÍQ. PAS", "LÍQ")},
@@ -226,11 +229,27 @@ def textos_linha(leito, reg, abreviar=True):
                        "lanche":"Lanche", "jantar":"Jant", "ceia":"Ceia"}
     suplementos = []
     for s in reg.get("suplementos") or []:
+        nome_sup = s.get("nome") or ""
         qtd = s.get("qtd_dia")
-        texto = f"{s.get('nome') or ''}: {_fmt_num_pt(qtd, 0)} {s.get('unidade') or 'mL'}/Etapa" if qtd is not None else (s.get("nome") or "")
-        refeicoes = [nomes_refeicoes.get(x, x) for x in (s.get("refeicoes") or [])]
+        ml_oferta = s.get("ml_oferta")
+        refeicoes_orig = s.get("refeicoes") or []
+        refeicoes = [nomes_refeicoes.get(x, x) for x in refeicoes_orig]
+        if ml_oferta is not None:
+            texto = f"{nome_sup}: {_fmt_num_pt(ml_oferta, 0)} mL/oferta"
+            if qtd is not None and refeicoes_orig:
+                texto += f" × {len(refeicoes_orig)} = {_fmt_num_pt(qtd, 0)} mL/d"
+            elif qtd is not None:
+                texto += f" = {_fmt_num_pt(qtd, 0)} mL/d"
+        else:
+            texto = (f"{nome_sup}: {_fmt_num_pt(qtd, 0)} {s.get('unidade') or 'mL'}/Etapa"
+                     if qtd is not None else nome_sup)
         if refeicoes:
             texto += " (" + ", ".join(refeicoes) + ")"
+        agua = s.get("agua_ml")
+        if agua is not None and float(agua or 0) > 0:
+            texto += f"; água: {_fmt_num_pt(agua, 0)} mL/oferta"
+        if s.get("batido_fruta"):
+            texto += " (batido com fruta)"
         suplementos.append(texto)
     preferencias = []
     if (reg.get("obs_sim") or "").strip():
@@ -330,7 +349,7 @@ def exportar_excel(caminho, linhas_mapa, data_iso, setor_nome, abreviar=False, i
             cell.alignment = Alignment(horizontal="center" if central else "left",
                                        vertical="top", wrap_text=True)
             cell.border = caixa
-            if key == "supl" and value:
+            if key in ("supl", "supl_inst") and value:
                 cell.fill = PatternFill("solid", fgColor="FCE4D6")
         ws.row_dimensions[row_idx].height = 66 if item["registro"] else 28
 
@@ -352,7 +371,7 @@ def exportar_excel(caminho, linhas_mapa, data_iso, setor_nome, abreviar=False, i
 # --------------------------------------------------------------------------- PDF
 
 _SUBST = {"–": "-", "—": "-", "“": '"', "”": '"', "‘": "'", "’": "'", "…": "...", "≥": ">=", "≤": "<=",
-          "→": "->", "•": "-", "\u00a0": " "}
+          "→": "->", "•": "-", "×": "x", "\u00a0": " "}
 
 
 def _l1(txt):
@@ -423,7 +442,7 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
             else:
                 value = t.get(key, "")
             valores.append("" if value is None else str(value))
-        itens.append((t, valores))
+        itens.append((t, valores, item.get("registro")))
 
     def cabecalho():
         pdf.set_text_color(0, 0, 0)
@@ -446,7 +465,7 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
     pdf.add_page()
     cabecalho()
     y = 31
-    for t, values in itens:
+    for t, values, registro in itens:
         altura = 17 if t["paciente"] else 9
         if y + altura > 198:
             pdf.add_page()
@@ -459,8 +478,25 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
             if not value:
                 continue
             key = colunas[i][0]
+            if key == "paciente" and registro:
+                # A célula clínica tem quatro linhas compactas; a classificação do IMC
+                # ocupa a quarta linha para não ser cortada pelo limite vertical do PDF.
+                blocos = linhas_paciente(registro, abreviar=True)
+                if blocos and registro.get("data"):
+                    nome = blocos[0][0][0]
+                    blocos[0][0] = (f"{nome} — {_fmt_data(registro.get('data'))}", "nome")
+                for j, segmentos in enumerate(blocos):
+                    x_texto, y_texto = xs[i] + 0.5, y + 3 + j * 3.0
+                    for texto, estilo in segmentos:
+                        texto_pdf = _l1(texto)
+                        pdf.set_font("Arial", "B" if estilo == "nome" else "", 6 if estilo == "nome" else 5)
+                        pdf.set_text_color(*(VERMELHO_PDF if estilo == "alerta" else (0, 0, 0)))
+                        pdf.text(x_texto, y_texto, texto_pdf)
+                        x_texto += pdf.get_string_width(texto_pdf)
+                pdf.set_text_color(0, 0, 0)
+                continue
             pdf.set_text_color(0, 0, 0)
-            pdf.set_font("Arial", "B" if key == "leito" else "", 5 if key != "paciente" else 6)
+            pdf.set_font("Arial", "B" if key == "leito" else "", 5)
             linhas = _l1(value).splitlines() or [""]
             max_linhas = max(1, int((altura - 1) / 2.4))
             for j, line in enumerate(linhas[:max_linhas]):

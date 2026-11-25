@@ -98,6 +98,20 @@ jobs:
           if (!(Test-Path $dll)) {
             throw "DLL do Python não encontrada: $dll"
           }
+          $lms = "dist/NutriLab/_internal/dados/oms_lms_pediatricos.csv"
+          if (!(Test-Path $lms)) {
+            throw "Tabela LMS oficial OMS não foi empacotada: $lms"
+          }
+          if ((Get-Item $lms).Length -le 1000) {
+            throw "Tabela LMS oficial OMS está vazia ou incompleta: $lms"
+          }
+          $classificacoes = "dist/NutriLab/_internal/dados/oms_classificacoes_pediatricas.json"
+          if (!(Test-Path $classificacoes)) {
+            throw "Pontos de corte OMS não foram empacotados: $classificacoes"
+          }
+          if ((Get-Item $classificacoes).Length -le 100) {
+            throw "Metadados OMS estão vazios ou incompletos: $classificacoes"
+          }
           $camadas = "dist/NutriLab/_internal/identidade_camadas/folhas.json"
           if (!(Test-Path $camadas)) {
             throw "Camadas transparentes da tela inicial não foram empacotadas: $camadas"
