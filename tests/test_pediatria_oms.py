@@ -76,9 +76,9 @@ class TestClassificacaoPorIndicador(unittest.TestCase):
 
     def test_estatura_por_idade_classifica_deficit_linear(self):
         self.assertEqual(classificar_escore_z("estatura_idade", -3.5, 180),
-                         "Estatura muito baixa para idade")
+                         "Estatura muito baixa para a idade")
         self.assertEqual(classificar_escore_z("estatura_idade", -2.5, 180),
-                         "Estatura baixa para idade")
+                         "Estatura baixa para a idade")
         self.assertEqual(classificar_escore_z("estatura_idade", 0, 180),
                          "Estatura dentro da faixa de referência")
         self.assertEqual(classificar_escore_z("estatura_idade", 3.5, 180),
