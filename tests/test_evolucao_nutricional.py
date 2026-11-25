@@ -101,7 +101,7 @@ class TestEvolucaoNutricional(unittest.TestCase):
         aviso = ev.aviso_bomba(900, 1200, True)
         self.assertEqual(aviso["volume_adicional_ml"], 300)
         self.assertEqual(aviso["horas_estimadas"], 30)
-        self.assertIn("estimadas", aviso["texto"])
+        self.assertIn("aproximadamente 30.0 horas", aviso["texto"])
 
     def test_antropometria_decimal_ptbr_e_peso_corrigido(self):
         texto = ev.formatar_antropometria({
