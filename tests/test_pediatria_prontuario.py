@@ -18,7 +18,6 @@ class TestIntegracaoOMSNaConsultaAmbulatorial(unittest.TestCase):
     def setUpClass(cls):
         raiz = Path(__file__).resolve().parents[1]
         cls.tabela = oms.TabelaReferenciaOMS.de_csv(raiz / "dados" / "oms_lms_pediatricos.csv")
-        cls.app_main = _carregar_main_com_customtkinter_real()
 
     def test_consulta_calcula_oms_2006_com_idade_exata_em_dias(self):
         resultado = oms.avaliar_paciente("H", 14.0, 95.0, "01/01/2024",
