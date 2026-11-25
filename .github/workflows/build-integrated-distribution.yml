@@ -64,9 +64,11 @@ jobs:
 
       - uses: android-actions/setup-android@v4
         with:
-          api-level: 34
-          build-tools: 34.0.0
           accept-android-sdk-licenses: true
+          packages: |
+            platform-tools
+            platforms;android-34
+            build-tools;34.0.0
 
       - name: Executar o launcher real para compilar APK e desktop
         shell: cmd
