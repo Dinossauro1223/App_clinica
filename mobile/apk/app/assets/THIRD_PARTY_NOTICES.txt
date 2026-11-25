@@ -1,13 +1,13 @@
 THIRD-PARTY NOTICES
 ===================
 
-ZXing Core 3.5.4
+ZXing Core 3.4.1
 ----------------
-The NutriLab Android application bundles ZXing Core 3.5.4 for decoding QR codes
+The NutriLab Android application bundles ZXing Core 3.4.1 for decoding QR codes
 from the device camera.
 
 Project: https://github.com/zxing/zxing
-Artifact: com.google.zxing:core:3.5.4
+Artifact: com.google.zxing:core:3.4.1
 Copyright (c) ZXing authors.
 License: Apache License, Version 2.0 (text below).
 
