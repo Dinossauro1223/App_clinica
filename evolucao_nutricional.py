@@ -401,7 +401,7 @@ def gerar_evolucao(dados):
             if aviso:
                 linhas.append("**Estimativa de bomba:** " + aviso["texto"])
         elif dados.get("orientacao_progressao"):
-            linhas.append("**Evolução da dieta:** Progressão de aproximadamente 30–40 mL/dia, conforme tolerância e conduta nutricional.")
+            linhas.append("**Orientação operacional:** Progressão de aproximadamente 30–40 mL/dia, conforme tolerância e conduta nutricional.")
     elif via == "oral" and dados.get("tno"):
         tno = dados["tno"]
         if tno not in TNO_PERCENTUAIS:
