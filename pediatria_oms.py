@@ -7,7 +7,7 @@ As tabelas numéricas oficiais são carregadas externamente; nenhum parâmetro L
 import csv
 import json
 import math
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 
@@ -312,3 +312,71 @@ def avaliar_indicador(indicador, valor, sexo, idade_meses, tabela, idade_dias=No
     classe = classificar_escore_z(indicador, z, idade_ref)
     return {"status": "calculado", "referencia": referencia,
             "escore_z": z, "classificacao": classe, "aviso": None}
+
+
+def avaliar_paciente(sexo, peso_kg, altura_cm, data_nascimento, data_avaliacao, tabela, imc=None):
+    """Calcula os três indicadores OMS a partir do cadastro e das medidas de uma consulta."""
+    hoje = data_avaliacao if isinstance(data_avaliacao, date) else (
+        date.fromisoformat(str(data_avaliacao)) if data_avaliacao else date.today())
+    bruto = str(data_nascimento or "").strip()
+    nascimento = None
+    for formato in ("%d/%m/%Y", "%d/%m/%y", "%Y-%m-%d"):
+        try:
+            nascimento = datetime.strptime(bruto, formato).date()
+            break
+        except ValueError:
+            continue
+    if nascimento is None:
+        return {
+            "status": "pendente", "aviso": "Data de nascimento ausente ou inválida no cadastro.",
+            "data_avaliacao": hoje.isoformat(), "data_nascimento": None, "resultados": {},
+        }
+    try:
+        idade_dias = calcular_idade_dias(nascimento.isoformat(), hoje.isoformat())
+        idade_meses = calcular_idade_meses(nascimento.isoformat(), hoje.isoformat())
+    except ValueError as exc:
+        return {
+            "status": "pendente", "aviso": str(exc), "data_avaliacao": hoje.isoformat(),
+            "data_nascimento": nascimento.isoformat(), "resultados": {},
+        }
+    meses_decimais = idade_dias / 30.4375
+    def numero(valor):
+        if valor in (None, ""):
+            return None
+        try:
+            return float(str(valor).replace(",", "."))
+        except (TypeError, ValueError):
+            return None
+    peso = numero(peso_kg)
+    altura = numero(altura_cm)
+    if peso is not None and peso <= 0:
+        peso = None
+    if altura is not None and altura <= 0:
+        altura = None
+    imc_num = numero(imc)
+    if imc_num is None and peso is not None and altura is not None:
+        imc_num = peso / ((altura / 100.0) ** 2)
+    snapshot = {
+        "data_avaliacao": hoje.isoformat(), "data_nascimento": nascimento.isoformat(),
+        "idade_dias": idade_dias, "idade_meses_completos": idade_meses,
+        "idade_meses_decimais": round(meses_decimais, 4), "sexo": sexo,
+        "peso_kg": peso, "altura_cm": altura, "imc": imc_num,
+        "fonte": "OMS 2006 / OMS 2007 - WHO anthro 1.1.0 e anthroplus 1.1.0",
+    }
+    if idade_meses >= 240:
+        return {"status": "nao_aplicavel", "resultados": {}, **snapshot}
+    medidas = {
+        "imc_idade": imc_num,
+        "peso_idade": peso,
+        "estatura_idade": altura,
+    }
+    resultados = {
+        indicador: avaliar_indicador(
+            indicador, valor, sexo, meses_decimais, tabela,
+            idade_dias=idade_dias, idade_meses_completos=idade_meses)
+        for indicador, valor in medidas.items()
+    }
+    estados = {r.get("status") for r in resultados.values()}
+    status = ("calculado" if "calculado" in estados else
+              "fora_faixa" if estados == {"fora_faixa"} else "pendente")
+    return {"status": status, "resultados": resultados, **snapshot}
