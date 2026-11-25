@@ -202,13 +202,16 @@ class TestBackendMobileSemAparelho(unittest.TestCase):
         self._salvar()
 
         resultado = im.enviar_mapa(self.desktop, self.mobile, "2026-11-25")
-        self.assertEqual(len(resultado), 1)
+        self.assertTrue(any(x["setor"] == "Clinica A" for x in resultado))
 
         exportado = im.ler_mobile(self.mobile, "2026-11-25")
-        self.assertEqual(len(exportado["leitos"]), 2)
-        self.assertEqual(len(exportado["mapa"]), 2)
-        paciente = next(x for x in exportado["mapa"] if x["codigo"] == "A01")
-        vazio = next(x for x in exportado["mapa"] if x["codigo"] == "A02")
+        setor = next(x for x in exportado["setores"] if x["nome"] == "Clinica A")
+        leitos = [x for x in exportado["leitos"] if x["id_setor"] == setor["id"]]
+        mapa = [x for x in exportado["mapa"] if x["id_setor"] == setor["id"]]
+        self.assertEqual(len(leitos), 2)
+        self.assertEqual(len(mapa), 2)
+        paciente = next(x for x in mapa if x["codigo"] == "A01")
+        vazio = next(x for x in mapa if x["codigo"] == "A02")
 
         self.assertEqual(paciente["nome"], "Paciente Teste")
         self.assertEqual(paciente["idade_anos"], 72)
@@ -288,22 +291,25 @@ class TestBackendMobileSemAparelho(unittest.TestCase):
         """Repetir o envio local simula reconexão/reenvio sem duplicar setores ou leitos."""
         self._salvar()
         im.enviar_mapa(self.desktop, self.mobile, "2026-11-25")
+
+        with closing(sv.conectar(self.mobile)) as c:
+            setor_id = c.execute("SELECT id FROM setores WHERE nome='Clinica A'").fetchone()["id"]
+            antes = {
+                "setores": c.execute("SELECT COUNT(*) FROM setores").fetchone()[0],
+                "leitos": c.execute("SELECT COUNT(*) FROM leitos WHERE id_setor=?", (setor_id,)).fetchone()[0],
+                "mapa": c.execute("SELECT COUNT(*) FROM mapa_dia WHERE id_leito IN (SELECT id FROM leitos WHERE id_setor=?)", (setor_id,)).fetchone()[0],
+            }
+
         im.enviar_mapa(self.desktop, self.mobile, "2026-11-25")
 
         with closing(sv.conectar(self.mobile)) as c:
-            self.assertEqual(
-                c.execute("SELECT COUNT(*) FROM setores").fetchone()[0], 1
-            )
-            self.assertEqual(
-                c.execute("SELECT COUNT(*) FROM leitos").fetchone()[0], 2
-            )
-            self.assertEqual(
-                c.execute("SELECT COUNT(*) FROM mapa_dia").fetchone()[0], 1
-            )
-            # A sincronização pode registrar um novo aviso a cada reenvio; a idempotência aqui é estrutural.
-            self.assertEqual(
-                c.execute("SELECT COUNT(*) FROM avisos").fetchone()[0], 2
-            )
+            depois = {
+                "setores": c.execute("SELECT COUNT(*) FROM setores").fetchone()[0],
+                "leitos": c.execute("SELECT COUNT(*) FROM leitos WHERE id_setor=?", (setor_id,)).fetchone()[0],
+                "mapa": c.execute("SELECT COUNT(*) FROM mapa_dia WHERE id_leito IN (SELECT id FROM leitos WHERE id_setor=?)", (setor_id,)).fetchone()[0],
+            }
+            self.assertEqual(depois, antes)
+            self.assertEqual(antes["leitos"], 2)
 
 
 if __name__ == "__main__":
