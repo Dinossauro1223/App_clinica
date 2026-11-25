@@ -368,15 +368,21 @@ def norm(l):
 
 
 def timestamp_novo(novo, atual):
-    """Compara timestamps ISO; sem timestamp de origem, a atualização não pode apagar um estado existente."""
+    """Compara timestamps ISO, aceitando registros antigos sem fuso e novos com fuso."""
     if not novo:
         return False
     if not atual:
         return True
     try:
-        return datetime.fromisoformat(str(novo).replace("Z", "+00:00")) > datetime.fromisoformat(str(atual).replace("Z", "+00:00"))
+        a = datetime.fromisoformat(str(novo).replace("Z", "+00:00"))
+        b = datetime.fromisoformat(str(atual).replace("Z", "+00:00"))
+        if a.tzinfo is None:
+            a = a.replace(tzinfo=TZ)
+        if b.tzinfo is None:
+            b = b.replace(tzinfo=TZ)
+        return a > b
     except (TypeError, ValueError):
-        return str(novo) > str(atual)
+        return str(novo).replace("T", " ") > str(atual).replace("T", " ")
 
 
 def atual(c, tipo, data, chave):
