@@ -430,7 +430,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
             quantidade_txt = qtd.get().strip()
             etapas_txt = etapas.get().strip() or "1"
             quantidade = float(quantidade_txt.replace(",", ".")) if quantidade_txt else 0
-            n_etapas = int(float(etapas_txt.replace(",", ".")))
+            n_etapas_num = float(etapas_txt.replace(",", "."))
+            if not n_etapas_num.is_integer():
+                raise ValueError(f"Número de etapas de {s.get('nome', 'suplemento')} deve ser inteiro.")
+            n_etapas = int(n_etapas_num)
             if quantidade > 0:
                 suplementacao.append({"nome": s["nome"], "quantidade": quantidade,
                                       "unidade": s.get("unidade") or "mL", "etapas": n_etapas})
@@ -446,6 +449,9 @@ class FormEvolucaoUI(ctk.CTkFrame):
                 raise ValueError("Número de etapas da dieta enteral deve ser inteiro.")
             etapas = int(etapas_num)
             if ficha and volume_etapa > 0 and etapas > 0 and metas:
+                dias_num = float((self.e_dias.get().strip() or "4").replace(",", "."))
+                if not dias_num.is_integer():
+                    raise ValueError("Prazo da progressão deve ser inteiro (3 ou 4 dias).")
                 oferta = regras.calcular_oferta_enteral(
                     volume_etapa, etapas, ficha["kcal_100"], ficha["ptn_100"])
                 volume_meta = metas["kcal_dia"] / (ficha["kcal_100"] / 100)
@@ -461,7 +467,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     "volume_atual_ml": oferta["volume_total_ml"], "volume_meta_ml": volume_meta,
                     "volume_etapa_atual_ml": volume_etapa, "etapas": etapas,
                     "incremento_diario_ml": float((self.e_incremento.get().strip() or "35").replace(",", ".")),
-                    "dias_alvo": int(float((self.e_dias.get().strip() or "4").replace(",", "."))),
+                    "dias_alvo": int(dias_num),
                     "volume_maximo_ml": (float(self.e_volume_maximo.get().strip().replace(",", "."))
                                          if self.e_volume_maximo.get().strip() else None),
                     "tolerancia": bool(self.var_tolerancia.get()), "restricao": bool(self.var_restricao.get()),
