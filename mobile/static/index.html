@@ -284,7 +284,18 @@ async function entrar(){
   try{
     try{if(window.isSecureContext&&window.Notification&&Notification.permission==='default')Notification.requestPermission()}catch(e){}
     const j=await api('/api/login',{login:$('#lg').value,senha:$('#sn').value});S.tok=j.token;try{if(window.NLOffline)NLOffline.set('token',j.token)}catch(e){}await abrir(j.usuario,j.hoje)}
-  catch(e){telaLogin(e.message)}
+  catch(e){
+    try{
+      const raw=window.NLOffline&&NLOffline.get?NLOffline.get('user'):'';
+      const local=JSON.parse(raw||'{}');
+      if(local.usuario){
+        await abrir(local.usuario,local.hoje||new Date().toISOString().slice(0,10));
+        aviso('Modo offline: alterações ficarão salvas neste aparelho e serão sincronizadas quando a conexão voltar.',0);
+        return;
+      }
+    }catch(_offline){}
+    telaLogin(e.message)
+  }
 }
 async function abrir(u,hoje){
   S.u=u;S.hoje=hoje;S.data=hoje;try{if(window.NLOffline)NLOffline.set('user',JSON.stringify({usuario:u,hoje}))}catch(e){}
