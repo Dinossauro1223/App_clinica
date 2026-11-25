@@ -302,10 +302,13 @@ def setor_alvo(c, u, pedido):
     p, sid = u["perfil"], u["id_setor"]
     if p == "admin" or (p in ("nutricionista", "copa") and sid is None):
         sid = pedido
+        if p == "copa" and not sid:
+            primeiro = c.execute("SELECT id FROM setores ORDER BY id LIMIT 1").fetchone()
+            sid = primeiro["id"] if primeiro else None
     elif p not in ("nutricionista", "copa"):
         raise Erro("Sem permissão para este setor.", 403)
     if not sid:
-        raise Erro("Escolha o setor." if p in STAFF else "Seu usuário não tem setor definido. Fale com o administrador.")
+        raise Erro("Escolha o setor." if p in STAFF or p == "copa" else "Seu usuário não tem setor definido. Fale com o administrador.")
     s = c.execute("SELECT * FROM setores WHERE id=?", (int(sid),)).fetchone()
     if not s:
         raise Erro("Setor não encontrado.", 404)
