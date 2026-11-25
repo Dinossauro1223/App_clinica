@@ -412,7 +412,9 @@ class FormEvolucaoUI(ctk.CTkFrame):
             "tne_motivos": [m for m, v in self.tne_vars.items() if v.get()] if via == "enteral" else [],
             "dieta_oral": {
                 "consistencia": self.reg.get("consistencia"),
-                "caracteristicas": [sigla for campo, sigla, _ in mdb.CARACTERISTICAS if self.reg.get(campo)]
+                "caracteristicas": [sigla for campo, sigla in (
+                    ("dm", "DM"), ("has", "HAS"), ("laxativa", "LAX"),
+                    ("constipante", "CON"), ("drc", "DRC")) if self.reg.get(campo)]
             } if via == "oral" else None,
             "porcao_oral_ml": int(self.cb_porcao.get()) if via == "oral" and self.cb_porcao.get() else None,
             "porcao_oral_solicitada": bool(self.var_solicitar_porcao.get()) if via == "oral" else False,
