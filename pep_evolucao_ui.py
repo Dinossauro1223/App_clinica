@@ -30,6 +30,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
         super().__init__(self.painel, fg_color="transparent")
         self.pack(fill="both", expand=True)
         self.db = ui.db
+        self.paciente = mdb.obter_paciente(self.db, registro.get("id_paciente")) or {}
         self.equipe = evdb.listar_equipe(self.db)
         self.estagiarios = [m for m in self.equipe if m["funcao"] == "estagiario"]
         self.nutricionistas = [m for m in self.equipe if m["funcao"] == "nutricionista" and m["id_usuario"]]
@@ -293,10 +294,15 @@ class FormEvolucaoUI(ctk.CTkFrame):
         peso = av.get("peso_ajustado")
         if peso in (None, ""):
             peso = self.reg.get("peso_kg")
+        data_ref = mdb.iso_para_br(self.reg.get("data"))
+        idade = self.reg.get("idade_anos")
+        nascimento = self.paciente.get("data_nascimento") or self.reg.get("data_nascimento")
+        if idade is None and nascimento:
+            idade = regras.idade_em_anos(nascimento, data_ref)
         return {
-            "data": mdb.iso_para_br(self.reg.get("data")),
-            "idade_anos": self.reg.get("idade_anos"),
-            "data_nascimento": self.reg.get("data_nascimento"),
+            "data": data_ref,
+            "idade_anos": idade,
+            "data_nascimento": nascimento,
             "altura_cm": self.reg.get("altura_cm"),
             "altura_origem": self.reg.get("altura_origem") or "R",
             "peso_kg": peso,
