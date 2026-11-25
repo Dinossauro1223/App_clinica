@@ -4,8 +4,10 @@ Os números LMS abaixo são sintéticos e usados exclusivamente para verificar
 interpolação e correção das caudas; não são referências antropométricas.
 """
 import unittest
+from pathlib import Path
 
-from pediatria_oms import (calcular_escore_z, calcular_idade_dias, interpolar_lms,\n                            TabelaReferenciaOMS, avaliar_indicador)
+from pediatria_oms import (calcular_escore_z, calcular_idade_dias, interpolar_lms,
+                            TabelaReferenciaOMS, avaliar_indicador)
 
 
 class TestIdadeExataEmDias(unittest.TestCase):
@@ -116,3 +118,57 @@ class TestLMSPorDiasEMeses(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLimitesEAncoraOMS2007(unittest.TestCase):
+    def test_avaliacao_inicia_referencia_2007_aos_60_meses(self):
+        tabela = TabelaReferenciaOMS.de_linhas([
+            {"indicador": "imc_idade", "referencia": "oms_2006", "sexo": "H",
+             "idade_dias": "1826", "L": "1", "M": "10", "S": "0.1"},
+            {"indicador": "imc_idade", "referencia": "oms_2007", "sexo": "H",
+             "idade_meses": "60", "L": "1", "M": "20", "S": "0.1"},
+        ])
+        resultado = avaliar_indicador(
+            "imc_idade", 20.0, "H", 60.0, tabela,
+            idade_dias=1827, idade_meses_completos=60,
+        )
+        self.assertEqual(resultado["status"], "calculado")
+        self.assertEqual(resultado["referencia"], "oms_2007")
+        self.assertAlmostEqual(resultado["escore_z"], 0.0)
+
+    def test_ancoras_superiores_permitem_interpolacao_sem_extrapolar(self):
+        tabela = TabelaReferenciaOMS.de_linhas([
+            {"indicador": "imc_idade", "referencia": "oms_2007", "sexo": "H",
+             "idade_meses": "228", "L": "1", "M": "20", "S": "0.1"},
+            {"indicador": "imc_idade", "referencia": "oms_2007", "sexo": "H",
+             "idade_meses": "229", "L": "1", "M": "21", "S": "0.1"},
+            {"indicador": "peso_idade", "referencia": "oms_2007", "sexo": "H",
+             "idade_meses": "120", "L": "1", "M": "30", "S": "0.1"},
+            {"indicador": "peso_idade", "referencia": "oms_2007", "sexo": "H",
+             "idade_meses": "121", "L": "1", "M": "31", "S": "0.1"},
+        ])
+        self.assertAlmostEqual(
+            tabela.calcular("imc_idade", "H", 228.5, 20.5, idade_meses_completos=228), 0.0
+        )
+        self.assertAlmostEqual(
+            tabela.calcular("peso_idade", "H", 120.5, 30.5, idade_meses_completos=120), 0.0
+        )
+        self.assertEqual(
+            [p["idade"] for p in tabela.curva("imc_idade", "H", "oms_2007")], [228]
+        )
+        self.assertEqual(
+            [p["idade"] for p in tabela.curva("peso_idade", "H", "oms_2007")], [120]
+        )
+
+    def test_csv_oficial_contem_ancoras_e_nao_as_exibe_como_pontos_clinicos(self):
+        base = Path(__file__).resolve().parents[1]
+        tabela = TabelaReferenciaOMS.carregar_padrao(base)
+        self.assertIsNotNone(tabela)
+        self.assertIn(229, tabela._dados_meses[("imc_idade", "oms_2007", "H")])
+        self.assertIn(121, tabela._dados_meses[("peso_idade", "oms_2007", "H")])
+        self.assertNotIn(
+            229, [p["idade"] for p in tabela.curva("imc_idade", "H", "oms_2007")]
+        )
+        self.assertNotIn(
+            121, [p["idade"] for p in tabela.curva("peso_idade", "H", "oms_2007")]
+        )
