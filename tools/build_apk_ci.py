@@ -23,7 +23,7 @@ JSQR = ROOT / "mobile" / "static" / "jsQR.js"
 JAVA_DIR = APP / "src" / "br" / "nutrilab" / "mobile"
 JAVA = JAVA_DIR / "MainActivity.java"
 QR_JAVA = JAVA_DIR / "QRScannerActivity.java"
-ZXING_URL = "https://maven-central.storage-download.googleapis.com/maven2/com/google/zxing/core/3.5.4/core-3.5.4.jar"
+ZXING_URL = "https://maven-central.storage-download.googleapis.com/maven2/com/google/zxing/core/3.4.1/core-3.4.1.jar"
 
 
 def executar(comando: list[str], cwd: Path | None = None) -> None:
@@ -87,8 +87,8 @@ def main() -> int:
         shutil.copytree(APP, app)
         shutil.copy2(STATIC, app / "assets" / "index.html")
         shutil.copy2(JSQR, app / "assets" / "jsQR.js")
-        zxing = work / "zxing-core-3.5.4.jar"
-        print("+ download ZXing Core 3.5.4", flush=True)
+        zxing = work / "zxing-core-3.4.1.jar"
+        print("+ download ZXing Core 3.4.1", flush=True)
         urllib.request.urlretrieve(ZXING_URL, zxing)
         if zxing.stat().st_size < 500_000:
             raise RuntimeError("O arquivo ZXing Core baixado está incompleto.")
