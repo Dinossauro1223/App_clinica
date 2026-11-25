@@ -71,7 +71,7 @@ jobs:
           Write-Host "EXE, APK e ZIP validados. SHA-256 APK: $shaOrigem"
 
       - name: Publicar pacote integrado para inspeção
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: nutrilab-distribuicao-integrada
           path: |
