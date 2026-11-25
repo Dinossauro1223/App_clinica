@@ -339,7 +339,10 @@ def fechar_rascunho(db_path, id_rascunho, id_usuario, senha, *, confirmado=False
             raise EvolucaoPEPError("O elaborador do rascunho está inativo ou não existe.")
         estagiarios = [m["nome"] for m in membros if m["funcao"] == "estagiario"]
         nutricionistas = [f"{m['nome']} — {m['crn']}" for m in membros if m["funcao"] == "nutricionista"]
-        dados["estagiarios"] = estagiarios or dados.get("estagiarios") or ([membro[0]] if membro else [])
+        if estagiarios:
+            dados["estagiarios"] = estagiarios
+        elif not dados.get("estagiarios"):
+            dados.pop("estagiarios", None)
         assinatura = f"{conta[0]} — {conta[1]}"
         if assinatura not in nutricionistas:
             nutricionistas.append(assinatura)
