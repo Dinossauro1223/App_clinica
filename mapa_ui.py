@@ -1589,7 +1589,7 @@ class FormRegistro(_Janela):
         idade_meses, idade_dias, meses_decimais, nascimento = self._idade_para_oms()
         if idade_meses is None:
             self._resultado_pediatria = {"status": "pendente", "aviso": nascimento, "resultados": {}}
-            self.lbl_oms_pediatria.configure(text="OMS pediatria: informe a idade e vincule o paciente para usar a data de nascimento.")
+            self.lbl_oms_pediatria.configure(text="OMS pediatria: " + (nascimento or "informe a idade ou vincule um paciente com data de nascimento."))
             self.lbl_class.configure(text="(classificação pediátrica pendente)")
             return
         sexo = {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get())
