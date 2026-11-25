@@ -576,7 +576,7 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
         # mas a última evolução assinada continua orientando a copa no novo dia.
         origem = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])
         id_paciente = origem["id_paciente"]
-        with sqlite3.connect(self.db) as conn:
+        with conexao(self.db) as conn:
             conn.execute(
                 "INSERT INTO Pep_Usuarios (login, nome_completo, crn, salt, senha_hash, ativo, criado_em) "
                 "VALUES ('nutri_teste', 'Nutricionista Teste', 'CRN-6 12345', 's', 'h', 1, '2026-10-25')")
@@ -594,7 +594,7 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
         linha = next(x for x in mdb.mapa_do_dia(self.db, "2026-11-02")
                      if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
         self.assertEqual(linha["registro"]["dados_copa"]["volume_por_etapa_ml"], 200)
-        with sqlite3.connect(self.db) as conn:
+        with conexao(self.db) as conn:
             vinculados = conn.execute(
                 "SELECT COUNT(*) FROM Mapa_Evolucao_Dados WHERE id_registro=?",
                 (linha["registro"]["id_registro"],)).fetchone()[0]
