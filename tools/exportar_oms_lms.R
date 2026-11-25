@@ -20,8 +20,8 @@ for (pkg in c("anthro", "anthroplus")) {
     }
   }
 }
-make_rows <- function(df, indicador, referencia, unidade, limite, medida_col = NULL) {
-  df <- df[df$age >= 0 & df$age <= limite, , drop = FALSE]
+make_rows <- function(df, indicador, referencia, unidade, limite, medida_col = NULL, idade_min = 0) {
+  df <- df[df$age >= idade_min & df$age <= limite, , drop = FALSE]
   data.frame(
     indicador = indicador,
     referencia = referencia,
@@ -39,9 +39,9 @@ linhas <- list(
   make_rows(a$growthstandards_bmianthro, "imc_idade", "oms_2006", "dias", 1856),
   make_rows(a$growthstandards_weianthro, "peso_idade", "oms_2006", "dias", 1856),
   make_rows(a$growthstandards_lenanthro, "estatura_idade", "oms_2006", "dias", 1856, "loh"),
-  make_rows(p$bfa_growth_standards, "imc_idade", "oms_2007", "meses", 228),
-  make_rows(p$wfa_growth_standards, "peso_idade", "oms_2007", "meses", 120),
-  make_rows(p$hfa_growth_standards, "estatura_idade", "oms_2007", "meses", 228)
+  make_rows(p$bfa_growth_standards, "imc_idade", "oms_2007", "meses", 228, idade_min = 61),
+  make_rows(p$wfa_growth_standards, "peso_idade", "oms_2007", "meses", 120, idade_min = 61),
+  make_rows(p$hfa_growth_standards, "estatura_idade", "oms_2007", "meses", 228, idade_min = 61)
 )
 tabela <- do.call(rbind, linhas)
 write.csv(tabela, "tmp/oms-lms/oms_lms.csv", row.names = FALSE, na = "")
