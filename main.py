@@ -339,7 +339,7 @@ class AppClinica(ctk.CTk):
     def tela_almoxarifado(self):
         """Abre o controle de itens, estoque, movimentações e programação de custos."""
         from almox_ui import AlmoxUI
-        AlmoxUI(self, caminho_do_banco()).mostrar()
+        AlmoxUI(self, caminho_do_banco(), get_base_path()).mostrar()
 
     def tela_gestao_alimentar_fichas(self):
         """Abre fichas técnicas e a análise observacional de retiradas da cozinha."""
