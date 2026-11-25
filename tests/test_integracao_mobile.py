@@ -74,6 +74,12 @@ class TestMapeamento(unittest.TestCase):
         self.assertEqual(im.dieta_para_desktop("Hipossódica"), {})
         self.assertEqual(im.dieta_para_mobile({"consistencia": "Livre"}), "Geral")
         self.assertEqual(im.dieta_para_mobile({"via": "Enteral", "consistencia": "Branda"}), "Enteral")
+        self.assertEqual(im.dieta_para_mobile({"via": "Oral", "consistencia": "Pastosa",
+                                               "dados_copa": {"instrucao": "Porção: 100 mL"}}),
+                         "Pastosa · Porção: 100 mL")
+        self.assertEqual(im.dieta_para_mobile({"via": "Enteral", "dados_copa": {
+            "instrucao": "Formula 180mL/etapa x6=1080mL/d"}}),
+            "Enteral · Formula 180mL/etapa x6=1080mL/d")
         self.assertEqual(im.diagnostico_para_mobile({"dm": 1, "has": 0, "drc": 1}), "DM, DRC")
 
     def test_servidor_antigo_da_erro_claro(self):
