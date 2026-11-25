@@ -78,7 +78,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
         q = self._secao(raiz, "Dados clínicos e metas")
         self.lbl_antropometria = ctk.CTkLabel(q, text="", justify="left", anchor="w",
                                                font=tema.fonte(12), text_color=tema.TEXTO)
-        self.lbl_antropometria.pack(fill="x", padx=12, pady=(0, 8))
+        self.lbl_antropometria.pack(fill="x", padx=12, pady=(0, 4))
+        self.lbl_correcao = ctk.CTkLabel(q, text="", justify="left", anchor="w",
+                                         font=tema.fonte(11), text_color=tema.SUAVE)
+        self.lbl_correcao.pack(fill="x", padx=12, pady=(0, 8))
         linha = ctk.CTkFrame(q, fg_color="transparent")
         linha.pack(fill="x", padx=12)
         self.e_kcal_kg = self._entry(linha, "kcal/kg/dia", largura=120)
@@ -262,6 +265,28 @@ class FormEvolucaoUI(ctk.CTkFrame):
             if self.reg.get("meta_proteina_g"):
                 _set(self.e_ptn_kg, round(float(self.reg["meta_proteina_g"]) / peso, 2))
         self._atualizar_metas()
+        try:
+            antropometria = self._antropometria()
+            self.lbl_antropometria.configure(text=regras.formatar_antropometria(antropometria))
+            av = json.loads(self.reg.get("avaliacao_json") or "{}")
+            dados_av = av.get("dados") or {}
+            amputacoes = [f"{nome} ({qtd})" for nome, qtd in (dados_av.get("amputacoes") or {}).items()
+                          if int(qtd or 0) > 0]
+            if antropometria.get("peso_corrigido"):
+                original = float(self.reg.get("peso_kg") or 0)
+                fluidos = float(av.get("fluidos") or 0)
+                pct = float(av.get("amput_pct") or 0)
+                detalhe = (f"Peso original: {original:.1f} kg · retirada por edema/ascite: {fluidos:.1f} kg · "
+                           f"correção por amputação: {pct:.1f}% · peso nutricional utilizado: "
+                           f"{antropometria['peso_kg']:.1f} kg.")
+                if amputacoes:
+                    detalhe += " Segmentos: " + ", ".join(amputacoes) + "."
+                self.lbl_correcao.configure(text=detalhe)
+            else:
+                self.lbl_correcao.configure(text="Sem correção por ascite, edema ou amputação.")
+        except (ValueError, TypeError, KeyError) as erro:
+            self.lbl_antropometria.configure(text=f"Antropometria pendente: {erro}")
+            self.lbl_correcao.configure(text="Revise os dados antropométricos no registro do paciente.")
 
     def _atualizar_metas(self):
         try:
