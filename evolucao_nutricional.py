@@ -300,10 +300,21 @@ def gerar_evolucao(dados):
         if progressao and progressao.get("autorizada") and progressao.get("volume_atual_ml") is not None and progressao.get("volume_meta_ml") is not None:
             atual = _numero(progressao["volume_atual_ml"], "Volume atual")
             meta = _numero(progressao["volume_meta_ml"], "Volume-meta")
-            incremento = _numero(progressao.get("incremento_diario_ml", 35), "Incremento diário", minimo=0.000001)
-            linhas.append("**Evolução da dieta:** " +
-                f"Oferta atual de {atual:.0f} mL/dia, com progressão programada de {incremento:.0f} mL/dia " +
-                f"até atingir o volume correspondente à meta energética.")
+            if progressao.get("incremento_por_etapa_ml") is not None and progressao.get("etapas"):
+                incremento_etapa = _numero(progressao["incremento_por_etapa_ml"], "Incremento por etapa", minimo=0.000001)
+                etapas = int(_numero(progressao["etapas"], "Etapas", minimo=1))
+                incremento_total = incremento_etapa * etapas
+                plano = progressao.get("plano") or {}
+                prazo = plano.get("dias_estimados")
+                detalhe_prazo = f" Previsão matemática: {prazo} dia(s)." if prazo is not None else ""
+                linhas.append("**Evolução da dieta:** " +
+                    f"Oferta atual de {atual:.0f} mL/dia, com aumento de {incremento_etapa:.0f} mL por etapa " +
+                    f"({incremento_total:.0f} mL/dia no total), condicionado à tolerância e reavaliação.{detalhe_prazo}")
+            else:
+                incremento = _numero(progressao.get("incremento_diario_ml", 35), "Incremento diário", minimo=0.000001)
+                linhas.append("**Evolução da dieta:** " +
+                    f"Oferta atual de {atual:.0f} mL/dia, com progressão programada de {incremento:.0f} mL/dia " +
+                    f"até atingir o volume correspondente à meta energética.")
         bomba = dados.get("bomba")
         if bomba and bomba.get("usa_bomba") and oferta and oferta.get("volume_total_ml") is not None and oferta.get("volume_meta_ml") is not None:
             aviso = aviso_bomba(oferta["volume_total_ml"], oferta["volume_meta_ml"], True,
@@ -318,8 +329,8 @@ def gerar_evolucao(dados):
             raise ValueError("Classificação TNO inválida.")
         linhas.append(f"**TNO:** {tno} ({TNO_PERCENTUAIS[tno]}% de consumo estimado).")
         porcao = dados.get("porcao_oral_ml")
-        if porcao not in (None, ""):
-            linhas.append(f"**Porção oral definida pelo nutricionista:** {_numero(porcao, 'Porção oral')} mL.")
+        if dados.get("porcao_oral_autorizada") and porcao not in (None, ""):
+            linhas.append(f"**Porção oral autorizada pelo nutricionista:** {_numero(porcao, 'Porção oral')} mL.")
     if dados.get("dieta_oral"):
         dieta = dados["dieta_oral"]
         itens = [dieta.get("consistencia")] if dieta.get("consistencia") else []
