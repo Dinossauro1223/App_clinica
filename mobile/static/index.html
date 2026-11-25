@@ -43,6 +43,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .alerta{border-left:5px solid var(--alerta)}
 .nums{font-variant-numeric:tabular-nums;font-size:1.5rem;font-weight:800}
 .mini{font-size:.85rem;color:var(--suave)}
+.scan-qr{display:none}@media(max-width:640px){.scan-qr{display:block;width:100%;margin-top:10px}}
 .passo{display:flex;gap:6px}.passo .btn{padding:0 14px}
 .seg label{display:block;padding:10px;border:1px solid var(--linha);border-radius:6px;margin-bottom:6px}
 .seg input{margin-right:8px;accent-color:var(--cor)}.seg .off{opacity:.45}
@@ -277,8 +278,74 @@ function telaLogin(msg){
   $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
   <label class=f>Login<input type=text id=lg autocapitalize=none autocomplete=username></label>
   <label class=f>Senha<input type=password id=sn autocomplete=current-password></label>
-  <button class=btn style="width:100%" onclick="entrar()">Entrar</button></div><footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
+  <button class=btn style="width:100%" onclick="entrar()">Entrar</button>
+  <button class="btn sec scan-qr" onclick="abrirLeitorQR()">Escanear QR code</button>
+  <section id=qrLeitor class=cartao hidden style="margin-top:12px">
+   <b>Vincular a outro servidor</b><p id=qrAviso class=mini>Aponte a câmera para o QR code de conexão exibido nas configurações do NutriLab.</p>
+   <video id=qrVideo playsinline muted style="display:none;width:100%;max-height:260px;border-radius:8px;background:#111"></video>
+   <label class=f>Fotografar ou escolher uma imagem do QR code<input id=qrArquivo type=file accept="image/*" capture="environment" onchange="lerImagemQR(this)"></label>
+   <label class=f>Ou digitar o endereço do servidor<input id=qrManual type=text inputmode=url placeholder="http://192.168.0.10:8765"></label>
+   <button class="btn" onclick="usarEnderecoQR($('#qrManual').value)">Conectar a este servidor</button>
+   <button class="btn sec" style="margin-top:6px" onclick="fecharLeitorQR()">Cancelar</button>
+  </section></div><footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   $('#sn').onkeydown=e=>{if(e.key==='Enter')entrar()};
+}
+
+let qrStream=null, qrLoop=null;
+function fecharLeitorQR(){
+ const box=$('#qrLeitor');if(box)box.hidden=true;
+ if(qrLoop)cancelAnimationFrame(qrLoop);qrLoop=null;
+ if(qrStream){qrStream.getTracks().forEach(t=>t.stop());qrStream=null}
+ const video=$('#qrVideo');if(video){video.pause();video.srcObject=null;video.style.display='none'}
+}
+function usarEnderecoQR(valor){
+ const endereco=String(valor||'').trim();
+ if(!/^https?:\\/\\//i.test(endereco)||!/:\\d{2,5}(?:\\/|$)/.test(endereco)){
+  const aviso=$('#qrAviso');if(aviso)aviso.textContent='QR code inválido. Use o QR de conexão do NutriLab ou informe o endereço com a porta 8765.';return;
+ }
+ fecharLeitorQR();
+ if(window.Android&&typeof Android.salvar==='function'){Android.salvar(endereco);return}
+ window.location.assign(endereco);
+}
+function aplicarConteudoQR(valor){
+ let endereco='';
+ try{const dado=JSON.parse(valor);if(dado&&dado.type==='nutrilab-server')endereco=dado.url||''}catch(e){}
+ if(!endereco&&/^https?:\\/\\//i.test(String(valor||'')))endereco=String(valor).trim();
+ usarEnderecoQR(endereco);
+}
+async function abrirLeitorQR(){
+ const box=$('#qrLeitor');box.hidden=false;
+ const aviso=$('#qrAviso');
+ if(!('BarcodeDetector' in window)){
+  aviso.textContent='Este navegador não oferece leitura de QR integrada. Use o endereço manual abaixo ou atualize o navegador.';
+  return;
+ }
+ try{
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Câmera indisponível neste endereço HTTP.');
+  const detector=new BarcodeDetector({formats:['qr_code']});
+  qrStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+  const video=$('#qrVideo');video.srcObject=qrStream;video.style.display='block';await video.play();
+  const ler=async()=>{
+   if(box.hidden||!qrStream)return;
+   try{const codigos=await detector.detect(video);if(codigos.length){aplicarConteudoQR(codigos[0].rawValue);return}}catch(e){}
+   qrLoop=requestAnimationFrame(ler);
+  };
+  ler();
+ }catch(e){
+  if(qrStream){qrStream.getTracks().forEach(t=>t.stop());qrStream=null}
+  aviso.textContent='A câmera ao vivo não está disponível nesta rede/navegador. Tente fotografar o QR code ou digite o endereço abaixo.';
+  const arquivo=$('#qrArquivo');arquivo.style.display='block';
+ }
+}
+async function lerImagemQR(input){
+ const arquivo=input.files&&input.files[0];if(!arquivo)return;
+ if(!('BarcodeDetector' in window)){aviso('Leitura de imagem não suportada. Digite o endereço do servidor.',1);return}
+ try{
+  const detector=new BarcodeDetector({formats:['qr_code']});
+  const url=URL.createObjectURL(arquivo), imagem=new Image();
+  imagem.onload=async()=>{try{const codigos=await detector.detect(imagem);URL.revokeObjectURL(url);if(codigos.length)aplicarConteudoQR(codigos[0].rawValue);else $('#qrAviso').textContent='Não encontrei um QR code nessa imagem. Tente novamente.'}catch(e){URL.revokeObjectURL(url);$('#qrAviso').textContent='Não foi possível ler essa imagem.'}};
+  imagem.src=url;
+ }catch(e){$('#qrAviso').textContent='Não foi possível ler a imagem do QR code.'}
 }
 async function entrar(){
   try{
