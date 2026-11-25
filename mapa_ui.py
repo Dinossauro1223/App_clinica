@@ -1980,7 +1980,7 @@ class DialogCurvasOMS(_Janela):
                                else ponto["idade"])
                     if referencia == "oms_2006" and x_meses > 60:
                         continue
-                    if referencia == "oms_2007" and x_meses < 61:
+                    if referencia == "oms_2007" and x_meses < 60:
                         continue
                     xs.append(x_meses / 12.0)
                 for chave, rotulo, estilo in curvas_z:
