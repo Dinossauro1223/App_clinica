@@ -28,6 +28,8 @@ Os limites são deliberados: peso/idade não é fornecido como indicador OMS 200
 
 Campos: `indicador`, `referencia`, `sexo`, `idade_dias`, `idade_meses`, `L`, `M`, `S`, `medida`.
 
+Os pontos de corte e os rótulos de classificação são mantidos separadamente em `dados/oms_classificacoes_pediatricas.json`; o módulo utiliza esse JSON como fonte de verdade para as faixas e classificações.
+
 - Sexo de origem 1 é armazenado como H (masculino); sexo 2 como M (feminino).
 - OMS 2006 usa idade em dias; OMS 2007 usa idade em meses; as linhas 229/121 são somente âncoras superiores e não ampliam a faixa clínica.
 - Para comprimento/estatura OMS 2006, `medida` preserva L (comprimento deitado) ou H (estatura em pé) conforme a tabela de origem.
