@@ -424,5 +424,20 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(self.chamar(cop, "GET", "/api/admin/mapa/atividade?periodo=ano&ano=2026")[0], 403)
 
 
+    def test_configuracoes_exibem_dois_qrs_e_compartilhamento(self):
+        cfg = (Path(__file__).resolve().parents[1] / "configuracoes_ui.py").read_text(encoding="utf-8")
+        servidor = (Path(__file__).resolve().parents[1] / "mobile" / "servidor.py").read_text(encoding="utf-8")
+        self.assertIn("nutrilab-server", cfg)
+        self.assertIn("/download/NutriLab-Mobile.apk", cfg)
+        self.assertIn("WhatsApp", cfg)
+        self.assertIn("mailto:", cfg)
+        self.assertIn('u.path == "/download/NutriLab-Mobile.apk"', servidor)
+        import qrcode
+        qr = qrcode.QRCode()
+        qr.add_data("http://192.168.0.10:8765")
+        qr.make(fit=True)
+        self.assertIsNotNone(qr.make_image().get_image())
+
+
 if __name__ == "__main__":
     unittest.main()
