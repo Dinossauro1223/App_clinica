@@ -30,6 +30,11 @@ class FormEvolucaoUI(ctk.CTkFrame):
         super().__init__(self.painel, fg_color="transparent")
         self.pack(fill="both", expand=True)
         self.db = ui.db
+        try:
+            salvo_oral = json.loads(mdb.obter_config(self.db, "pep_progressao_oral_etapas", "[70, 100, 130, 160, 200]"))
+            self.progressao_oral = regras.validar_progressao_oral(salvo_oral)
+        except (ValueError, TypeError):
+            self.progressao_oral = [70, 100, 130, 160, 200]
         self.paciente = mdb.obter_paciente(self.db, registro.get("id_paciente")) or {}
         self.equipe = evdb.listar_equipe(self.db)
         self.estagiarios = [m for m in self.equipe if m["funcao"] == "estagiario"]
@@ -107,8 +112,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.cb_tno.set("—")
         self.cb_tno.pack(side="left", padx=(0, 12))
         ctk.CTkLabel(linha, text="Porção (mL):", anchor="w").pack(side="left")
-        self.cb_porcao = ctk.CTkComboBox(linha, values=["70", "100", "130", "160", "200"], width=100, state="readonly")
-        self.cb_porcao.set("70")
+        self.cb_porcao = ctk.CTkComboBox(linha, values=[str(x) for x in self.progressao_oral], width=100, state="readonly")
+        self.cb_porcao.set(str(self.progressao_oral[0]))
         self.cb_porcao.pack(side="left", padx=8)
         self.var_solicitar_porcao = tk.IntVar(value=0)
         ctk.CTkCheckBox(self.q_oral, text="Solicitar atualização da porção no mapa das copeiras",
