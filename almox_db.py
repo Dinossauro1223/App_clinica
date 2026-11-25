@@ -100,6 +100,8 @@ def salvar_item(db,d):
  embalagem_un=str(d.get("embalagem_un") or "").strip().lower() or None
  if (embalagem_qtd is None) != (embalagem_un is None):
   raise ValueError("Informe quantidade e unidade do conteúdo da embalagem.")
+ if embalagem_qtd is not None and un.strip().lower() not in ("un","unidade","unidades"):
+  raise ValueError("O conteúdo da embalagem só deve ser informado quando a unidade de estoque for un.")
  if embalagem_un not in (None,"g","kg","mg","ml","l"):
   raise ValueError("Unidade do conteúdo deve ser g, kg, mg, ml ou L.")
  now=agora()
