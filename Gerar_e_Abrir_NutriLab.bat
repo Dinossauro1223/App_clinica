@@ -18,6 +18,7 @@ rem Atualizacao automatica ocorre dentro do executavel por runtime hook.
 rem Este launcher e usado para primeira instalacao, recompilacao e pos-atualizacao.
 if /I "%~1"=="/apos-atualizacao" goto COMPILAR
 if /I "%~1"=="/recompilar" goto COMPILAR
+if /I "%~1"=="/recompilar-sem-abrir" goto COMPILAR
 if defined NUTRILAB_SKIP_UPDATE goto VERIFICAR_EXE
 if exist "%EXE%" goto VERIFICAR_EXE
 
@@ -185,6 +186,7 @@ exit /b 0
 
 :INICIAR
 if not exist "%EXE%" goto ERRO_EXE_AUSENTE
+if /I "%~1"=="/recompilar-sem-abrir" exit /b 0
 echo.
 echo Iniciando NutriLab...
 start "" "%EXE%"
