@@ -90,6 +90,10 @@ class AlmoxUI:
         self.cb_cat=ctk.CTkComboBox(form,values=list(adb.CATEGORIAS),width=175);self.cb_cat.pack(side="left",padx=3);self.cb_cat.set(adb.CATEGORIAS[0])
         self.e_preco=ctk.CTkEntry(form,placeholder_text="Preço por unidade (R$)",width=150);self.e_preco.pack(side="left",padx=3)
         self.e_min=ctk.CTkEntry(form,placeholder_text="Estoque mínimo",width=130);self.e_min.pack(side="left",padx=3)
+        embalagem=ctk.CTkFrame(self.conteudo,fg_color="transparent");embalagem.pack(fill="x",pady=3)
+        ctk.CTkLabel(embalagem,text="Conteúdo por embalagem (para custo por g/ml):").pack(side="left",padx=3)
+        self.e_emb_qtd=ctk.CTkEntry(embalagem,width=110,placeholder_text="Ex.: 800");self.e_emb_qtd.pack(side="left",padx=3)
+        self.cb_emb_un=ctk.CTkComboBox(embalagem,values=["g","kg","ml","L","mg"],width=85);self.cb_emb_un.pack(side="left",padx=3);self.cb_emb_un.set("g")
         self.e_obs=ctk.CTkEntry(self.conteudo,placeholder_text="Observações / fonte do preço");self.e_obs.pack(fill="x",pady=4)
         bar=ctk.CTkFrame(self.conteudo,fg_color="transparent");bar.pack(fill="x")
         ctk.CTkButton(bar,text="Novo / limpar",command=self._limpar_item).pack(side="left",padx=3)
@@ -97,24 +101,38 @@ class AlmoxUI:
         ctk.CTkButton(bar,text="Ativar / desativar",command=self._alternar_item).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Histórico de preços",command=self._precos).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Sincronizar catálogo mobile",command=self._sincronizar_catalogo_mobile).pack(side="left",padx=3)
-        self.t_itens=self._tree(self.conteudo,("Nome","Unidade","Categoria","Valor unitário","Saldo","Mínimo","Situação"),(190,80,150,130,100,100,90),12)
+        self.t_itens=self._tree(self.conteudo,("Nome","Unidade","Categoria","Valor unitário","Custo/g ou ml","Saldo","Mínimo","Situação"),(170,70,140,110,110,80,80,80),12)
         self._carregar_itens()
         self.t_itens.bind("<<TreeviewSelect>>",self._selecionar_item)
+    @staticmethod
+    def _custo_base_item(i):
+        preco=i.get("valor_unitario")
+        if preco is None:return "—"
+        unidade=str(i.get("unidade") or "").strip().lower()
+        if unidade in ("g","ml"):divisor=1
+        elif unidade in ("kg","l"):divisor=1000
+        elif unidade=="mg":divisor=0.001
+        elif unidade=="un" and i.get("embalagem_qtd") and i.get("embalagem_un"):
+            conteudo=float(i["embalagem_qtd"]);u=str(i["embalagem_un"]).lower()
+            divisor=conteudo*(1000 if u in ("kg","l") else 0.001 if u=="mg" else 1)
+        else:return "—"
+        return _br(float(preco)/divisor).replace("R$ ","R$ ")+("/g" if unidade in ("g","kg","mg") or (unidade=="un" and str(i.get("embalagem_un") or "").lower() in ("g","kg","mg")) else "/ml")
+
     def _carregar_itens(self):
         self.itens=adb.listar_itens(self.db,False);self.t_itens.delete(*self.t_itens.get_children())
-        for i in self.itens:self.t_itens.insert("","end",iid=str(i["id_item"]),values=(i["nome"],i["unidade"],i["categoria"],_br(i["valor_unitario"]),_num(i["saldo"]),_num(i["estoque_minimo"]),"Ativo" if i["ativo"] else "Inativo"))
+        for i in self.itens:self.t_itens.insert("","end",iid=str(i["id_item"]),values=(i["nome"],i["unidade"],i["categoria"],_br(i["valor_unitario"]),self._custo_base_item(i),_num(i["saldo"]),_num(i["estoque_minimo"]),"Ativo" if i["ativo"] else "Inativo"))
     def _selecionar_item(self,_=None):
         sel=self.t_itens.selection()
         if not sel:return
         i=next(x for x in self.itens if x["id_item"]==int(sel[0]));self.item_atual=i["id_item"]
-        _set(self.e_nome,i["nome"]);_set(self.e_un,i["unidade"]);self.cb_cat.set(i["categoria"]);_set(self.e_preco,i["valor_unitario"]);_set(self.e_min,i["estoque_minimo"]);_set(self.e_obs,i["observacao"])
+        _set(self.e_nome,i["nome"]);_set(self.e_un,i["unidade"]);self.cb_cat.set(i["categoria"]);_set(self.e_preco,i["valor_unitario"]);_set(self.e_min,i["estoque_minimo"]);_set(self.e_emb_qtd,i.get("embalagem_qtd"));self.cb_emb_un.set(i.get("embalagem_un") or "g");_set(self.e_obs,i["observacao"])
     def _limpar_item(self):
         self.item_atual=None
-        for e in (self.e_nome,self.e_un,self.e_preco,self.e_min,self.e_obs):_set(e,"")
+        for e in (self.e_nome,self.e_un,self.e_preco,self.e_min,self.e_emb_qtd,self.e_obs):_set(e,"")
         self.cb_cat.set(adb.CATEGORIAS[0]);self.t_itens.selection_remove(self.t_itens.selection())
     def _salvar_item(self):
         try:
-            d={"id_item":self.item_atual,"nome":self.e_nome.get(),"unidade":self.e_un.get(),"categoria":self.cb_cat.get(),"valor_unitario":self.e_preco.get(),"estoque_minimo":self.e_min.get(),"observacao":self.e_obs.get()}
+            d={"id_item":self.item_atual,"nome":self.e_nome.get(),"unidade":self.e_un.get(),"categoria":self.cb_cat.get(),"valor_unitario":self.e_preco.get(),"estoque_minimo":self.e_min.get(),"embalagem_qtd":self.e_emb_qtd.get(),"embalagem_un":self.cb_emb_un.get(),"observacao":self.e_obs.get()}
             adb.salvar_item(self.db,d);self._carregar_itens();self._atualizar_combos();messagebox.showinfo("Almoxarifado","Item salvo.")
         except Exception as e:messagebox.showwarning("Item",str(e))
     def _sincronizar_catalogo_mobile(self):
@@ -209,14 +227,34 @@ class AlmoxUI:
             if not pedido or pedido["status"]!="pendente":
                 raise ValueError("Selecione um pedido pendente.")
             item=adb.obter_item(self.db,pedido["id_item"])
-            preco=None
-            if item.get("valor_unitario") is None:
+            lote=messagebox.askyesno(
+                "Forma de informar o custo",
+                "Deseja informar o CUSTO TOTAL de todas as unidades recebidas?\\n\\n"
+                "Sim: informar custo total do lote e quantidade recebida.\\n"
+                "Não: informar o preço por unidade."
+            )
+            if lote:
+                qtd=simpledialog.askstring(
+                    "Quantidade recebida",
+                    f"Quantidade recebida de {item['nome']} ({item['unidade']}):",
+                    initialvalue=str(pedido["quantidade"])
+                )
+                if qtd is None:return
+                total=simpledialog.askstring(
+                    "Custo total do lote",
+                    "Informe o valor total pago por todo o lote (R$):"
+                )
+                if total is None:return
+                arep.receber(self.db,pedido_id,recebido_por=nome,
+                             quantidade_recebida=qtd,valor_total_compra=total)
+            else:
                 preco=simpledialog.askstring(
-                    "Valor da compra",
-                    f"Informe o valor unitário recebido para {item['nome']} ({item['unidade']}):"
+                    "Preço unitário",
+                    f"Informe o preço por {item['unidade']} de {item['nome']} (R$):",
+                    initialvalue="" if item.get("valor_unitario") is None else str(item["valor_unitario"])
                 )
                 if preco is None:return
-            arep.receber(self.db,pedido_id,recebido_por=nome,valor_unitario=preco)
+                arep.receber(self.db,pedido_id,recebido_por=nome,valor_unitario=preco)
             self._carregar_reposicoes();self._atualizar_combos()
             messagebox.showinfo("Reposição","Recebimento registrado e entrada lançada no estoque.")
         except Exception as e:messagebox.showwarning("Reposição",str(e))
