@@ -94,8 +94,8 @@ class TestPepEvolucaoDB(unittest.TestCase):
                 "SELECT E.paciente_nome, E.texto, E.assinante_nome, E.assinante_crn, M.elaborador_nome, M.fechada_em, M.dados_json "
                 "FROM Pep_Evolucoes E JOIN Pep_Evolucao_Metadados M USING(id_evolucao) WHERE E.id_evolucao=?", (eid,)).fetchone()
             self.assertEqual(row[0], "Paciente Sintético")
-            self.assertIn("TNO: Regular (75% de consumo estimado)", row[1])
-            self.assertIn("Observações: Observação sintética", row[1])
+            self.assertIn("**TNO:** Regular (75% de consumo estimado)", row[1])
+            self.assertIn("**Observações:** Observação sintética", row[1])
             self.assertEqual(row[2:5], ("Nutricionista Teste", "CRN-6 1234", "Estagiário Teste"))
             self.assertTrue(row[5])
             self.assertIn('"via": "Oral"', row[6])
