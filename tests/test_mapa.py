@@ -496,6 +496,33 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
     return leitos
 
 
+    def test_dados_estruturados_da_evolucao_acompanham_historico_e_copia_do_mapa(self):
+        dados = {
+            "via": "Enteral", "dva": False,
+            "dieta_enteral": {"nome": "Fórmula Sintética", "volume_por_etapa_ml": 180, "etapas": 6},
+            "progressao_enteral": {"autorizada": True, "incremento_por_etapa_ml": 10},
+            "tne_motivos": []
+        }
+        reg = registro_base(self.db, self.leitos[0]["id_leito"], "2026-10-25",
+                            evolucao_json=json.dumps(dados, ensure_ascii=False))
+        id_reg = mdb.salvar_registro(self.db, reg)
+        obtido = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])
+        self.assertEqual(obtido["evolucao"], dados)
+        dia = mdb.mapa_do_dia(self.db, "2026-10-25")
+        linha = next(x for x in dia if x["leito"]["id_leito"] == self.leitos[0]["id_leito"])
+        self.assertEqual(linha["registro"]["evolucao"], dados)
+        historico = mdb.historico_paciente(self.db, obtido["id_paciente"])
+        self.assertEqual(historico[0]["evolucao"], dados)
+        self.assertEqual(mdb.copiar_mapa(self.db, "2026-10-25", "2026-10-26"), 1)
+        copia = mdb.obter_registro(self.db, "2026-10-26", self.leitos[0]["id_leito"])
+        self.assertEqual(copia["evolucao"], dados)
+        mdb.remover_registro(self.db, copia["id_registro"])
+        with conexao(self.db) as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM Mapa_Evolucao_Dados WHERE id_registro=?",
+                                       (copia["id_registro"],)).fetchone()[0], 0)
+        self.assertIsNotNone(id_reg)
+
+
 class TestExportacao(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
