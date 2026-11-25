@@ -108,6 +108,22 @@ class TestRefeicoesPorPublico(unittest.TestCase):
             )
         self.assertEqual(rd.listar_refeicoes_servidas(self.db, "2026-11-25", "2026-11-25"), [])
 
+    def test_historico_de_refeicao_servida_nao_pode_ser_editado_ou_apagado(self):
+        rd.salvar_janela(self.db, "paciente", "almoco", "11:00", "14:00")
+        rd.registrar_refeicao_servida(
+            self.db, servido_em="2026-11-25T12:00:00", refeicao="almoco",
+            publico="paciente", destinatario_nome="Paciente", id_paciente="P1",
+            nome_paciente="Paciente", leito="4", valor_unitario=4.0
+        )
+        import sqlite3
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "imutável"):
+            with rd.conectar(self.db) as conn:
+                conn.execute("UPDATE Refeicoes_Servidas SET leito_snapshot='5' WHERE id_servico=1")
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "imutável"):
+            with rd.conectar(self.db) as conn:
+                conn.execute("DELETE FROM Refeicoes_Servidas WHERE id_servico=1")
+        self.assertEqual(rd.listar_refeicoes_servidas(self.db, "2026-11-25", "2026-11-25")[0]["leito_snapshot"], "4")
+
     def test_encerrar_autorizacao_impede_novos_registros(self):
         auth = rd.salvar_autorizacao_acompanhante(
             self.db, id_paciente="P1", nome_paciente="Paciente", leito="2",
