@@ -19,7 +19,7 @@ Os arquivos de origem foram obtidos dos pacotes CRAN 1.1.0; o código-fonte decl
 | OMS 2006 | Peso/idade | 0–1826 dias, ambos os sexos |
 | OMS 2006 | Comprimento/estatura por idade | 0–1826 dias, ambos os sexos |
 | OMS 2007 | IMC/idade | 60–228 meses válidos, ambos os sexos; 229 meses incluído somente como âncora de interpolação |
-| OMS 2007 | Estatura/idade | 61–228 meses, ambos os sexos |
+| OMS 2007 | Estatura/idade | 60–228 meses válidos, ambos os sexos; 229 meses incluído somente como âncora de interpolação |
 | OMS 2007 | Peso/idade | 60–120 meses válidos, ambos os sexos; 121 meses incluído somente como âncora de interpolação |
 
 Os limites são deliberados: peso/idade não é fornecido como indicador OMS 2007 depois de 10 anos. A seleção segue o algoritmo WHO AnthroPlus: OMS 2007 é válido a partir de 60 meses completos; os valores de 229 meses (IMC/estatura) e 121 meses (peso) são âncoras para interpolar idades decimais inferiores aos limites superiores exclusivos. O classificador só aceita até 228 meses para IMC/estatura e até 120 meses para peso/idade. A tabela OMS 2006 permanece disponível para idades inferiores a 60 meses.
