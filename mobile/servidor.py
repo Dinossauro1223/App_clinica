@@ -754,9 +754,19 @@ def criar_setor(c, b):
 def exportar(c, d):
     def t(sql, *a):
         return [dict(r) for r in c.execute(sql, a)]
-    return {"esquema": 3, "data": d, "gerado_em": agora(), "setores": t("SELECT * FROM setores"), "leitos": t("SELECT * FROM leitos"),
+    setores = t("SELECT * FROM setores")
+    leitos = t("SELECT * FROM leitos")
+    mapa_completo = []
+    # O estado sincronizado é sempre um snapshot completo: cada leito é enviado,
+    # mesmo vazio, herdando o último registro até que exista uma alta explícita.
+    for setor in setores:
+        for linha in linhas_mapa(c, setor["id"], d):
+            linha["id_setor"] = setor["id"]
+            linha["data"] = d
+            mapa_completo.append(linha)
+    return {"esquema": 4, "data": d, "gerado_em": agora(), "setores": setores, "leitos": leitos,
             "suplementos_catalogo": t("SELECT * FROM suplementos_catalogo WHERE ativo=1 ORDER BY nome"),
-            "itens": t("SELECT * FROM itens"), "mapa": t("SELECT * FROM mapa_dia WHERE data=?", d),
+            "itens": t("SELECT * FROM itens"), "mapa": mapa_completo,
             "mapa_rascunho": t("SELECT * FROM mapa_rascunho WHERE data=?", d),
             "refeicoes_cfg": t("SELECT * FROM refeicoes_cfg"), "janelas": t("SELECT * FROM janelas"),
             "refeicoes": t("SELECT * FROM refeicoes_dia WHERE data=?", d), "estoque": t("SELECT * FROM estoque_dia WHERE data=?", d),
