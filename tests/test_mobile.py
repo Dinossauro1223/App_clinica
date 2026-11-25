@@ -123,12 +123,17 @@ class MobileTest(unittest.TestCase):
             self.assertTrue(senha_redefinida)
             self.assertNotEqual(senha_redefinida, "123456789")
 
-    def test_copa_pode_consultar_mapa_de_outro_setor_sem_poder_gravar(self):
+    def test_copa_pode_consultar_e_gravar_no_mapa_compartilhado_de_outro_setor(self):
         cod, dados = self.chamar(self.t["cop"], "GET", "/api/mapa?setor=2")
         self.assertEqual(cod, 200, dados)
         self.assertEqual(dados["setor"]["id"], 2)
-        self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/mapa",
-                                     {"setor": 2, "linhas": [{"id_leito": 7, "nome": "Não autorizado"}]})[0], 403)
+        cod, resultado = self.chamar(self.t["cop"], "POST", "/api/mapa",
+                                     {"setor": 2, "linhas": [{"id_leito": 7, "nome": "Paciente compartilhado"}]})
+        self.assertEqual(cod, 200, resultado)
+        leitura = self.chamar(self.t["cop2"], "GET", "/api/mapa?setor=2")[1]
+        linha = next(x for x in leitura["linhas"] if x["id_leito"] == 7)
+        self.assertEqual(linha["nome"], "Paciente compartilhado")
+        self.assertEqual(linha["por_nome"], "cop")
 
 
     def test_download_apk_disponibiliza_arquivo_do_bundle_com_nome_correto(self):
