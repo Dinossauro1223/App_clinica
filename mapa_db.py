@@ -833,7 +833,7 @@ def mapa_do_dia(db_path, data_iso, id_setor=None):
             r["data_exibicao"] = data_iso
             por_leito[r["id_leito"]] = r
         por_leito = {k: v for k, v in por_leito.items() if v is not None}
-        for r in registros:
+        for r in regs:
             if r.get("leito_ativo") == 0 and r["data"] != data_iso:
                 por_leito.pop(r["id_leito"], None)
         # Uma remoção manual é um estado explícito de "vago" para aquele dia e impede
