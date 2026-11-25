@@ -78,6 +78,139 @@ class ConfiguracoesUI:
         ctk.CTkButton(conteudo, text="Voltar ao início", fg_color=tema.VERDE,
                      hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=14, pady=10)
 
+
+    def _base_recursos(self):
+        return Path(__file__).resolve().parent
+
+    def _caminho_apk(self):
+        return self._base_recursos() / "mobile" / "apk" / "saida" / "NutriLab-Mobile.apk"
+
+    def _pasta_compartilhamento(self):
+        base = self._base_recursos()
+        candidatos = []
+        if getattr(sys, "frozen", False):
+            candidatos.append(Path(sys.executable).resolve().parent / "_internal" / "compartilhamento")
+        candidatos.extend([
+            base / "Distribuicao",
+            base / "Executavel do programa" / "_internal" / "compartilhamento",
+        ])
+        return next((p for p in candidatos if p.is_dir()), candidatos[0])
+
+    @staticmethod
+    def _imagem_qr(conteudo, tamanho=190):
+        qr = qrcode.QRCode(
+            version=None, error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=7, border=4,
+        )
+        qr.add_data(conteudo)
+        qr.make(fit=True)
+        imagem = qr.make_image(fill_color="#102d2a", back_color="#ffffff").get_image()
+        return ctk.CTkImage(light_image=imagem, dark_image=imagem, size=(tamanho, tamanho))
+
+    def _distribuicao(self, raiz):
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                            border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=(4, 12))
+        ctk.CTkLabel(card, text="Aplicativo mobile e compartilhamento",
+                     font=tema.fonte(16, "bold"), text_color=tema.TEXTO).pack(
+                         anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(card,
+                     text="Use o primeiro QR code para baixar o APK no celular. Use o segundo para configurar o endereço deste servidor no aplicativo. O celular precisa estar na mesma rede Wi-Fi do computador.",
+                     font=tema.fonte(12), text_color=tema.SUAVE, wraplength=820, justify="left").pack(
+                         anchor="w", padx=18, pady=(0, 10))
+        linha = ctk.CTkFrame(card, fg_color="transparent")
+        linha.pack(fill="x", padx=12, pady=4)
+        install = ctk.CTkFrame(linha, fg_color="transparent")
+        install.pack(side="left", expand=True, fill="x", padx=6)
+        connect = ctk.CTkFrame(linha, fg_color="transparent")
+        connect.pack(side="left", expand=True, fill="x", padx=6)
+        ctk.CTkLabel(install, text="1. Baixar o aplicativo", font=tema.fonte(13, "bold"),
+                     text_color=tema.TEXTO).pack()
+        self.lbl_qr_apk = ctk.CTkLabel(install, text="Verificando APK…")
+        self.lbl_qr_apk.pack(pady=5)
+        ctk.CTkLabel(install, text="Abre o download do NutriLab-Mobile.apk",
+                     font=tema.fonte(11), text_color=tema.SUAVE).pack()
+        ctk.CTkLabel(connect, text="2. Vincular ao servidor", font=tema.fonte(13, "bold"),
+                     text_color=tema.TEXTO).pack()
+        self.lbl_qr_servidor = ctk.CTkLabel(connect, text="Gerando QR code…")
+        self.lbl_qr_servidor.pack(pady=5)
+        ctk.CTkLabel(connect, text="Configura o endereço e a porta 8765",
+                     font=tema.fonte(11), text_color=tema.SUAVE).pack()
+        self.lbl_qr_status = ctk.CTkLabel(card, text="", font=tema.fonte(11),
+                                          text_color=tema.SUAVE, wraplength=820, justify="left")
+        self.lbl_qr_status.pack(anchor="w", padx=18, pady=(4, 8))
+        linha_acoes = ctk.CTkFrame(card, fg_color="transparent")
+        linha_acoes.pack(fill="x", padx=14, pady=(0, 8))
+        ctk.CTkButton(linha_acoes, text="Atualizar QR codes", command=self._atualizar_qr,
+                      fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER,
+                      font=tema.fonte(12, "bold")).pack(side="left", padx=4)
+        ctk.CTkButton(linha_acoes, text="WhatsApp · APK", command=lambda: self._compartilhar("apk", "whatsapp"),
+                      fg_color=tema.SUAVE, hover_color=tema.BORDA, text_color=tema.TEXTO).pack(side="left", padx=4)
+        ctk.CTkButton(linha_acoes, text="E-mail · APK", command=lambda: self._compartilhar("apk", "email"),
+                      fg_color=tema.SUAVE, hover_color=tema.BORDA, text_color=tema.TEXTO).pack(side="left", padx=4)
+        ctk.CTkButton(linha_acoes, text="WhatsApp · programa", command=lambda: self._compartilhar("desktop", "whatsapp"),
+                      fg_color=tema.SUAVE, hover_color=tema.BORDA, text_color=tema.TEXTO).pack(side="left", padx=4)
+        ctk.CTkButton(linha_acoes, text="E-mail · programa", command=lambda: self._compartilhar("desktop", "email"),
+                      fg_color=tema.SUAVE, hover_color=tema.BORDA, text_color=tema.TEXTO).pack(side="left", padx=4)
+        ctk.CTkLabel(card,
+                     text="Observação: WhatsApp Web e links mailto não permitem anexar automaticamente um arquivo local. O NutriLab abre a conversa ou o e-mail e a pasta do arquivo para você anexá-lo.",
+                     font=tema.fonte(11), text_color=tema.SUAVE, wraplength=820, justify="left").pack(
+                         anchor="w", padx=18, pady=(0, 14))
+        self._atualizar_qr()
+
+    def _atualizar_qr(self):
+        ip = servidor_mobile.ip_lan()
+        base = "http://%s:8765" % ip
+        ativo = False
+        try:
+            with socket.create_connection(("127.0.0.1", 8765), timeout=0.7):
+                ativo = True
+        except OSError:
+            pass
+        payload_servidor = json.dumps({"type": "nutrilab-server", "url": base},
+                                      ensure_ascii=False, separators=(",", ":"))
+        self._qr_servidor_img = self._imagem_qr(payload_servidor)
+        self.lbl_qr_servidor.configure(image=self._qr_servidor_img, text="")
+        apk = self._caminho_apk()
+        if apk.is_file():
+            url_apk = base + "/download/NutriLab-Mobile.apk"
+            self._qr_apk_img = self._imagem_qr(url_apk)
+            self.lbl_qr_apk.configure(image=self._qr_apk_img, text="")
+            apk_status = "APK encontrado: %s" % apk
+        else:
+            self._qr_apk_img = None
+            self.lbl_qr_apk.configure(image=None, text="APK ainda não encontrado")
+            apk_status = "Gere o APK executando Gerar_e_Abrir_NutriLab.bat."
+        rede_status = "Servidor ativo em %s" % base if ativo else "Servidor local não responde na porta 8765."
+        if ip == "127.0.0.1":
+            rede_status += " Não foi possível detectar o IP da rede; confira a conexão Wi-Fi/LAN."
+        self.lbl_qr_status.configure(text=rede_status + " · " + apk_status)
+
+    def _compartilhar(self, tipo, canal):
+        pasta = self._pasta_compartilhamento()
+        nome = "NutriLab-Mobile.apk" if tipo == "apk" else "NutriLab-Desktop.zip"
+        arquivo = pasta / nome
+        if not arquivo.is_file():
+            messagebox.showwarning("Compartilhar NutriLab",
+                                   "O arquivo %s ainda não foi gerado. Execute o Gerar_e_Abrir_NutriLab.bat para preparar a distribuição." % nome)
+            return
+        assunto = "NutriLab — " + ("aplicativo Android" if tipo == "apk" else "programa para Windows")
+        mensagem = ("Segue o arquivo %s do NutriLab. O APK é para instalação no celular; o ZIP contém o programa para Windows."
+                    % nome)
+        if canal == "whatsapp":
+            webbrowser.open("https://web.whatsapp.com/send?text=" + quote(mensagem))
+        else:
+            webbrowser.open("mailto:?subject=" + quote(assunto) + "&body=" + quote(mensagem))
+        try:
+            if os.name == "nt":
+                os.startfile(str(pasta))
+            else:
+                webbrowser.open(pasta.as_uri())
+        except OSError as exc:
+            messagebox.showwarning("Compartilhar NutriLab", "Não foi possível abrir a pasta do arquivo: %s" % exc)
+        messagebox.showinfo("Compartilhar NutriLab",
+                            "A conversa ou o e-mail foi aberto. Anexe o arquivo %s que está na pasta aberta." % nome)
+
     def _nrs(self, raiz):
         """Permite ajustar os intervalos de reavaliação, armazenados no banco oficial do Mapa."""
         card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
