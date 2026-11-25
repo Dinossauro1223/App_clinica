@@ -77,8 +77,11 @@ class MobileTest(unittest.TestCase):
     def em(self, h, m=0):
         return mock.patch.object(sv, "agora_dt", lambda: datetime(2026, 11, 12, h, m, tzinfo=sv.TZ))
 
-    def qtd(self, est):
-        return self.chamar(self.adm, "GET", "/api/estoque?estoque=" + est)[1]["linhas"][0]["qtd"]
+    def qtd(self, est, dia=None):
+        consulta = "/api/estoque?estoque=" + est
+        if dia:
+            consulta += "&data=" + dia
+        return self.chamar(self.adm, "GET", consulta)[1]["linhas"][0]["qtd"]
 
     # ------------------------------------------------------------------ testes
     def test_admin_inicial_usa_credencial_solicitada(self):
@@ -440,7 +443,8 @@ class MobileTest(unittest.TestCase):
 
 
     def test_pedido_almox_registra_recebimento_e_prazo_medio(self):
-        saldo_anterior = self.qtd("almox")
+        data_recebimento = "2026-11-12"
+        saldo_anterior = self.qtd("almox", data_recebimento)
         with mock.patch.object(sv, "agora_dt",
                                lambda: datetime(2026, 11, 10, 9, 0, tzinfo=sv.TZ)):
             cod, criado = self.chamar(self.adm, "POST", "/api/admin/almox/pedidos",
@@ -455,7 +459,7 @@ class MobileTest(unittest.TestCase):
             cod, recebido = self.chamar(self.adm, "POST",
                                         "/api/admin/almox/pedidos/%d/receber" % pedido_id, {})
         self.assertEqual(cod, 200, recebido)
-        self.assertEqual(self.qtd("almox"), saldo_anterior + 3)
+        self.assertEqual(self.qtd("almox", data_recebimento), saldo_anterior + 3)
         cod, prazos = self.chamar(self.adm, "GET", "/api/admin/almox/prazos")
         self.assertEqual(cod, 200, prazos)
         arroz = next(p for p in prazos["prazos"] if p["id_item"] == 1)
