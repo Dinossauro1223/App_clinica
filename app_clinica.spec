@@ -56,7 +56,7 @@ a = Analysis(
         'mapa_export', 'mapa_graficos', 'graficos_ui', 'graficos_layout', 'graficos_nativos', 'graficos_pintor',
         'configuracoes_ui', 'mobile_ui', 'almox_ui', 'gestao_alimentar_ui',
         'nrs_ui', 'avaliacao_ui', 'pediatria_oms',
-        'openpyxl', 'matplotlib.backends.backend_agg',
+        'openpyxl', 'matplotlib.backends.backend_agg', 'matplotlib.backends.backend_tkagg',
     ],
     hookspath=[],
     hooksconfig={},
