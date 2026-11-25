@@ -15,9 +15,9 @@ Os arquivos de origem foram obtidos dos pacotes CRAN 1.1.0; o código-fonte decl
 
 | Referência | Indicador | Cobertura incluída |
 |---|---|---|
-| OMS 2006 | IMC/idade | 0–1826 dias, ambos os sexos (tabela de origem; OMS 2006 selecionada até 59 meses completos) |
-| OMS 2006 | Peso/idade | 0–1826 dias, ambos os sexos |
-| OMS 2006 | Comprimento/estatura por idade | 0–1826 dias, ambos os sexos |
+| OMS 2006 | IMC/idade | 0–1856 dias, ambos os sexos (tabela de origem; OMS 2006 selecionada até 59 meses completos) |
+| OMS 2006 | Peso/idade | 0–1856 dias, ambos os sexos |
+| OMS 2006 | Comprimento/estatura por idade | 0–1856 dias, ambos os sexos |
 | OMS 2007 | IMC/idade | 60–228 meses válidos, ambos os sexos; 229 meses incluído somente como âncora de interpolação |
 | OMS 2007 | Estatura/idade | 60–228 meses válidos, ambos os sexos; 229 meses incluído somente como âncora de interpolação |
 | OMS 2007 | Peso/idade | 60–120 meses válidos, ambos os sexos; 121 meses incluído somente como âncora de interpolação |
