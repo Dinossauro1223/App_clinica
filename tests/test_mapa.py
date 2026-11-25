@@ -532,7 +532,7 @@ class TestExportacao(unittest.TestCase):
         self.assertIn("120 mL/oferta × 2 = 240 mL/d", linha["supl"])
         self.assertIn("água: 30 mL/oferta", linha["supl"])
         self.assertIn("(batido com fruta)", linha["supl"])
-        self.assertNotIn("batido com fruta", linha["supl"])
+        self.assertNotIn("batido com fruta", linha["supl"].splitlines()[1])
 
     def test_exportacao_da_visao_geral_identifica_o_setor(self):
         geral = mex._colunas("Todos_os_setores")
