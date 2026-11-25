@@ -433,7 +433,7 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
             else:
                 value = t.get(key, "")
             valores.append("" if value is None else str(value))
-        itens.append((t, valores))
+        itens.append((t, valores, item.get("registro") or {}))
 
     def cabecalho():
         pdf.set_text_color(0, 0, 0)
@@ -456,7 +456,7 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
     pdf.add_page()
     cabecalho()
     y = 31
-    for t, values in itens:
+    for t, values, reg_item in itens:
         altura = 17 if t["paciente"] else 9
         if y + altura > 198:
             pdf.add_page()
@@ -469,8 +469,8 @@ def exportar_pdf(caminho, linhas_mapa, data_iso, setor_nome, incluir_vagos=True,
             if not value:
                 continue
             key = colunas[i][0]
-            if key == "paciente" and t.get("_imc_class"):
-                value = value + "\nIMC: " + _fmt_num_pt(t.get("_imc"), 1) + "\n (" + str(t["_imc_class"]) + ")"
+            if key == "paciente" and reg_item.get("imc_class"):
+                value = value + "\nIMC: " + _fmt_num_pt(reg_item.get("imc"), 1) + "\n (" + str(reg_item["imc_class"]) + ")"
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Arial", "B" if key == "leito" else "", 5 if key != "paciente" else 6)
             linhas = _l1(value).splitlines() or [""]
