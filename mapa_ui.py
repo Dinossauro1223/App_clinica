@@ -1999,6 +1999,9 @@ class DialogCurvasOMS(_Janela):
                         continue
                     if referencia == "oms_2007" and x_meses < 60:
                         continue
+                    limite_meses = 120 if indicador == "peso_idade" else 228
+                    if referencia == "oms_2007" and x_meses > limite_meses:
+                        continue
                     xs.append(x_meses / 12.0)
                 for chave, rotulo, estilo in curvas_z:
                     ys = []
@@ -2008,6 +2011,9 @@ class DialogCurvasOMS(_Janela):
                         if referencia == "oms_2006" and x_meses > 60:
                             continue
                         if referencia == "oms_2007" and x_meses < 60:
+                            continue
+                        limite_meses = 120 if indicador == "peso_idade" else 228
+                        if referencia == "oms_2007" and x_meses > limite_meses:
                             continue
                         ys.append(ponto[chave])
                     ax.plot(xs, ys, linestyle=estilo, linewidth=1.0 if chave != "z_zero" else 1.8,
