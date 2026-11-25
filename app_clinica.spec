@@ -36,6 +36,7 @@ ARQUIVOS_DATA = [
     ('sintomas_internos', 'sintomas_internos'),
     ('prescricoes_internas', 'prescricoes_internas'),
     ('condutas_alta', 'condutas_alta'),
+    (os.path.join(SPECPATH, 'dados', 'oms_lms_pediatricos.csv'), 'dados'),
 ]
 DATAS = [
     (origem, destino)
@@ -54,7 +55,7 @@ a = Analysis(
     hiddenimports=[
         'mapa_export', 'mapa_graficos', 'graficos_ui', 'graficos_layout', 'graficos_nativos', 'graficos_pintor',
         'configuracoes_ui', 'mobile_ui', 'almox_ui', 'gestao_alimentar_ui',
-        'nrs_ui', 'avaliacao_ui',
+        'nrs_ui', 'avaliacao_ui', 'pediatria_oms',
         'openpyxl', 'matplotlib.backends.backend_agg',
     ],
     hookspath=[],
