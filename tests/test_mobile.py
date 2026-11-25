@@ -440,6 +440,7 @@ class MobileTest(unittest.TestCase):
 
 
     def test_pedido_almox_registra_recebimento_e_prazo_medio(self):
+        saldo_anterior = self.qtd("almox")
         with mock.patch.object(sv, "agora_dt",
                                lambda: datetime(2026, 11, 10, 9, 0, tzinfo=sv.TZ)):
             cod, criado = self.chamar(self.adm, "POST", "/api/admin/almox/pedidos",
@@ -454,7 +455,7 @@ class MobileTest(unittest.TestCase):
             cod, recebido = self.chamar(self.adm, "POST",
                                         "/api/admin/almox/pedidos/%d/receber" % pedido_id, {})
         self.assertEqual(cod, 200, recebido)
-        self.assertEqual(self.qtd("almox"), 3)
+        self.assertEqual(self.qtd("almox"), saldo_anterior + 3)
         cod, prazos = self.chamar(self.adm, "GET", "/api/admin/almox/prazos")
         self.assertEqual(cod, 200, prazos)
         arroz = next(p for p in prazos["prazos"] if p["id_item"] == 1)
