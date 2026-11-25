@@ -167,7 +167,7 @@ class TestExportacaoPDF(unittest.TestCase):
             textos = [x[3] for x in pdf.textos]
             for trecho in ("SETOR DE NUTRICAO", "MAPA DE DIETAS - SETOR GERAL",
                            "IMPRESSO EM", "Via ALM.", "Preferencias", "Observacoes",
-                           "Diagnosticos", "AJ (cm): 50,3", "Trophic Soya 1,5"):
+                           "Diagnosticos", "AJ: 50,3", "Trophic Soya 1,5"):
                 self.assertTrue(any(trecho in x for x in textos), trecho)
             self.assertGreater(os.path.getsize(path), 1000)
         finally:
