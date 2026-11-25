@@ -222,7 +222,7 @@ class Graficos:
         """Estilo "imagens simples": os PNG do matplotlib, como antes."""
         p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "imagem")
         assert len(p.faixas) == 4, f"{len(p.faixas)} faixas, esperadas 4 (um por grupo)"
-        assert len(p.imagens) == 10, f"{len(p.imagens)} imagens, esperadas 9"
+        assert len(p.imagens) == 10, f"{len(p.imagens)} imagens, esperadas 10"
         for faixa in p.faixas:
             assert faixa.carrossel is not None, "a faixa não recebeu o tamanho (evento Configure)"
             assert faixa.canvas.winfo_width() > 300, f"largura da faixa {faixa.canvas.winfo_width()}"
@@ -469,7 +469,7 @@ class Graficos:
     def de_cima_para_baixo_imagem(self):
         p = self.montar(self.gl.DISPOSICAO_VERTICAL, "imagem")
         assert p.faixas == [], "no modo de cima para baixo não há faixas"
-        assert len(p.imagens) == 9, f"{len(p.imagens)} imagens"
+        assert len(p.imagens) == 10, f"{len(p.imagens)} imagens"
         assert all(type(i).__name__ == "CTkImage" for i in p.imagens), "as imagens deveriam ser CTkImage"
 
     def escala_do_windows(self):
