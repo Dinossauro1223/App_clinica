@@ -524,7 +524,7 @@ def _enviar_setor(db, sv, c, adm, nome, itens, data_iso, texto):
         else:
             # Envio completo: até leitos vazios entram na fotografia. Sem timestamp, o servidor não
             # sobrescreve um estado que possa ter sido criado pela copa.
-            ultimo = mdb.ultimo_registro_leito(db, lid, data_iso)
+            ultimo = mdb.ultimo_registro_leito(db, it["leito"]["id_leito"], data_iso)
             linhas.append({"id_leito": lid, "nome": "", "ocupado": 0,
                            "atualizado_em": (ultimo or {}).get("atualizado_em"),
                            "alta_em": (ultimo or {}).get("alta_em")})
