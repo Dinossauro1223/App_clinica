@@ -284,7 +284,18 @@ async function entrar(){
   try{
     try{if(window.isSecureContext&&window.Notification&&Notification.permission==='default')Notification.requestPermission()}catch(e){}
     const j=await api('/api/login',{login:$('#lg').value,senha:$('#sn').value});S.tok=j.token;try{if(window.NLOffline)NLOffline.set('token',j.token)}catch(e){}await abrir(j.usuario,j.hoje)}
-  catch(e){telaLogin(e.message)}
+  catch(e){
+    try{
+      const raw=window.NLOffline&&NLOffline.get?NLOffline.get('user'):'';
+      const local=JSON.parse(raw||'{}');
+      if(local.usuario){
+        await abrir(local.usuario,local.hoje||new Date().toISOString().slice(0,10));
+        aviso('Modo offline: alterações ficarão salvas neste aparelho e serão sincronizadas quando a conexão voltar.',0);
+        return;
+      }
+    }catch(_offline){}
+    telaLogin(e.message)
+  }
 }
 async function abrir(u,hoje){
   S.u=u;S.hoje=hoje;S.data=hoje;try{if(window.NLOffline)NLOffline.set('user',JSON.stringify({usuario:u,hoje}))}catch(e){}
@@ -384,8 +395,18 @@ async function vMapa(){
   j.linhas.map(l=>leito(l,j.pendentes)).join('')+(j.linhas.length?barra('salvaMapa',st?'Salvar rascunho':'Salvar mapa de '+br(j.data)):'<div class=cartao>Este setor ainda não tem leitos.</div>');
 }
 const salvaMapa=tenta(async()=>{
-  const r=await api('/api/mapa',{setor:S.setor,data:S.data,linhas:coleta()});await vMapa();
-  aviso(ehStaff()?`Rascunho salvo (${r.rascunho} leito(s) com mudanças). Publique para a copa receber.`:'Mapa salvo.'+(r.pendente?` ${r.pendente} leito(s) já atualizado(s) pela nutrição: aguardando a autorização dela.`:''),0);
+  const linhas=coleta();
+  const url='/api/mapa?setor='+encodeURIComponent(S.setor)+'&data='+encodeURIComponent(S.data);
+  let base={};
+  try{const j=JSON.parse(read('GET:'+url)||'{}');for(const l of j.linhas||[])base[l.id_leito]=l}catch(e){}
+  const agora=new Date().toISOString();
+  for(const l of linhas){
+    const anterior=base[l.id_leito];
+    if(!anterior||snapshot(anterior)!==snapshot(l))l.atualizado_em=agora;
+    else l.atualizado_em=anterior.atualizado_em||agora;
+  }
+  const r=await api('/api/mapa',{setor:S.setor,data:S.data,linhas,completo:!ehStaff()});await vMapa();
+  aviso(ehStaff()?'Rascunho salvo ('+r.rascunho+' leito(s) com mudanças). Publique para a copa receber.':'Mapa completo salvo localmente.'+(r.ignorados?' '+r.ignorados+' leito(s) sem alteração de origem foram preservados.':''),0);
 });
 const publica=tenta(async()=>{
   const t=$('#pt').value;await api('/api/mapa',{setor:S.setor,data:S.data,linhas:coleta()});
