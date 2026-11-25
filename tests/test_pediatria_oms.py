@@ -60,6 +60,10 @@ class TestClassificacaoPorIndicador(unittest.TestCase):
         self.assertEqual(classificar_escore_z("imc_idade", -2.5, 61),
                          "Magreza")
 
+    def test_imc_usa_referencia_2007_a_partir_de_60_meses(self):
+        self.assertEqual(classificar_escore_z("imc_idade", 1.5, 60), "Sobrepeso")
+        self.assertEqual(classificar_escore_z("imc_idade", 2.5, 60), "Obesidade")
+
     def test_peso_por_idade_nao_classifica_excesso_de_peso_e_limita_a_10_anos(self):
         self.assertEqual(classificar_escore_z("peso_idade", -2.5, 60),
                          "Peso baixo para idade")
