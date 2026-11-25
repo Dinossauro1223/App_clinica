@@ -135,6 +135,8 @@ def agora():
 
 def num(v, nome="valor"):
     try:
+        if isinstance(v, str):
+            v = v.strip().replace(".", "").replace(",", ".") if "," in v else v.strip()
         x = float(v)
     except (TypeError, ValueError):
         raise Erro("Número inválido em %s." % nome)
@@ -192,7 +194,7 @@ def criar_usuario(c, login, nome, perfil, id_setor, senha):
         raise Erro("Informe login e nome.")
     if perfil not in PERFIS:
         raise Erro("Perfil inválido.")
-    sid = id_setor if perfil in ("copa", "nutricionista") and id_setor not in (None, "") else None
+    sid = id_setor if perfil == "nutricionista" and id_setor not in (None, "") else None
     if sid is not None and not c.execute("SELECT 1 FROM setores WHERE id=?", (sid,)).fetchone():
         raise Erro("Setor inexistente.")
     try:
@@ -216,7 +218,7 @@ def migrar(c):
         if col not in cols("mapa_dia"):
             c.execute("ALTER TABLE mapa_dia ADD COLUMN %s %s" % (col, tipo))
     # Metadados comerciais e snapshots de custo são aditivos: bancos antigos mantêm todo o histórico.
-    for col, tipo in (("preco_unitario", "REAL"), ("embalagem_qtd", "REAL"), ("embalagem_un", "TEXT")):
+    for col, tipo in (("preco_unitario", "REAL"), ("embalagem_qtd", "REAL"), ("embalagem_un", "TEXT"), ("ativo", "INTEGER NOT NULL DEFAULT 1")):
         if col not in cols("itens"):
             c.execute("ALTER TABLE itens ADD COLUMN %s %s" % (col, tipo))
     # Unidades antigas são convertidas para a unidade-base, preservando o conteúdo físico.
