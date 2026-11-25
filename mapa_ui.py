@@ -177,6 +177,24 @@ class MapaUI:
         self.lbl_condutas = ctk.CTkLabel(avisos, text="", text_color=LARANJA,
                                          font=ctk.CTkFont(size=11, weight="bold"), anchor="w", justify="left")
         self.lbl_condutas.pack(fill="x", anchor="w")
+        self.quadro_alertas = ctk.CTkFrame(area, fg_color="transparent")
+        self.quadro_alertas.pack(fill="x", padx=24, pady=(2, 5))
+        ctk.CTkLabel(self.quadro_alertas, text="ACOMPANHAMENTO DA EVOLUÇÃO ENTERAL",
+                     font=ctk.CTkFont(size=10, weight="bold"), text_color=tema.VERDE_ESC).pack(anchor="w", pady=(0, 3))
+        self.cards_alertas = {}
+        for coluna, (chave, titulo) in enumerate((
+            ("evoluiram", "Evoluíram automaticamente"),
+            ("nao_evoluiram", "Não evoluíram automaticamente"),
+            ("abaixo_meta", "Abaixo da meta energética"),
+        )):
+            card = ctk.CTkFrame(self.quadro_alertas, fg_color=tema.BRANCO, corner_radius=8,
+                                border_width=1, border_color=tema.BORDA)
+            card.pack(side="left", fill="both", expand=True, padx=(0 if coluna == 0 else 5, 0))
+            ctk.CTkLabel(card, text=titulo, font=ctk.CTkFont(size=11, weight="bold"),
+                         text_color=tema.TEXTO).pack(anchor="w", padx=8, pady=(6, 2))
+            lista_alertas = ctk.CTkScrollableFrame(card, height=82, fg_color="transparent")
+            lista_alertas.pack(fill="both", expand=True, padx=4, pady=(0, 4))
+            self.cards_alertas[chave] = lista_alertas
         self.lbl_inicio = ctk.CTkLabel(
             area, text="Selecione um leito vazio e clique em 'Preencher leito' para iniciar.",
             text_color=tema.SUAVE, anchor="w", justify="left")
@@ -293,6 +311,7 @@ class MapaUI:
                 com_pendencia += cond.get("estado") == "pendente"
             self.tree.insert("", "end", iid=str(l["id_leito"]), values=vals, tags=tag)
         self._mostrar_aviso_condutas(com_pendencia)
+        self._atualizar_painel_evolucao()
         total = len(self.linhas)
         if ocupados == 0 and total:
             self.lbl_inicio.configure(text="Primeiro preenchimento: selecione um leito vazio e clique em 'Preencher leito'. "
@@ -309,6 +328,64 @@ class MapaUI:
                 text=f"{ocupados} de {total} leitos com registro  ·  {past} em dieta pastosa  ·  "
                      f"{acomp} com acompanhante  ·  {ocupados - sup_oral - enteral} em via oral sem suplemento  ·  "
                      f"{sup_oral} com suplementação oral  ·  {enteral} em dieta enteral")
+
+
+    def _abrir_alerta_evolucao(self, id_leito):
+        iid = str(id_leito)
+        if self.tree.exists(iid):
+            self.tree.selection_set(iid)
+            self.tree.focus(iid)
+            self.tree.see(iid)
+            self._editar()
+
+    def _atualizar_painel_evolucao(self):
+        import evolucao_nutricional as ev
+        grupos = {"evoluiram": [], "nao_evoluiram": [], "abaixo_meta": []}
+        for item in self.linhas:
+            registro = item.get("registro")
+            if not registro:
+                continue
+            resumo = ev.resumo_painel_evolucao(registro, self.data.isoformat())
+            if not resumo:
+                continue
+            paciente = registro.get("nome_paciente") or "Paciente"
+            leito = item["leito"].get("codigo", "?")
+            base = {"id_leito": item["leito"]["id_leito"], "nome": paciente, "leito": leito}
+            if resumo["evoluiu"]:
+                grupos["evoluiram"].append((base, resumo))
+            else:
+                grupos["nao_evoluiram"].append((base, resumo))
+            if resumo["deficit_kcal"] > 0.5:
+                grupos["abaixo_meta"].append((base, resumo))
+        for chave, lista in self.cards_alertas.items():
+            for filho in lista.winfo_children():
+                filho.destroy()
+            itens = grupos[chave]
+            if not itens:
+                ctk.CTkLabel(lista, text="Nenhum paciente nesta condição.",
+                             font=ctk.CTkFont(size=10), text_color=tema.SUAVE).pack(anchor="w", padx=4, pady=4)
+                continue
+            for base, resumo in itens:
+                if chave == "evoluiram":
+                    texto = (f"Leito {base['leito']} · {base['nome']}\n"
+                             f"{resumo['volume_inicial_ml']:.0f} → {resumo['volume_atual_ml']:.0f} mL/dia "
+                             f"(+{resumo['incremento_ml']:.0f}); meta {resumo['volume_meta_ml']:.0f} mL/dia; "
+                             f"{resumo['adequacao_kcal_pct']:.1f}% kcal")
+                elif chave == "nao_evoluiram":
+                    texto = (f"Leito {base['leito']} · {base['nome']}\n"
+                             f"{resumo['volume_atual_ml']:.0f}/{resumo['volume_meta_ml']:.0f} mL/dia · "
+                             f"{resumo['motivo_nao_evolucao'] or 'Sem incremento registrado'}")
+                else:
+                    texto = (f"Leito {base['leito']} · {base['nome']}\n"
+                             f"{resumo['energia_kcal']:.0f}/{resumo['meta_kcal']:.0f} kcal "
+                             f"({resumo['adequacao_kcal_pct']:.1f}%) · déficit {resumo['deficit_kcal']:.0f} kcal · "
+                             f"+{resumo['volume_adicional_ml']:.0f} mL/dia")
+                ctk.CTkButton(
+                    lista, text=texto, anchor="w", justify="left", height=46,
+                    fg_color="transparent", hover_color=tema.VERDE_CLARO,
+                    text_color=tema.TEXTO, font=ctk.CTkFont(size=10),
+                    command=lambda ident=base["id_leito"]: self._abrir_alerta_evolucao(ident)
+                ).pack(fill="x", padx=2, pady=1)
 
     # ------------------------------------------------------------------ condutas de alta
     def _catalogo_condutas(self):
