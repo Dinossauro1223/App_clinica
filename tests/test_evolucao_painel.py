@@ -50,6 +50,13 @@ class TestPainelEvolucao(unittest.TestCase):
             self.registro(solicitada=False, autorizada=False, plano={}), "2026-11-20")
         self.assertEqual(resumo["motivo_nao_evolucao"], "Progressão automática desativada")
 
+    def test_vomitos_ou_diarreia_bloqueiam_progressao_automatica(self):
+        self.assertFalse(regras.tolerancia_enteral_permite_progressao(["vômitos"], True))
+        self.assertFalse(regras.tolerancia_enteral_permite_progressao(["diarreia"], True))
+        self.assertFalse(regras.tolerancia_enteral_permite_progressao(["retrolimentação"], False))
+        self.assertTrue(regras.tolerancia_enteral_permite_progressao(["retrolimentação"], True))
+        self.assertTrue(regras.tolerancia_enteral_permite_progressao([], True))
+
     def test_progressao_oral_configuravel_exige_cinco_valores_crescentes(self):
         self.assertEqual(regras.validar_progressao_oral([60, 90, 120, 150, 180]),
                          [60, 90, 120, 150, 180])
