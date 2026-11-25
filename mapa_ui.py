@@ -2003,7 +2003,7 @@ class DialogCurvasOMS(_Janela):
                                    else ponto["idade"])
                         if referencia == "oms_2006" and x_meses > 60:
                             continue
-                        if referencia == "oms_2007" and x_meses < 61:
+                        if referencia == "oms_2007" and x_meses < 60:
                             continue
                         ys.append(ponto[chave])
                     ax.plot(xs, ys, linestyle=estilo, linewidth=1.0 if chave != "z_zero" else 1.8,
