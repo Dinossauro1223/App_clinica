@@ -120,6 +120,19 @@ def num(v, nome="valor"):
     return x
 
 
+def normalizar_embalagem(qtd, unidade):
+    """Converte unidades equivalentes para g/mL; não converte massa em volume."""
+    if qtd is None:
+        return None, None
+    unidade = str(unidade or "").strip().lower()
+    fatores = {"g": (1.0, "g"), "kg": (1000.0, "g"), "mg": (0.001, "g"),
+               "ml": (1.0, "ml"), "l": (1000.0, "ml"), "un": (1.0, "un")}
+    if unidade not in fatores:
+        raise Erro("Escolha a unidade do conteúdo: gramas (g), mililitros (mL) ou unidade.")
+    fator, base = fatores[unidade]
+    return qtd * fator, base
+
+
 def dia_valido(txt):
     try:
         return date.fromisoformat(str(txt)).isoformat()
@@ -183,6 +196,16 @@ def migrar(c):
     for col, tipo in (("preco_unitario", "REAL"), ("embalagem_qtd", "REAL"), ("embalagem_un", "TEXT")):
         if col not in cols("itens"):
             c.execute("ALTER TABLE itens ADD COLUMN %s %s" % (col, tipo))
+    # Unidades antigas são convertidas para a unidade-base, preservando o conteúdo físico.
+    # O valor por embalagem/preço não muda; apenas a representação da quantidade é normalizada.
+    c.execute("UPDATE itens SET embalagem_qtd=embalagem_qtd*1000, embalagem_un='g' "
+              "WHERE lower(trim(embalagem_un))='kg' AND embalagem_qtd IS NOT NULL")
+    c.execute("UPDATE itens SET embalagem_qtd=embalagem_qtd/1000, embalagem_un='g' "
+              "WHERE lower(trim(embalagem_un))='mg' AND embalagem_qtd IS NOT NULL")
+    c.execute("UPDATE itens SET embalagem_qtd=embalagem_qtd*1000, embalagem_un='ml' "
+              "WHERE lower(trim(embalagem_un))='l' AND embalagem_qtd IS NOT NULL")
+    c.execute("UPDATE itens SET embalagem_un=lower(trim(embalagem_un)) "
+              "WHERE embalagem_un IS NOT NULL")
     for col in ("preco_unitario_snapshot", "custo_snapshot"):
         if col not in cols("movimentos"):
             c.execute("ALTER TABLE movimentos ADD COLUMN %s REAL" % col)
@@ -854,13 +877,9 @@ def _rotear(c, ip, m, p, q, b, auth):
             preco = None if b.get("preco_unitario") in (None, "") else num(b.get("preco_unitario"), "preço unitário")
             emb_qtd = None if b.get("embalagem_qtd") in (None, "") else num(b.get("embalagem_qtd"), "conteúdo da embalagem")
             emb_un = str(b.get("embalagem_un") or "").strip().lower() or None
-            unidades = {"g", "kg", "mg", "ml", "l", "un"}
             if emb_qtd is not None and emb_qtd <= 0:
                 raise Erro("O conteúdo da embalagem precisa ser maior que zero.")
-            if emb_qtd is not None and emb_un not in unidades:
-                raise Erro("Informe a unidade do conteúdo (g, kg, mg, ml, L ou un).")
-            if emb_qtd is None:
-                emb_un = None
+            emb_qtd, emb_un = normalizar_embalagem(emb_qtd, emb_un)
             if p == "/api/admin/itens":
                 if not nome:
                     raise Erro("Informe o nome do item.")
