@@ -273,14 +273,18 @@ def resumo_painel_evolucao(registro, data_destino):
         inicial_etapa = _numero(dieta.get("volume_por_etapa_ml"), "Volume por etapa", minimo=0.000001)
     except (TypeError, ValueError):
         return None
-    inicio = _data_br_ou_iso(dados.get("data_evolucao") or registro.get("data"))
-    destino = _data_br_ou_iso(data_destino or registro.get("data"))
-    dias = max(0, (date.fromisoformat(destino) - date.fromisoformat(inicio)).days)
-    atual_etapa = inicial_etapa
-    autorizada = bool(progressao.get("autorizada"))
-    passos = (progressao.get("plano") or {}).get("passos") or []
-    if autorizada and passos and dias:
-        atual_etapa = float(passos[min(dias - 1, len(passos) - 1)]["volume_etapa_ml"])
+    try:
+        inicio = _data_br_ou_iso(dados.get("data_evolucao") or registro.get("data"))
+        destino = _data_br_ou_iso(data_destino or registro.get("data"))
+        dias = max(0, (date.fromisoformat(destino) - date.fromisoformat(inicio)).days)
+        atual_etapa = inicial_etapa
+        autorizada = bool(progressao.get("autorizada"))
+        passos = (progressao.get("plano") or {}).get("passos") or []
+        if autorizada and passos and dias:
+            atual_etapa = _numero(passos[min(dias - 1, len(passos) - 1)]["volume_etapa_ml"],
+                                  "Volume da progressão", minimo=0.000001)
+    except (TypeError, ValueError, KeyError, IndexError):
+        return None
     volume_atual = atual_etapa * etapas
     energia_atual = volume_atual * kcal_100 / 100
     ptn_100 = dieta.get("ptn_100")
@@ -305,9 +309,14 @@ def resumo_painel_evolucao(registro, data_destino):
         motivo = "Progressão ainda não iniciada"
     deficit = max(0.0, meta_kcal - energia_atual)
     volume_adicional = deficit / (kcal_100 / 100)
+    try:
+        volume_meta_total = _numero(oferta.get("volume_meta_ml") or progressao.get("volume_meta_ml") or 0,
+                                    "Volume-meta")
+    except ValueError:
+        volume_meta_total = 0.0
     return {
         "via": "Enteral", "volume_inicial_ml": inicial_etapa * etapas,
-        "volume_atual_ml": volume_atual, "volume_meta_ml": float(oferta.get("volume_meta_ml") or progressao.get("volume_meta_ml") or 0),
+        "volume_atual_ml": volume_atual, "volume_meta_ml": volume_meta_total,
         "incremento_ml": volume_atual - inicial_etapa * etapas, "energia_kcal": energia_atual,
         "meta_kcal": meta_kcal, "adequacao_kcal_pct": adequacao_kcal,
         "proteina_g": proteina_atual, "adequacao_ptn_pct": adequacao_ptn,
