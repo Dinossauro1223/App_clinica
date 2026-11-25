@@ -202,13 +202,16 @@ class GestaoAlimentarUI:
         ctk.CTkLabel(topo, text="Itens recebidos do estoque Almoxarifado no mobile",
                      font=ctk.CTkFont(size=14, weight="bold"), text_color=VERDE_ESC).pack(side="left")
         _btn(topo, "Atualizar agora", self.sincronizar, 125, cor=CINZA, hover=tema.SUAVE).pack(side="right")
+        _btn(topo, "Editar / vincular TBCA", lambda: self._editar_produto_almox(False), 175, cor=AZUL).pack(side="right", padx=5)
+        _btn(topo, "＋ Novo produto", lambda: self._editar_produto_almox(True), 135).pack(side="right", padx=5)
         ctk.CTkLabel(self.tab_almox,
                      text="O saldo é lido do mobile. Preço unitário refere-se à unidade de estoque cadastrada; conteúdo da embalagem informa quantos g/ml/un essa unidade contém.",
                      font=ctk.CTkFont(size=11), text_color=tema.SUAVE, anchor="w", justify="left", wraplength=900).pack(fill="x", padx=10, pady=4)
         frame, self.produtos_tree = _tree(self.tab_almox, [
-            ("nome", "Produto", 220, "w"), ("un", "Un. estoque", 95, "center"),
-            ("preco", "Preço unitário", 110, "e"), ("emb", "Conteúdo/unidade", 125, "e"),
-            ("saldo", "Qtd. em estoque", 115, "e"), ("data", "Data do saldo", 125, "center")], altura=18)
+            ("nome", "Produto", 190, "w"), ("un", "Un. estoque", 85, "center"),
+            ("preco", "Preço unitário", 105, "e"), ("emb", "Conteúdo/unidade", 115, "e"),
+            ("saldo", "Qtd. em estoque", 105, "e"), ("data", "Data do saldo", 110, "center"),
+            ("tbca", "Alimento TBCA vinculado", 250, "w")], altura=18)
         frame.pack(fill="both", expand=True, padx=8, pady=(4, 8))
 
     def _montar_tab_tbca(self):
@@ -380,6 +383,84 @@ class GestaoAlimentarUI:
         except Exception:
             return False
 
+
+    def _editar_produto_almox(self, novo=False):
+        selecionado = self.produtos_tree.selection() if self.produtos_tree else ()
+        if not novo and not selecionado:
+            messagebox.showinfo("Almoxarifado", "Selecione um produto para editar ou vincular à TBCA.")
+            return
+        id_item = None if novo else int(selecionado[0])
+        item = None if novo else next((p for p in ga.listar_produtos_almox(self.db) if int(p["id_mobile"]) == id_item), None)
+        if not novo and not item:
+            messagebox.showwarning("Almoxarifado", "Produto não encontrado. Sincronize o catálogo e tente novamente.")
+            return
+        janela = ctk.CTkToplevel(self.app)
+        janela.title("Cadastrar produto do Almoxarifado" if novo else "Editar produto e vínculo TBCA")
+        janela.geometry("760x600")
+        janela.minsize(650, 520)
+        janela.transient(self.app)
+        janela.grab_set()
+        ctk.CTkLabel(janela, text="Catálogo compartilhado com o mobile",
+                     font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=20, pady=(16, 4))
+        ctk.CTkLabel(janela,
+                     text="O conteúdo da embalagem (g/mL/un) é diferente da quantidade de embalagens em estoque. O vínculo TBCA será reutilizado ao montar fichas técnicas.",
+                     font=ctk.CTkFont(size=11), text_color=tema.SUAVE, wraplength=700,
+                     justify="left").pack(anchor="w", padx=20, pady=(0, 10))
+        form = ctk.CTkFrame(janela, fg_color="transparent")
+        form.pack(fill="both", expand=True, padx=18)
+        form.grid_columnconfigure(1, weight=1)
+        def campo(rotulo, linha, valor="", placeholder=""):
+            ctk.CTkLabel(form, text=rotulo).grid(row=linha, column=0, sticky="w", padx=4, pady=6)
+            entrada = ctk.CTkEntry(form, placeholder_text=placeholder)
+            entrada.grid(row=linha, column=1, sticky="ew", padx=4, pady=6)
+            if valor not in (None, ""):
+                entrada.insert(0, str(valor))
+            return entrada
+        nome = campo("Nome do produto *", 0, item.get("nome") if item else "", "Ex.: Leite integral")
+        unidade = campo("Unidade de estoque *", 1, item.get("unidade_estoque") if item else "pacote", "Ex.: pacote, frasco, lata")
+        preco = campo("Preço por unidade de estoque (R$)", 2, item.get("preco_unitario") if item else "", "Ex.: 8,50")
+        conteudo = campo("Conteúdo de cada embalagem", 3, item.get("embalagem_qtd") if item else "", "Ex.: 500")
+        ctk.CTkLabel(form, text="Unidade do conteúdo").grid(row=4, column=0, sticky="w", padx=4, pady=6)
+        unidade_var = ctk.StringVar(value=(item.get("embalagem_un") if item else None) or "g")
+        seg = ctk.CTkSegmentedButton(form, values=["g", "mL", "un"], variable=unidade_var)
+        seg.grid(row=4, column=1, sticky="w", padx=4, pady=6)
+        saldo = campo("Saldo do almoxarifado (embalagens)", 5, "", "Deixe vazio para não alterar o saldo")
+        alimentos = ga.listar_alimentos(self.db, limite=10000)
+        rotulos = ["— sem vínculo com a TBCA —"] + [f"{a['id_tbca']} | {a['alimento']}" for a in alimentos]
+        por_id = {str(a["id_tbca"]): a for a in alimentos}
+        ctk.CTkLabel(form, text="Alimento da TBCA").grid(row=6, column=0, sticky="w", padx=4, pady=6)
+        tbca = ctk.CTkComboBox(form, values=rotulos, width=480)
+        tbca.grid(row=6, column=1, sticky="ew", padx=4, pady=6)
+        tbca.set("— sem vínculo com a TBCA —")
+        if item and item.get("tbca_id"):
+            alimento = por_id.get(str(item["tbca_id"]))
+            if alimento:
+                tbca.set(f"{alimento['id_tbca']} | {alimento['alimento']}")
+        if not alimentos:
+            tbca.configure(state="disabled")
+            ctk.CTkLabel(form, text="Importe a base TBCA na aba Base TBCA para habilitar o vínculo.",
+                         font=ctk.CTkFont(size=10), text_color=tema.SUAVE).grid(row=7, column=1, sticky="w", padx=4)
+        rodape = ctk.CTkFrame(janela, fg_color="transparent")
+        rodape.pack(fill="x", padx=18, pady=14)
+        def salvar():
+            escolha = tbca.get().strip()
+            tbca_id = None if not escolha or escolha.startswith("—") else escolha.split(" | ", 1)[0].strip()
+            dados = {"nome": nome.get(), "unidade": unidade.get(), "preco_unitario": preco.get(),
+                     "embalagem_qtd": conteudo.get(), "embalagem_un": unidade_var.get(), "tbca_id": tbca_id}
+            try:
+                self.mobile_db = im.caminho_mobile_db(self.db, self.base_dir)
+                im.salvar_produto_almox(self.mobile_db, dados, id_item=id_item,
+                                        estoque_inicial=saldo.get().strip() or None)
+            except Exception as exc:
+                messagebox.showwarning("Almoxarifado", str(exc))
+                return
+            janela.destroy()
+            self.sincronizar(silencioso=True)
+            self.lbl_status.configure(text="Produto salvo no catálogo compartilhado. Sincronizando o espelho da ficha técnica…")
+        _btn(rodape, "Cancelar", janela.destroy, 100, cor=CINZA, hover=tema.SUAVE).pack(side="right", padx=4)
+        _btn(rodape, "Salvar produto", salvar, 140).pack(side="right", padx=4)
+
     def carregar_produtos(self):
         if not self.produtos_tree:
             return
@@ -389,9 +470,10 @@ class GestaoAlimentarUI:
             conteudo = "—"
             if item.get("embalagem_qtd") is not None and item.get("embalagem_un"):
                 conteudo = f"{_fmt_num(item['embalagem_qtd'])} {item['embalagem_un']}"
-            self.produtos_tree.insert("", "end", values=(item["nome"], item.get("unidade_estoque") or "—",
+            self.produtos_tree.insert("", "end", iid=str(item["id_mobile"]), values=(item["nome"], item.get("unidade_estoque") or "—",
                 _fmt_brl(item.get("preco_unitario")), conteudo,
-                _fmt_num(item.get("estoque_qtd")), item.get("estoque_data") or "—"),
+                _fmt_num(item.get("estoque_qtd")), item.get("estoque_data") or "—",
+                item.get("tbca_alimento") or ("ID " + str(item["tbca_id"]) if item.get("tbca_id") else "—")),
                 tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
 
 
