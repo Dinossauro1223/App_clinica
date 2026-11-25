@@ -2316,35 +2316,177 @@ class AppClinica(ctk.CTk):
         except Exception as exc:
             messagebox.showerror("Copiar anamnese", str(exc), parent=self)
 
-    def _calcular_imc_dinamico(self, *args):
-        """Atualiza IMC e estimativas energéticas sempre que peso/altura mudam."""
+    def _tabela_referencia_oms(self):
+        if not hasattr(self, "_tabela_oms_pediatria"):
+            self._tabela_oms_pediatria = None
+            self._erro_tabela_oms_pediatria = None
+            try:
+                self._tabela_oms_pediatria = oms.TabelaReferenciaOMS.carregar_padrao(get_base_path())
+            except (OSError, ValueError, TypeError) as exc:
+                self._erro_tabela_oms_pediatria = str(exc)
+        return self._tabela_oms_pediatria
+
+    def _idade_exata_oms_consulta(self):
+        bruto = str(getattr(self, "paciente_atual_nasc", "") or "").strip()
+        if not bruto:
+            return None, None, None, None, "Data de nascimento ausente no cadastro."
+        nascimento = None
+        for formato in ("%d/%m/%Y", "%d/%m/%y", "%Y-%m-%d"):
+            try:
+                nascimento = datetime.strptime(bruto, formato).date()
+                break
+            except ValueError:
+                continue
+        if nascimento is None:
+            return None, None, None, None, "Data de nascimento inválida no cadastro."
+        hoje = datetime.now().date()
         try:
-            peso_str = self.entry_peso.get().strip().replace(',', '.')
-            altura_str = self.entry_altura.get().strip().replace(',', '.')
+            dias = oms.calcular_idade_dias(nascimento.isoformat(), hoje.isoformat())
+            meses = oms.calcular_idade_meses(nascimento.isoformat(), hoje.isoformat())
+        except ValueError as exc:
+            return None, None, None, nascimento.isoformat(), str(exc)
+        return dias, meses, dias / 30.4375, nascimento.isoformat(), None
+
+    def _atualizar_oms_pediatria_consulta(self, imc, peso, altura_cm):
+        dias, meses, meses_decimais, nascimento, aviso = self._idade_exata_oms_consulta()
+        if aviso:
+            self._resultado_pediatria_consulta = {
+                "status": "pendente", "aviso": aviso, "resultados": {},
+                "data_avaliacao": datetime.now().date().isoformat(),
+                "data_nascimento": nascimento,
+            }
+            if hasattr(self, "lbl_oms_pediatria"):
+                self.lbl_oms_pediatria.configure(text="OMS pediatria pendente: " + aviso)
+            return self._resultado_pediatria_consulta
+        if meses >= 240:
+            self._resultado_pediatria_consulta = {}
+            if hasattr(self, "lbl_oms_pediatria"):
+                self.lbl_oms_pediatria.configure(text="Indicadores OMS pediátricos não se aplicam a partir de 20 anos.")
+            return self._resultado_pediatria_consulta
+        sexo_bruto = str(getattr(self, "paciente_atual_sexo", "") or "").strip().casefold()
+        if sexo_bruto in ("masculino", "homem", "male", "m", "h"):
+            sexo = "H"
+        elif sexo_bruto in ("feminino", "mulher", "female", "f"):
+            sexo = "M"
+        else:
+            sexo = None
+        tabela = self._tabela_referencia_oms()
+        peso_num = float(str(peso).replace(",", ".")) if peso not in (None, "") else None
+        altura_num = float(altura_cm) if altura_cm not in (None, "") else None
+        medidas = {
+            "imc_idade": imc,
+            "peso_idade": peso_num,
+            "estatura_idade": altura_num,
+        }
+        resultados = {
+            indicador: oms.avaliar_indicador(
+                indicador, valor, sexo, meses_decimais, tabela,
+                idade_dias=dias, idade_meses_completos=meses)
+            for indicador, valor in medidas.items()
+        }
+        self._resultado_pediatria_consulta = {
+            "status": "calculado" if any(r.get("status") == "calculado" for r in resultados.values()) else "pendente",
+            "data_avaliacao": datetime.now().date().isoformat(),
+            "data_nascimento": nascimento, "idade_dias": dias,
+            "idade_meses_completos": meses, "idade_meses_decimais": round(meses_decimais, 4),
+            "sexo": sexo, "peso_kg": peso_num, "altura_cm": altura_num, "imc": imc,
+            "resultados": resultados,
+            "fonte": "OMS 2006 / OMS 2007 — WHO anthro 1.1.0 e anthroplus 1.1.0",
+        }
+        nomes = {"imc_idade": "IMC/idade", "peso_idade": "Peso/idade", "estatura_idade": "Estatura/idade"}
+        linhas = []
+        for indicador, resultado in resultados.items():
+            if resultado["status"] == "calculado":
+                linhas.append(f"{nomes[indicador]}: z={resultado['escore_z']:+.2f} — {resultado['classificacao']}")
+            elif resultado["status"] == "fora_faixa":
+                linhas.append(f"{nomes[indicador]}: não aplicável nesta idade")
+            else:
+                linhas.append(f"{nomes[indicador]}: pendente")
+        if tabela is None:
+            linhas.insert(0, "Tabelas LMS oficiais não carregadas.")
+        elif meses <= 59 and dias is not None:
+            linhas.insert(0, "Referência OMS 2006 — idade exata em dias.")
+        elif meses <= 228:
+            linhas.insert(0, "Referência OMS 2007 — interpolação por meses.")
+        else:
+            linhas.insert(0, "Fora da faixa OMS pediátrica (até 228 meses completos).")
+        if hasattr(self, "lbl_oms_pediatria"):
+            self.lbl_oms_pediatria.configure(text="OMS pediatria — " + " | ".join(linhas))
+        return self._resultado_pediatria_consulta
+
+    def _abrir_curvas_oms_consulta(self):
+        resultado = getattr(self, "_resultado_pediatria_consulta", {}) or {}
+        if not resultado or not resultado.get("idade_meses_decimais") and resultado.get("idade_meses_decimais") != 0:
+            messagebox.showwarning("Curvas OMS", "A avaliação pediátrica exige data de nascimento válida.", parent=self)
+            return
+        tabela = self._tabela_referencia_oms()
+        if tabela is None:
+            messagebox.showwarning("Curvas OMS", "As tabelas LMS oficiais não foram carregadas.", parent=self)
+            return
+        sexo = resultado.get("sexo")
+        if sexo not in ("H", "M"):
+            messagebox.showwarning("Curvas OMS", "O sexo do paciente não está definido no cadastro.", parent=self)
+            return
+        DialogCurvasOMS(
+            self, tabela, sexo, resultado.get("idade_meses_decimais"),
+            resultado.get("peso_kg"), resultado.get("altura_cm"), resultado.get("imc"))
+
+    def _calcular_imc_dinamico(self, *args):
+        """Atualiza IMC, classificação OMS pediátrica e estimativas energéticas."""
+        try:
+            peso_str = self.entry_peso.get().strip().replace(",", ".")
+            altura_str = self.entry_altura.get().strip().replace(",", ".")
             if not peso_str or not altura_str:
                 self.lbl_imc.configure(text="IMC: -- kg/m²", text_color=tema.SUAVE)
+                self._atualizar_oms_pediatria_consulta(
+                    None, peso_str or None, float(altura_str) * 100 if altura_str else None)
                 if hasattr(self, "lbl_resultado_dri"):
                     self.calcular_necessidades_dri(silencioso=True)
                 return
             peso, altura = float(peso_str), float(altura_str)
             if peso <= 0 or altura <= 0:
-                raise ZeroDivisionError("peso/altura devem ser maiores que zero")
+                raise ValueError("peso e altura devem ser maiores que zero")
             imc = peso / (altura ** 2)
-            idade = self._calcular_idade_por_nascimento(getattr(self, 'paciente_atual_nasc', ''))
-            classificacao = self._classificar_imc(imc, idade)
-            sufixo_idade = f" (≥60 anos - régua idoso)" if (idade is not None and idade >= 60) else ""
-            self.lbl_imc.configure(
-                text=f"IMC: {imc:.1f} kg/m² — {classificacao}{sufixo_idade}",
-                text_color=tema.TEXTO)
+            idade = self._calcular_idade_por_nascimento(getattr(self, "paciente_atual_nasc", ""))
+            if idade is None:
+                self._atualizar_oms_pediatria_consulta(imc, peso, altura * 100)
+                self.lbl_imc.configure(text=f"IMC: {imc:.1f} kg/m² — classificação pendente (idade ausente)",
+                                       text_color=tema.SUAVE)
+            elif idade < 20:
+                resultado = self._atualizar_oms_pediatria_consulta(imc, peso, altura * 100)
+                imc_oms = (resultado.get("resultados") or {}).get("imc_idade") or {}
+                if imc_oms.get("status") == "calculado":
+                    texto = f"IMC: {imc:.1f} kg/m² — OMS: {imc_oms['classificacao']} (z={imc_oms['escore_z']:+.2f})"
+                    cor = tema.TEXTO
+                elif imc_oms.get("status") == "fora_faixa":
+                    texto, cor = f"IMC: {imc:.1f} kg/m² — fora da faixa OMS", tema.LARANJA_TEXTO
+                else:
+                    texto, cor = f"IMC: {imc:.1f} kg/m² — classificação OMS pendente", tema.SUAVE
+                self.lbl_imc.configure(text=texto, text_color=cor)
+            else:
+                self._resultado_pediatria_consulta = {}
+                if hasattr(self, "lbl_oms_pediatria"):
+                    self.lbl_oms_pediatria.configure(text="Indicadores OMS pediátricos não se aplicam a partir de 20 anos.")
+                classificacao = self._classificar_imc(imc, idade)
+                sufixo_idade = " (≥60 anos - régua idoso)" if idade >= 60 else ""
+                self.lbl_imc.configure(
+                    text=f"IMC: {imc:.1f} kg/m² — {classificacao}{sufixo_idade}",
+                    text_color=tema.TEXTO)
             if hasattr(self, "lbl_resultado_dri"):
                 self.calcular_necessidades_dri(silencioso=True)
-        except (ValueError, ZeroDivisionError):
+        except (ValueError, ZeroDivisionError) as e:
             self.lbl_imc.configure(text="IMC: -- kg/m²", text_color=tema.SUAVE)
+            if hasattr(self, "lbl_oms_pediatria"):
+                self.lbl_oms_pediatria.configure(text=f"OMS pediatria pendente: {e}")
+            self._resultado_pediatria_consulta = {"status": "pendente", "aviso": str(e), "resultados": {}}
             if hasattr(self, "lbl_resultado_dri"):
                 self.calcular_necessidades_dri(silencioso=True)
         except Exception as e:
-            print(f"[ERRO CRÍTICO IMC]: {e}")
+            print(f"[ERRO CRÍTICO IMC/OMS]: {e}")
             self.lbl_imc.configure(text="IMC: -- kg/m²", text_color=tema.SUAVE)
+            if hasattr(self, "lbl_oms_pediatria"):
+                self.lbl_oms_pediatria.configure(text="OMS pediatria: erro ao calcular; confira os dados do cadastro.")
+            self._resultado_pediatria_consulta = {"status": "pendente", "aviso": str(e), "resultados": {}}
             if hasattr(self, "lbl_resultado_dri"):
                 self.calcular_necessidades_dri(silencioso=True)
 
