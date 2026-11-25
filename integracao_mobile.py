@@ -17,6 +17,7 @@ Descrição completa: docs/mobile/INTEGRACAO_DESKTOP.md
 import hashlib
 import json
 import os
+import sqlite3
 import sys
 from contextlib import closing
 from datetime import datetime
@@ -125,13 +126,63 @@ def ler_produtos_almox(mobile_db):
     try:
         with sv.LOCK:
             rows = c.execute("""SELECT i.id AS id_item,i.nome,i.unidade,i.preco_unitario,
-                    i.embalagem_qtd,i.embalagem_un,e.qtd,e.data AS data_base
+                    i.embalagem_qtd,i.embalagem_un,i.tbca_id,e.qtd,e.data AS data_base
                 FROM itens i
                 LEFT JOIN estoque_dia e ON e.id_item=i.id AND e.estoque='almox'
                   AND e.data=(SELECT MAX(e2.data) FROM estoque_dia e2
                               WHERE e2.id_item=i.id AND e2.estoque='almox')
                 ORDER BY i.nome COLLATE NOCASE""").fetchall()
             return [dict(row) for row in rows]
+    finally:
+        c.close()
+
+
+def salvar_produto_almox(mobile_db, dados, id_item=None, estoque_inicial=None):
+    """Cria/edita um item compartilhado pelo desktop, preservando o histórico do saldo inicial."""
+    sv, c = _abrir_mobile(mobile_db)
+    try:
+        with sv.LOCK:
+            nome = str(dados.get("nome") or "").strip()
+            unidade = str(dados.get("unidade") or "").strip()
+            if not nome:
+                raise ErroMobile("Informe o nome do produto.")
+            if not unidade:
+                raise ErroMobile("Informe a unidade de estoque (ex.: pacote, frasco ou lata).")
+            preco = None if dados.get("preco_unitario") in (None, "") else sv.num(dados.get("preco_unitario"), "preço unitário")
+            if preco is not None and preco < 0:
+                raise ErroMobile("O preço unitário não pode ser negativo.")
+            emb_qtd = None if dados.get("embalagem_qtd") in (None, "") else sv.num(dados.get("embalagem_qtd"), "conteúdo da embalagem")
+            emb_un = str(dados.get("embalagem_un") or "").strip().lower() or None
+            if emb_qtd is not None and emb_qtd <= 0:
+                raise ErroMobile("O conteúdo da embalagem precisa ser maior que zero.")
+            emb_qtd, emb_un = sv.normalizar_embalagem(emb_qtd, emb_un)
+            tbca_id = str(dados.get("tbca_id") or "").strip() or None
+            if id_item is None:
+                try:
+                    cur = c.execute(
+                        "INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,tbca_id) VALUES(?,?,?,?,?,?)",
+                        (nome, unidade, preco, emb_qtd, emb_un, tbca_id))
+                except sqlite3.IntegrityError as exc:
+                    raise ErroMobile("Já existe um produto com esse nome.") from exc
+                iid = int(cur.lastrowid)
+            else:
+                iid = int(id_item)
+                if not c.execute("SELECT 1 FROM itens WHERE id=?", (iid,)).fetchone():
+                    raise ErroMobile("Produto não encontrado.")
+                try:
+                    c.execute(
+                        "UPDATE itens SET nome=?,unidade=?,preco_unitario=?,embalagem_qtd=?,embalagem_un=?,tbca_id=? WHERE id=?",
+                        (nome, unidade, preco, emb_qtd, emb_un, tbca_id, iid))
+                except sqlite3.IntegrityError as exc:
+                    raise ErroMobile("Já existe outro produto com esse nome.") from exc
+            if estoque_inicial not in (None, ""):
+                qtd = sv.num(estoque_inicial, "quantidade inicial em estoque")
+                if qtd < 0:
+                    raise ErroMobile("O estoque inicial não pode ser negativo.")
+                admin = _admin(c)
+                sv.gravar(c, "estoque", sv.hoje(), "almox|%d" % iid, {"qtd": qtd}, admin["id"], "admin")
+            c.commit()
+            return iid
     finally:
         c.close()
 
