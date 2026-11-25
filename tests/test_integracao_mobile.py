@@ -224,6 +224,41 @@ class TestComServidor(_Base):
         finally:
             c.close()
 
+    def test_exportacao_mobile_eh_snapshot_completo_e_herda_ate_alta(self):
+        c = sv.conectar(self.mdb)
+        try:
+            setor = sv.criar_setor(c, {"nome": "Export", "codigos": ["E01", "E02"]})
+            sid = setor["id"]
+            lids = {r["codigo"]: r["id"] for r in c.execute(
+                "SELECT id,codigo FROM leitos WHERE id_setor=?", (sid,)).fetchall()}
+            adm = dict(c.execute("SELECT * FROM usuarios WHERE perfil='admin' ORDER BY id LIMIT 1").fetchone())
+            ontem = "2026-11-11"
+            sv.gravar(c, "mapa", ontem, str(lids["E01"]),
+                      {"ocupado": 1, "nome": "Paciente Herdado", "idade_anos": 60,
+                       "_atualizado_em": "2026-11-11T10:00:00-03:00"},
+                      adm["id"], "admin")
+            c.commit()
+
+            ex = sv.exportar(c, DIA)
+            linhas = {x["codigo"]: x for x in ex["mapa"] if x["id_setor"] == sid}
+            self.assertEqual(len(linhas), 2)
+            self.assertEqual((linhas["E01"]["nome"], linhas["E01"]["data_base"], linhas["E01"]["atualizado_em"]),
+                             ("Paciente Herdado", ontem, "2026-11-11T10:00:00-03:00"))
+            self.assertEqual((linhas["E02"]["nome"], linhas["E02"]["ocupado"]), ("", 0))
+
+            # Uma alta/liberação explícita vira um novo estado vazio com timestamp mais recente.
+            sv.post_mapa(c, adm, {"id": sid, "nome": "Export"}, DIA, [{
+                "id_leito": lids["E01"], "nome": "", "ocupado": 0,
+                "atualizado_em": "2026-11-12T10:00:00-03:00"
+            }], completo=True)
+            ex = sv.exportar(c, DIA)
+            linha = next(x for x in ex["mapa"] if x["id_setor"] == sid and x["codigo"] == "E01")
+            self.assertEqual((linha["nome"], linha["ocupado"], linha["data_base"], linha["atualizado_em"]),
+                             ("", 0, DIA, "2026-11-12T10:00:00-03:00"))
+            self.assertEqual(ex["esquema"], 4)
+        finally:
+            c.close()
+
     def test_snapshot_completo_respeita_o_mais_recente(self):
         c = sv.conectar(self.mdb)
         try:
