@@ -1620,6 +1620,25 @@ class FormRegistro(_Janela):
         else:
             self.lbl_class.configure(text="(classificação OMS pendente)")
 
+    def _abrir_curvas_oms(self):
+        if self.ui.tabela_oms is None:
+            messagebox.showwarning(
+                "Curvas OMS", "As tabelas LMS oficiais não foram carregadas. Confira dados/oms_lms_pediatricos.csv.",
+                parent=self)
+            return
+        idade_meses, idade_dias, meses_decimais, _ = self._idade_para_oms()
+        if idade_meses is None:
+            messagebox.showinfo("Curvas OMS", "Informe a idade do paciente.", parent=self)
+            return
+        sexo = {"Homem": "H", "Mulher": "M"}.get(self.seg_sexo.get())
+        if sexo is None:
+            messagebox.showinfo("Curvas OMS", "Informe o sexo para selecionar a referência correta.", parent=self)
+            return
+        imc = nc.calcular_imc(nc.parse_num(self.e_peso.get()), nc.parse_num(self.e_altura.get()))
+        DialogCurvasOMS(
+            self.ui, self.ui.tabela_oms, sexo, meses_decimais,
+            nc.parse_num(self.e_peso.get()), nc.parse_num(self.e_altura.get()), imc)
+
     def _recalcular(self):
         self._recalcular_oferta()
         peso, alt = nc.parse_num(self.e_peso.get()), nc.parse_num(self.e_altura.get())
@@ -1902,3 +1921,82 @@ class FormRegistro(_Janela):
                 w.configure(state="disabled")
             except (tk.TclError, ValueError, AttributeError):
                 pass
+
+class DialogCurvasOMS(_Janela):
+    """Exibe curvas LMS oficiais OMS 2006/2007 e posiciona as medidas do paciente."""
+
+    def __init__(self, ui, tabela, sexo, idade_meses, peso, altura, imc):
+        super().__init__(ui, "Curvas de crescimento — OMS", "1100x800")
+        ctk.CTkLabel(
+            self, text="CURVAS DE CRESCIMENTO OMS · 0–19 ANOS",
+            font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC
+        ).pack(anchor="w", padx=16, pady=(12, 2))
+        ctk.CTkLabel(
+            self,
+            text="Peso/idade está disponível somente até 10 anos. Medir comprimento deitado antes de 24 meses "
+                 "e estatura em pé a partir de 24 meses.",
+            text_color=tema.SUAVE, wraplength=980, justify="left"
+        ).pack(anchor="w", padx=16, pady=(0, 6))
+        try:
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+        except ImportError as exc:
+            ctk.CTkLabel(self, text=f"Biblioteca de gráficos indisponível: {exc}",
+                         text_color=tema.ERRO).pack(padx=16, pady=20)
+            return
+        figura = Figure(figsize=(10, 8), dpi=100)
+        eixos = figura.subplots(3, 1)
+        configuracoes = (
+            ("imc_idade", "IMC/idade", "IMC (kg/m²)", imc),
+            ("peso_idade", "Peso/idade", "Peso (kg)", peso),
+            ("estatura_idade", "Estatura/idade", "Comprimento/estatura (cm)", altura),
+        )
+        curvas_z = (
+            ("z_menos3", "−3 DP", "--"),
+            ("z_menos2", "−2 DP", ":"),
+            ("z_zero", "Mediana", "-"),
+            ("z_mais2", "+2 DP", ":"),
+            ("z_mais3", "+3 DP", "--"),
+        )
+        for ax, (indicador, titulo, eixo_y, medida_paciente) in zip(eixos, configuracoes):
+            ax.set_title(titulo, loc="left", fontsize=10, fontweight="bold")
+            ax.set_xlabel("Idade (anos)")
+            ax.set_ylabel(eixo_y)
+            ax.grid(True, alpha=0.22)
+            for referencia in ("oms_2006", "oms_2007"):
+                pontos = tabela.curva(indicador, sexo, referencia)
+                if not pontos:
+                    continue
+                xs = []
+                for ponto in pontos:
+                    x_meses = (ponto["idade"] / 30.4375 if referencia == "oms_2006"
+                               else ponto["idade"])
+                    if referencia == "oms_2006" and x_meses > 60:
+                        continue
+                    if referencia == "oms_2007" and x_meses < 61:
+                        continue
+                    xs.append(x_meses / 12.0)
+                for chave, rotulo, estilo in curvas_z:
+                    ys = []
+                    for ponto in pontos:
+                        x_meses = (ponto["idade"] / 30.4375 if referencia == "oms_2006"
+                                   else ponto["idade"])
+                        if referencia == "oms_2006" and x_meses > 60:
+                            continue
+                        if referencia == "oms_2007" and x_meses < 61:
+                            continue
+                        ys.append(ponto[chave])
+                    ax.plot(xs, ys, linestyle=estilo, linewidth=1.0 if chave != "z_zero" else 1.8,
+                            label=rotulo if referencia == "oms_2006" else None)
+            if medida_paciente is not None and idade_meses is not None and 0 <= idade_meses <= 228:
+                ax.scatter([idade_meses / 12.0], [medida_paciente], marker="o", s=42,
+                           edgecolors="black", linewidths=0.6, zorder=5, label="Paciente")
+            ax.set_xlim(0, 19)
+            if indicador == "peso_idade":
+                ax.axvline(10, linestyle="--", linewidth=0.8, alpha=0.5)
+        eixos[0].legend(loc="best", ncol=6, fontsize=8)
+        figura.tight_layout(pad=2.0)
+        canvas = FigureCanvasTkAgg(figura, master=self)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=12, pady=8)
+
