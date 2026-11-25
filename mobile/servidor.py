@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, login TEXT UNIQUE NO
 CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL);
 CREATE TABLE IF NOT EXISTS leitos(id INTEGER PRIMARY KEY, id_setor INTEGER NOT NULL, codigo TEXT NOT NULL, UNIQUE(id_setor, codigo));
 CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL,
-  preco_unitario REAL, embalagem_qtd REAL, embalagem_un TEXT);
+  preco_unitario REAL, embalagem_qtd REAL, embalagem_un TEXT, tbca_id TEXT);
 CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
   idade_anos INTEGER, idade_meses INTEGER, diagnostico TEXT, pref_sim TEXT, pref_nao TEXT,
   cor TEXT, consistencia TEXT, via TEXT, dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
@@ -935,20 +935,24 @@ def _rotear(c, ip, m, p, q, b, auth):
             if emb_qtd is not None and emb_qtd <= 0:
                 raise Erro("O conteúdo da embalagem precisa ser maior que zero.")
             emb_qtd, emb_un = normalizar_embalagem(emb_qtd, emb_un)
+            tbca_id = str(b.get("tbca_id") or "").strip() or None
             if p == "/api/admin/itens":
                 if not nome:
                     raise Erro("Informe o nome do item.")
                 try:
-                    cur = c.execute("INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un) VALUES(?,?,?,?,?)",
-                                    (nome, unidade, preco, emb_qtd, emb_un))
+                    cur = c.execute("INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,tbca_id) VALUES(?,?,?,?,?,?)",
+                                    (nome, unidade, preco, emb_qtd, emb_un, tbca_id))
                 except sqlite3.IntegrityError:
                     raise Erro("Esse item já existe.")
                 return {"ok": True, "id": cur.lastrowid}
             iid = int(p.rsplit("/", 1)[1])
             if not c.execute("SELECT 1 FROM itens WHERE id=?", (iid,)).fetchone():
                 raise Erro("Item não encontrado.", 404)
-            c.execute("UPDATE itens SET preco_unitario=?,embalagem_qtd=?,embalagem_un=? WHERE id=?",
-                      (preco, emb_qtd, emb_un, iid))
+            if "tbca_id" not in b:
+                existente = c.execute("SELECT tbca_id FROM itens WHERE id=?", (iid,)).fetchone()
+                tbca_id = existente["tbca_id"] if existente else None
+            c.execute("UPDATE itens SET preco_unitario=?,embalagem_qtd=?,embalagem_un=?,tbca_id=? WHERE id=?",
+                      (preco, emb_qtd, emb_un, tbca_id, iid))
             return {"ok": True}
     raise Erro("Rota não encontrada.", 404)
 
