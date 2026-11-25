@@ -1,11 +1,23 @@
 # -*- coding: utf-8 -*-
 """Testes do cache, fila offline e fallback Android do NutriLab Mobile."""
+import os
 import re
 import shutil
+import sys
 import subprocess
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import integracao_mobile as im
+import mapa_db as mdb
+try:
+    from mobile import servidor as sv
+except ImportError:
+    sv = None
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML = ROOT / "mobile" / "static" / "index.html"
