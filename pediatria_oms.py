@@ -264,19 +264,13 @@ class TabelaReferenciaOMS:
         return calcular_escore_z(valor, *parametros)
 
     def curva(self, indicador, sexo, referencia):
-        """Retorna pontos da curva LMS (idade, z=-3,-2,0,+2,+3), sem extrapolar."""
+        """Retorna a curva LMS bruta, incluindo âncoras técnicas de interpolação."""
         sexo = str(sexo or "").strip().upper()
         chave = (indicador, referencia, sexo)
         unidade = "dias" if referencia == "oms_2006" else "meses"
         pontos = (self._dados_dias if unidade == "dias" else self._dados_meses).get(chave, {})
         saida = []
         for idade, parametros in sorted(pontos.items()):
-            # As âncoras superiores ficam no índice LMS para interpolação,
-            # mas não são pontos clínicos exibidos na curva.
-            if referencia == "oms_2007":
-                limite = 120 if indicador == "peso_idade" else 228
-                if idade > limite:
-                    continue
             l_, m_, s_ = parametros
             saida.append({
                 "idade": idade,
