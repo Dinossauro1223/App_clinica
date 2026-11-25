@@ -141,6 +141,27 @@ class TestReceber(_Base):
         im.aplicar_mapa(self.db, props)
         self.assertIsNone(self.reg("A04"))
 
+    def test_estado_mobile_mais_antigo_nao_substitui_pc(self):
+        self.salvar("A01", nome_paciente="PC", idade_anos=70)
+        with closing(mdb.conectar(self.db)) as c:
+            c.execute("UPDATE Mapa_Registros SET atualizado_em=? WHERE id_leito=?",
+                      ("2026-11-12 12:00:00", self.leito["A01"]))
+            c.commit()
+        ex = exportacao({"A01": {"nome": "Copa", "idade_anos": 71}})
+        ex["mapa"][0]["atualizado_em"] = "2026-11-12T11:00:00-03:00"
+        self.assertEqual(im.propostas_mapa(self.db, ex), [])
+
+    def test_estado_mobile_mais_novo_gera_proposta(self):
+        self.salvar("A01", nome_paciente="PC", idade_anos=70)
+        with closing(mdb.conectar(self.db)) as c:
+            c.execute("UPDATE Mapa_Registros SET atualizado_em=? WHERE id_leito=?",
+                      ("2026-11-12 10:00:00", self.leito["A01"]))
+            c.commit()
+        ex = exportacao({"A01": {"nome": "Copa", "idade_anos": 71}})
+        ex["mapa"][0]["atualizado_em"] = "2026-11-12T11:00:00-03:00"
+        props = im.propostas_mapa(self.db, ex)
+        self.assertEqual([(p["tipo"], p["leito"]) for p in props], [("alterado", "A01")])
+
     def test_vazio_do_mobile_nao_apaga_e_geral_equivale_a_livre(self):
         self.salvar("A01", nome_paciente="Maria Teste", idade_anos=70, idade_meses=5, consistencia="Livre", obs_sim="fruta")
         ex = exportacao({"A01": {"nome": "Maria Teste", "idade_anos": 70, "dieta": "Geral"}})  # sem meses e sem preferências
