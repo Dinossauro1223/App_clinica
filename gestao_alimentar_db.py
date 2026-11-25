@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS {TABELA_PRODUTOS} (
     preco_unitario REAL,
     embalagem_qtd REAL,
     embalagem_un TEXT,
+    tbca_id TEXT,
     estoque_qtd REAL,
     estoque_data TEXT,
     sincronizado_em TEXT NOT NULL
@@ -153,6 +154,9 @@ def inicializar(db_path):
         colunas_ingredientes = {r[1] for r in conn.execute(f"PRAGMA table_info({TABELA_INGREDIENTES})")}
         if "preco_unitario_manual" not in colunas_ingredientes:
             conn.execute(f"ALTER TABLE {TABELA_INGREDIENTES} ADD COLUMN preco_unitario_manual REAL")
+        colunas_produtos = {r[1] for r in conn.execute(f"PRAGMA table_info({TABELA_PRODUTOS})")}
+        if "tbca_id" not in colunas_produtos:
+            conn.execute(f"ALTER TABLE {TABELA_PRODUTOS} ADD COLUMN tbca_id TEXT")
 
 
 def _normalizar_cabecalho(valor):
@@ -299,10 +303,10 @@ def sincronizar_produtos_almox(db_path, linhas_mobile):
     """Atualiza o espelho local dos produtos e saldos do estoque almoxarifado."""
     agora = _agora()
     sql = f"""INSERT INTO {TABELA_PRODUTOS}
-        (id_mobile,nome,unidade_estoque,preco_unitario,embalagem_qtd,embalagem_un,estoque_qtd,estoque_data,sincronizado_em)
-        VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id_mobile) DO UPDATE SET
+        (id_mobile,nome,unidade_estoque,preco_unitario,embalagem_qtd,embalagem_un,tbca_id,estoque_qtd,estoque_data,sincronizado_em)
+        VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id_mobile) DO UPDATE SET
         nome=excluded.nome,unidade_estoque=excluded.unidade_estoque,preco_unitario=excluded.preco_unitario,
-        embalagem_qtd=excluded.embalagem_qtd,embalagem_un=excluded.embalagem_un,
+        embalagem_qtd=excluded.embalagem_qtd,embalagem_un=excluded.embalagem_un,tbca_id=excluded.tbca_id,
         estoque_qtd=excluded.estoque_qtd,estoque_data=excluded.estoque_data,sincronizado_em=excluded.sincronizado_em"""
     normalizados = []
     for item in linhas_mobile or []:
@@ -311,7 +315,7 @@ def sincronizar_produtos_almox(db_path, linhas_mobile):
         if iid is None or not nome:
             continue
         normalizados.append((int(iid), nome, item.get("unidade"), _numero(item.get("preco_unitario")),
-                             _numero(item.get("embalagem_qtd")), item.get("embalagem_un"),
+                             _numero(item.get("embalagem_qtd")), item.get("embalagem_un"), item.get("tbca_id"),
                              _numero(item.get("qtd")), item.get("data_base"), agora))
     with _conexao(db_path) as conn:
         conn.executemany(sql, normalizados)
@@ -320,10 +324,12 @@ def sincronizar_produtos_almox(db_path, linhas_mobile):
 
 def listar_produtos_almox(db_path, termo=""):
     with _conexao(db_path) as conn:
+        sql = (f"SELECT p.*,t.alimento AS tbca_alimento FROM {TABELA_PRODUTOS} p "
+               f"LEFT JOIN {TABELA_TBCA} t ON t.id_tbca=p.tbca_id ")
         if termo:
-            rows = conn.execute(f"SELECT * FROM {TABELA_PRODUTOS} WHERE nome LIKE ? ORDER BY nome", (f"%{termo}%",)).fetchall()
+            rows = conn.execute(sql + "WHERE p.nome LIKE ? ORDER BY p.nome", (f"%{termo}%",)).fetchall()
         else:
-            rows = conn.execute(f"SELECT * FROM {TABELA_PRODUTOS} ORDER BY nome").fetchall()
+            rows = conn.execute(sql + "ORDER BY p.nome").fetchall()
         return [dict(r) for r in rows]
 
 
