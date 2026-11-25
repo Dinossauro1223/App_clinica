@@ -700,9 +700,10 @@ def avisos_do_usuario(c, u):
     """Avisos ainda não lidos pela copa (do setor dela ou gerais, criados depois do cadastro dela)."""
     if u["perfil"] != "copa":
         return []
-    rs = c.execute("SELECT a.*,x.nome por_nome FROM avisos a JOIN usuarios x ON x.id=a.por_usuario WHERE (a.id_setor IS NULL OR a.id_setor=?) "
+    rs = c.execute("SELECT a.*,x.nome por_nome FROM avisos a JOIN usuarios x ON x.id=a.por_usuario "
+                   "WHERE (a.id_setor IS NULL OR a.id_setor=? OR ? IS NULL) "
                    "AND a.criado_em>=? AND a.id NOT IN (SELECT id_aviso FROM avisos_lidos WHERE id_usuario=?) ORDER BY a.id",
-                   (u["id_setor"], u["criado_em"], u["id"]))
+                   (u["id_setor"], u["id_setor"], u["criado_em"], u["id"]))
     return [{**dict(r), "leitos": json.loads(r["leitos"] or "[]")} for r in rs]
 
 
@@ -874,6 +875,30 @@ def _rotear(c, ip, m, p, q, b, auth):
                 c.execute("INSERT INTO orientacoes(slug,titulo,texto,ordem,atualizado_por,atualizado_em) VALUES(?,?,?,?,?,?)",
                           (slug, titulo, texto, ordem, u["id"], agora()))
             return {"ok": True}
+        if (m == "GET" and p == "/api/admin/mapa/atividade"):
+            periodo = str(q.get("periodo") or "mes")
+            ano = int(q.get("ano") or hoje()[:4])
+            if not 2000 <= ano <= 2100:
+                raise Erro("Ano inválido.")
+            if periodo == "mes":
+                mes = int(q.get("mes") or hoje()[5:7])
+                if not 1 <= mes <= 12:
+                    raise Erro("Mês inválido.")
+                chave = "%04d-%02d" % (ano, mes)
+                filtro = "substr(atualizado_em,1,7)=?"
+            elif periodo == "ano":
+                chave = "%04d" % ano
+                filtro = "substr(atualizado_em,1,4)=?"
+            else:
+                raise Erro("Período inválido.")
+            ranking = [dict(r) for r in c.execute(
+                "SELECT por_usuario id_usuario,por_nome nome,por_perfil perfil,COUNT(*) atualizacoes,"
+                "COUNT(DISTINCT data) dias_ativos,COUNT(DISTINCT id_setor) setores "
+                "FROM mapa_historico WHERE por_perfil='copa' AND " + filtro +
+                " GROUP BY por_usuario,por_nome,por_perfil ORDER BY atualizacoes DESC,nome COLLATE NOCASE",
+                (chave,))]
+            return {"periodo": periodo, "chave": chave, "ranking": ranking,
+                    "total": sum(x["atualizacoes"] for x in ranking)}
         if (m, p) == ("GET", "/api/admin/exportar"):
             return exportar(c, dia_alvo(u, q.get("data")))
         if (m, p) == ("GET", "/api/admin/refeicoes"):
@@ -895,7 +920,7 @@ def _rotear(c, ip, m, p, q, b, auth):
             if "id_setor" in b:
                 if b["id_setor"] and not c.execute("SELECT 1 FROM setores WHERE id=?", (b["id_setor"],)).fetchone():
                     raise Erro("Setor inexistente.")
-                c.execute("UPDATE usuarios SET id_setor=? WHERE id=? AND perfil IN ('copa','nutricionista')", (b["id_setor"] or None, uid))
+                c.execute("UPDATE usuarios SET id_setor=? WHERE id=? AND perfil='nutricionista'", (b["id_setor"] or None, uid))
             if b.get("senha"):
                 definir_senha(c, uid, b["senha"])
             return {"ok": True}
