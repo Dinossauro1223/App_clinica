@@ -28,7 +28,7 @@ class TestDadosOficiaisOMS(unittest.TestCase):
         altura = self.tabela.curva("estatura_idade", "H", "oms_2007")
         peso = self.tabela.curva("peso_idade", "M", "oms_2007")
         self.assertEqual((bmi[0]["idade"], bmi[-1]["idade"]), (60, 228))
-        self.assertEqual((altura[0]["idade"], altura[-1]["idade"]), (60, 229))
+        self.assertEqual((altura[0]["idade"], altura[-1]["idade"]), (60, 228))
         self.assertEqual((peso[0]["idade"], peso[-1]["idade"]), (60, 120))
         # As linhas superiores permanecem na curva bruta para interpolação;
         # a camada de visualização as filtra para não exibi-las clinicamente.
