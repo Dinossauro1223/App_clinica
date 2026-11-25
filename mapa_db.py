@@ -774,6 +774,7 @@ def _anexar_suplementos(c, registros):
 
 
 def _anexar_evolucao(c, registros):
+    """Anexa rascunho do registro e última evolução fechada para uso operacional."""
     if not registros:
         return registros
     ids = [r["id_registro"] for r in registros]
@@ -787,6 +788,23 @@ def _anexar_evolucao(c, registros):
         except (TypeError, ValueError):
             r["evolucao"] = {}
         r["evolucao_json"] = bruto
+        operacional = r["evolucao"] if r["evolucao"].get("status_evolucao") == "fechada" else {}
+        if not operacional and r.get("id_paciente"):
+            try:
+                anterior = c.execute(
+                    "SELECT cabecalho_json FROM Pep_Evolucoes "
+                    "WHERE id_paciente=? AND data_evolucao<=? AND adendo_de IS NULL "
+                    "ORDER BY data_evolucao DESC, id_evolucao DESC LIMIT 1",
+                    (r["id_paciente"], r["data"]),
+                ).fetchone()
+                if anterior:
+                    cabecalho = json.loads(anterior["cabecalho_json"] or "{}")
+                    operacional = cabecalho.get("dados") or {}
+                    if operacional:
+                        operacional["status_evolucao"] = "fechada"
+            except (sqlite3.OperationalError, TypeError, ValueError):
+                operacional = {}
+        r["evolucao_operacional"] = operacional
     return registros
 
 
@@ -883,7 +901,9 @@ def dados_operacionais_copa(registro, data_destino=None):
     if not registro:
         return {}
     via = str(registro.get("via") or "").casefold()
-    dados = registro.get("evolucao") or {}
+    dados = registro.get("evolucao_operacional") or {}
+    if dados.get("status_evolucao") != "fechada":
+        return {}
     if via == "oral":
         if dados.get("porcao_oral_autorizada") and dados.get("porcao_oral_ml") not in (None, ""):
             porcao = int(float(dados["porcao_oral_ml"]))
