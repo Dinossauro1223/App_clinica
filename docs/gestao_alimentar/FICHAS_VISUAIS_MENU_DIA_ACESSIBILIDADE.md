@@ -35,6 +35,37 @@ A nutrição deve selecionar uma ficha cadastrada para a data e refeição (ex.:
 
 A aba **Menu do dia** na versão mobile é contextual e não deve ser criada/exibida quando não existir preparação selecionada para aquele dia. Deve ser visível para perfis de cozinha (e para os perfis autorizados de administração/nutrição, caso se deseje conferência) somente quando o menu publicado contiver itens. Não misturar esta aba com o mapa de pacientes nem com estoque.
 
+## 3.1 Registro diário de produção, faltas, sobras e desperdício
+
+Cada preparação do menu terá seu próprio fechamento diário, independente das demais preparações da refeição. A cozinha e o nutricionista poderão registrar:
+
+- quantidade de porções planejadas e produzidas;
+- se a preparação não foi produzida/disponibilizada;
+- quantas porções faltaram (inclusive falta parcial);
+- identificação de cada cuba/panela utilizada;
+- peso de sobra e peso de desperdício de cada cuba, separadamente, em kg;
+- observação operacional e responsável pelo registro.
+
+O modelo de dados foi iniciado nesta branch com as tabelas `GA_Producao_Preparacao` e `GA_Producao_Cubas`, e funções transacionais para salvar, consultar e listar os registros. O registro é único por preparação do menu e data; uma correção atualiza o registro e substitui o conjunto de cubas, evitando duplicação acidental. A implementação atual é a camada de persistência; ainda faltam os formulários desktop/mobile e os endpoints com controle de permissões.
+
+### Como o histórico deve orientar o planejamento
+
+O sistema deve manter indicadores por preparação e refeição, em janelas móveis e com amostra mínima, como:
+
+- porções planejadas versus produzidas;
+- porções que faltaram;
+- sobra total por cuba e em relação à quantidade produzida;
+- desperdício total por cuba;
+- frequência de dias com falta total/parcial.
+
+A projeção de produção pode ser ajustada a partir da procura observada, mas não deve tratar sobra e desperdício como a mesma coisa. **Sobra limpa e segura que não foi servida** é indicador de excesso de produção; **desperdício** pode incluir restos não aproveitáveis e não deve ser abatido automaticamente da demanda. O peso de sobra só pode ser convertido em porções quando houver peso médio por porção medido e cadastrado para aquela preparação. Sem esse dado, o sistema deve exibir kg e não inventar equivalência.
+
+### Regras para ajuste de estoque
+
+O ajuste de retirada do almoxarifado deve usar a quantidade de produção recomendada e a ficha técnica versionada (ingredientes, FC, fator de cocção quando informado, rendimento e unidade). O histórico de produção pode sugerir nova quantidade, mas a alteração da requisição/baixa de estoque precisa de conferência e confirmação humana. Nunca reduzir ingrediente por causa de desperdício sem uma regra técnica validada: desperdício de prato/cuba não informa, por si só, qual ingrediente deve ser reduzido.
+
+O menu publicado e os registros de produção precisam preservar a versão da ficha usada naquele dia. Alterações posteriores na ficha não podem reescrever silenciosamente o histórico de produção ou os consumos já calculados.
+
 ## 4. Fluxo de dados e armazenamento
 
 O desktop e o servidor Mobile usam bancos SQLite separados atualmente. A ficha técnica está no módulo de Gestão alimentar, enquanto o Mobile trabalha com seu próprio banco. A integração precisa, portanto, ser explícita e não assumir que o Mobile consegue ler a ficha desktop.
