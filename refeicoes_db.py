@@ -318,3 +318,40 @@ def resumo_custos(db_path, inicio, fim):
             GROUP BY categoria_custo ORDER BY categoria_custo
         """, (str(inicio), str(fim))).fetchall()
     return {r["categoria_custo"]: dict(r) for r in rows}
+
+
+def listar_autorizacoes_acompanhante(db_path, id_paciente=None, situacao=None):
+    """Consulta autorizações sem depender do ocupante atual do leito."""
+    sql = "SELECT * FROM Refeicoes_Autorizacoes_Acompanhante WHERE 1=1"
+    args = []
+    if id_paciente:
+        sql += " AND id_paciente=?"
+        args.append(str(id_paciente))
+    if situacao:
+        if situacao not in ("ativa", "encerrada", "cancelada"):
+            raise ValueError("Situação de autorização inválida.")
+        sql += " AND situacao=?"
+        args.append(situacao)
+    sql += " ORDER BY criado_em DESC,id_autorizacao DESC"
+    with conectar(db_path) as conn:
+        saida = []
+        for row in conn.execute(sql, args):
+            item = dict(row)
+            try:
+                item["refeicoes"] = json.loads(item.pop("refeicoes_json") or "[]")
+            except (TypeError, ValueError):
+                item["refeicoes"] = []
+            saida.append(item)
+        return saida
+
+
+def remover_janela(db_path, publico, refeicao):
+    """Remove uma janela explicitamente; sem janela, o serviço fica bloqueado."""
+    _validar_publico(publico, permitir_acompanhante=False)
+    _validar_refeicao(refeicao)
+    with conectar(db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM Refeicoes_Janelas WHERE publico=? AND refeicao=?",
+            (publico, refeicao)
+        )
+        return cur.rowcount == 1
