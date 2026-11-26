@@ -17,9 +17,9 @@ class TestRefeicoesAPI(unittest.TestCase):
             sessao = sv.login(conn, "127.0.0.1", {"login": "admin", "senha": senha})
         self.token = sessao["token"]
 
-    def api(self, metodo, caminho, corpo=None, query=None):
+    def api(self, metodo, caminho, corpo=None, query=None, token=None):
         return sv.rotear(self.db, "127.0.0.1", metodo, caminho, query or {}, corpo or {},
-                         "Bearer " + self.token)
+                         "Bearer " + (token or self.token))
 
     def test_servico_individual_preserva_paciente_anterior_e_custos(self):
         setor = self.api("POST", "/api/admin/setores",
@@ -86,6 +86,49 @@ class TestRefeicoesAPI(unittest.TestCase):
         registro = next(x for x in relatorio["servicos"] if x["publico"] == "paciente")
         self.assertEqual((registro["nome_paciente_snapshot"], registro["leito_snapshot"]),
                          ("Maria", "R1"))
+
+
+    def test_copa_sincroniza_refeicao_offline_com_data_original(self):
+        setor = self.api("POST", "/api/admin/setores",
+                         {"nome": "Setor Teste Offline Refeicoes", "codigos": ["O1"]})
+        sid = setor["id"]
+        lid = self.api("GET", "/api/mapa", query={"setor": str(sid)})["linhas"][0]["id_leito"]
+        hoje = sv.agora_dt().replace(second=0, microsecond=0)
+        ontem = hoje.date() - timedelta(days=1)
+        dia = ontem.isoformat()
+        servida_em = (datetime.combine(ontem, datetime.min.time()).replace(
+            hour=12, tzinfo=sv.TZ)).isoformat()
+        self.api("POST", "/api/refeicoes/janelas", {
+            "publico": "paciente", "refeicao": "almoco", "inicio": "00:00", "fim": "23:59"})
+        self.api("POST", "/api/refeicoes/precos", {
+            "publico": "paciente", "refeicao": "almoco", "valor_unitario": 7.25})
+        self.api("POST", "/api/mapa", {
+            "setor": sid, "data": dia, "completo": True,
+            "linhas": [{"id_leito": lid, "nome": "Paciente Offline",
+                        "atualizado_em": datetime.fromisoformat(servida_em).replace(hour=8).isoformat()}]})
+
+        self.api("POST", "/api/admin/usuarios", {
+            "login": "copa_offline_teste", "nome": "Copa Offline",
+            "perfil": "copa", "id_setor": sid, "senha": "senha123"})
+        with sv.conectar(self.db) as conn:
+            sessao = sv.login(conn, "127.0.0.1",
+                              {"login": "copa_offline_teste", "senha": "senha123"})
+        token_copa = sessao["token"]
+        dados = self.api("GET", "/api/refeicoes/servicos",
+                         query={"setor": str(sid)}, token=token_copa)
+        paciente = next(x for x in dados["pacientes"] if x["id_leito"] == lid)
+
+        # Simula sincronização no dia seguinte: a data/hora original não pode ser substituída por hoje.
+        resultado = self.api("POST", "/api/refeicoes/servicos", {
+            "setor": sid, "data": sv.hoje(), "id_leito": lid,
+            "id_paciente": paciente["id_paciente"], "servido_em": servida_em,
+            "publico": "paciente", "refeicao": "almoco", "quantidade": 1
+        }, token=token_copa)
+        self.assertTrue(resultado["ok"])
+        relatorio = self.api("GET", "/api/refeicoes/relatorio",
+                             query={"inicio": dia, "fim": dia})
+        self.assertAlmostEqual(relatorio["custos"]["pacientes"]["custo"], 7.25)
+        self.assertEqual(relatorio["servicos"][0]["data_refeicao"], dia)
 
     def test_autorizacao_nao_pode_ser_reutilizada_por_novo_ocupante(self):
         setor = self.api("POST", "/api/admin/setores",
