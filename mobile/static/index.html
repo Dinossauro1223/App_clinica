@@ -51,6 +51,18 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .caixa{background:var(--papel);width:100%;max-width:520px;max-height:85vh;overflow:auto;padding:14px calc(14px + env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom));border-radius:14px 14px 0 0}
 .caixa ul{margin:6px 0 0;padding-left:18px}
 #entrada{max-width:380px;margin:12vh auto;padding:0 16px}
+.preferencias{position:relative;display:inline-block;vertical-align:middle;margin:5px 0}
+.preferencias summary{cursor:pointer;list-style:none;border:1px solid var(--linha);border-radius:8px;padding:7px 10px;min-height:40px;font-weight:700;background:var(--cartao);color:var(--tinta)}
+.preferencias summary::-webkit-details-marker{display:none}
+.preferencias[open] summary{border-color:var(--cor)}
+.preferencias-conteudo{position:absolute;z-index:8;top:calc(100% + 6px);right:0;width:min(310px,calc(100vw - 24px));padding:12px;background:var(--cartao);color:var(--tinta);border:1px solid var(--linha);border-radius:10px;box-shadow:0 4px 18px #0002}
+.preferencias-conteudo label{margin-bottom:10px}
+.preferencias-conteudo select{background:var(--campo);color:var(--campo-texto)}
+.texto-controle{width:100%;min-height:28px;accent-color:var(--cor)}
+.texto-valor{float:right;font-weight:800;color:var(--cor)}
+body.zoom-texto{zoom:1}
+@media(max-width:420px){.preferencias-conteudo{right:auto;left:0}.preferencias{max-width:100%}.sub{flex-wrap:wrap}}
+
 #entrada h1{font-size:2rem;margin:0 0 4px}
 .creditos{text-align:center;color:var(--suave);font-size:.78rem;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--linha);margin-top:12px}
 .orientacao-texto{white-space:normal;line-height:1.55}
@@ -291,8 +303,11 @@ const $=s=>document.querySelector(s),esc=t=>String(t==null?'':t).replace(/[&<>"'
 const S={tok:null,u:null,hoje:'',aba:'',setor:'',est:'almox',data:'',setores:[],itens:[],suplementos:[],timer:null};
 const lerTemaMobile=()=>{try{return (window.NLOffline&&NLOffline.get('aparencia'))||localStorage.getItem('nl:aparencia')||'sistema'}catch(e){return 'sistema'}};
 function aplicaTemaMobile(valor,salvar=true){const tema=['sistema','claro','escuro'].includes(valor)?valor:'sistema';document.documentElement.dataset.tema=tema;if(salvar){try{if(window.NLOffline&&NLOffline.set)NLOffline.set('aparencia',tema);else localStorage.setItem('nl:aparencia',tema)}catch(e){}}document.querySelectorAll('.tema-controle').forEach(sel=>{if(sel.value!==tema)sel.value=tema});}
-const temaSelectHtml=()=>'<select class=tema-controle aria-label="Aparência" onchange="aplicaTemaMobile(this.value)"><option value=sistema>Auto (sistema)</option><option value=claro>Claro</option><option value=escuro>Escuro</option></select>';
+function lerEscalaTextoMobile(){try{return Math.max(50,Math.min(200,Math.round((Number((window.NLOffline&&NLOffline.get('escalaTexto'))||localStorage.getItem('nl:escalaTexto')||100)||100)/10)*10))}catch(e){return 100}}
+function aplicaEscalaTextoMobile(valor,salvar=true){const escala=Math.max(50,Math.min(200,Math.round((Number(valor)||100)/10)*10));document.documentElement.style.setProperty('--escala-texto',escala/100);document.body.style.zoom=String(escala/100);document.querySelectorAll('.texto-controle').forEach(sl=>{if(Number(sl.value)!==escala)sl.value=escala});document.querySelectorAll('.texto-valor').forEach(o=>o.textContent=escala+'%');if(salvar){try{if(window.NLOffline&&NLOffline.set)NLOffline.set('escalaTexto',escala);else localStorage.setItem('nl:escalaTexto',String(escala))}catch(e){}}}
+function temaSelectHtml(){const escala=lerEscalaTextoMobile();return '<details class=preferencias><summary>Configurações</summary><div class=preferencias-conteudo><label class=f>Aparência<select class=tema-controle aria-label=Aparência onchange="aplicaTemaMobile(this.value)"><option value=sistema>Auto (sistema)</option><option value=claro>Claro</option><option value=escuro>Escuro</option></select></label><label class=f>Acessibilidade do texto <span class=texto-valor>'+escala+'%</span><input class=texto-controle aria-label=Tamanho do texto type=range min=50 max=200 step=10 value='+escala+' oninput="aplicaEscalaTextoMobile(this.value)"></label><p class=mini>50% a 200%, em intervalos de 10%. Os elementos acompanham a escala para facilitar o uso.</p></div></details>'}
 aplicaTemaMobile(lerTemaMobile(),false);
+aplicaEscalaTextoMobile(lerEscalaTextoMobile(),false);
 try{S.tok=(window.NLOffline&&NLOffline.get('token'))||sessionStorage.getItem('tok')}catch(e){}
 const NOME={admin:'Administrador',nutricionista:'Nutrição',copa:'Copa',estoque_cozinha:'Cozinha',estoque_almox:'Almoxarifado'};
 const COR={admin:'#0f4c5c',nutricionista:'#2f7d4f',copa:'#a85f00',estoque_cozinha:'#b5391f',estoque_almox:'#4b3f8f'};
@@ -439,7 +454,7 @@ async function abrir(u,hoje){
   $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span>${temaSelectHtml()}<button onclick="sair()">Sair</button></div></header>
   <nav>${ABAS[u.perfil].map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
   <footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
-  aplicaTemaMobile(lerTemaMobile(),false);
+  aplicaTemaMobile(lerTemaMobile(),false);aplicaEscalaTextoMobile(lerEscalaTextoMobile(),false);
   ir(ABAS[u.perfil][0][0]);
   verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
 }
