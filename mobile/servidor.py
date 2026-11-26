@@ -295,6 +295,8 @@ def preparar_banco(db, redefinir=False):
         migrar(c)
         c.execute("INSERT OR IGNORE INTO sistema_config(chave,valor) VALUES('server_identity',?)",
                   (secrets.token_urlsafe(24),))
+        c.execute("INSERT OR IGNORE INTO sistema_config(chave,valor) VALUES('discovery_key',?)",
+                  (secrets.token_hex(32),))
         adm = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()
         senha = None
         inicializada = c.execute(
@@ -1496,23 +1498,28 @@ class ManipuladorDescoberta(socketserver.BaseRequestHandler):
     """Responde apenas ao pacote de descoberta local; não concede acesso à API."""
     def handle(self):
         dados, sock = self.request
-        if dados.strip() != b"NUTRILAB_DISCOVER_V1":
-            return
         try:
+            pedido = dados.decode("utf-8").strip().split("|", 1)
+            if len(pedido) != 2 or pedido[0] != "NUTRILAB_DISCOVER_V1":
+                return
+            nonce = pedido[1]
+            if not nonce or len(nonce) > 80:
+                return
             c = conectar(self.server.db)
             try:
-                identidade = c.execute(
-                    "SELECT valor FROM sistema_config WHERE chave='server_identity'"
-                ).fetchone()
-                if not identidade:
-                    raise RuntimeError("Identidade do servidor não inicializada.")
-                server_id = identidade["valor"]
+                cfg = {r["chave"]: r["valor"] for r in c.execute(
+                    "SELECT chave,valor FROM sistema_config WHERE chave IN ('server_identity','discovery_key')"
+                )}
+                server_id, chave = cfg.get("server_identity"), cfg.get("discovery_key")
+                if not server_id or not chave:
+                    raise RuntimeError("Identidade de descoberta não inicializada.")
             finally:
                 c.close()
             endereco = ip_lan()
-            resposta = "NUTRILAB_SERVER_V1|http://%s:%s|%s" % (
-                endereco, self.server.http_port, server_id
-            )
+            url = "http://%s:%s" % (endereco, self.server.http_port)
+            mensagem = "NUTRILAB_SERVER_V1|%s|%s|%s" % (url, server_id, nonce)
+            assinatura = hmac.new(bytes.fromhex(chave), mensagem.encode("utf-8"), hashlib.sha256).hexdigest()
+            resposta = mensagem + "|" + assinatura
             sock.sendto(resposta.encode("utf-8"), self.client_address)
         except Exception:
             # Descoberta é auxiliar: falhas não interrompem o servidor HTTP.
