@@ -95,13 +95,20 @@ class AlmoxUI:
         self.e_emb_qtd=ctk.CTkEntry(embalagem,width=110,placeholder_text="Ex.: 800");self.e_emb_qtd.pack(side="left",padx=3)
         self.cb_emb_un=ctk.CTkComboBox(embalagem,values=["g","kg","ml","L","mg"],width=85);self.cb_emb_un.pack(side="left",padx=3);self.cb_emb_un.set("g")
         self.e_obs=ctk.CTkEntry(self.conteudo,placeholder_text="Observações / fonte do preço");self.e_obs.pack(fill="x",pady=4)
+        validade=ctk.CTkFrame(self.conteudo,fg_color="transparent");validade.pack(fill="x",pady=3)
+        ctk.CTkLabel(validade,text="Validade (opcional):").pack(side="left",padx=3)
+        self.e_validade=ctk.CTkEntry(validade,width=140,placeholder_text="AAAA-MM-DD");self.e_validade.pack(side="left",padx=3)
+        filtro=ctk.CTkFrame(self.conteudo,fg_color="transparent");filtro.pack(fill="x",pady=(8,3))
+        self.e_busca=ctk.CTkEntry(filtro,placeholder_text="Buscar produto pelo nome...",width=320);self.e_busca.pack(side="left",padx=3);self.e_busca.bind("<KeyRelease>",lambda _e:self._carregar_itens())
+        self.cb_filtro_categoria=ctk.CTkComboBox(filtro,values=["Todas as categorias"]+list(adb.CATEGORIAS),width=210,command=lambda _v:self._carregar_itens());self.cb_filtro_categoria.pack(side="left",padx=3);self.cb_filtro_categoria.set("Todas as categorias")
         bar=ctk.CTkFrame(self.conteudo,fg_color="transparent");bar.pack(fill="x")
         ctk.CTkButton(bar,text="Novo / limpar",command=self._limpar_item).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Salvar item",command=self._salvar_item).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Ativar / desativar",command=self._alternar_item).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Histórico de preços",command=self._precos).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Sincronizar catálogo mobile",command=self._sincronizar_catalogo_mobile).pack(side="left",padx=3)
-        self.t_itens=self._tree(self.conteudo,("Nome","Unidade","Categoria","Valor unitário","Custo/g ou ml","Saldo","Mínimo","Situação"),(170,70,140,110,110,80,80,80),12)
+        ctk.CTkButton(bar,text="Importar categoria/validade do mobile",command=self._importar_classificacao_mobile).pack(side="left",padx=3)
+        self.t_itens=self._tree(self.conteudo,("Nome","Unidade","Categoria","Validade","Valor unitário","Custo/g ou ml","Saldo","Mínimo","Situação"),(160,65,130,95,105,105,70,70,75),12)
         self._carregar_itens()
         self.t_itens.bind("<<TreeviewSelect>>",self._selecionar_item)
     @staticmethod
@@ -119,20 +126,23 @@ class AlmoxUI:
         return _br(float(preco)/divisor).replace("R$ ","R$ ")+("/g" if unidade in ("g","kg","mg") or (unidade=="un" and str(i.get("embalagem_un") or "").lower() in ("g","kg","mg")) else "/ml")
 
     def _carregar_itens(self):
-        self.itens=adb.listar_itens(self.db,False);self.t_itens.delete(*self.t_itens.get_children())
-        for i in self.itens:self.t_itens.insert("","end",iid=str(i["id_item"]),values=(i["nome"],i["unidade"],i["categoria"],_br(i["valor_unitario"]),self._custo_base_item(i),_num(i["saldo"]),_num(i["estoque_minimo"]),"Ativo" if i["ativo"] else "Inativo"))
+        todos=adb.listar_itens(self.db,False,termo=self.e_busca.get() or None)
+        categoria=self.cb_filtro_categoria.get()
+        self.itens=[i for i in todos if categoria=="Todas as categorias" or i["categoria"]==categoria]
+        self.t_itens.delete(*self.t_itens.get_children())
+        for i in self.itens:self.t_itens.insert("","end",iid=str(i["id_item"]),values=(i["nome"],i["unidade"],i["categoria"],i.get("validade") or "—",_br(i["valor_unitario"]),self._custo_base_item(i),_num(i["saldo"]),_num(i["estoque_minimo"]),"Ativo" if i["ativo"] else "Inativo"))
     def _selecionar_item(self,_=None):
         sel=self.t_itens.selection()
         if not sel:return
         i=next(x for x in self.itens if x["id_item"]==int(sel[0]));self.item_atual=i["id_item"]
-        _set(self.e_nome,i["nome"]);_set(self.e_un,i["unidade"]);self.cb_cat.set(i["categoria"]);_set(self.e_preco,i["valor_unitario"]);_set(self.e_min,i["estoque_minimo"]);_set(self.e_emb_qtd,i.get("embalagem_qtd"));self.cb_emb_un.set(i.get("embalagem_un") or "g");_set(self.e_obs,i["observacao"])
+        _set(self.e_nome,i["nome"]);_set(self.e_un,i["unidade"]);self.cb_cat.set(i["categoria"]);_set(self.e_preco,i["valor_unitario"]);_set(self.e_min,i["estoque_minimo"]);_set(self.e_emb_qtd,i.get("embalagem_qtd"));self.cb_emb_un.set(i.get("embalagem_un") or "g");_set(self.e_obs,i["observacao"]);_set(self.e_validade,i.get("validade"))
     def _limpar_item(self):
         self.item_atual=None
-        for e in (self.e_nome,self.e_un,self.e_preco,self.e_min,self.e_emb_qtd,self.e_obs):_set(e,"")
+        for e in (self.e_nome,self.e_un,self.e_preco,self.e_min,self.e_emb_qtd,self.e_obs,self.e_validade):_set(e,"")
         self.cb_cat.set(adb.CATEGORIAS[0]);self.t_itens.selection_remove(self.t_itens.selection())
     def _salvar_item(self):
         try:
-            d={"id_item":self.item_atual,"nome":self.e_nome.get(),"unidade":self.e_un.get(),"categoria":self.cb_cat.get(),"valor_unitario":self.e_preco.get(),"estoque_minimo":self.e_min.get(),"embalagem_qtd":self.e_emb_qtd.get(),"embalagem_un":self.cb_emb_un.get(),"observacao":self.e_obs.get()}
+            d={"id_item":self.item_atual,"nome":self.e_nome.get(),"unidade":self.e_un.get(),"categoria":self.cb_cat.get(),"valor_unitario":self.e_preco.get(),"estoque_minimo":self.e_min.get(),"embalagem_qtd":self.e_emb_qtd.get(),"embalagem_un":self.cb_emb_un.get(),"observacao":self.e_obs.get(),"validade":self.e_validade.get()}
             adb.salvar_item(self.db,d);self._carregar_itens();self._atualizar_combos();messagebox.showinfo("Almoxarifado","Item salvo.")
         except Exception as e:messagebox.showwarning("Item",str(e))
     def _sincronizar_catalogo_mobile(self):
@@ -158,6 +168,23 @@ class AlmoxUI:
         except Exception as e:
             messagebox.showwarning("Sincronização do catálogo",str(e))
 
+    def _importar_classificacao_mobile(self):
+        try:
+            base=self.base_dir
+            if not base:
+                import main
+                base=main.get_base_path()
+            mobile_db=im.caminho_mobile_db(self.db,base)
+            resultado=im.importar_classificacao_almox_mobile(self.db,mobile_db)
+            self._carregar_itens()
+            self._atualizar_combos()
+            messagebox.showinfo("Classificação do mobile",
+                f"Itens atualizados: {resultado['atualizados']}\n"
+                f"Vínculos sem produto mobile: {resultado['sem_vinculo']}\n\n"
+                "Categorias padrão e validades vazias não apagam dados já cadastrados no desktop.")
+        except Exception as e:
+            messagebox.showwarning("Classificação do mobile",str(e))
+
     def _alternar_item(self):
         if not self.item_atual:messagebox.showinfo("Item","Selecione um item.");return
         i=adb.obter_item(self.db,self.item_atual);adb.alterar_item_ativo(self.db,self.item_atual,not i["ativo"]);self._carregar_itens()
@@ -169,6 +196,7 @@ class AlmoxUI:
         self.itens=adb.listar_itens(self.db,True)
         if hasattr(self,"cb_mov_item"):self.cb_mov_item.configure(values=[f"{x['id_item']} — {x['nome']} ({x['unidade']})" for x in self.itens])
         if hasattr(self,"cb_prog_item"):self.cb_prog_item.configure(values=[f"{x['id_item']} — {x['nome']} ({x['unidade']})" for x in self.itens])
+        if hasattr(self,"e_mov_busca") and hasattr(self,"cb_mov_item"):self._filtrar_itens_movimento()
     def _reposicao(self):
         self._atualizar_combos()
         form=ctk.CTkFrame(self.conteudo,fg_color="transparent");form.pack(fill="x")
@@ -264,6 +292,7 @@ class AlmoxUI:
     def _movimentos(self):
         self._atualizar_combos()
         f=ctk.CTkFrame(self.conteudo,fg_color="transparent");f.pack(fill="x")
+        self.e_mov_busca=ctk.CTkEntry(f,placeholder_text="Buscar produto pelo nome...",width=200);self.e_mov_busca.pack(side="left",padx=3);self.e_mov_busca.bind("<KeyRelease>",lambda _e:self._filtrar_itens_movimento())
         self.cb_mov_item=ctk.CTkComboBox(f,values=[f"{x['id_item']} — {x['nome']} ({x['unidade']})" for x in self.itens],width=240);self.cb_mov_item.pack(side="left",padx=3)
         self.cb_tipo=ctk.CTkComboBox(f,values=["entrada","consumo","perda","ajuste_entrada","ajuste_saida"],width=150);self.cb_tipo.pack(side="left",padx=3);self.cb_tipo.set("entrada")
         self.e_mov_data=ctk.CTkEntry(f,width=120);self.e_mov_data.pack(side="left",padx=3);_set(self.e_mov_data,adb.hoje())
@@ -273,10 +302,18 @@ class AlmoxUI:
         self.cb_mov_ref=ctk.CTkComboBox(g,values=["— sem refeição —"]+[v for _,v in adb.REFEICOES],width=180);self.cb_mov_ref.pack(side="left",padx=3);self.cb_mov_ref.set("— sem refeição —")
         self.e_mov_obs=ctk.CTkEntry(g,placeholder_text="Observação / documento de compra",width=360);self.e_mov_obs.pack(side="left",padx=3)
         ctk.CTkButton(g,text="Registrar movimento",command=self._registrar).pack(side="left",padx=3)
-        self.t_mov=self._tree(self.conteudo,("Data","Item","Tipo","Quantidade","Preço unitário","Total","Refeição"),(110,180,100,100,120,120,150),12)
+        self.t_mov=self._tree(self.conteudo,("Data","Item","Tipo","Quantidade","Preço unitário","Total","Refeição","Observação"),(100,150,90,90,105,105,120,230),12)
         bar=ctk.CTkFrame(self.conteudo,fg_color="transparent");bar.pack(fill="x")
         ctk.CTkButton(bar,text="Estornar movimento selecionado",command=self._estornar,fg_color=tema.ERRO).pack(side="left",padx=4)
         self._carregar_movimentos()
+    def _filtrar_itens_movimento(self):
+        termo=self.e_mov_busca.get().strip()
+        itens=adb.listar_itens(self.db,True,termo=termo or None)
+        valores=[f"{x['id_item']} — {x['nome']} ({x['unidade']})" for x in itens]
+        self.cb_mov_item.configure(values=valores)
+        if self.cb_mov_item.get() not in valores:
+            self.cb_mov_item.set(valores[0] if valores else "")
+
     def _registrar(self):
         try:
             escolha=self.cb_mov_item.get();iid=int(escolha.split("—",1)[0].strip())
@@ -286,7 +323,7 @@ class AlmoxUI:
         except Exception as e:messagebox.showwarning("Movimento",str(e))
     def _carregar_movimentos(self):
         self.movs=adb.listar_movimentos(self.db);self.t_mov.delete(*self.t_mov.get_children())
-        for x in self.movs:self.t_mov.insert("","end",iid=str(x["id_movimento"]),values=(x["data"],x["item"],x["motivo"],_num(x["quantidade"]),_br(x["valor_unitario"]),_br(x["valor_total"]),adb.REFEICOES_LABEL.get(x["refeicao"],"—")))
+        for x in self.movs:self.t_mov.insert("","end",iid=str(x["id_movimento"]),values=(x["data"],x["item"],x["motivo"],_num(x["quantidade"]),_br(x["valor_unitario"]),_br(x["valor_total"]),adb.REFEICOES_LABEL.get(x["refeicao"],"—"),x.get("observacao") or "—"))
     def _estornar(self):
         sel=self.t_mov.selection()
         if not sel:messagebox.showinfo("Estorno","Selecione um movimento.");return

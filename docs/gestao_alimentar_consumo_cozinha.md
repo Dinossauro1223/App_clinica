@@ -6,8 +6,8 @@ Organizar as retiradas de ingredientes do almoxarifado para a cozinha, permitir 
 
 ## Fluxo de dados
 
-1. **Cadastro do produto:** nome, unidade de estoque, preço por unidade e conteúdo da embalagem ficam no cadastro mobile do almoxarifado. O desktop mantém espelho do produto na tabela `GA_Produtos_Almox`.
-2. **Retirada:** cada transferência mobile guarda data/hora, origem/destino, ID do item, quantidade, usuário, preço unitário snapshot e custo snapshot.
+1. **Cadastro do produto:** nome, unidade de estoque, categoria, validade, preço por unidade e conteúdo da embalagem podem ser mantidos no desktop e publicados no catálogo mobile. Categorias não padrão e validades preenchidas no mobile podem ser importadas pelo botão **Importar categoria/validade do mobile**; campos vazios não apagam dados do desktop. O desktop mantém espelho do produto na tabela `GA_Produtos_Almox`.
+2. **Movimentação:** cada transferência ou devolução mobile guarda data/hora, origem/destino, ID do item, quantidade, usuário, observação opcional e preço/custo snapshot.
 3. **Importação:** o desktop importa um intervalo da base mobile para `Mobile_Movimentos`, mantendo `(data,id_mobile)` como chave única. A importação é idempotente.
 4. **Preparações esperadas:** a aba Consumo observado permite cadastrar o que a cozinha espera preparar para cada dia/refeição, número previsto de porções e vínculo opcional a uma ficha técnica existente.
 5. **Destinação:** uma retirada Almoxarifado → Cozinha pode ser repartida entre uma ou mais preparações, uso geral/não identificado e perda. A soma das destinações não pode exceder a retirada. Cada substituição cria uma revisão; versões anteriores são inativadas, mas preservadas.
@@ -15,7 +15,9 @@ Organizar as retiradas de ingredientes do almoxarifado para a cozinha, permitir 
 
 ## Regras para não contar duas vezes
 
-- Só transferências `almox` → `cozinha` entram como retirada original de ingredientes.
+- Transferências `almox` → `cozinha` entram como retirada original de ingredientes.
+- Devoluções `cozinha` → `almox` entram com quantidade e custo negativos na apuração líquida. Exemplo: retirada de 100 g e devolução de 20 g = 80 g líquidos.
+- A devolução reduz primeiro o saldo ainda não destinado da retirada original. Se a quantidade já tiver sido alocada, o relatório desconta a devolução da alocação mais recente e do custo correspondente; a tela sinaliza quando a alocação existente precisa de revisão.
 - Transferências `cozinha` → `copa` continuam no histórico geral, mas não entram novamente no total retirado do almoxarifado.
 - A chave de movimento é `(data,id_mobile)`; reimportar um período não cria nova retirada.
 - Os IDs de item e movimento não são descartados na integração.
@@ -32,9 +34,9 @@ Movimentos antigos sem preço snapshot:
 
 ## Retirada versus consumo efetivo
 
-Esta primeira entrega calcula **média de retiradas** e permite associar quantidades às preparações, mas não declara que tudo o que foi retirado foi consumido. Uma parte pode permanecer no estoque da cozinha, ser transferida para a copa ou se perder.
+A análise calcula **retirada líquida após devoluções** e permite associar retiradas positivas às preparações, mas não declara que tudo o que saiu do almoxarifado foi consumido. Uma parte pode permanecer no estoque da cozinha, ser transferida para a copa ou se perder.
 
-Para apurar consumo efetivo em uma etapa posterior, será necessário conferir estoque físico inicial/final por ingrediente e período, registrando entradas, transferências, devoluções e perdas. Sem essas informações o programa mantém a quantidade como retirada observada/alocada, não como consumo confirmado.
+Para apurar consumo efetivo em uma etapa posterior, ainda será necessário conferir estoque físico inicial/final por ingrediente e período, registrando entradas, transferências, devoluções e perdas. Sem essas informações o programa mantém a quantidade como retirada observada/alocada, não como consumo confirmado.
 
 ## Fichas observacionais
 
@@ -46,7 +48,7 @@ A ficha técnica oficial continua sendo mantida no editor existente (`GA_Fichas`
 
 - `gestao_alimentar_db.py`: `salvar_preparacoes_dia`, `listar_preparacoes_dia`, `listar_movimentos_cozinha`, `salvar_alocacoes_retirada`, `listar_alocacoes_retirada`, `resumo_consumo_observado`.
 - `integracao_mobile.py`: `importar_movimentos_cozinha`; o importador existente de estoque também preserva IDs e snapshots.
-- `mobile/servidor.py`: metadados comerciais e snapshot de preço nas movimentações.
+- `mobile/servidor.py`: categoria, validade, observação e snapshot de preço nas movimentações; devoluções da cozinha para o almoxarifado.
 - `gestao_alimentar_ui.py`: aba **Consumo observado**, editor de preparações diárias e janela de destinação.
 - `main.py`: menu desktop abre a Gestão alimentar.
 

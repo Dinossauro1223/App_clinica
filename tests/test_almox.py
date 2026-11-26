@@ -87,6 +87,21 @@ class TestAlmoxarifado(unittest.TestCase):
         self.assertEqual(r["realizado_total"], 20)
         self.assertEqual(r["programado_total"], 0)
 
+    def test_validade_busca_categoria_e_observacao_de_movimento(self):
+        cedo = db.salvar_item(self.path, {"nome":"Tempero", "unidade":"g", "categoria":"Temperos e condimentos", "validade":"2026-11-30", "valor_unitario":"0,05"})
+        tarde = db.salvar_item(self.path, {"nome":"Arroz", "unidade":"kg", "categoria":"Grãos e cereais", "validade":"2026-12-15", "valor_unitario":"5,00"})
+        db.salvar_item(self.path, {"nome":"Feijão", "unidade":"kg", "categoria":"Grãos e cereais", "valor_unitario":"8,00"})
+        ordenados = db.listar_itens(self.path)
+        self.assertEqual([x["nome"] for x in ordenados], ["Tempero", "Arroz", "Feijão"])
+        self.assertEqual(db.listar_itens(self.path, termo="temp")[0]["id_item"], cedo)
+        self.assertEqual(ordenados[0]["categoria"], "Temperos e condimentos")
+        db.registrar_movimento(self.path, "2026-11-25", tarde, "entrada", 10, "5,00", observacao="Recebimento parcial conferido")
+        mov = db.listar_movimentos(self.path, id_item=tarde)[0]
+        self.assertEqual(mov["observacao"], "Recebimento parcial conferido")
+        ui = (Path(__file__).resolve().parents[1] / "almox_ui.py").read_text(encoding="utf-8")
+        self.assertIn("def _filtrar_itens_movimento", ui)
+        self.assertIn("cb_filtro_categoria", ui)
+
     def test_unidades_nao_sao_convertidas_implicitamente(self):
         kg = self.item("4", "Farinha", "kg")
         g = self.item("0,004", "Farinha", "g")
@@ -96,6 +111,21 @@ class TestAlmoxarifado(unittest.TestCase):
 
 
 class TestMigracaoAlmox(unittest.TestCase):
+    def test_migracao_9_adiciona_validade_sem_recriar_almox(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "clinica.db")
+            c = sqlite3.connect(path)
+            c.execute("CREATE TABLE Pacientes(id INTEGER PRIMARY KEY)")
+            c.execute("CREATE TABLE Consultas(id INTEGER PRIMARY KEY)")
+            c.commit(); c.close()
+            db_migracoes.aplicar_migracoes(path, alvo=9, backup=False)
+            c = sqlite3.connect(path)
+            colunas = {r[1] for r in c.execute("PRAGMA table_info(Almox_Itens)")}
+            versao = c.execute("SELECT MAX(versao) FROM schema_migrations").fetchone()[0]
+            c.close()
+            self.assertIn("validade", colunas)
+            self.assertEqual(versao, 9)
+
     def test_v2_cria_tabelas_e_tem_reversao(self):
         with tempfile.TemporaryDirectory() as td:
             path = str(Path(td) / "clinica.db")

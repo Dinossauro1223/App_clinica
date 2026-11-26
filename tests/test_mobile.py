@@ -81,7 +81,19 @@ class MobileTest(unittest.TestCase):
         consulta = "/api/estoque?estoque=" + est
         if dia:
             consulta += "&data=" + dia
-        return self.chamar(self.adm, "GET", consulta)[1]["linhas"][0]["qtd"]
+        linhas = self.chamar(self.adm, "GET", consulta)[1]["linhas"]
+        return next(l["qtd"] for l in linhas if l["nome"] == "Arroz")
+
+    def limpar_itens_almox_teste(self, ids):
+        c = sv.conectar(self.db)
+        try:
+            marcadores = ",".join("?" for _ in ids)
+            for tabela in ("movimentos", "estoque_dia"):
+                c.execute(f"DELETE FROM {tabela} WHERE id_item IN ({marcadores})", tuple(ids))
+            c.execute(f"DELETE FROM itens WHERE id IN ({marcadores})", tuple(ids))
+            c.commit()
+        finally:
+            c.close()
 
     # ------------------------------------------------------------------ testes
     def test_admin_inicial_usa_credencial_solicitada(self):
@@ -363,6 +375,44 @@ class MobileTest(unittest.TestCase):
                                          {"refeicao": "lanche", "ativa": True, "abre": "14:00", "fecha": "15:00"})[0], 200)
             self.assertEqual(cont(cop, "lanche"), 200)  # refeição acrescentada depois
 
+    def test_almox_categorias_validade_busca_e_devolucao_com_observacao(self):
+        for nome, categoria, validade in (("Tempero Validade", "Temperos e condimentos", "2026-11-30"),
+                                          ("Arroz Validade", "Grãos e cereais", "2026-12-15")):
+            codigo, dados = self.chamar(self.adm, "POST", "/api/admin/itens", {
+                "nome": nome, "unidade": "g", "preco_unitario": 0.05,
+                "categoria": categoria, "validade": validade})
+            self.assertEqual(codigo, 200, dados)
+        itens = self.chamar(self.adm, "GET", "/api/itens")[1]["itens"]
+        self.assertLess(itens.index(next(x for x in itens if x["nome"] == "Tempero Validade")),
+                        itens.index(next(x for x in itens if x["nome"] == "Arroz Validade")))
+        tempero = next(x for x in itens if x["nome"] == "Tempero Validade")
+        arroz_novo = next(x for x in itens if x["nome"] == "Arroz Validade")
+        self.addCleanup(self.limpar_itens_almox_teste, [tempero["id"], arroz_novo["id"]])
+        self.assertEqual((tempero["categoria"], tempero["validade"]), ("Temperos e condimentos", "2026-11-30"))
+        iid = tempero["id"]
+        self.assertEqual(self.chamar(self.t["alm"], "POST", f"/api/almox/itens/{iid}", {
+            "categoria":"Temperos e condimentos", "validade":"2026-11-29"})[0], 200)
+        tempero_atualizado = next(x for x in self.chamar(self.adm, "GET", "/api/itens")[1]["itens"] if x["id"] == iid)
+        self.assertEqual(tempero_atualizado["validade"], "2026-11-29")
+        self.assertEqual(self.chamar(self.t["alm"], "POST", "/api/estoque/reposicao", {
+            "estoque":"almox", "id_item":iid, "qtd":100, "origem":"externo", "observacao":"Compra inicial"})[0], 200)
+        self.assertEqual(self.chamar(self.t["coz"], "POST", "/api/estoque/reposicao", {
+            "estoque":"cozinha", "id_item":iid, "qtd":100, "origem":"almox", "observacao":"Retirada para preparo"})[0], 200)
+        self.assertEqual(self.chamar(self.t["alm"], "POST", "/api/estoque/reposicao", {
+            "estoque":"almox", "id_item":iid, "qtd":20, "origem":"cozinha",
+            "observacao":"Devolução de 20 g não utilizados"})[0], 200)
+        saldo = next(x for x in self.chamar(self.adm, "GET", "/api/estoque?estoque=almox")[1]["linhas"] if x["id_item"] == iid)["qtd"]
+        self.assertEqual(saldo, 20)
+        with closing(sv.conectar(self.db)) as c:
+            mov = c.execute("SELECT origem,destino,observacao FROM movimentos WHERE id_item=? ORDER BY id DESC LIMIT 1", (iid,)).fetchone()
+            self.assertEqual((mov["origem"], mov["destino"], mov["observacao"]),
+                             ("cozinha", "almox", "Devolução de 20 g não utilizados"))
+        html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function filtrarEstoque()", html)
+        self.assertIn("id=buscaEstoque", html)
+        self.assertIn("id=categoriaEstoque", html)
+        self.assertIn("async function salvarClassificacao(id)", html)
+
     def test_hierarquia_almox_cozinha_copa(self):
         def rep(t, org, q):
             return self.chamar(self.t[t], "POST", "/api/estoque/reposicao", {"id_item": 1, "qtd": q, "origem": org})[0]
@@ -374,7 +424,9 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(rep("cop", "cozinha", 4), 200)
         self.assertEqual(rep("cop", "almox", 2), 200)  # cozinha zerou: pode ir ao almoxarifado
         self.assertEqual((self.qtd("almox"), self.qtd("cozinha"), self.qtd("copa")), (4, 0, 6))
-        self.assertEqual(rep("alm", "cozinha", 1), 400)  # almoxarifado só recebe de fora
+        self.assertEqual(rep("coz", "almox", 1), 200)  # cozinha recebe do almoxarifado
+        self.assertEqual(rep("alm", "cozinha", 1), 200)  # devolução de sobra ao almoxarifado
+        self.assertEqual((self.qtd("almox"), self.qtd("cozinha"), self.qtd("copa")), (4, 0, 6))
         self.assertEqual(rep("alm", "externo", 5), 200)
         self.assertEqual(self.qtd("almox"), 9)
 
