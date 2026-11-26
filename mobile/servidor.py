@@ -901,6 +901,21 @@ def _rotear(c, ip, m, p, q, b, auth):
             lin = linhas_mapa(c, s["id"], d, staff) if mapa else linhas_refeicoes(c, s["id"], d)
             return {"data": d, "setor": s, "linhas": lin, "pendentes": pendentes(c, "mapa" if mapa else "refeicao", d)}
         return (post_mapa if mapa else post_refeicoes)(c, u, s, d, b.get("linhas", []), bool(b.get("completo"))) if mapa else post_refeicoes(c, u, s, d, b.get("linhas", []))
+    if m == "POST" and p.startswith("/api/almox/itens/"):
+        if perfil not in ("admin", "estoque_almox"):
+            raise Erro("Somente o almoxarifado pode classificar os produtos e atualizar a validade.", 403)
+        iid = int(p.rsplit("/", 1)[1])
+        if not c.execute("SELECT 1 FROM itens WHERE id=?", (iid,)).fetchone():
+            raise Erro("Item não encontrado.", 404)
+        categoria = str(b.get("categoria") or "Gêneros alimentícios").strip()
+        categorias = ("Gêneros alimentícios", "Grãos e cereais", "Hortifrúti", "Carnes e proteínas", "Laticínios", "Temperos e condimentos", "Dietas enterais", "Suplementos", "Materiais", "Limpeza", "Outros")
+        if categoria not in categorias:
+            raise Erro("Selecione uma categoria válida.")
+        validade = str(b.get("validade") or "").strip() or None
+        if validade:
+            validade = dia_valido(validade)
+        c.execute("UPDATE itens SET categoria=?,validade=? WHERE id=?", (categoria, validade, iid))
+        return {"ok": True}
     if p == "/api/estoque":
         est, d = estoque_alvo(u, q.get("estoque") or b.get("estoque")), dia_alvo(u, q.get("data") or b.get("data"))
         if m == "GET":
