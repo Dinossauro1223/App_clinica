@@ -1,5 +1,7 @@
 # Copyright (c) 2026 Neis Bila de Alencar. Todos os direitos reservados.
 import customtkinter as ctk
+import importlib.util
+import types
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import sqlite3
@@ -326,9 +328,27 @@ class AppClinica(ctk.CTk):
             pass
 
         try:
-            # Reutiliza o mesmo módulo importado pela integração e pela interface mobile:
-            # uma única trava SQLite e o mesmo estado de sessões para todos os componentes.
-            from mobile import servidor as modulo
+            caminho_servidor = os.path.join(get_base_path(), "mobile", "servidor.py")
+            if not os.path.isfile(caminho_servidor):
+                caminho_servidor = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mobile", "servidor.py")
+            try:
+                import mobile as pacote_mobile
+            except ImportError:
+                pacote_mobile = types.ModuleType("mobile")
+                pacote_mobile.__path__ = [os.path.dirname(caminho_servidor)]
+                sys.modules["mobile"] = pacote_mobile
+
+            # Carrega o arquivo empacotado, mas registra-o com o nome canônico para que
+            # integracao_mobile/configuracoes_ui/mobile_ui compartilhem a mesma instância e LOCK.
+            modulo = sys.modules.get("mobile.servidor")
+            if modulo is None:
+                spec = importlib.util.spec_from_file_location("mobile.servidor", caminho_servidor)
+                if spec is None or spec.loader is None:
+                    raise RuntimeError("Não foi possível carregar mobile/servidor.py.")
+                modulo = importlib.util.module_from_spec(spec)
+                sys.modules["mobile.servidor"] = modulo
+                spec.loader.exec_module(modulo)
+            setattr(pacote_mobile, "servidor", modulo)
 
             # O servidor, o painel desktop e a integração devem apontar para o mesmo banco.
             caminho_db = im.caminho_mobile_db(caminho_do_banco(), get_base_path())
