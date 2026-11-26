@@ -197,7 +197,6 @@ class JanelaCondutasAlta(ctk.CTkFrame):
         self.sessao, self.db = sessao, sessao.db
         self.pasta_saida, self.ao_fechar = pasta_saida, ao_fechar
         self._cartoes, self._textos, self._motivos = [], {}, {}
-        self._imagens_orientacao = []
         self._edicoes, self._motivos_digitados, self._abertos = {}, {}, set()
         self._opcoes = {}
         self._imagens_orientacao = []
