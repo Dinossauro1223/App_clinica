@@ -105,7 +105,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
   const pathOf=u=>{try{const x=new URL(typeof u==='string'?u:u.url,location.href);return x.pathname+x.search}catch(e){return String(u)}};
   const jsonResponse=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'Content-Type':'application/json; charset=utf-8'}});
   const snapshot=l=>JSON.stringify({
-    nome:l.nome||'',idade_anos:l.idade_anos??null,idade_meses:l.idade_meses??null,acompanhante:!!l.acompanhante,cor:l.cor||'',dieta:l.dieta||'',diagnostico:l.diagnostico||'',pref_sim:l.pref_sim||'',pref_nao:l.pref_nao||'',
+    id_paciente:l.id_paciente??null,nome:l.nome||'',idade_anos:l.idade_anos??null,idade_meses:l.idade_meses??null,acompanhante:!!l.acompanhante,cor:l.cor||'',dieta:l.dieta||'',diagnostico:l.diagnostico||'',pref_sim:l.pref_sim||'',pref_nao:l.pref_nao||'',
     consistencia:l.consistencia||'',via:l.via||'',dm:!!l.dm,has:!!l.has,laxativa:!!l.laxativa,
     constipante:!!l.constipante,drc:!!l.drc,
     suplementos:(l.suplementos||[]).map(s=>({id_suplemento:s.id_suplemento,nome:s.nome,ml_oferta:Number(s.ml_oferta||0),
