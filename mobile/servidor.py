@@ -12,6 +12,8 @@ import json
 import mimetypes
 import re
 import secrets
+import shutil
+import subprocess
 import socket
 import socketserver
 import sqlite3
@@ -43,6 +45,82 @@ CFG_INICIAL = [("desjejum", 0, None, None), ("colacao", 0, None, None), ("almoco
 LOCK = threading.Lock()
 SESSOES, FALHAS = {}, {}
 SENHA_ADMIN_INICIAL = "123456789"
+
+
+# O Tailscale atribui IPv4 no intervalo CGNAT 100.64.0.0/10 (RFC 6598).
+# Só aceitamos essa origem quando a conexão chegou ao IP Tailscale local
+# detectado no próprio computador; isso evita liberar toda a faixa CGNAT.
+REDE_TAILSCALE = ipaddress.ip_network("100.64.0.0/10")
+_TAILSCALE_CACHE_LOCK = threading.Lock()
+_TAILSCALE_CACHE = {"instante": 0.0, "ip": None}
+
+
+def _executaveis_tailscale():
+    """Localiza o CLI sem presumir que esteja no PATH (instalação Windows padrão)."""
+    encontrados = []
+    no_path = shutil.which("tailscale")
+    if no_path:
+        encontrados.append(no_path)
+    if sys.platform == "win32":
+        encontrados.extend([
+            str(Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Tailscale" / "tailscale.exe"),
+            str(Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "Tailscale" / "tailscale.exe"),
+        ])
+    else:
+        encontrados.extend(["/usr/bin/tailscale", "/usr/local/bin/tailscale"])
+    vistos = set()
+    for caminho in encontrados:
+        if caminho not in vistos and Path(caminho).is_file():
+            vistos.add(caminho)
+            yield caminho
+
+
+def detectar_ip_tailscale(forcar=False):
+    """Retorna o IPv4 Tailscale ativo, ou None; resultado fica em cache por 20 s."""
+    with _TAILSCALE_CACHE_LOCK:
+        agora_cache = time.monotonic()
+        if not forcar and agora_cache - _TAILSCALE_CACHE["instante"] < 20:
+            return _TAILSCALE_CACHE["ip"]
+        endereco = None
+        for executavel in _executaveis_tailscale():
+            try:
+                opcoes = {"capture_output": True, "text": True, "timeout": 2, "check": False}
+                if sys.platform == "win32":
+                    opcoes["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                proc = subprocess.run([executavel, "ip", "-4"], **opcoes)
+                if proc.returncode != 0:
+                    continue
+                for linha in proc.stdout.splitlines():
+                    try:
+                        candidato = ipaddress.ip_address(linha.strip())
+                    except ValueError:
+                        continue
+                    if candidato.version == 4 and candidato in REDE_TAILSCALE:
+                        endereco = str(candidato)
+                        break
+            except (OSError, subprocess.SubprocessError):
+                continue
+            if endereco:
+                break
+        _TAILSCALE_CACHE.update({"instante": agora_cache, "ip": endereco})
+        return endereco
+
+
+def cliente_autorizado(ip_origem, ip_destino, ip_tailscale=None):
+    """Permite LAN privada ou tailnet apenas quando o destino é o IP Tailscale local."""
+    try:
+        origem = ipaddress.ip_address(ip_origem)
+        destino = ipaddress.ip_address(ip_destino)
+    except ValueError:
+        return False
+    if origem.is_private:
+        return True
+    return bool(
+        origem.version == 4 and origem in REDE_TAILSCALE
+        and ip_tailscale and str(destino) == str(ip_tailscale)
+    )
+
+
 
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS sistema_config(chave TEXT PRIMARY KEY, valor TEXT NOT NULL);
@@ -952,7 +1030,10 @@ def _rotear(c, ip, m, p, q, b, auth):
         cfg = {r["chave"]: r["valor"] for r in c.execute(
             "SELECT chave,valor FROM sistema_config WHERE chave IN "
             "('rede_ip_registrado','rede_ip_registrado_em','server_identity')")}
+        ip_tail = detectar_ip_tailscale()
         return {"status": "online", "ip_lan": ip_lan(), "porta": 8765,
+                "tailscale_conectado": bool(ip_tail), "ip_tailscale": ip_tail,
+                "url_tailscale": ("http://%s:8765" % ip_tail) if ip_tail else None,
                 "ip_registrado": cfg.get("rede_ip_registrado"),
                 "registrado_em": cfg.get("rede_ip_registrado_em"),
                 "server_id": cfg.get("server_identity")}
@@ -1453,8 +1534,10 @@ class Manipulador(BaseHTTPRequestHandler):
 
     def _tratar(self, m):
         try:
-            if not ipaddress.ip_address(self.client_address[0]).is_private:
-                raise Erro("Acesso permitido somente pela rede local.", 403)
+            destino = self.connection.getsockname()[0]
+            ip_tail = detectar_ip_tailscale()
+            if not cliente_autorizado(self.client_address[0], destino, ip_tail):
+                raise Erro("Acesso permitido somente pela rede local ou pelo Tailscale autenticado.", 403)
             u = urlparse(self.path)
             q = {k: v[0] for k, v in parse_qs(u.query).items()}
             if m == "GET" and u.path == "/download/NutriLab-Mobile.apk":
