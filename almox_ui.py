@@ -107,6 +107,7 @@ class AlmoxUI:
         ctk.CTkButton(bar,text="Ativar / desativar",command=self._alternar_item).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Histórico de preços",command=self._precos).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Sincronizar catálogo mobile",command=self._sincronizar_catalogo_mobile).pack(side="left",padx=3)
+        ctk.CTkButton(bar,text="Importar categoria/validade do mobile",command=self._importar_classificacao_mobile).pack(side="left",padx=3)
         self.t_itens=self._tree(self.conteudo,("Nome","Unidade","Categoria","Validade","Valor unitário","Custo/g ou ml","Saldo","Mínimo","Situação"),(160,65,130,95,105,105,70,70,75),12)
         self._carregar_itens()
         self.t_itens.bind("<<TreeviewSelect>>",self._selecionar_item)
@@ -166,6 +167,23 @@ class AlmoxUI:
                 messagebox.showinfo("Sincronização do catálogo",resumo)
         except Exception as e:
             messagebox.showwarning("Sincronização do catálogo",str(e))
+
+    def _importar_classificacao_mobile(self):
+        try:
+            base=self.base_dir
+            if not base:
+                import main
+                base=main.get_base_path()
+            mobile_db=im.caminho_mobile_db(self.db,base)
+            resultado=im.importar_classificacao_almox_mobile(self.db,mobile_db)
+            self._carregar_itens()
+            self._atualizar_combos()
+            messagebox.showinfo("Classificação do mobile",
+                f"Itens atualizados: {resultado['atualizados']}\\n"
+                f"Vínculos sem produto mobile: {resultado['sem_vinculo']}\\n\\n"
+                "Categorias padrão e validades vazias não apagam dados já cadastrados no desktop.")
+        except Exception as e:
+            messagebox.showwarning("Classificação do mobile",str(e))
 
     def _alternar_item(self):
         if not self.item_atual:messagebox.showinfo("Item","Selecione um item.");return
