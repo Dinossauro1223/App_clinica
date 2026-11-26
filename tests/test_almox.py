@@ -108,6 +108,21 @@ class TestAlmoxarifado(unittest.TestCase):
 
 
 class TestMigracaoAlmox(unittest.TestCase):
+    def test_migracao_9_adiciona_validade_sem_recriar_almox(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "clinica.db")
+            c = sqlite3.connect(path)
+            c.execute("CREATE TABLE Pacientes(id INTEGER PRIMARY KEY)")
+            c.execute("CREATE TABLE Consultas(id INTEGER PRIMARY KEY)")
+            c.commit(); c.close()
+            db_migracoes.aplicar_migracoes(path, alvo=9, backup=False)
+            c = sqlite3.connect(path)
+            colunas = {r[1] for r in c.execute("PRAGMA table_info(Almox_Itens)")}
+            versao = c.execute("SELECT MAX(versao) FROM Schema_Migracoes").fetchone()[0]
+            c.close()
+            self.assertIn("validade", colunas)
+            self.assertEqual(versao, 9)
+
     def test_v2_cria_tabelas_e_tem_reversao(self):
         with tempfile.TemporaryDirectory() as td:
             path = str(Path(td) / "clinica.db")
