@@ -924,6 +924,8 @@ def exportar(c, d):
 def _rotear(c, ip, m, p, q, b, auth):
     if (m, p) == ("POST", "/api/login"):
         return login(c, ip, b)
+    # Reutiliza o mesmo arquivo SQLite para os módulos operacionais compartilhados.
+    db = c.execute("PRAGMA database_list").fetchone()[2]
     u = usuario(c, auth)
     perfil = u["perfil"]
     adm, staff = perfil == "admin", perfil in STAFF
