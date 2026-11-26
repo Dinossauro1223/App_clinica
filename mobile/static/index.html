@@ -57,6 +57,12 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .orientacao-texto br{display:block;margin-bottom:5px;content:""}
 .orientacao-nota{background:#edf3ef;border-left:4px solid var(--cor);border-radius:6px;padding:10px 12px;margin:8px 0}
 .img-diluicao{display:block;width:100%;max-height:230px;object-fit:contain;margin:4px auto 10px}
+.passos-imagem{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0}
+.passo-imagem{min-width:0;border:1px solid var(--borda,#dce3e8);border-radius:12px;padding:10px;background:var(--cartao,#fff)}
+.passo-imagem img{display:block;width:100%;height:auto;max-height:230px;object-fit:contain;margin:0 auto 8px}
+.passo-imagem b{display:block;margin-bottom:5px}
+.passo-imagem p{margin:0;font-size:.92em}
+@media(max-width:620px){.passos-imagem{grid-template-columns:1fr}.passo-imagem{display:grid;grid-template-columns:minmax(110px,38%) 1fr;align-items:center;gap:10px}.passo-imagem img{max-height:150px;margin:0}.passo-imagem b{margin-bottom:4px}}
 .potassio-grafico{display:grid;gap:9px;margin:12px 0}
 .potassio-linha{display:grid;grid-template-columns:minmax(105px,1fr) minmax(90px,2fr) 58px;align-items:center;gap:8px;font-size:.84rem}
 .potassio-barra{height:13px;background:#e8eeea;border-radius:20px;overflow:hidden}
@@ -735,12 +741,12 @@ function textoOrientacao(o){
 }
 async function vOrientacoes(){
  const j=await api('/api/orientacoes'),os=j.orientacoes||[],by=Object.fromEntries(os.map(o=>[o.slug,o]));
- const dil='<div class=cartao><h2 style="margin-top:0">Como preparar: medir, pesar e misturar</h2><p class=mini>Veja a ordem das etapas. Os números de mL e g devem ser os da prescrição ou da ficha técnica.</p>' +
-  '<img class=img-diluicao src="/static/diluicao.svg" alt="Três etapas: medir o líquido em copo dosador graduado, pesar o pó em balança e misturar até dissolver; o volume final fica maior">' +
-  '<div class=passos-preparo><div class=passo-preparo><b>1. Meça o líquido</b>Use o copo dosador e confira os mL na escala.</div>' +
-  '<div class=passo-preparo><b>2. Pese o pó</b>Coloque o recipiente na balança, zere (tara) e confira os gramas (g).</div>' +
-  '<div class=passo-preparo><b>3. Misture</b>Acrescente o pó ao líquido e mexa. O volume pode aumentar.</div></div>' +
-  '<div class=orientacao-nota><b>Atenção:</b> se a prescrição pedir volume final, ajuste até a marca somente depois de misturar. Se indicar volume de líquido inicial, não complete por conta própria. Nunca estime a quantidade de pó.</div></div>' + textoOrientacao(by.diluicao);
+ const dil='<div class=cartao><h2 style="margin-top:0">Como preparar o suplemento</h2><p class=mini>Siga a sequência visual. Confira sempre a quantidade e o volume indicados na prescrição ou na ficha técnica.</p>' +
+  '<div class=passos-imagem>' +
+  '<article class=passo-imagem><img src="/static/orientacoes/etapa-1-agua.png" alt="Etapa 1: copo com a quantidade inicial de água"><div><b>1. Coloque a água</b><p>Coloque primeiro a quantidade inicial de água indicada para o preparo.</p></div></article>' +
+  '<article class=passo-imagem><img src="/static/orientacoes/etapa-2-adicionar-suplemento.png" alt="Etapa 2: suplemento em pó sendo adicionado à água, aumentando o volume da preparação"><div><b>2. Adicione o suplemento</b><p>Acrescente a quantidade indicada de suplemento em pó. A adição do pó aumenta o volume da preparação.</p></div></article>' +
+  '<article class=passo-imagem><img src="/static/orientacoes/etapa-3-misturar.png" alt="Etapa 3: misture a preparação até ficar homogênea"><div><b>3. Misture bem</b><p>Misture até o suplemento ficar distribuído de maneira homogênea.</p></div></article>' +
+  '</div><div class=orientacao-nota><b>Atenção:</b> não complete o copo até o volume final antes de adicionar o suplemento. Se a prescrição indicar volume final, ajuste somente depois de misturar. Se indicar volume de líquido inicial, não acrescente água além do previsto. Nunca estime a quantidade de pó.</div></div>' + textoOrientacao(by.diluicao);
  const cards='<div class=cartao><h2 style="margin-top:0">Reconheça as frutas</h2>' +
   '<p class=mini>As ilustrações são referências visuais. A aparência real pode variar conforme a variedade e o amadurecimento.</p>' +
   '<div class=frutas-grade>' + FRUTAS.map(f=>'<article class=fruta-card><div class=fruta-topo>' + frutaFig(f) + '<b>' + esc(f.nome) + '</b></div></article>').join('') + '</div>' +
