@@ -504,7 +504,14 @@ const publica=tenta(async()=>{
 });
 /* ---------- Refeições ---------- */
 function agoraLocalInput(){
-  const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16);
+  const d=new Date(),pad=n=>String(n).padStart(2,'0');
+  return (S.data||S.hoje)+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+function atualizaRefeicoesAcompanhante(sel){
+  const card=sel.closest('[data-paciente]'),opt=sel.selectedOptions[0];
+  const refs=(opt?.dataset.refeicoes||'').split(',').filter(Boolean),q=card.querySelector('.ac-qtd');
+  card.querySelector('.ac-ref').innerHTML=refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('');
+  q.max=opt?.dataset.max||1;q.value=Math.min(Number(q.value)||1,Number(q.max)||1);
 }
 async function vRef(){
   if(!S.setor){$('#vista').innerHTML=filtros('setor')+semSetor;return}
@@ -515,7 +522,7 @@ async function vRef(){
   const janela=(pub,ref)=>janelas.find(x=>x.publico===pub&&x.refeicao===ref);
   const htmlPacientes=pacientes.map(p=>{
     const minhas=aut.filter(a=>a.id_paciente===p.id_paciente);
-    const opcoes=minhas.map(a=>`<option value="${a.id_autorizacao}">Autorização #${a.id_autorizacao} · até ${a.fim_vigencia?esc(a.fim_vigencia.replace('T',' ')):'sem término'} · ${a.quantidade_acompanhantes} acompanhante(s)</option>`).join('');
+    const opcoes=minhas.map(a=>`<option value="${a.id_autorizacao}" data-refeicoes="${a.refeicoes.join(',')}" data-max="${a.quantidade_acompanhantes}">Autorização #${a.id_autorizacao} · até ${a.fim_vigencia?esc(a.fim_vigencia.replace('T',' ')):'sem término'} · ${a.quantidade_acompanhantes} acompanhante(s)</option>`).join('');
     return `<div class=cartao data-paciente="${p.id_leito}" data-paciente-id="${esc(p.id_paciente)}" data-paciente-nome="${esc(p.nome)}" data-leito="${esc(p.leito)}">
       <b>Leito ${esc(p.leito)} · ${esc(p.nome)}</b><p class=mini>O registro ficará associado a esta internação, mesmo após a troca do paciente no leito.</p>
       <label class=f>Data e hora da entrega<input class=sr-momento type=datetime-local value="${agoraLocalInput()}"></label>
@@ -523,10 +530,10 @@ async function vRef(){
       <label class=f>Quantidade<input class=sr-qtd type=number min=1 step=1 value=1></label>
       <label class=f>Valor unitário (R$)<input class=sr-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>
       <button class=btn style="width:100%" onclick="registrarServicoPaciente(this,'paciente')">Registrar refeição servida ao paciente</button>
-      ${minhas.length?`<hr><b>Refeições autorizadas para acompanhantes</b><label class=f>Autorização<select class=ac-auth>${opcoes}</select></label>
+      ${minhas.length?`<hr><b>Refeições autorizadas para acompanhantes</b><label class=f>Autorização<select class=ac-auth onchange="atualizaRefeicoesAcompanhante(this)">${opcoes}</select></label>
       <label class=f>Data e hora da entrega<input class=ac-momento type=datetime-local value="${agoraLocalInput()}"></label>
-      <div class=filtros><label class=f>Refeição<select class=ac-ref>${minhas.flatMap(a=>a.refeicoes).filter((x,i,ar)=>ar.indexOf(x)===i).map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
-      <label class=f>Quantidade de acompanhantes<input class=ac-qtd type=number min=1 max="${Math.max(...minhas.map(a=>a.quantidade_acompanhantes))}" value=1></label>
+      <div class=filtros><label class=f>Refeição<select class=ac-ref>${(minhas[0]?.refeicoes||[]).map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
+      <label class=f>Quantidade de acompanhantes<input class=ac-qtd type=number min=1 max="${minhas[0]?.quantidade_acompanhantes||1}" value=1></label>
       <label class=f>Valor unitário (R$)<input class=ac-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>
       <button class="btn sec" style="width:100%" onclick="registrarServicoPaciente(this,'acompanhante')">Registrar refeição de acompanhante</button>`:''}
       ${st?`<details style="margin-top:10px"><summary><b>Autorizar refeições de acompanhantes</b></summary>
