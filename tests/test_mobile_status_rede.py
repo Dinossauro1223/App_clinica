@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """Testes do indicador de conexão e do registro administrativo do IP local."""
 import os
+import socket
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -80,6 +82,34 @@ class TestStatusRedeLocal(unittest.TestCase):
                           "/api/admin/rede/registrar", {"forjado": "valor"}, {}, token,
                           operation_id="op-registro-ip-002")
         self.assertEqual(erro.exception.cod, 409)
+
+
+    def test_identidade_do_servidor_permanece_estavel_entre_inicializacoes(self):
+        antes = sv.rotear(self.db, "192.168.10.20", "GET", "/api/status", {}, {}, "")["server_id"]
+        sv.preparar_banco(self.db)
+        depois = sv.rotear(self.db, "192.168.10.20", "GET", "/api/status", {}, {}, "")["server_id"]
+        self.assertTrue(antes)
+        self.assertEqual(antes, depois)
+
+    def test_descoberta_udp_retorna_endereco_e_identidade_sem_expor_dados(self):
+        servidor = sv.ServidorDescoberta(("127.0.0.1", 0), sv.ManipuladorDescoberta)
+        servidor.db = self.db
+        servidor.http_port = 8765
+        thread = threading.Thread(target=servidor.serve_forever, daemon=True)
+        thread.start()
+        try:
+            cliente = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            cliente.settimeout(2)
+            with cliente:
+                cliente.sendto(b"NUTRILAB_DISCOVER_V1", servidor.server_address)
+                dados, _ = cliente.recvfrom(512)
+            partes = dados.decode("utf-8").split("|")
+            self.assertEqual(partes[0], "NUTRILAB_SERVER_V1")
+            self.assertEqual(partes[1], "http://192.168.10.15:8765")
+            self.assertTrue(partes[2])
+        finally:
+            servidor.shutdown()
+            servidor.server_close()
 
 
 if __name__ == "__main__":
