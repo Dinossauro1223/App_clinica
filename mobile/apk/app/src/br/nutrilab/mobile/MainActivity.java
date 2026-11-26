@@ -632,11 +632,11 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     final String problema = testar(url);
+                    final String identidade = problema == null ? obterIdentidade(url) : "";
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
                             if (problema == null) {
-                                String identidade = obterIdentidade(url);
                                 SharedPreferences.Editor editor = prefs.edit().putString("servidor", url);
                                 if (identidade.isEmpty()) editor.remove("server_identity");
                                 else editor.putString("server_identity", identidade);
