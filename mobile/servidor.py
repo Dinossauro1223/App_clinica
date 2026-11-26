@@ -497,6 +497,15 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
                     anterior["por_perfil"] = herdado.get("por_perfil")
         if anterior:
             anterior.pop("por_perfil", None)
+        anterior_ocupacao = c.execute("SELECT id_ocupacao,nome,ocupado FROM mapa_dia WHERE id_leito=? AND data<=? ORDER BY data DESC LIMIT 1",
+                                       (int(chave), data)).fetchone()
+        nome_novo = str(v.get("nome") or "").strip()
+        if v.get("ocupado") and nome_novo:
+            mesmo_paciente = (anterior_ocupacao and anterior_ocupacao["ocupado"]
+                              and str(anterior_ocupacao["nome"] or "").strip().casefold() == nome_novo.casefold())
+            id_ocupacao = (anterior_ocupacao["id_ocupacao"] if mesmo_paciente else None) or secrets.token_hex(16)
+        else:
+            id_ocupacao = None
         campos = [k for k in CAMPOS if (anterior or {}).get(k) != v.get(k)]
         if campos:
             leito = c.execute("SELECT id_setor FROM leitos WHERE id=?", (int(chave),)).fetchone()
@@ -510,15 +519,6 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
                  json.dumps(anterior, ensure_ascii=False) if anterior is not None else None,
                  json.dumps({**{k: v.get(k) for k in CAMPOS}, "id_ocupacao": id_ocupacao}, ensure_ascii=False)),
             )
-        anterior_ocupacao = c.execute("SELECT id_ocupacao,nome,ocupado FROM mapa_dia WHERE id_leito=? AND data<=? ORDER BY data DESC LIMIT 1",
-                                       (int(chave), data)).fetchone()
-        nome_novo = str(v.get("nome") or "").strip()
-        if v.get("ocupado") and nome_novo:
-            mesmo_paciente = (anterior_ocupacao and anterior_ocupacao["ocupado"]
-                              and str(anterior_ocupacao["nome"] or "").strip().casefold() == nome_novo.casefold())
-            id_ocupacao = (anterior_ocupacao["id_ocupacao"] if mesmo_paciente else None) or secrets.token_hex(16)
-        else:
-            id_ocupacao = None
         c.execute("INSERT INTO mapa_dia(data,id_leito,id_ocupacao,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
                   "cor,consistencia,via,dm,has,laxativa,constipante,drc,suplementos_json,por_usuario,por_perfil,atualizado_em) "
                   "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
