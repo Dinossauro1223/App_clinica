@@ -513,11 +513,19 @@ function atualizaRefeicoesAcompanhante(sel){
   card.querySelector('.ac-ref').innerHTML=refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('');
   q.max=opt?.dataset.max||1;q.value=Math.min(Number(q.value)||1,Number(q.max)||1);
 }
+function atualizaPrecoServico(sel,pub){
+  const preco=(window._precosRefeicoes||[]).find(x=>x.publico===pub&&x.refeicao===sel.value)?.valor_unitario;
+  const card=sel.closest('[data-paciente]');
+  const alvo=pub==='paciente'?card?.querySelector('.sr-valor'):pub==='acompanhante'?card?.querySelector('.ac-valor'):$('#rf-valor');
+  if(alvo)alvo.value=preco==null?'':Number(preco).toFixed(2);
+}
 async function vRef(){
   if(!S.setor){$('#vista').innerHTML=filtros('setor')+semSetor;return}
   const j=await api(`/api/refeicoes?setor=${S.setor}&data=${S.data}`),st=ehStaff();
   const serv=await api(`/api/refeicoes/servicos?setor=${S.setor}&data=${S.data}`);
-  const pacientes=serv.pacientes||[],aut=serv.autorizacoes||[],janelas=serv.janelas||[];
+  const pacientes=serv.pacientes||[],aut=serv.autorizacoes||[],janelas=serv.janelas||[],precos=serv.precos||[];
+  window._precosRefeicoes=precos;
+  const preco=(pub,ref)=>precos.find(x=>x.publico===pub&&x.refeicao===ref)?.valor_unitario;
   const refs=Object.keys(REF);
   const janela=(pub,ref)=>janelas.find(x=>x.publico===pub&&x.refeicao===ref);
   const htmlPacientes=pacientes.map(p=>{
@@ -526,15 +534,15 @@ async function vRef(){
     return `<div class=cartao data-paciente="${p.id_leito}" data-paciente-id="${esc(p.id_paciente)}" data-paciente-nome="${esc(p.nome)}" data-leito="${esc(p.leito)}">
       <b>Leito ${esc(p.leito)} · ${esc(p.nome)}</b><p class=mini>O registro ficará associado a esta internação, mesmo após a troca do paciente no leito.</p>
       <label class=f>Data e hora da entrega<input class=sr-momento type=datetime-local value="${agoraLocalInput()}"></label>
-      <div class=filtros><label class=f>Refeição<select class=sr-ref>${refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
+      <div class=filtros><label class=f>Refeição<select class=sr-ref onchange="atualizaPrecoServico(this,'paciente')">${refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
       <label class=f>Quantidade<input class=sr-qtd type=number min=1 step=1 value=1></label>
-      <label class=f>Valor unitário (R$)<input class=sr-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>
+      <label class=f>Preço por porção (R$)<input class=sr-valor type=number min=0 step=0.01 value="${preco('paciente',refs[0])??''}" placeholder="Use o preço cadastrado"></label></div>
       <button class=btn style="width:100%" onclick="registrarServicoPaciente(this,'paciente')">Registrar refeição servida ao paciente</button>
       ${minhas.length?`<hr><b>Refeições autorizadas para acompanhantes</b><label class=f>Autorização<select class=ac-auth onchange="atualizaRefeicoesAcompanhante(this)">${opcoes}</select></label>
       <label class=f>Data e hora da entrega<input class=ac-momento type=datetime-local value="${agoraLocalInput()}"></label>
-      <div class=filtros><label class=f>Refeição<select class=ac-ref>${(minhas[0]?.refeicoes||[]).map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
+      <div class=filtros><label class=f>Refeição<select class=ac-ref onchange="atualizaPrecoServico(this,'acompanhante')">${(minhas[0]?.refeicoes||[]).map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
       <label class=f>Quantidade de acompanhantes<input class=ac-qtd type=number min=1 max="${minhas[0]?.quantidade_acompanhantes||1}" value=1></label>
-      <label class=f>Valor unitário (R$)<input class=ac-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>
+      <label class=f>Preço por porção (R$)<input class=ac-valor type=number min=0 step=0.01 value="${preco('acompanhante',minhas[0]?.refeicoes?.[0])??''}" placeholder="Use o preço cadastrado"></label></div>
       <button class="btn sec" style="width:100%" onclick="registrarServicoPaciente(this,'acompanhante')">Registrar refeição de acompanhante</button>`:''}
       ${st?`<details style="margin-top:10px"><summary><b>Autorizar refeições de acompanhantes</b></summary>
         <label class=f>Quantidade de acompanhantes<input class=au-qtd type=number min=1 value=1></label>
@@ -561,8 +569,8 @@ async function vRef(){
   (htmlPacientes||'<div class=cartao>Nenhum paciente ativo no mapa deste setor/data.</div>')+
   '<h2>Refeições de funcionários</h2><div class=cartao><label class=f>Nome do funcionário<input id=rf-nome type=text placeholder="Nome de quem recebeu"></label>'+
   '<label class=f>Data e hora da entrega<input id=rf-momento type=datetime-local value="'+agoraLocalInput()+'"></label>'+
-  '<div class=filtros><label class=f>Refeição<select id=rf-ref>'+refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('')+'</select></label>'+
-  '<label class=f>Quantidade<input id=rf-qtd type=number min=1 value=1></label><label class=f>Valor unitário (R$)<input id=rf-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>'+
+  '<div class=filtros><label class=f>Refeição<select id=rf-ref onchange="atualizaPrecoServico(this,'funcionario')">'+refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('')+'</select></label>'+
+  '<label class=f>Quantidade<input id=rf-qtd type=number min=1 value=1></label><label class=f>Preço por porção (R$)<input id=rf-valor type=number min=0 step=0.01 value="'+(preco('funcionario',refs[0])??'')+'" placeholder="Use o preço cadastrado"></label></div>'+
   '<button class=btn style="width:100%" onclick="registrarServicoFuncionario()">Registrar refeição de funcionário</button></div>'+
   janelaUi+relatorio+barra('salvaRef','Salvar contagem de '+br(j.data));
 }
