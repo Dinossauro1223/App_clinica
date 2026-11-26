@@ -214,6 +214,24 @@ def migrar(c):
         return {r[1] for r in c.execute("PRAGMA table_info(%s)" % t)}
     if "id_ocupacao" not in cols("mapa_dia"):
         c.execute("ALTER TABLE mapa_dia ADD COLUMN id_ocupacao TEXT")
+    # Atribui IDs estáveis aos pacientes já existentes, mantendo o mesmo ID
+    # entre snapshots diários enquanto nome e ocupação permanecem contínuos.
+    ocupacao_atual = {}
+    for row in c.execute("SELECT data,id_leito,ocupado,nome,id_ocupacao FROM mapa_dia ORDER BY id_leito,data").fetchall():
+        lid = int(row["id_leito"])
+        if not row["ocupado"] or not str(row["nome"] or "").strip():
+            ocupacao_atual.pop(lid, None)
+            continue
+        nome = str(row["nome"] or "").strip().casefold()
+        anterior = ocupacao_atual.get(lid)
+        if anterior and anterior[0] == nome:
+            identificador = row["id_ocupacao"] or anterior[1]
+        else:
+            identificador = row["id_ocupacao"] or secrets.token_hex(16)
+        ocupacao_atual[lid] = (nome, identificador)
+        if not row["id_ocupacao"]:
+            c.execute("UPDATE mapa_dia SET id_ocupacao=? WHERE data=? AND id_leito=?",
+                      (identificador, row["data"], lid))
     for col, tipo in (("nome", "TEXT"), ("idade_anos", "INTEGER"), ("idade_meses", "INTEGER"),
                       ("diagnostico", "TEXT"), ("pref_sim", "TEXT"), ("pref_nao", "TEXT"),
                       ("cor", "TEXT"), ("consistencia", "TEXT"), ("via", "TEXT"),
