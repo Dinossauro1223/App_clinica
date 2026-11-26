@@ -66,6 +66,36 @@ O ajuste de retirada do almoxarifado deve usar a quantidade de produção recome
 
 O menu publicado e os registros de produção precisam preservar a versão da ficha usada naquele dia. Alterações posteriores na ficha não podem reescrever silenciosamente o histórico de produção ou os consumos já calculados.
 
+## 3.2 Classificação das preparações por tipo de refeição
+
+A classificação organiza a montagem do cardápio; não é uma obrigação de preencher todas as categorias nem uma nova ficha técnica.
+
+### Almoço e jantar
+
+Exibir as categorias em grupos recolhíveis ou seções compactas, nesta ordem:
+
+1. Saladas (`salada`)
+2. Entradas (`entrada`)
+3. Prato principal (`prato_principal`)
+4. Acompanhamentos (`acompanhamento`)
+5. Sobremesas (`sobremesa`)
+6. Suco/fruta (`suco_fruta`)
+
+Todas são opcionais. O nutricionista pode montar um jantar apenas com prato principal e acompanhamento, por exemplo. Não criar espaços vazios para categorias sem preparações.
+
+### Desjejum, colação, lanche da tarde e ceia
+
+Usar uma organização simples, sem exibir as seis categorias de almoço/jantar. As preparações ficam em uma lista única de itens (`geral`), permitindo combinações livres de bebidas, frutas, pães e demais alimentos servidos pelo estabelecimento.
+
+### Regras de dados e compatibilidade
+
+- A categoria pertence à seleção daquela preparação no cardápio do dia, não à identidade permanente da ficha técnica. A mesma ficha pode ser classificada de modo diferente em dias/contextos distintos.
+- Cada preparação continua independente e vinculada à sua ficha técnica; uma refeição é a composição das preparações selecionadas.
+- Não exigir categoria para registros legados já existentes. Novas interfaces devem oferecer a categoria adequada ao tipo de refeição e impedir combinações inválidas.
+- A categoria selecionada deve ser preservada no snapshot de produção para que alterações posteriores no cardápio não mudem a classificação histórica.
+- A interface deve agrupar e permitir recolher categorias, mostrar apenas as que possuem itens e manter a ordem definida acima.
+- Categoria não altera porções, FC, fator de cocção, consumo de estoque ou cálculos nutricionais.
+
 ## 4. Fluxo de dados e armazenamento
 
 O desktop e o servidor Mobile usam bancos SQLite separados atualmente. A ficha técnica está no módulo de Gestão alimentar, enquanto o Mobile trabalha com seu próprio banco. A integração precisa, portanto, ser explícita e não assumir que o Mobile consegue ler a ficha desktop.
