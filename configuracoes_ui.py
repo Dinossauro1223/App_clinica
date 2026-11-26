@@ -118,9 +118,9 @@ class ConfiguracoesUI:
                          for w in filhos[1:]]
             estado = {"aberto": False}
             titulo.configure(text="▸ " + texto, cursor="hand2")
-            def alternar(_evento=None, h=titulo, itens=conteudos, e=estado):
+            def alternar(_evento=None, h=titulo, itens=conteudos, e=estado, t=texto):
                 e["aberto"] = not e["aberto"]
-                h.configure(text=("▾ " if e["aberto"] else "▸ ") + texto)
+                h.configure(text=("▾ " if e["aberto"] else "▸ ") + t)
                 if e["aberto"]:
                     for widget, opcoes in itens:
                         widget.pack(**opcoes)
