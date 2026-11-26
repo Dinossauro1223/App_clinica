@@ -350,7 +350,8 @@ async function atualizarConexao(){
     }else if(erroSync){
       el.className='wait';el.innerHTML='<span>● Conectado, mas há sincronização pendente</span><small>'+esc(erroSync)+'</small>';
     }else{
-      el.className='';el.innerHTML='<span>● Conectado ao servidor da clínica</span><small>'+(pendentes?pendentes+' pendente(s) · IP: ':'IP: ')+esc(j.ip_lan||'detectado')+'</small>';
+      const remoto=j.url_tailscale?' · Acesso remoto (Tailscale): '+esc(j.url_tailscale):'';
+      el.className='';el.innerHTML='<span>● Conectado ao servidor da clínica</span><small>'+(pendentes?pendentes+' pendente(s) · IP: ':'IP: ')+esc(j.ip_lan||'detectado')+remoto+'</small>';
     }
   }catch(e){
     el.className='off';el.innerHTML='<span>● Desconectado — modo local</span><small>'+(pendentes?pendentes+' alteração(ões) aguardando envio':'Alterações ficam salvas neste aparelho')+'</small>';
