@@ -55,6 +55,7 @@ def inicializar(db_path):
             refeicoes_json TEXT NOT NULL,
             justificativa TEXT NOT NULL,
             autorizado_por TEXT NOT NULL,
+            registrado_por TEXT,
             inicio_vigencia TEXT NOT NULL,
             fim_vigencia TEXT,
             situacao TEXT NOT NULL DEFAULT 'ativa'
@@ -101,6 +102,9 @@ def inicializar(db_path):
             SELECT RAISE(ABORT, 'O histórico de refeições servidas é imutável.');
         END;
         """)
+        colunas = {r[1] for r in conn.execute("PRAGMA table_info(Refeicoes_Autorizacoes_Acompanhante)")}
+        if "registrado_por" not in colunas:
+            conn.execute("ALTER TABLE Refeicoes_Autorizacoes_Acompanhante ADD COLUMN registrado_por TEXT")
 
 
 def _agora():
@@ -156,7 +160,8 @@ def listar_janelas(db_path, publico=None):
 
 def salvar_autorizacao_acompanhante(
     db_path, *, id_paciente, nome_paciente, leito, quantidade,
-    refeicoes, justificativa, autorizado_por, inicio_vigencia, fim_vigencia=None
+    refeicoes, justificativa, autorizado_por, registrado_por=None,
+    inicio_vigencia=None, fim_vigencia=None
 ):
     if not str(id_paciente or "").strip():
         raise ValueError("Identifique o paciente relacionado.")
@@ -186,12 +191,13 @@ def salvar_autorizacao_acompanhante(
         cur = conn.execute("""
             INSERT INTO Refeicoes_Autorizacoes_Acompanhante(
                 id_paciente,nome_paciente_snapshot,leito_snapshot,quantidade_acompanhantes,
-                refeicoes_json,justificativa,autorizado_por,inicio_vigencia,fim_vigencia,
+                refeicoes_json,justificativa,autorizado_por,registrado_por,inicio_vigencia,fim_vigencia,
                 situacao,criado_em
-            ) VALUES(?,?,?,?,?,?,?,?,?,'ativa',?)
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,'ativa',?)
         """, (str(id_paciente), str(nome_paciente).strip(), str(leito).strip(), quantidade,
               json.dumps(refeicoes, ensure_ascii=False), justificativa.strip(),
-              autorizado_por.strip(), inicio.isoformat(), fim.isoformat() if fim else None, _agora()))
+              autorizado_por.strip(), str(registrado_por or "").strip() or None,
+              inicio.isoformat(), fim.isoformat() if fim else None, _agora()))
         return cur.lastrowid
 
 
