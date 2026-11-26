@@ -354,6 +354,7 @@ async function atualizarConexao(){
     }
   }catch(e){
     el.className='off';el.innerHTML='<span>● Desconectado — modo local</span><small>'+(pendentes?pendentes+' alteração(ões) aguardando envio':'Alterações ficam salvas neste aparelho')+'</small>';
+    if(window.Android&&typeof Android.descobrirServidorAutomaticamente==='function')Android.descobrirServidorAutomaticamente();
   }
 }
 async function registrarRedeLocal(){
