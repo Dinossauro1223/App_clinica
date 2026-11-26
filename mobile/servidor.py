@@ -517,6 +517,11 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
             id_paciente = v.get("id_paciente")
             mesmo_paciente = (anterior_ocupacao and anterior_ocupacao["ocupado"]
                               and str(anterior_ocupacao["nome"] or "").strip().casefold() == nome_novo.casefold())
+            if (not v.get("_origem_desktop") and id_paciente is not None
+                    and anterior_ocupacao and anterior_ocupacao["id_paciente"] == id_paciente
+                    and not mesmo_paciente):
+                id_paciente = None
+                v["id_paciente"] = None
             if id_paciente is None and mesmo_paciente and anterior_ocupacao["id_paciente"]:
                 id_paciente = anterior_ocupacao["id_paciente"]
                 v["id_paciente"] = id_paciente
@@ -660,7 +665,7 @@ def saldo(c, est, iid, d):
 
 
 # ------------------------------------------------------------ operações (POST)
-def post_mapa(c, u, s, d, linhas, completo=False):
+def post_mapa(c, u, s, d, linhas, completo=False, origem_desktop=False):
     """Grava o mapa. No modo completo, aplica por leito somente o estado com timestamp mais novo."""
     cods = {r["id"]: r["codigo"] for r in c.execute("SELECT id,codigo FROM leitos WHERE id_setor=?", (s["id"],))}
     staff = u["perfil"] in STAFF
@@ -672,6 +677,7 @@ def post_mapa(c, u, s, d, linhas, completo=False):
             raise Erro("Leito de outro setor.", 403)
         n = norm(l)
         n.pop("suplementos", None)
+        n["_origem_desktop"] = bool(origem_desktop)
         if completo:
             n["_atualizado_em"] = l.get("atualizado_em")
             atual_l = vivo.get(lid) or {}
