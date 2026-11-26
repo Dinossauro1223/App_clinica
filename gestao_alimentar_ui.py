@@ -666,10 +666,10 @@ class GestaoAlimentarUI:
         self.tree_movimentos.bind("<Double-1>", lambda _e: self.alocar_retirada())
 
         frame,self.tree_medias_consumo = _tree(tab_med,[
-            ("item","Ingrediente",190,"w"),("total","Total retirado",100,"e"),
+            ("item","Ingrediente",190,"w"),("total","Retirada líquida",110,"e"),
             ("media","Média/dia calendário",125,"e"),("intervalo","Intervalo médio",110,"e"),
             ("alocado","Associado",90,"e"),("pendente","Pendente",90,"e"),
-            ("custo","Custo retirado",105,"e")],altura=16)
+            ("custo","Custo líquido",105,"e")],altura=16)
         frame.pack(fill="both",expand=True,padx=6,pady=6)
         ctk.CTkLabel(tab_med,text="A média diária divide o total retirado pelos dias do período. O intervalo médio considera apenas datas em que houve retirada; nenhum desses indicadores equivale sozinho ao consumo efetivo.",
                      text_color=tema.SUAVE,font=ctk.CTkFont(size=10),wraplength=850,justify="left").pack(anchor="w",padx=9,pady=(0,8))
@@ -820,6 +820,9 @@ class GestaoAlimentarUI:
         mov = self._movimentos_cache.get((chave[0],int(chave[1])))
         if not mov:
             self.carregar_consumo()
+            return
+        if float(mov.get("qtd") or 0) <= 0:
+            messagebox.showinfo("Devolução registrada","Este movimento é uma devolução ao almoxarifado e já foi descontado do total líquido. Não precisa ser destinado a uma preparação.",parent=self.tab_consumo)
             return
         AlocarRetiradaDialog(self.app,self.db,mov,self.carregar_consumo)
 
