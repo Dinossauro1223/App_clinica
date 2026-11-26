@@ -710,7 +710,7 @@ def _enviar_setor(db, sv, c, adm, nome, itens, data_iso, texto):
     if not linhas:
         return {"setor": nome, "leitos": 0}
     s = {"id": sid, "nome": nome}
-    sync = sv.post_mapa(c, adm, s, data_iso, linhas, completo=True)
+    sync = sv.post_mapa(c, adm, s, data_iso, linhas, completo=True, origem_desktop=True)
     n = sync.get("ok", 0)
     if n:
         mud = [{"leito": cod, "tipo": "alterado" if com else "liberado"} for cod, _, com in marcas]
