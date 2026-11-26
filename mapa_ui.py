@@ -19,7 +19,7 @@ import nutri_calculos as nc
 import nrs2002 as nrs
 import suplementos_calculos as sc
 import avaliacao_nutri as avaliacao
-import mapa_db as mdb
+import mapa_db as mdb\nimport midias_usuario
 import condutas_alta as ca
 import graficos_layout as gl
 import tema
@@ -1738,18 +1738,25 @@ class FormRegistro(_Janela):
             pass
 
     def _mostrar_escala(self, tipo):
-        """Abre a imagem original da escala em janela ampliável, sem bloquear a ficha."""
+        """Abre imagem personalizada; usa a imagem distribuída como padrão quando não há substituição."""
         arquivos = {
-            "bristol": ("escala_bristol.webp", "Escala de Bristol"),
-            "urina": ("escala_urina_armstrong.webp", "Escala de coloração da urina"),
-            "aceitacao": ("escala_aceitacao_alimentar.webp", "Escala de aceitação alimentar"),
+            "bristol": ("bristol", "Escala de Bristol", ("escala_bristol.webp", "escala_bristol.jpeg")),
+            "urina": ("urina", "Escala de coloração da urina", ("escala_urina_armstrong.webp", "escala_urina_armstrong.png")),
+            "aceitacao": ("aceitacao", "Escala de aceitação alimentar", ("escala_aceitacao_alimentar.webp", "escala_aceitacao_alimentar.jpeg")),
         }
         if tipo not in arquivos:
             return
-        nome, titulo = arquivos[tipo]
-        caminho = os.path.join(self.ui.base_dir, "assets", "escalas_visita", nome)
-        if not os.path.isfile(caminho):
-            messagebox.showerror("Escala indisponível", f"Não foi possível localizar a imagem:\\n{caminho}", parent=self)
+        chave, titulo, padroes = arquivos[tipo]
+        personalizada = midias_usuario.resolver_imagem("escalas", chave)
+        caminho = personalizada or next(
+            (os.path.join(self.ui.base_dir, "assets", "escalas_visita", nome)
+             for nome in padroes
+             if os.path.isfile(os.path.join(self.ui.base_dir, "assets", "escalas_visita", nome))),
+            None
+        )
+        if not caminho or not os.path.isfile(caminho):
+            messagebox.showerror("Escala indisponível",
+                "Adicione uma imagem em Configurações > Imagens das escalas e orientações.", parent=self)
             return
         try:
             from PIL import Image
