@@ -904,3 +904,26 @@ def enviar_mapa(db, mobile_db, data_iso, id_setor=None, texto=None):
         raise ErroMobile(e.msg) from e
     finally:
         c.close()
+
+
+def sincronizar_automaticamente(db, mobile_db, data_iso):
+    """Troca dados operacionais com o servidor local sem aprovar alterações clínicas automaticamente.
+
+    Desktop -> mobile: publica o mapa do dia de todos os setores e atualiza o catálogo.
+    Mobile -> desktop: importa refeições, contagens e movimentos idempotentes; devolve propostas
+    de mapa para revisão humana, sem aplicá-las ao prontuário.
+    """
+    if not os.path.isfile(mobile_db):
+        raise ErroMobile("O servidor local ainda não criou o banco mobile.")
+    enviados = enviar_mapa(db, mobile_db, data_iso)
+    exportado = ler_mobile(mobile_db, data_iso)
+    propostas = propostas_mapa(db, exportado)
+    refeicoes = importar_refeicoes(db, exportado)
+    estoque, movimentos = importar_estoque(db, exportado)
+    return {
+        "leitos_enviados": sum(int(x.get("leitos") or 0) for x in enviados),
+        "propostas_mapa": len(propostas),
+        "refeicoes_importadas": refeicoes,
+        "itens_estoque_importados": estoque,
+        "movimentos_importados": movimentos,
+    }
