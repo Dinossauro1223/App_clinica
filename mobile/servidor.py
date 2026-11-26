@@ -14,6 +14,7 @@ import re
 import secrets
 import socket
 import sqlite3
+import sys
 import threading
 import time
 import traceback
@@ -23,6 +24,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 AQUI = Path(__file__).resolve().parent
+sys.path.insert(0, str(AQUI.parent))
+import refeicoes_db as refeicoes_operacionais
 TZ = timezone(timedelta(hours=-3))  # America/Recife (sem horário de verão)
 REFEICOES = ["desjejum", "colacao", "almoco", "lanche", "jantar", "ceia"]
 ESTOQUES = ["almox", "cozinha", "copa"]
@@ -48,7 +51,7 @@ CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT 
 CREATE TABLE IF NOT EXISTS leitos(id INTEGER PRIMARY KEY, id_setor INTEGER NOT NULL, codigo TEXT NOT NULL, UNIQUE(id_setor, codigo));
 CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL,
   preco_unitario REAL, embalagem_qtd REAL, embalagem_un TEXT, tbca_id TEXT);
-CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
+CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, id_ocupacao TEXT, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
   idade_anos INTEGER, idade_meses INTEGER, diagnostico TEXT, pref_sim TEXT, pref_nao TEXT,
   cor TEXT, consistencia TEXT, via TEXT, dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
   constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, suplementos_json TEXT DEFAULT '[]',
@@ -209,6 +212,8 @@ def migrar(c):
     """Atualiza bancos da primeira versão (12/11/2026) e carrega a configuração inicial das refeições."""
     def cols(t):
         return {r[1] for r in c.execute("PRAGMA table_info(%s)" % t)}
+    if "id_ocupacao" not in cols("mapa_dia"):
+        c.execute("ALTER TABLE mapa_dia ADD COLUMN id_ocupacao TEXT")
     for col, tipo in (("nome", "TEXT"), ("idade_anos", "INTEGER"), ("idade_meses", "INTEGER"),
                       ("diagnostico", "TEXT"), ("pref_sim", "TEXT"), ("pref_nao", "TEXT"),
                       ("cor", "TEXT"), ("consistencia", "TEXT"), ("via", "TEXT"),
@@ -440,7 +445,7 @@ def timestamp_novo(novo, atual):
 
 def atual(c, tipo, data, chave):
     if tipo == "mapa":
-        r = c.execute("SELECT ocupado,acompanhante,COALESCE(dieta,'') dieta,COALESCE(nome,'') nome,idade_anos,idade_meses,"
+        r = c.execute("SELECT id_ocupacao,ocupado,acompanhante,COALESCE(dieta,'') dieta,COALESCE(nome,'') nome,idade_anos,idade_meses,"
                       "COALESCE(diagnostico,'') diagnostico,COALESCE(pref_sim,'') pref_sim,COALESCE(pref_nao,'') pref_nao,"
                       "COALESCE(cor,'') cor,COALESCE(consistencia,'') consistencia,COALESCE(via,'') via,"
                       "COALESCE(dm,0) dm,COALESCE(has,0) has,COALESCE(laxativa,0) laxativa,"
@@ -476,16 +481,25 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
                  json.dumps(anterior, ensure_ascii=False) if anterior is not None else None,
                  json.dumps({k: v.get(k) for k in CAMPOS}, ensure_ascii=False)),
             )
-        c.execute("INSERT INTO mapa_dia(data,id_leito,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
+        anterior_ocupacao = c.execute("SELECT id_ocupacao,nome,ocupado FROM mapa_dia WHERE id_leito=? AND data<=? ORDER BY data DESC LIMIT 1",
+                                       (int(chave), data)).fetchone()
+        nome_novo = str(v.get("nome") or "").strip()
+        if v.get("ocupado") and nome_novo:
+            mesmo_paciente = (anterior_ocupacao and anterior_ocupacao["ocupado"]
+                              and str(anterior_ocupacao["nome"] or "").strip().casefold() == nome_novo.casefold())
+            id_ocupacao = (anterior_ocupacao["id_ocupacao"] if mesmo_paciente else None) or secrets.token_hex(16)
+        else:
+            id_ocupacao = None
+        c.execute("INSERT INTO mapa_dia(data,id_leito,id_ocupacao,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
                   "cor,consistencia,via,dm,has,laxativa,constipante,drc,suplementos_json,por_usuario,por_perfil,atualizado_em) "
-                  "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
-                  "ocupado=excluded.ocupado,acompanhante=excluded.acompanhante,dieta=excluded.dieta,nome=excluded.nome,"
+                  "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
+                  "id_ocupacao=excluded.id_ocupacao,ocupado=excluded.ocupado,acompanhante=excluded.acompanhante,dieta=excluded.dieta,nome=excluded.nome,"
                   "idade_anos=excluded.idade_anos,idade_meses=excluded.idade_meses,diagnostico=excluded.diagnostico,"
                   "pref_sim=excluded.pref_sim,pref_nao=excluded.pref_nao,cor=excluded.cor,consistencia=excluded.consistencia,"
                   "via=excluded.via,dm=excluded.dm,has=excluded.has,laxativa=excluded.laxativa,"
                   "constipante=excluded.constipante,drc=excluded.drc,suplementos_json=excluded.suplementos_json,"
                   "por_usuario=excluded.por_usuario,por_perfil=excluded.por_perfil,atualizado_em=excluded.atualizado_em",
-                  (data, int(chave), v["ocupado"], v.get("acompanhante", 0), v.get("dieta", ""), v.get("nome", ""),
+                  (data, int(chave), id_ocupacao, v["ocupado"], v.get("acompanhante", 0), v.get("dieta", ""), v.get("nome", ""),
                    v.get("idade_anos"), v.get("idade_meses"), v.get("diagnostico", ""), v.get("pref_sim", ""),
                    v.get("pref_nao", ""), v.get("cor", ""), v.get("consistencia", ""), v.get("via", ""),
                    v.get("dm", 0), v.get("has", 0), v.get("laxativa", 0), v.get("constipante", 0), v.get("drc", 0),
@@ -524,7 +538,7 @@ def pendentes(c, tipo, data):
 
 # ----------------------------------------- leituras (já com a base do dia anterior)
 def linhas_mapa(c, sid, d, rascunho=False):
-    sql = ("SELECT l.id id_leito,l.codigo,COALESCE(h.ocupado,0) ocupado,COALESCE(h.acompanhante,0) acompanhante,COALESCE(h.dieta,'') dieta,"
+    sql = ("SELECT l.id id_leito,l.codigo,h.id_ocupacao,COALESCE(h.ocupado,0) ocupado,COALESCE(h.acompanhante,0) acompanhante,COALESCE(h.dieta,'') dieta,"
            "COALESCE(h.nome,'') nome,h.idade_anos,h.idade_meses,COALESCE(h.diagnostico,'') diagnostico,COALESCE(h.pref_sim,'') pref_sim,"
            "COALESCE(h.pref_nao,'') pref_nao,COALESCE(h.cor,'') cor,COALESCE(h.consistencia,'') consistencia,COALESCE(h.via,'') via,COALESCE(h.dm,0) dm,COALESCE(h.has,0) has,COALESCE(h.laxativa,0) laxativa,COALESCE(h.constipante,0) constipante,COALESCE(h.drc,0) drc,COALESCE(h.suplementos_json,'[]') suplementos_json,h.data data_base,h.por_perfil,h.atualizado_em FROM leitos l "
            "LEFT JOIN mapa_dia h ON h.id_leito=l.id AND h.data=(SELECT MAX(data) FROM mapa_dia WHERE id_leito=l.id AND data<=?) "
@@ -879,6 +893,116 @@ def _rotear(c, ip, m, p, q, b, auth):
         return {"avisos": avisos_do_usuario(c, u)}
     if (m, p) == ("POST", "/api/avisos/lidos"):
         return marcar_lidos(c, u, b.get("ids", []))
+
+    # Refeições individualizadas: o servidor resolve o paciente pelo mapa atual
+    # e grava um identificador de ocupação imutável, nunca pelo leito isolado.
+    if p == "/api/refeicoes/janelas":
+        if m == "GET":
+            refeicoes_operacionais.inicializar(db)
+            return {"janelas": refeicoes_operacionais.listar_janelas(db)}
+        if m == "POST":
+            if not staff:
+                raise Erro("Somente a nutrição e o administrador podem configurar horários.", 403)
+            refeicoes_operacionais.inicializar(db)
+            publico, ref = b.get("publico"), b.get("refeicao")
+            if not b.get("inicio") and not b.get("fim"):
+                return {"removida": refeicoes_operacionais.remover_janela(db, publico, ref)}
+            refeicoes_operacionais.salvar_janela(db, publico, ref, b.get("inicio"), b.get("fim"))
+            return {"ok": True}
+    if p == "/api/refeicoes/servicos":
+        if perfil not in ("admin", "nutricionista", "copa"):
+            raise Erro("Sem permissão.", 403)
+        refeicoes_operacionais.inicializar(db)
+        if m == "GET":
+            s = setor_alvo(c, u, q.get("setor"))
+            d = dia_alvo(u, q.get("data"))
+            pacientes = []
+            for l in linhas_mapa(c, s["id"], d):
+                if l.get("ocupado") and l.get("nome") and l.get("id_ocupacao"):
+                    pacientes.append({"id_leito": l["id_leito"], "leito": l["codigo"],
+                                      "id_paciente": l["id_ocupacao"], "nome": l["nome"]})
+            ids = {x["id_paciente"] for x in pacientes}
+            autorizacoes = [a for a in refeicoes_operacionais.listar_autorizacoes_acompanhante(db, situacao="ativa")
+                            if a["id_paciente"] in ids]
+            return {"data": d, "setor": s, "pacientes": pacientes,
+                    "autorizacoes": autorizacoes, "janelas": refeicoes_operacionais.listar_janelas(db)}
+        if m == "POST":
+            s = setor_alvo(c, u, b.get("setor"))
+            d = dia_alvo(u, b.get("data"))
+            publico = b.get("publico")
+            ref = b.get("refeicao")
+            if publico not in ("paciente", "funcionario", "acompanhante"):
+                raise Erro("Público inválido.")
+            instante = b.get("servido_em") or agora()
+            dados = {"servido_em": instante, "refeicao": ref, "publico": publico,
+                     "destinatario_nome": b.get("destinatario_nome") or "",
+                     "quantidade": b.get("quantidade", 1), "unidade": b.get("unidade", "porcao"),
+                     "valor_unitario": b.get("valor_unitario"), "destinatario_id": b.get("destinatario_id"),
+                     "usuario_registro": u["nome"], "observacao": b.get("observacao")}
+            if publico in ("paciente", "acompanhante"):
+                lid = int(b.get("id_leito") or 0)
+                paciente = next((x for x in linhas_mapa(c, s["id"], d)
+                                 if int(x["id_leito"]) == lid and x.get("ocupado") and x.get("id_ocupacao")), None)
+                if not paciente:
+                    raise Erro("O leito não possui paciente ativo no mapa selecionado.")
+                dados.update(id_paciente=paciente["id_ocupacao"], nome_paciente=paciente["nome"],
+                             leito=paciente["codigo"], destinatario_nome=paciente["nome"])
+            if publico == "acompanhante":
+                dados["id_autorizacao_acompanhante"] = b.get("id_autorizacao_acompanhante")
+            rid = refeicoes_operacionais.registrar_refeicao_servida(db, **dados)
+            return {"ok": True, "id_servico": rid}
+    if p == "/api/refeicoes/autorizacoes":
+        if perfil not in ("admin", "nutricionista", "copa"):
+            raise Erro("Sem permissão.", 403)
+        refeicoes_operacionais.inicializar(db)
+        if m == "GET":
+            s = setor_alvo(c, u, q.get("setor"))
+            d = dia_alvo(u, q.get("data"))
+            ids = {x["id_ocupacao"] for x in linhas_mapa(c, s["id"], d)
+                   if x.get("ocupado") and x.get("id_ocupacao")}
+            return {"autorizacoes": [a for a in refeicoes_operacionais.listar_autorizacoes_acompanhante(db)
+                                     if a["id_paciente"] in ids]}
+        if m == "POST":
+            if not staff:
+                raise Erro("Somente a nutrição e o administrador podem autorizar refeições de acompanhantes.", 403)
+            s = setor_alvo(c, u, b.get("setor"))
+            d = dia_alvo(u, b.get("data"))
+            lid = int(b.get("id_leito") or 0)
+            paciente = next((x for x in linhas_mapa(c, s["id"], d)
+                             if int(x["id_leito"]) == lid and x.get("ocupado") and x.get("id_ocupacao")), None)
+            if not paciente:
+                raise Erro("O leito não possui paciente ativo para vincular a autorização.")
+            aid = refeicoes_operacionais.salvar_autorizacao_acompanhante(
+                db, id_paciente=paciente["id_ocupacao"], nome_paciente=paciente["nome"],
+                leito=paciente["codigo"], quantidade=b.get("quantidade"),
+                refeicoes=b.get("refeicoes"), justificativa=b.get("justificativa"),
+                autorizado_por=u["nome"], inicio_vigencia=b.get("inicio_vigencia") or agora(),
+                fim_vigencia=b.get("fim_vigencia"))
+            return {"ok": True, "id_autorizacao": aid}
+    if p.startswith("/api/refeicoes/autorizacoes/") and m == "POST":
+        if not staff:
+            raise Erro("Somente a nutrição e o administrador podem encerrar autorizações.", 403)
+        refeicoes_operacionais.inicializar(db)
+        aid = int(p.rsplit("/", 1)[1])
+        situacao = b.get("situacao", "encerrada")
+        if not refeicoes_operacionais.encerrar_autorizacao_acompanhante(db, aid, situacao):
+            raise Erro("Autorização não encontrada ou já encerrada.", 404)
+        return {"ok": True, "situacao": situacao}
+    if p == "/api/refeicoes/relatorio" and m == "GET":
+        if not staff:
+            raise Erro("Somente a nutrição e o administrador podem consultar custos.", 403)
+        refeicoes_operacionais.inicializar(db)
+        inicio = q.get("inicio") or hoje()
+        fim = q.get("fim") or inicio
+        try:
+            date.fromisoformat(inicio); date.fromisoformat(fim)
+        except ValueError:
+            raise Erro("Informe datas válidas no formato AAAA-MM-DD.")
+        if fim < inicio:
+            raise Erro("A data final não pode ser anterior à inicial.")
+        return {"inicio": inicio, "fim": fim,
+                "custos": refeicoes_operacionais.resumo_custos(db, inicio, fim),
+                "servicos": refeicoes_operacionais.listar_refeicoes_servidas(db, inicio, fim)}
     if p in ("/api/mapa", "/api/refeicoes"):
         if perfil not in ("admin", "nutricionista", "copa"):
             raise Erro("Sem permissão.", 403)
