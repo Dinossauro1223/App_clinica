@@ -13,6 +13,7 @@ import shutil
 import sys
 import platform
 import re
+import urllib.request
 from datetime import datetime
 from fpdf import FPDF
 from PIL import Image
@@ -224,15 +225,18 @@ class AppClinica(ctk.CTk):
 
     def _atualizar_status_conexao(self):
         """Mostra continuamente se o servidor central local está acessível aos dispositivos."""
+        estado_servidor = None
         try:
-            with socket.create_connection(("127.0.0.1", 8765), timeout=0.4):
-                conectado = True
-        except OSError:
-            conectado = False
+            with urllib.request.urlopen("http://127.0.0.1:8765/api/status", timeout=0.8) as resposta:
+                if resposta.status == 200:
+                    estado_servidor = json.loads(resposta.read().decode("utf-8"))
+        except (OSError, ValueError, urllib.error.URLError):
+            estado_servidor = None
         try:
-            if conectado:
+            if estado_servidor and estado_servidor.get("status") == "online":
+                endereco = estado_servidor.get("ip_lan") or "rede local"
                 self._lbl_status_conexao.configure(
-                    text="● Servidor da clínica conectado — dispositivos podem sincronizar",
+                    text="● Servidor conectado — dispositivos podem sincronizar · IP: " + str(endereco),
                     text_color=tema.VERDE
                 )
             else:
