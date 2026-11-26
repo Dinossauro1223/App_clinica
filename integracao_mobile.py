@@ -138,6 +138,41 @@ def ler_produtos_almox(mobile_db):
 
 
 
+def importar_classificacao_almox_mobile(db, mobile_db):
+    """Importa categoria e validade preenchidas pelo almoxarifado no mobile para o cadastro desktop.
+
+    Só aplica categoria não padrão e validade preenchida; valores vazios do mobile antigo não apagam dados do desktop.
+    Para limpar uma validade, use o cadastro desktop.
+    """
+    import almox_db as adb
+    adb.inicializar(db)
+    sv, mobile = _abrir_mobile(mobile_db)
+    atualizados, sem_vinculo = 0, 0
+    try:
+        with closing(mdb.conectar(db)) as local:
+            tabelas = {r[0] for r in local.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if "Almox_Mobile_Vinculos" not in tabelas:
+                return {"atualizados": 0, "sem_vinculo": 0}
+            vinculos = [dict(r) for r in local.execute(
+                "SELECT id_item_desktop,id_item_mobile FROM Almox_Mobile_Vinculos").fetchall()]
+            for v in vinculos:
+                item = mobile.execute("SELECT categoria,validade FROM itens WHERE id=?", (v["id_item_mobile"],)).fetchone()
+                if not item:
+                    sem_vinculo += 1
+                    continue
+                categoria = item["categoria"] if item["categoria"] and item["categoria"] != "Gêneros alimentícios" else None
+                validade = item["validade"] or None
+                if categoria is None and validade is None:
+                    continue
+                local.execute("UPDATE Almox_Itens SET categoria=COALESCE(?,categoria),validade=COALESCE(?,validade),atualizado_em=? WHERE id_item=?",
+                              (categoria, validade, _agora(), v["id_item_desktop"]))
+                atualizados += 1
+            local.commit()
+    finally:
+        mobile.close()
+    return {"atualizados": atualizados, "sem_vinculo": sem_vinculo}
+
+
 def sincronizar_catalogo_almox_desktop(db, mobile_db):
     """Publica itens do Almoxarifado desktop no catálogo central mobile e atualiza o espelho da Gestão Alimentar.
 
