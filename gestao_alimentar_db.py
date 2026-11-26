@@ -638,7 +638,7 @@ def _colunas_mobile_movimentos(conn):
 
 
 def listar_movimentos_cozinha(db_path, inicio, fim):
-    """Lista apenas transferências Almoxarifado → Cozinha, nunca a segunda transferência Cozinha → Copa."""
+    """Lista retiradas Almoxarifado → Cozinha e devoluções Cozinha → Almoxarifado, sem duplicar Cozinha → Copa."""
     inicio, fim = _data_iso(inicio, "data inicial"), _data_iso(fim, "data final")
     if fim < inicio:
         raise ValueError("A data final deve ser igual ou posterior à inicial.")
@@ -963,7 +963,8 @@ def resumo_consumo_observado(db_path, inicio, fim):
         quantidade = float(mov["qtd"] or 0)
         item["total_retirado"] += quantidade
         item["movimentos"] += 1
-        item["dias"].add(mov["data"])
+        if quantidade > 0:
+            item["dias"].add(mov["data"])
         if mov.get("custo_retirada") is None:
             item["preco_completo"] = False
         else:
