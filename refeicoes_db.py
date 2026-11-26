@@ -215,8 +215,8 @@ def _janela_permite(conn, publico, refeicao, instante):
     ).fetchone()
     if not row:
         raise ValueError(f"Configure a janela de {refeicao} para {publico} antes de registrar o serviço.")
-    hora = (instante.astimezone().time().replace(tzinfo=None)
-            if instante.tzinfo is not None else instante.time().replace(tzinfo=None))
+    # O servidor já normaliza os horários para America/Recife antes de chamar este módulo.
+    hora = instante.time().replace(tzinfo=None)
     ini, fim = _hora(row["inicio"], "início"), _hora(row["fim"], "fim")
     return ini <= hora <= fim if ini < fim else (hora >= ini or hora <= fim)
 
@@ -270,16 +270,16 @@ def registrar_refeicao_servida(
             """, (int(id_autorizacao_acompanhante),)).fetchone()
             if not auth:
                 raise ValueError("Autorização de acompanhante inexistente ou inativa.")
-            instante_local = instante.astimezone() if instante.tzinfo is not None else instante.astimezone()
             inicio = datetime.fromisoformat(auth["inicio_vigencia"])
             fim = datetime.fromisoformat(auth["fim_vigencia"]) if auth["fim_vigencia"] else None
-            if inicio.tzinfo is None:
-                inicio = inicio.replace(tzinfo=instante_local.tzinfo)
-            else:
-                inicio = inicio.astimezone(instante_local.tzinfo)
-            if fim is not None:
-                fim = fim.replace(tzinfo=instante_local.tzinfo) if fim.tzinfo is None else fim.astimezone(instante_local.tzinfo)
-            instante_comparacao = instante_local
+            instante_comparacao = instante
+            zona = instante.tzinfo or inicio.tzinfo
+            if instante_comparacao.tzinfo is None and zona is not None:
+                instante_comparacao = instante_comparacao.replace(tzinfo=zona)
+            if inicio.tzinfo is None and instante_comparacao.tzinfo is not None:
+                inicio = inicio.replace(tzinfo=instante_comparacao.tzinfo)
+            if fim is not None and fim.tzinfo is None and instante_comparacao.tzinfo is not None:
+                fim = fim.replace(tzinfo=instante_comparacao.tzinfo)
             permitidas = json.loads(auth["refeicoes_json"])
             if str(id_paciente or "") != auth["id_paciente"]:
                 raise ValueError("A autorização pertence a outro paciente, não ao leito atual.")
@@ -289,7 +289,7 @@ def registrar_refeicao_servida(
                 raise ValueError("A quantidade excede a autorização da assistência social.")
             nome_paciente = auth["nome_paciente_snapshot"]
             leito = auth["leito_snapshot"]
-        instante_registro = instante.astimezone() if instante.tzinfo is not None else instante.astimezone()
+        instante_registro = instante
         cur = conn.execute("""
             INSERT INTO Refeicoes_Servidas(
                 servido_em,data_refeicao,refeicao,pubLico,destinatario_id,
