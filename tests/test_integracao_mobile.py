@@ -503,6 +503,22 @@ class TestCatalogoAlmoxDesktopMobile(unittest.TestCase):
                                 (iid,)).fetchone()
         self.assertEqual(vinculo["id_item_mobile"], mobile[0]["id"])
 
+    def test_importa_categoria_e_validade_editadas_no_mobile(self):
+        iid = self.item()
+        im.sincronizar_catalogo_almox_desktop(self.db, self.mdb)
+        mobile_id = self.mobile("SELECT id FROM itens")[0]["id"]
+        c = sv.conectar(self.mdb)
+        try:
+            c.execute("UPDATE itens SET categoria=?,validade=? WHERE id=?",
+                      ("Temperos e condimentos", "2026-12-31", mobile_id))
+            c.commit()
+        finally:
+            c.close()
+        resultado = im.importar_classificacao_almox_mobile(self.db, self.mdb)
+        item = self.adb.obter_item(self.db, iid)
+        self.assertEqual(resultado["atualizados"], 1)
+        self.assertEqual((item["categoria"], item["validade"]), ("Temperos e condimentos", "2026-12-31"))
+
     def test_sincronizacao_repetida_atualiza_sem_duplicar(self):
         iid = self.item()
         im.sincronizar_catalogo_almox_desktop(self.db, self.mdb)
