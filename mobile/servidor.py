@@ -13,6 +13,7 @@ import mimetypes
 import re
 import secrets
 import socket
+import socketserver
 import sqlite3
 import sys
 import threading
@@ -292,6 +293,8 @@ def preparar_banco(db, redefinir=False):
     try:
         c.executescript(ESQUEMA)
         migrar(c)
+        c.execute("INSERT OR IGNORE INTO sistema_config(chave,valor) VALUES('server_identity',?)",
+                  (secrets.token_urlsafe(24),))
         adm = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()
         senha = None
         inicializada = c.execute(
@@ -947,10 +950,12 @@ def _regra_refeicao(funcao, *args, **kwargs):
 def _rotear(c, ip, m, p, q, b, auth):
     if (m, p) == ("GET", "/api/status"):
         cfg = {r["chave"]: r["valor"] for r in c.execute(
-            "SELECT chave,valor FROM sistema_config WHERE chave IN ('rede_ip_registrado','rede_ip_registrado_em')")}
+            "SELECT chave,valor FROM sistema_config WHERE chave IN "
+            "('rede_ip_registrado','rede_ip_registrado_em','server_identity')")}
         return {"status": "online", "ip_lan": ip_lan(), "porta": 8765,
                 "ip_registrado": cfg.get("rede_ip_registrado"),
-                "registrado_em": cfg.get("rede_ip_registrado_em")}
+                "registrado_em": cfg.get("rede_ip_registrado_em"),
+                "server_id": cfg.get("server_identity")}
     if (m, p) == ("POST", "/api/login"):
         return login(c, ip, b)
     # Reutiliza o mesmo arquivo SQLite para os módulos operacionais compartilhados.
@@ -1487,9 +1492,56 @@ class Manipulador(BaseHTTPRequestHandler):
         self._tratar("POST")
 
 
+class ManipuladorDescoberta(socketserver.BaseRequestHandler):
+    """Responde apenas ao pacote de descoberta local; não concede acesso à API."""
+    def handle(self):
+        dados, sock = self.request
+        if dados.strip() != b"NUTRILAB_DISCOVER_V1":
+            return
+        try:
+            c = conectar(self.server.db)
+            try:
+                identidade = c.execute(
+                    "SELECT valor FROM sistema_config WHERE chave='server_identity'"
+                ).fetchone()
+                if not identidade:
+                    raise RuntimeError("Identidade do servidor não inicializada.")
+                server_id = identidade["valor"]
+            finally:
+                c.close()
+            endereco = ip_lan()
+            resposta = "NUTRILAB_SERVER_V1|http://%s:%s|%s" % (
+                endereco, self.server.http_port, server_id
+            )
+            sock.sendto(resposta.encode("utf-8"), self.client_address)
+        except Exception:
+            # Descoberta é auxiliar: falhas não interrompem o servidor HTTP.
+            return
+
+
+class ServidorDescoberta(socketserver.ThreadingUDPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
 def criar_servidor(db, porta=0, host="127.0.0.1"):
     srv = ThreadingHTTPServer((host, porta), Manipulador)
     srv.db = str(db)
+    srv.discovery_server = None
+    srv.discovery_thread = None
+    try:
+        descoberta = ServidorDescoberta(("0.0.0.0", 8766), ManipuladorDescoberta)
+        descoberta.db = str(db)
+        descoberta.http_port = srv.server_address[1]
+        thread = threading.Thread(
+            target=descoberta.serve_forever, name="NutriLabDescoberta", daemon=True
+        )
+        thread.start()
+        srv.discovery_server = descoberta
+        srv.discovery_thread = thread
+    except OSError:
+        # A porta UDP pode estar ocupada ou bloqueada; HTTP continua funcional.
+        pass
     return srv
 
 
