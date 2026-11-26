@@ -512,6 +512,7 @@ function atualizaRefeicoesAcompanhante(sel){
   const refs=(opt?.dataset.refeicoes||'').split(',').filter(Boolean),q=card.querySelector('.ac-qtd');
   card.querySelector('.ac-ref').innerHTML=refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('');
   q.max=opt?.dataset.max||1;q.value=Math.min(Number(q.value)||1,Number(q.max)||1);
+  atualizaPrecoServico(card.querySelector('.ac-ref'),'acompanhante');
 }
 function atualizaPrecoServico(sel,pub){
   const preco=(window._precosRefeicoes||[]).find(x=>x.publico===pub&&x.refeicao===sel.value)?.valor_unitario;
