@@ -660,7 +660,7 @@ class GestaoAlimentarUI:
         _btn(barra, "Distribuir retirada selecionada", self.alocar_retirada, 210).pack(side="left")
         defs = [("data","Data",90,"center"),("hora","Hora",65,"center"),("item","Ingrediente",180,"w"),
                 ("qtd","Retirado",90,"e"),("alocado","Alocado",90,"e"),("pendente","Sem destino",95,"e"),
-                ("preco","Preço/un.",90,"e"),("custo","Custo",95,"e"),("fonte","Preço",95,"center")]
+                ("preco","Preço/un.",90,"e"),("custo","Custo",95,"e"),("fonte","Preço",95,"center"),("observacao","Observação",220,"w")]
         frame,self.tree_movimentos = _tree(tab_mov,defs,altura=13)
         frame.pack(fill="both",expand=True,padx=6,pady=(0,6))
         self.tree_movimentos.bind("<Double-1>", lambda _e: self.alocar_retirada())
@@ -780,7 +780,7 @@ class GestaoAlimentarUI:
                             _fmt_num(m["qtd"]),_fmt_num(m["qtd_alocada"]),
                             _fmt_num(m["qtd_disponivel_para_alocar"]),
                             _fmt_brl(m.get("preco_unitario_snapshot")),
-                            _fmt_brl(m.get("custo_retirada")),fonte),
+                            _fmt_brl(m.get("custo_retirada")),fonte,m.get("observacao") or "—"),
                     tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
             for indice, item in enumerate(resumo["itens"]):
                 intervalo = "—" if item["intervalo_medio_dias"] is None else _fmt_num(item["intervalo_medio_dias"],1)+" d"
@@ -797,7 +797,7 @@ class GestaoAlimentarUI:
                     tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
             pendentes = resumo["movimentos_pendentes"]
             self.lbl_consumo_status.configure(
-                text=f"{resumo['movimentos']} retirada(s) no período · {pendentes} com quantidade ainda sem destinação. *Preço atual é apenas estimativa para movimentos antigos sem snapshot histórico."
+                text=f"{resumo['movimentos']} movimentação(ões) no período · {pendentes} com quantidade ainda sem destinação. *Preço atual é apenas estimativa para movimentos antigos sem snapshot histórico."
             )
             return resumo
         except Exception as exc:
