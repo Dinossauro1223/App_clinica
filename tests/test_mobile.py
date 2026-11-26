@@ -81,7 +81,19 @@ class MobileTest(unittest.TestCase):
         consulta = "/api/estoque?estoque=" + est
         if dia:
             consulta += "&data=" + dia
-        return self.chamar(self.adm, "GET", consulta)[1]["linhas"][0]["qtd"]
+        linhas = self.chamar(self.adm, "GET", consulta)[1]["linhas"]
+        return next(l["qtd"] for l in linhas if l["nome"] == "Arroz")
+
+    def limpar_itens_almox_teste(self, ids):
+        c = sv.conectar(self.db)
+        try:
+            marcadores = ",".join("?" for _ in ids)
+            for tabela in ("movimentos", "estoque_dia"):
+                c.execute(f"DELETE FROM {tabela} WHERE id_item IN ({marcadores})", tuple(ids))
+            c.execute(f"DELETE FROM itens WHERE id IN ({marcadores})", tuple(ids))
+            c.commit()
+        finally:
+            c.close()
 
     # ------------------------------------------------------------------ testes
     def test_admin_inicial_usa_credencial_solicitada(self):
@@ -374,6 +386,8 @@ class MobileTest(unittest.TestCase):
         self.assertLess(itens.index(next(x for x in itens if x["nome"] == "Tempero Validade")),
                         itens.index(next(x for x in itens if x["nome"] == "Arroz Validade")))
         tempero = next(x for x in itens if x["nome"] == "Tempero Validade")
+        arroz_novo = next(x for x in itens if x["nome"] == "Arroz Validade")
+        self.addCleanup(self.limpar_itens_almox_teste, [tempero["id"], arroz_novo["id"]])
         self.assertEqual((tempero["categoria"], tempero["validade"]), ("Temperos e condimentos", "2026-11-30"))
         iid = tempero["id"]
         self.assertEqual(self.chamar(self.t["alm"], "POST", f"/api/almox/itens/{iid}", {
