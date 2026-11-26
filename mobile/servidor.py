@@ -964,8 +964,8 @@ def _rotear(c, ip, m, p, q, b, auth):
             if not bruto or len(bruto) > 480_000:
                 raise Erro("A imagem deve ter no máximo 480 KB após a compressão.")
             assinaturas = {
-                "image/jpeg": bruto.startswith(b"\\xff\\xd8\\xff"),
-                "image/png": bruto.startswith(b"\\x89PNG\\r\\n\\x1a\\n"),
+                "image/jpeg": bruto.startswith(b"\xff\xd8\xff"),
+                "image/png": bruto.startswith(b"\x89PNG\r\n\x1a\n"),
                 "image/webp": len(bruto) >= 12 and bruto[:4] == b"RIFF" and bruto[8:12] == b"WEBP",
             }
             if not assinaturas[tipo]:
