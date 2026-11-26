@@ -98,7 +98,9 @@ class AlmoxUI:
         validade=ctk.CTkFrame(self.conteudo,fg_color="transparent");validade.pack(fill="x",pady=3)
         ctk.CTkLabel(validade,text="Validade (opcional):").pack(side="left",padx=3)
         self.e_validade=ctk.CTkEntry(validade,width=140,placeholder_text="AAAA-MM-DD");self.e_validade.pack(side="left",padx=3)
-        self.e_busca=ctk.CTkEntry(self.conteudo,placeholder_text="Buscar produto pelo nome...",width=320);self.e_busca.pack(anchor="w",pady=(8,3));self.e_busca.bind("<KeyRelease>",lambda _e:self._carregar_itens())
+        filtro=ctk.CTkFrame(self.conteudo,fg_color="transparent");filtro.pack(fill="x",pady=(8,3))
+        self.e_busca=ctk.CTkEntry(filtro,placeholder_text="Buscar produto pelo nome...",width=320);self.e_busca.pack(side="left",padx=3);self.e_busca.bind("<KeyRelease>",lambda _e:self._carregar_itens())
+        self.cb_filtro_categoria=ctk.CTkComboBox(filtro,values=["Todas as categorias"]+list(adb.CATEGORIAS),width=210,command=lambda _v:self._carregar_itens());self.cb_filtro_categoria.pack(side="left",padx=3);self.cb_filtro_categoria.set("Todas as categorias")
         bar=ctk.CTkFrame(self.conteudo,fg_color="transparent");bar.pack(fill="x")
         ctk.CTkButton(bar,text="Novo / limpar",command=self._limpar_item).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Salvar item",command=self._salvar_item).pack(side="left",padx=3)
@@ -123,7 +125,10 @@ class AlmoxUI:
         return _br(float(preco)/divisor).replace("R$ ","R$ ")+("/g" if unidade in ("g","kg","mg") or (unidade=="un" and str(i.get("embalagem_un") or "").lower() in ("g","kg","mg")) else "/ml")
 
     def _carregar_itens(self):
-        self.itens=adb.listar_itens(self.db,False,termo=self.e_busca.get() or None);self.t_itens.delete(*self.t_itens.get_children())
+        todos=adb.listar_itens(self.db,False,termo=self.e_busca.get() or None)
+        categoria=self.cb_filtro_categoria.get()
+        self.itens=[i for i in todos if categoria=="Todas as categorias" or i["categoria"]==categoria]
+        self.t_itens.delete(*self.t_itens.get_children())
         for i in self.itens:self.t_itens.insert("","end",iid=str(i["id_item"]),values=(i["nome"],i["unidade"],i["categoria"],i.get("validade") or "—",_br(i["valor_unitario"]),self._custo_base_item(i),_num(i["saldo"]),_num(i["estoque_minimo"]),"Ativo" if i["ativo"] else "Inativo"))
     def _selecionar_item(self,_=None):
         sel=self.t_itens.selection()
