@@ -14,8 +14,12 @@ Cada gráfico é uma "carta" da faixa. Há dois tipos (graficos_layout.ESTILO_*)
   com o valor ao passar o mouse. É o padrão.
 * CardImagem: imagem PNG do matplotlib, como era antes, sem animação.
 
-As contas (larguras, encaixe, suavização) estão em graficos_layout.py e a geometria dos gráficos em
-graficos_nativos.py; ambas são testadas sem janela. Aqui só há widgets.
+As contas (larguras, encaixe, suavização, ritmo da animação) estão em graficos_layout.py e a geometria dos
+gráficos em graficos_nativos.py; ambas são testadas sem janela. Aqui só há widgets.
+
+Ritmo: cada quadro de animação conta ao `graficos_layout.Ritmo` quanto custou. No modo automático, se o computador
+não acompanha, a animação fica mais curta e com menos quadros e, em último caso, o gráfico aparece pronto. O desenho
+final é o mesmo em qualquer nível.
 """
 import io
 import time
@@ -29,7 +33,6 @@ from graficos_pintor import Fontes, PintorCanvas
 
 VERDE, VERDE_HOVER, VERDE_ESC = "#4caf50", "#388e3c", "#1b5e20"
 CINZA_BTN, CINZA_TEXTO, FUNDO_SECAO = "#b0bec5", "#546e7a", "#f7fbf8"
-INTERVALO_QUADROS_MS = 16          # cerca de 60 quadros por segundo no encaixe e na animação de entrada
 ESPERA_INICIAL_MS = 50             # 1º desenho da faixa: o Tk avisa antes uma largura provisória (a padrão do canvas)
 ESPERA_AJUSTE_MS = 120             # redesenho depois de a janela mudar de largura (não redesenha a cada pixel)
 PAUSA_ENTRE_ROLAGENS = 0.25        # segundos: Shift + roda anda uma posição por vez, mesmo girando rápido
@@ -128,6 +131,8 @@ class CardNativo:
 
     def montar(self, faixa, x, largura, altura):
         self.faixa, self.x, self.largura, self.altura = faixa, x, largura, altura
+        if not faixa.ritmo.anima:      # sem animação: a primeira pintura já é a final (nada de pintar duas vezes)
+            self.p = 1.0
         self.pintor = PintorCanvas(faixa.canvas, faixa.fontes, faixa.dicas)
         self.desenhar()
 
@@ -145,7 +150,7 @@ class FaixaHorizontal:
     espera_inicial_ms = ESPERA_INICIAL_MS     # (os testes zeram para desenhar na hora)
 
     def __init__(self, pai, itens, cor_fundo=FUNDO_SECAO, escala=1.0, ao_mudar=None, ao_montar=None, fontes=None,
-                 atraso=0.0, centralizar=False):
+                 atraso=0.0, centralizar=False, ritmo=None):
         # cada item é uma carta (CardNativo, CardImagem) ou uma PIL.Image (vira CardImagem)
         self.cards = [i if hasattr(i, "montar") else CardImagem(i) for i in itens]
         self.escala = max(0.5, float(escala))
@@ -153,6 +158,9 @@ class FaixaHorizontal:
         self.atraso = float(atraso)           # segundos a esperar antes de animar o primeiro gráfico
         self.centralizar = centralizar        # um gráfico só, no meio da faixa (disposição de cima para baixo)
         self._fontes = fontes
+        # quanta animação o computador aguenta; sem ritmo informado, animação completa (o comportamento de sempre)
+        self.ritmo = ritmo if ritmo is not None else gl.Ritmo(gl.DESEMPENHO_COMPLETO)
+        self._quadros_em = {"encaixe": None, "entrada": None}   # início do último quadro de cada sequência de animação
         self.carrossel = None
         self.deslocamento, self.ativo = 0.0, 0   # `ativo` é o índice da posição de encaixe (não do gráfico)
         self.fotos = []                       # o Tk apaga a imagem que ninguém referencia: guardamos aqui
@@ -290,14 +298,24 @@ class FaixaHorizontal:
     def _passo_animacao(self):
         if not self._anim:
             return
+        t0 = _agora()
         inicio, de, para = self._anim
-        t = (_agora() - inicio) / gl.DURACAO_ENCAIXE
+        duracao = self.ritmo.duracao(gl.DURACAO_ENCAIXE)       # 0 quando o ritmo mudou para "sem animação" no meio
+        t = (t0 - inicio) / duracao if duracao > 0 else 1.0
         if t >= 1.0:
             self._anim = self._job_animacao = None
             self._definir_deslocamento(para)
             return
         self._definir_deslocamento(de + (para - de) * gl.suavizar(t))
-        self._job_animacao = self.canvas.after(INTERVALO_QUADROS_MS, self._passo_animacao)
+        self._medir_quadro("encaixe", t0)
+        self._job_animacao = self.canvas.after(self.ritmo.intervalo_ms, self._passo_animacao)
+
+    def _medir_quadro(self, sequencia, inicio):
+        """Conta ao ritmo quanto custou o quadro que começou em `inicio` e quanto tempo passou desde o quadro
+        anterior da mesma sequência (o 1º quadro de uma sequência não tem anterior)."""
+        anterior = self._quadros_em[sequencia]
+        self._quadros_em[sequencia] = inicio
+        self.ritmo.registrar_quadro(_agora() - inicio, None if anterior is None else inicio - anterior)
 
     # ------------------------------------------------------------------ animação de entrada
     def _iniciar_visiveis(self):
@@ -310,28 +328,43 @@ class FaixaHorizontal:
         if not esperando:
             return
         agora = _agora()
+        if not self.ritmo.anima:             # sem animação: o gráfico aparece completo, sem relógio nem quadros
+            for cd in esperando:
+                cd.inicio = agora
+                if not cd.pronto:
+                    cd.p = 1.0
+                    cd.desenhar()
+            return
         for k, cd in enumerate(esperando):
-            cd.inicio = agora + self.atraso + k * gl.ATRASO_ENTRE_CARDS
+            cd.inicio = agora + self.ritmo.duracao(self.atraso + k * gl.ATRASO_ENTRE_CARDS)
         self._agendar_entrada()
 
-    def _agendar_entrada(self):
-        if self._job_entrada or self._morto:
+    def _agendar_entrada(self, continuacao=False):
+        if self._job_entrada or self._morto or not self.ritmo.anima:
             return
         if any(cd.animado and cd.inicio is not None and not cd.pronto for cd in self.cards):
-            self._job_entrada = self.canvas.after(INTERVALO_QUADROS_MS, self._passo_entrada)
+            if not continuacao:                      # sequência nova: o 1º quadro não tem "quadro anterior"
+                self._quadros_em["entrada"] = None
+            self._job_entrada = self.canvas.after(self.ritmo.intervalo_ms, self._passo_entrada)
 
     @_tolerante
     def _passo_entrada(self):
         self._job_entrada = None
-        agora = _agora()
+        t0 = _agora()
+        duracao = self.ritmo.duracao(gl.DURACAO_ENTRADA)
+        completa = not self.ritmo.anima or duracao <= 0    # o ritmo desceu para "sem animação" no meio da entrada
+        desenhou = False
         for cd in self.cards:
             if not cd.animado or cd.inicio is None or cd.pronto:
                 continue
-            p = max(0.0, min(1.0, (agora - cd.inicio) / gl.DURACAO_ENTRADA))
+            p = 1.0 if completa else max(0.0, min(1.0, (t0 - cd.inicio) / duracao))
             if p != cd.p:
                 cd.p = p
                 cd.desenhar()
-        self._agendar_entrada()
+                desenhou = True
+        if desenhou and not completa:
+            self._medir_quadro("entrada", t0)     # só quadros que trabalharam: quadro de espera não conta
+        self._agendar_entrada(continuacao=True)
 
     def _cancelar_entrada(self):
         if self._job_entrada:
@@ -455,7 +488,7 @@ class FaixaHorizontal:
     def _cancelar_animacao(self):
         if self._job_animacao:
             self._cancelar(self._job_animacao)
-        self._anim = self._job_animacao = None
+        self._anim = self._job_animacao = self._quadros_em["encaixe"] = None
 
     def _ao_destruir(self, _ev=None):
         self._morto = True
@@ -470,9 +503,10 @@ class PainelGraficos:
     """Monta as seções dos grupos dentro de `pai`. Cada gráfico do grupo é um dicionário (desenhado na tela, com
     animação) ou bytes PNG (imagem, como antes): o conteúdo decide o tipo da carta."""
 
-    def __init__(self, pai, grupos, disposicao=gl.DISPOSICAO_LADO_A_LADO, fontes=None):
+    def __init__(self, pai, grupos, disposicao=gl.DISPOSICAO_LADO_A_LADO, fontes=None, ritmo=None):
         self.pai = pai
         self.disposicao = gl.disposicao_valida(disposicao)
+        self.ritmo = ritmo if ritmo is not None else gl.Ritmo(gl.DESEMPENHO_COMPLETO)   # um só para todas as faixas
         self.imagens = []        # uma por gráfico em imagem: PIL.Image (lado a lado) ou CTkImage (de cima para baixo)
         self.faixas = []         # FaixaHorizontal, na disposição lado a lado
         self.faixas_empilhadas = []   # um gráfico por faixa, na disposição de cima para baixo (estilo animado)
@@ -524,7 +558,7 @@ class PainelGraficos:
         controles = _Controles(cabecalho)
         fontes = self.fontes if any(c.animado for c in cartas) else None
         faixa = FaixaHorizontal(quadro, cartas, FUNDO_SECAO, self.escala, controles.mostrar_posicao,
-                                lambda f: controles.configurar(f), fontes=fontes)
+                                lambda f: controles.configurar(f), fontes=fontes, ritmo=self.ritmo)
         controles.ligar(faixa)
         faixa.canvas.pack(fill="x", padx=12, pady=(2, 12))
         self.faixas.append(faixa)
@@ -534,7 +568,7 @@ class PainelGraficos:
         for k, (_, _, conteudo) in enumerate(itens):
             if isinstance(conteudo, dict):    # desenhado na tela: uma faixa de um gráfico só, no meio
                 faixa = FaixaHorizontal(quadro, [CardNativo(conteudo)], FUNDO_SECAO, self.escala, fontes=self.fontes,
-                                        atraso=k * gl.ATRASO_ENTRE_CARDS, centralizar=True)
+                                        atraso=k * gl.ATRASO_ENTRE_CARDS, centralizar=True, ritmo=self.ritmo)
                 faixa.canvas.pack(fill="x", padx=12, pady=6)
                 self.faixas_empilhadas.append(faixa)
                 continue
