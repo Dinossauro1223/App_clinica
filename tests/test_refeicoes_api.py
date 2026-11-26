@@ -115,6 +115,7 @@ class TestRefeicoesAPI(unittest.TestCase):
                 "id_paciente": novo["id_paciente"],
                 "servido_em": (agora + timedelta(minutes=2)).isoformat(),
                 "publico": "acompanhante", "refeicao": "almoco", "quantidade": 1,
+                "valor_unitario": 5.0,
                 "id_autorizacao_acompanhante": auth["id_autorizacao"]})
 
 
