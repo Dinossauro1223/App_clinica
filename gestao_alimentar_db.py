@@ -1007,14 +1007,17 @@ def resumo_consumo_observado(db_path, inicio, fim):
             item["precos_historicos"] += 1
         elif mov.get("origem_preco") == "atual_estimado":
             item["precos_estimados"] += 1
-        item["total_alocado"] += float(mov["qtd_alocada"] or 0)
+        devolvida_alocada = float(mov.get("qtd_devolvida_alocada") or 0)
+        alocado_liquido = max(0.0, float(mov["qtd_alocada"] or 0) - devolvida_alocada)
+        item["total_alocado"] += alocado_liquido
         item["total_pendente"] += float(mov["qtd_disponivel_para_alocar"] or 0)
         if mov.get("custos_alocados_faltantes", 0) or (
             float(mov["qtd_alocada"] or 0) > 1e-8 and mov.get("custo_alocado") is None
-        ):
+        ) or (devolvida_alocada > 1e-8 and mov.get("preco_unitario_snapshot") is None):
             item["custo_alocado_completo"] = False
         elif mov.get("custo_alocado") is not None:
-            item["custo_alocado"] += float(mov["custo_alocado"])
+            preco_devolvido = float(mov.get("preco_unitario_snapshot") or 0)
+            item["custo_alocado"] += max(0.0, float(mov["custo_alocado"]) - devolvida_alocada * preco_devolvido)
     itens = []
     for item in por_item.values():
         dias = sorted(item["dias"])
