@@ -461,3 +461,108 @@ class TestCatalogoPedidosAlmox(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+@unittest.skipIf(not SERVIDOR_OK, "servidor mobile atualizado não instalado")
+class TestCatalogoAlmoxDesktopMobile(unittest.TestCase):
+    def setUp(self):
+        import almox_db as adb
+        self.adb = adb
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.db = os.path.join(self.tmp, "desktop.db")
+        self.mdb = os.path.join(self.tmp, "mobile.db")
+        adb.inicializar(self.db)
+        sv.preparar_banco(self.mdb)
+
+    def item(self, nome="Arroz", unidade="kg", preco="5,50"):
+        return self.adb.salvar_item(self.db, {
+            "nome": nome, "unidade": unidade, "categoria": "Gêneros alimentícios",
+            "valor_unitario": preco
+        })
+
+    def mobile(self, sql, args=()):
+        c = sv.conectar(self.mdb)
+        try:
+            return [dict(r) for r in c.execute(sql, args)]
+        finally:
+            c.close()
+
+    def test_publica_item_e_cria_espelho_gestao_alimentar(self):
+        import gestao_alimentar_db as gadb
+        iid = self.item()
+        res = im.sincronizar_catalogo_almox_desktop(self.db, self.mdb)
+        self.assertEqual((res["sincronizados"], res["criados"], res["erros"]), (1, 1, []))
+        mobile = self.mobile("SELECT id,nome,unidade,preco_unitario FROM itens")
+        self.assertEqual(len(mobile), 1)
+        self.assertEqual((mobile[0]["nome"], mobile[0]["unidade"], mobile[0]["preco_unitario"]),
+                         ("Arroz", "kg", 5.5))
+        espelho = gadb.listar_produtos_almox(self.db)
+        self.assertEqual(len(espelho), 1)
+        self.assertEqual(espelho[0]["id_mobile"], mobile[0]["id"])
+        with closing(mdb.conectar(self.db)) as c:
+            vinculo = c.execute("SELECT id_item_mobile FROM Almox_Mobile_Vinculos WHERE id_item_desktop=?",
+                                (iid,)).fetchone()
+        self.assertEqual(vinculo["id_item_mobile"], mobile[0]["id"])
+
+    def test_importa_categoria_e_validade_editadas_no_mobile(self):
+        iid = self.item()
+        im.sincronizar_catalogo_almox_desktop(self.db, self.mdb)
+        mobile_id = self.mobile("SELECT id FROM itens")[0]["id"]
+        c = sv.conectar(self.mdb)
+        try:
+            c.execute("UPDATE itens SET categoria=?,validade=? WHERE id=?",
+                      ("Temperos e condimentos", "2026-12-31", mobile_id))
+            c.commit()
+        finally:
+            c.close()
+        resultado = im.importar_classificacao_almox_mobile(self.db, self.mdb)
+        item = self.adb.obter_item(self.db, iid)
+        self.assertEqual(resultado["atualizados"], 1)
+        self.assertEqual((item["categoria"], item["validade"]), ("Temperos e condimentos", "2026-12-31"))
+
+    def test_sincronizacao_repetida_atualiza_sem_duplicar(self):
+        iid = self.item()
+        im.sincronizar_catalogo_almox_desktop(self.db, self.mdb)
+        self.adb.salvar_item(self.db, {
+            "id_item": iid, "nome": "Arroz integral", "unidade": "kg",
+            "categoria": "Gêneros alimentícios", "valor_unitario": "6,25"
+        })
+        res = im.sincronizar_catalogo_almox_desktop(self.db, self.mdb)
+        rows = self.mobile("SELECT id,nome,preco_unitario FROM itens")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["nome"], rows[0]["preco_unitario"]), ("Arroz integral", 6.25))
+        self.assertEqual(res["criados"], 0)
+        self.assertEqual(res["atualizados"], 1)
+
+    def test_reutiliza_item_existente_sem_vinculo_e_bloqueia_unidade_divergente(self):
+        self.item()
+        c = sv.conectar(self.mdb)
+        try:
+            c.execute("INSERT INTO itens(nome,unidade) VALUES('Arroz','kg')")
+            c.commit()
+        finally:
+            c.close()
+        res = im.sincronizar_catalogo_almox_desktop(self.db, self.mdb)
+        self.assertEqual((res["criados"], res["atualizados"], res["erros"]), (0, 1, []))
+        self.assertEqual(len(self.mobile("SELECT id FROM itens")), 1)
+
+        iid2 = self.item("Feijão", "kg")
+        c = sv.conectar(self.mdb)
+        try:
+            c.execute("INSERT INTO itens(nome,unidade) VALUES('Feijão','pacote')")
+            c.commit()
+        finally:
+            c.close()
+        res = im.sincronizar_catalogo_almox_desktop(self.db, self.mdb)
+        erro = next(x for x in res["erros"] if x["id_item"] == iid2)
+        self.assertIn("unidade diferente", erro["erro"])
+        self.assertEqual(len(self.mobile("SELECT id FROM itens WHERE nome='Feijão'")), 1)
+
+    def test_desativacao_desktop_reflete_status_mobile_sem_apagar_historico(self):
+        iid = self.item()
+        im.sincronizar_catalogo_almox_desktop(self.db, self.mdb)
+        self.adb.alterar_item_ativo(self.db, iid, False)
+        im.sincronizar_catalogo_almox_desktop(self.db, self.mdb)
+        rows = self.mobile("SELECT ativo FROM itens")
+        self.assertEqual(rows[0]["ativo"], 0)
+
