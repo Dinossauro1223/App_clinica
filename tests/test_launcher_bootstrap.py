@@ -32,7 +32,7 @@ class TestLauncherBootstrap(unittest.TestCase):
         normalizado = texto.replace(chr(92), "/")
         gerador = 'call %PY_CMD% tools/gerar_identidade_visual.py'
         self.assertIn(gerador, normalizado)
-        self.assertIn('if not exist "tools/gerar_identidade_visual.py" goto ERRO_FONTE', texto)
+        self.assertIn('if not exist "tools/gerar_identidade_visual.py" goto ERRO_FONTE', normalizado)
         self.assertIn('if not exist "assets/identidade/renderizados/folhas.json" goto ERRO_IDENTIDADE', normalizado)
         self.assertLess(normalizado.index(gerador), normalizado.index('PyInstaller'))
         self.assertLess(normalizado.index(gerador), normalizado.index('test_svg_pipeline.py'))
