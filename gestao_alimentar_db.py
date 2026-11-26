@@ -120,6 +120,36 @@ CREATE TABLE IF NOT EXISTS GA_Consumo_Alocacoes (
 );
 CREATE INDEX IF NOT EXISTS idx_ga_alocacoes_movimento ON GA_Consumo_Alocacoes(data_movimento, id_movimento_mobile, ativa);
 CREATE INDEX IF NOT EXISTS idx_ga_alocacoes_preparacao ON GA_Consumo_Alocacoes(data_preparacao, refeicao_snapshot, preparacao_nome_snapshot, ativa);
+CREATE TABLE IF NOT EXISTS GA_Producao_Preparacao (
+ id_registro INTEGER PRIMARY KEY AUTOINCREMENT,
+ id_preparacao_dia INTEGER NOT NULL REFERENCES GA_Preparacoes_Dia(id_preparacao_dia),
+ data TEXT NOT NULL,
+ refeicao TEXT NOT NULL,
+ id_ficha INTEGER,
+ nome_preparacao_snapshot TEXT NOT NULL,
+ porcoes_planejadas REAL NOT NULL CHECK(porcoes_planejadas >= 0),
+ porcoes_produzidas REAL CHECK(porcoes_produzidas >= 0),
+ porcoes_faltantes REAL NOT NULL DEFAULT 0 CHECK(porcoes_faltantes >= 0),
+ faltou_preparacao INTEGER NOT NULL DEFAULT 0 CHECK(faltou_preparacao IN (0,1)),
+ peso_por_porcao_g REAL CHECK(peso_por_porcao_g > 0),
+ observacao TEXT,
+ usuario TEXT,
+ criado_em TEXT NOT NULL,
+ atualizado_em TEXT NOT NULL,
+ UNIQUE(id_preparacao_dia, data)
+);
+CREATE TABLE IF NOT EXISTS GA_Producao_Cubas (
+ id_cuba INTEGER PRIMARY KEY AUTOINCREMENT,
+ id_registro INTEGER NOT NULL REFERENCES GA_Producao_Preparacao(id_registro) ON DELETE CASCADE,
+ identificacao TEXT NOT NULL,
+ peso_desperdicio_kg REAL NOT NULL DEFAULT 0 CHECK(peso_desperdicio_kg >= 0),
+ peso_sobra_kg REAL NOT NULL DEFAULT 0 CHECK(peso_sobra_kg >= 0),
+ observacao TEXT,
+ ordem INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_ga_producao_data ON GA_Producao_Preparacao(data, refeicao);
+CREATE INDEX IF NOT EXISTS idx_ga_producao_cubas_registro ON GA_Producao_Cubas(id_registro, ordem);
+
 """
 
 
@@ -631,6 +661,98 @@ def listar_preparacoes_dia(db_path, data, refeicao=None):
         p.nome COLLATE NOCASE"""
     with _conexao(db_path) as conn:
         return [dict(r) for r in conn.execute(sql, args)]
+
+
+
+def salvar_registro_producao(db_path, id_preparacao_dia, data, refeicao, porcoes_planejadas,
+                             porcoes_produzidas=None, porcoes_faltantes=0, faltou_preparacao=False,
+                             peso_por_porcao_g=None, cubas=None, observacao="", usuario=""):
+    """Registra resultado real da preparação e perdas/sobras por cuba, sem alterar estoque."""
+    data = _data_iso(data)
+    refeicao = str(refeicao or "").strip().lower()
+    if refeicao not in _REFEICOES_CONSUMO:
+        raise ValueError("Selecione uma refeição válida.")
+    planejadas = _numero(porcoes_planejadas)
+    produzidas = _numero(porcoes_produzidas) if porcoes_produzidas not in (None, "") else None
+    faltantes = _numero(porcoes_faltantes)
+    peso_porcao = _numero(peso_por_porcao_g) if peso_por_porcao_g not in (None, "") else None
+    if planejadas is None or planejadas < 0 or (produzidas is not None and produzidas < 0):
+        raise ValueError("Porções planejadas e produzidas não podem ser negativas.")
+    if faltantes is None or faltantes < 0:
+        raise ValueError("Porções faltantes não podem ser negativas.")
+    if peso_porcao is not None and peso_porcao <= 0:
+        raise ValueError("O peso por porção deve ser maior que zero.")
+    itens = []
+    for ordem, cuba in enumerate(cubas or [], 1):
+        identificacao = str(cuba.get("identificacao") or "").strip()
+        desperdicio = _numero(cuba.get("peso_desperdicio_kg", 0))
+        sobra = _numero(cuba.get("peso_sobra_kg", 0))
+        if not identificacao or desperdicio is None or sobra is None or desperdicio < 0 or sobra < 0:
+            raise ValueError("Cada cuba precisa de identificação e pesos válidos, iguais ou maiores que zero.")
+        itens.append((identificacao, desperdicio, sobra, str(cuba.get("observacao") or ""), ordem))
+    agora = _agora()
+    with _conexao(db_path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        prep = conn.execute(
+            "SELECT p.*, f.nome AS nome_ficha FROM GA_Preparacoes_Dia p "
+            "LEFT JOIN GA_Fichas f ON f.id_ficha=p.id_ficha "
+            "WHERE p.id_preparacao_dia=? AND p.data=? AND p.refeicao=? AND p.ativa=1",
+            (int(id_preparacao_dia), data, refeicao)
+        ).fetchone()
+        if not prep:
+            raise ValueError("Preparação não encontrada no menu ativo dessa data e refeição.")
+        nome = prep["nome_ficha"] or prep["nome"]
+        existente = conn.execute(
+            "SELECT id_registro FROM GA_Producao_Preparacao WHERE id_preparacao_dia=? AND data=?",
+            (int(id_preparacao_dia), data)
+        ).fetchone()
+        if existente:
+            rid = existente["id_registro"]
+            conn.execute("""UPDATE GA_Producao_Preparacao SET refeicao=?,id_ficha=?,nome_preparacao_snapshot=?,
+                porcoes_planejadas=?,porcoes_produzidas=?,porcoes_faltantes=?,faltou_preparacao=?,
+                peso_por_porcao_g=?,observacao=?,usuario=?,atualizado_em=? WHERE id_registro=?""",
+                (refeicao, prep["id_ficha"], nome, planejadas, produzidas, faltantes,
+                 int(bool(faltou_preparacao)), peso_porcao, str(observacao or ""), str(usuario or ""), agora, rid))
+            conn.execute("DELETE FROM GA_Producao_Cubas WHERE id_registro=?", (rid,))
+        else:
+            cur = conn.execute("""INSERT INTO GA_Producao_Preparacao(
+                id_preparacao_dia,data,refeicao,id_ficha,nome_preparacao_snapshot,porcoes_planejadas,
+                porcoes_produzidas,porcoes_faltantes,faltou_preparacao,peso_por_porcao_g,observacao,usuario,
+                criado_em,atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (int(id_preparacao_dia), data, refeicao, prep["id_ficha"], nome, planejadas, produzidas,
+                 faltantes, int(bool(faltou_preparacao)), peso_porcao, str(observacao or ""),
+                 str(usuario or ""), agora, agora))
+            rid = cur.lastrowid
+        conn.executemany("""INSERT INTO GA_Producao_Cubas(
+            id_registro,identificacao,peso_desperdicio_kg,peso_sobra_kg,observacao,ordem)
+            VALUES(?,?,?,?,?,?)""", [(rid, *item) for item in itens])
+    return obter_registro_producao(db_path, rid)
+
+
+def obter_registro_producao(db_path, id_registro):
+    with _conexao(db_path) as conn:
+        row = conn.execute("SELECT * FROM GA_Producao_Preparacao WHERE id_registro=?",
+                           (int(id_registro),)).fetchone()
+        if not row:
+            return None
+        cubas = conn.execute("SELECT * FROM GA_Producao_Cubas WHERE id_registro=? ORDER BY ordem,id_cuba",
+                             (int(id_registro),)).fetchall()
+        return {**dict(row), "cubas": [dict(c) for c in cubas]}
+
+
+def listar_registros_producao(db_path, inicio, fim, id_ficha=None):
+    inicio, fim = _data_iso(inicio, "data inicial"), _data_iso(fim, "data final")
+    if fim < inicio:
+        raise ValueError("A data final deve ser igual ou posterior à inicial.")
+    sql = "SELECT * FROM GA_Producao_Preparacao WHERE data BETWEEN ? AND ?"
+    args = [inicio, fim]
+    if id_ficha is not None:
+        sql += " AND id_ficha=?"
+        args.append(int(id_ficha))
+    sql += " ORDER BY data,refeicao,nome_preparacao_snapshot"
+    with _conexao(db_path) as conn:
+        return [dict(r) for r in conn.execute(sql, args)]
+
 
 
 def _colunas_mobile_movimentos(conn):
