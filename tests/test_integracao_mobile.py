@@ -290,6 +290,7 @@ class TestComServidor(_Base):
         a01 = next(r for r in self.mobile("SELECT m.*, l.codigo FROM mapa_dia m JOIN leitos l ON l.id=m.id_leito") if r["codigo"] == "A01")
         self.assertEqual((a01["nome"], a01["dieta"], a01["diagnostico"], a01["pref_sim"], a01["por_perfil"]),
                          ("Maria Teste", "Branda", "DM", "fruta", "admin"))
+        self.assertEqual(a01["id_paciente"], self.reg("A01")["id_paciente"])
         self.assertEqual(len(self.mobile("SELECT * FROM avisos")), 1)
         res = im.enviar_mapa(self.db, self.mdb, DIA)  # nada mudou: não avisa de novo
         self.assertEqual(next(r for r in res if r["setor"] == "Clinica A")["leitos"], 0)
