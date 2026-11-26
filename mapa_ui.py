@@ -1738,9 +1738,9 @@ class FormRegistro(_Janela):
     def _mostrar_escala(self, tipo):
         """Abre a imagem original da escala em janela ampliável, sem bloquear a ficha."""
         arquivos = {
-            "bristol": ("escala_bristol.jpeg", "Escala de Bristol"),
-            "urina": ("escala_urina_armstrong.png", "Escala de coloração da urina"),
-            "aceitacao": ("escala_aceitacao_alimentar.jpeg", "Escala de aceitação alimentar"),
+            "bristol": ("escala_bristol.webp", "Escala de Bristol"),
+            "urina": ("escala_urina_armstrong.webp", "Escala de coloração da urina"),
+            "aceitacao": ("escala_aceitacao_alimentar.webp", "Escala de aceitação alimentar"),
         }
         if tipo not in arquivos:
             return
@@ -1751,19 +1751,14 @@ class FormRegistro(_Janela):
             return
         try:
             from PIL import Image
-            janela = ctk.CTkToplevel(self)
-            janela.title(titulo)
-            janela.geometry("1000x760")
-            janela.minsize(520, 420)
-            janela.transient(self)
+            janela = _Janela(self, titulo, "1000x760")
             imagem = Image.open(caminho).convert("RGB")
-            imagem.thumbnail((1500, 1100), Image.Resampling.LANCZOS)
+            imagem.thumbnail((1200, 850), Image.Resampling.LANCZOS)
             foto = ctk.CTkImage(light_image=imagem, dark_image=imagem, size=imagem.size)
             lbl = ctk.CTkLabel(janela, text="", image=foto)
             lbl.image = foto
-            lbl.pack(fill="both", expand=True, padx=10, pady=10)
-            _btn(janela, "Fechar", janela.destroy, 100).pack(pady=(0, 10))
-            janela.lift()
+            lbl.pack(fill="both", expand=True, padx=16, pady=16)
+            _btn(janela, "Fechar", janela.destroy, 100).pack(pady=(0, 14))
         except Exception as erro:
             messagebox.showerror("Erro ao abrir escala", str(erro), parent=self)
 
