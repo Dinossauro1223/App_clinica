@@ -666,6 +666,9 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
                          ELSE COALESCE({custo_mov},m.qtd*COALESCE({preco_mov},p.preco_unitario)) END AS custo_retirada,
                     COALESCE((SELECT SUM(a.quantidade) FROM GA_Consumo_Alocacoes a
                       WHERE a.data_movimento=m.data AND a.id_movimento_mobile=m.id_mobile AND a.ativa=1),0) AS qtd_alocada,
+                    COALESCE((SELECT SUM(a.quantidade) FROM GA_Consumo_Alocacoes a
+                      WHERE a.data_movimento=m.data AND a.id_movimento_mobile=m.id_mobile AND a.ativa=1
+                        AND a.tipo_destino='preparacao'),0) AS qtd_alocada_preparacao,
                     COALESCE((SELECT SUM(a.custo_snapshot) FROM GA_Consumo_Alocacoes a
                       WHERE a.data_movimento=m.data AND a.id_movimento_mobile=m.id_mobile AND a.ativa=1),0) AS custo_alocado,
                     COALESCE((SELECT SUM(CASE WHEN a.custo_snapshot IS NULL THEN 1 ELSE 0 END)
@@ -688,6 +691,7 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
             )
             item["qtd_devolvida"] = 0.0
             item["qtd_devolvida_alocada"] = 0.0
+            item["qtd_devolvida_preparacao"] = 0.0
             item["devolucao_sobre_alocada"] = 0.0
             item["custo_retirada"] = (
                 float(item["custo_retirada"]) if item["custo_retirada"] is not None else None
@@ -721,6 +725,9 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
                         aplicado_alocado = min(restante, alocado)
                         if aplicado_alocado > 0:
                             retirada["qtd_devolvida_alocada"] += aplicado_alocado
+                            alocado_prep = max(0.0, float(retirada.get("qtd_alocada_preparacao") or 0)
+                                               - float(retirada.get("qtd_devolvida_preparacao") or 0))
+                            retirada["qtd_devolvida_preparacao"] += min(aplicado_alocado, alocado_prep)
                             restante -= aplicado_alocado
                     if restante <= 1e-8:
                         break
@@ -1066,8 +1073,8 @@ def resumo_consumo_observado(db_path, inicio, fim):
             (inicio, fim)).fetchall()
     linhas_alocadas = [dict(x) for x in rows_raw]
     devolucoes_por_movimento = {
-        (m["data"], int(m["id_mobile"])): float(m.get("qtd_devolvida_alocada") or 0)
-        for m in movimentos if float(m.get("qtd_devolvida_alocada") or 0) > 1e-8
+        (m["data"], int(m["id_mobile"])): float(m.get("qtd_devolvida_preparacao") or 0)
+        for m in movimentos if float(m.get("qtd_devolvida_preparacao") or 0) > 1e-8
     }
     for chave_movimento, quantidade_devolvida in devolucoes_por_movimento.items():
         candidatas = [r for r in linhas_alocadas
