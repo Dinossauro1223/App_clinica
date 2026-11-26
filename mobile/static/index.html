@@ -630,7 +630,7 @@ const salvaPrecosRefeicoes=tenta(async()=>{
 const carregarRelatorioRefeicoes=tenta(async()=>{
   const j=await api(`/api/refeicoes/relatorio?inicio=${S.data}&fim=${S.data}`),alvo=$('#rel-ref');
   const nomes={pacientes:'Pacientes',funcionarios:'Funcionários',acompanhantes:'Acompanhantes'};
-  const resumo=Object.keys(nomes).map(k=>`<p><b>${nomes[k]}:</b> ${j.custos[k]?'R$ '+Number(j.custos[k].custo||0).toFixed(2).replace('.',','):'Sem registros com custo'} · ${j.custos[k]?.servicos||0} serviço(s)</p>`).join('');
+  const resumo=Object.keys(nomes).map(k=>`<p><b>${nomes[k]}:</b> ${j.custos[k]?(j.custos[k].custo==null?'Custo não informado':'R$ '+Number(j.custos[k].custo).toFixed(2).replace('.',',')):'Sem registros no período'} · ${j.custos[k]?.servicos||0} serviço(s)</p>`).join('');
   const refs={desjejum:'Desjejum',colacao:'Colação',almoco:'Almoço',lanche:'Lanche da tarde',jantar:'Jantar',ceia:'Ceia'};
   const pub={paciente:'Paciente',funcionario:'Funcionário',acompanhante:'Acompanhante'};
   const linhas=(j.servicos||[]).map(x=>`<tr><td>${esc(String(x.servido_em||'').replace('T',' ').slice(11,16))}</td><td>${refs[x.refeicao]||esc(x.refeicao)}</td><td>${pub[x.publico]||esc(x.publico)}</td><td>${esc(x.destinatario_nome_snapshot)}</td><td>${esc(x.nome_paciente_snapshot||'—')}</td><td>${esc(x.leito_snapshot||'—')}</td><td>${Number(x.quantidade||0)}</td><td>${x.custo_total_snapshot==null?'—':'R$ '+Number(x.custo_total_snapshot).toFixed(2).replace('.',',')}</td></tr>`).join('');
