@@ -1394,6 +1394,9 @@ def rotear(db, ip, m, p, q, b, auth, operation_id=None):
                 sessao = SESSOES.get(token)
                 if not sessao or sessao[1] < time.time():
                     raise Erro("Sessão expirada. Entre novamente.", 401)
+                ativo = c.execute("SELECT ativo FROM usuarios WHERE id=?", (sessao[0],)).fetchone()
+                if not ativo or not ativo["ativo"]:
+                    raise Erro("Conta desativada. Entre em contato com o administrador.", 401)
                 fingerprint = hashlib.sha256(json.dumps(
                     {"usuario": sessao[0], "metodo": m, "rota": p, "consulta": q, "dados": b},
                     ensure_ascii=False, sort_keys=True, separators=(",", ":")
