@@ -19,7 +19,8 @@ import nutri_calculos as nc
 import nrs2002 as nrs
 import suplementos_calculos as sc
 import avaliacao_nutri as avaliacao
-import mapa_db as mdb\nimport midias_usuario
+import mapa_db as mdb
+import midias_usuario
 import condutas_alta as ca
 import graficos_layout as gl
 import tema
