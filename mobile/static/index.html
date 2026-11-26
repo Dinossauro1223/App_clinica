@@ -515,10 +515,9 @@ async function vRef(){
     const opcoes=minhas.map(a=>`<option value="${a.id_autorizacao}">Autorização #${a.id_autorizacao} · até ${a.fim_vigencia?esc(a.fim_vigencia.replace('T',' ')):'sem término'} · ${a.quantidade_acompanhantes} acompanhante(s)</option>`).join('');
     return `<div class=cartao data-paciente="${p.id_leito}">
       <b>Leito ${esc(p.leito)} · ${esc(p.nome)}</b><p class=mini>O registro ficará associado a esta internação, mesmo após a troca do paciente no leito.</p>
-      <div class=filtros><label class=f>Refeição<input class=sr-ref list=ref-list placeholder="Selecione" value="Almoço"></label>
+      <div class=filtros><label class=f>Refeição<select class=sr-ref>${refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
       <label class=f>Quantidade<input class=sr-qtd type=number min=1 step=1 value=1></label>
       <label class=f>Valor unitário (R$)<input class=sr-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>
-      <datalist id=ref-list>${refs.map(r=>`<option value="${REF[r]}"></option>`).join('')}</datalist>
       <button class=btn style="width:100%" onclick="registrarServicoPaciente(this,'paciente')">Registrar refeição servida ao paciente</button>
       ${minhas.length?`<hr><b>Refeições autorizadas para acompanhantes</b><label class=f>Autorização<select class=ac-auth>${opcoes}</select></label>
       <div class=filtros><label class=f>Refeição<select class=ac-ref>${minhas.flatMap(a=>a.refeicoes).filter((x,i,ar)=>ar.indexOf(x)===i).map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
@@ -532,7 +531,7 @@ async function vRef(){
         <div class=filtros><label class=f>Início da vigência<input class=au-inicio type=datetime-local></label><label class=f>Término (opcional)<input class=au-fim type=datetime-local></label></div>
         <button class="btn sec" style="width:100%" onclick="criarAutorizacao(this)">Salvar autorização</button>
       </details>`:''}
-      ${minhas.length?`<p class=mini>Autorizações ativas: ${minhas.map(a=>`#${a.id_autorizacao} (${a.quantidade_acompanhantes})`).join(', ')}</p>`:''}
+      ${minhas.length?`<div class=mini><b>Autorizações ativas</b>${minhas.map(a=>`<p>#${a.id_autorizacao} · ${a.quantidade_acompanhantes} acompanhante(s) · ${a.refeicoes.map(r=>REF[r]).join(', ')} ${st?`<button class="btn no peq" onclick="encerrarAutorizacao(${a.id_autorizacao})">Encerrar</button>`:''}</p>`).join('')}</div>`:''}
     </div>`;
   }).join('');
   const janelaUi=st?`<h2>Janelas por público</h2><p class=mini>Sem janela configurada, o registro fica bloqueado. Os horários de pacientes e funcionários são independentes.</p><div class=cartao>
@@ -578,6 +577,11 @@ const criarAutorizacao=tenta(async(botao)=>{
     inicio_vigencia:card.querySelector('.au-inicio').value?new Date(card.querySelector('.au-inicio').value).toISOString():new Date().toISOString(),
     fim_vigencia:card.querySelector('.au-fim').value?new Date(card.querySelector('.au-fim').value).toISOString():null});
   await vRef();aviso('Autorização vinculada ao paciente.',0);
+});
+const encerrarAutorizacao=tenta(async(id)=>{
+  if(!confirm('Encerrar esta autorização? Refeições já servidas continuarão no histórico.'))return;
+  await api('/api/refeicoes/autorizacoes/'+id,{situacao:'encerrada'});
+  await vRef();aviso('Autorização encerrada.',0);
 });
 const salvaJanelasPublico=tenta(async()=>{
   for(const e of document.querySelectorAll('[data-rj]')){
