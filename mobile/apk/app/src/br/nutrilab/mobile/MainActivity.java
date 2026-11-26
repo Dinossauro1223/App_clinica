@@ -532,7 +532,7 @@ public class MainActivity extends Activity {
                             break;
                         }
                         String texto = new String(resposta.getData(), 0, resposta.getLength(), "UTF-8");
-                        String[] partes = texto.split("\\\\|", 3);
+                        String[] partes = texto.split("\\|", 3);
                         if (partes.length != 3 || !"NUTRILAB_SERVER_V1".equals(partes[0])
                                 || !identidadeSalva.equals(partes[2])) continue;
                         final String url = normalizar(partes[1]);
