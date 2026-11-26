@@ -221,6 +221,7 @@ class AppClinica(ctk.CTk):
         self._sincronizacao_mobile_em_andamento = False
         self._sincronizacao_mobile_propostas = 0
         self._sincronizacao_mobile_erro = ""
+        self._sincronizacao_mobile_concluida = False
         self.after(500, self._atualizar_status_conexao)
         self.after(8000, self._sincronizar_mobile_periodicamente)
         # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
@@ -244,6 +245,9 @@ class AppClinica(ctk.CTk):
                 if erro_sync:
                     texto = "● Servidor conectado — falha ao sincronizar dados: " + str(erro_sync)[:110]
                     cor = tema.LARANJA_TEXTO
+                elif not getattr(self, "_sincronizacao_mobile_concluida", False):
+                    texto = "● Servidor conectado — sincronização inicial dos setores em andamento · IP: " + str(endereco)
+                    cor = tema.SUAVE
                 elif pendentes:
                     texto = "● Conectado — %d alteração(ões) do mobile aguardam revisão · IP: %s" % (pendentes, endereco)
                     cor = tema.LARANJA_TEXTO
@@ -293,6 +297,7 @@ class AppClinica(ctk.CTk):
                 return
             self._sincronizacao_mobile_propostas = resultado.get("revisoes_pendentes", 0)
             self._sincronizacao_mobile_erro = ""
+            self._sincronizacao_mobile_concluida = True
 
         def erro(exc):
             self._sincronizacao_mobile_erro = str(exc)
