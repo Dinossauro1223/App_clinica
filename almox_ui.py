@@ -95,13 +95,17 @@ class AlmoxUI:
         self.e_emb_qtd=ctk.CTkEntry(embalagem,width=110,placeholder_text="Ex.: 800");self.e_emb_qtd.pack(side="left",padx=3)
         self.cb_emb_un=ctk.CTkComboBox(embalagem,values=["g","kg","ml","L","mg"],width=85);self.cb_emb_un.pack(side="left",padx=3);self.cb_emb_un.set("g")
         self.e_obs=ctk.CTkEntry(self.conteudo,placeholder_text="Observações / fonte do preço");self.e_obs.pack(fill="x",pady=4)
+        validade=ctk.CTkFrame(self.conteudo,fg_color="transparent");validade.pack(fill="x",pady=3)
+        ctk.CTkLabel(validade,text="Validade (opcional):").pack(side="left",padx=3)
+        self.e_validade=ctk.CTkEntry(validade,width=140,placeholder_text="AAAA-MM-DD");self.e_validade.pack(side="left",padx=3)
+        self.e_busca=ctk.CTkEntry(self.conteudo,placeholder_text="Buscar produto pelo nome...",width=320);self.e_busca.pack(anchor="w",pady=(8,3));self.e_busca.bind("<KeyRelease>",lambda _e:self._carregar_itens())
         bar=ctk.CTkFrame(self.conteudo,fg_color="transparent");bar.pack(fill="x")
         ctk.CTkButton(bar,text="Novo / limpar",command=self._limpar_item).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Salvar item",command=self._salvar_item).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Ativar / desativar",command=self._alternar_item).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Histórico de preços",command=self._precos).pack(side="left",padx=3)
         ctk.CTkButton(bar,text="Sincronizar catálogo mobile",command=self._sincronizar_catalogo_mobile).pack(side="left",padx=3)
-        self.t_itens=self._tree(self.conteudo,("Nome","Unidade","Categoria","Valor unitário","Custo/g ou ml","Saldo","Mínimo","Situação"),(170,70,140,110,110,80,80,80),12)
+        self.t_itens=self._tree(self.conteudo,("Nome","Unidade","Categoria","Validade","Valor unitário","Custo/g ou ml","Saldo","Mínimo","Situação"),(160,65,130,95,105,105,70,70,75),12)
         self._carregar_itens()
         self.t_itens.bind("<<TreeviewSelect>>",self._selecionar_item)
     @staticmethod
@@ -119,20 +123,20 @@ class AlmoxUI:
         return _br(float(preco)/divisor).replace("R$ ","R$ ")+("/g" if unidade in ("g","kg","mg") or (unidade=="un" and str(i.get("embalagem_un") or "").lower() in ("g","kg","mg")) else "/ml")
 
     def _carregar_itens(self):
-        self.itens=adb.listar_itens(self.db,False);self.t_itens.delete(*self.t_itens.get_children())
-        for i in self.itens:self.t_itens.insert("","end",iid=str(i["id_item"]),values=(i["nome"],i["unidade"],i["categoria"],_br(i["valor_unitario"]),self._custo_base_item(i),_num(i["saldo"]),_num(i["estoque_minimo"]),"Ativo" if i["ativo"] else "Inativo"))
+        self.itens=adb.listar_itens(self.db,False,termo=self.e_busca.get() or None);self.t_itens.delete(*self.t_itens.get_children())
+        for i in self.itens:self.t_itens.insert("","end",iid=str(i["id_item"]),values=(i["nome"],i["unidade"],i["categoria"],i.get("validade") or "—",_br(i["valor_unitario"]),self._custo_base_item(i),_num(i["saldo"]),_num(i["estoque_minimo"]),"Ativo" if i["ativo"] else "Inativo"))
     def _selecionar_item(self,_=None):
         sel=self.t_itens.selection()
         if not sel:return
         i=next(x for x in self.itens if x["id_item"]==int(sel[0]));self.item_atual=i["id_item"]
-        _set(self.e_nome,i["nome"]);_set(self.e_un,i["unidade"]);self.cb_cat.set(i["categoria"]);_set(self.e_preco,i["valor_unitario"]);_set(self.e_min,i["estoque_minimo"]);_set(self.e_emb_qtd,i.get("embalagem_qtd"));self.cb_emb_un.set(i.get("embalagem_un") or "g");_set(self.e_obs,i["observacao"])
+        _set(self.e_nome,i["nome"]);_set(self.e_un,i["unidade"]);self.cb_cat.set(i["categoria"]);_set(self.e_preco,i["valor_unitario"]);_set(self.e_min,i["estoque_minimo"]);_set(self.e_emb_qtd,i.get("embalagem_qtd"));self.cb_emb_un.set(i.get("embalagem_un") or "g");_set(self.e_obs,i["observacao"]);_set(self.e_validade,i.get("validade"))
     def _limpar_item(self):
         self.item_atual=None
-        for e in (self.e_nome,self.e_un,self.e_preco,self.e_min,self.e_emb_qtd,self.e_obs):_set(e,"")
+        for e in (self.e_nome,self.e_un,self.e_preco,self.e_min,self.e_emb_qtd,self.e_obs,self.e_validade):_set(e,"")
         self.cb_cat.set(adb.CATEGORIAS[0]);self.t_itens.selection_remove(self.t_itens.selection())
     def _salvar_item(self):
         try:
-            d={"id_item":self.item_atual,"nome":self.e_nome.get(),"unidade":self.e_un.get(),"categoria":self.cb_cat.get(),"valor_unitario":self.e_preco.get(),"estoque_minimo":self.e_min.get(),"embalagem_qtd":self.e_emb_qtd.get(),"embalagem_un":self.cb_emb_un.get(),"observacao":self.e_obs.get()}
+            d={"id_item":self.item_atual,"nome":self.e_nome.get(),"unidade":self.e_un.get(),"categoria":self.cb_cat.get(),"valor_unitario":self.e_preco.get(),"estoque_minimo":self.e_min.get(),"embalagem_qtd":self.e_emb_qtd.get(),"embalagem_un":self.cb_emb_un.get(),"observacao":self.e_obs.get(),"validade":self.e_validade.get()}
             adb.salvar_item(self.db,d);self._carregar_itens();self._atualizar_combos();messagebox.showinfo("Almoxarifado","Item salvo.")
         except Exception as e:messagebox.showwarning("Item",str(e))
     def _sincronizar_catalogo_mobile(self):
