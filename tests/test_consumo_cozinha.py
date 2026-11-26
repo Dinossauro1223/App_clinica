@@ -41,6 +41,23 @@ class TestConsumoCozinha(unittest.TestCase):
         self.assertEqual((feijao["embalagem_qtd"], feijao["embalagem_un"]), (1000.0, "g"))
         self.assertEqual((feijao["qtd"], feijao["data_base"]), (8.0, "2026-11-21"))
 
+    def test_devolucao_cozinha_almox_reduz_retirada_e_custo_liquidos(self):
+        c = sv.conectar(self.mobile_db)
+        try:
+            c.execute("""INSERT INTO movimentos
+                (id,data,hora,origem,destino,id_item,qtd,por_usuario,divergente,preco_unitario_snapshot,custo_snapshot,observacao)
+                VALUES(105,'2026-11-20','12:00','cozinha','almox',1,2,1,0,7.2,14.4,'Devolução de sobra')""")
+            c.commit()
+        finally:
+            c.close()
+        im.importar_movimentos_cozinha(self.db,self.mobile_db,"2026-11-20","2026-11-22")
+        feijao = next(x for x in ga.listar_movimentos_cozinha(self.db,"2026-11-20","2026-11-22") if x["id_mobile"]==105)
+        self.assertEqual(feijao["qtd"],-2)
+        resumo=ga.resumo_consumo_observado(self.db,"2026-11-20","2026-11-22")
+        item=next(x for x in resumo["itens"] if x["item"]=="Feijão")
+        self.assertEqual(item["total_retirado"],6.0)  # 5 + 3 - 2 devolvidos
+        self.assertAlmostEqual(item["custo_total"],43.2)  # 36 + 24 - 14.4
+
     def test_custo_alocado_fica_indefinido_quando_preco_nao_existe(self):
         with sqlite3.connect(self.db) as c:
             c.execute("UPDATE Mobile_Movimentos SET valor_unitario_snapshot=NULL,custo_snapshot=NULL "
