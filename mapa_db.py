@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
     constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, condicoes TEXT, consistencia TEXT,
     obs_sim TEXT, obs_nao TEXT, fi_estado TEXT, fi_freq REAL, fi_dias_ausente INTEGER,
     nrs2002_json TEXT, nrs2002_classificacao TEXT,
-    avaliacao_json TEXT, avaliacao_classificacao TEXT, pediatria_oms_json TEXT,
+    avaliacao_json TEXT, avaliacao_classificacao TEXT, pediatria_oms_json TEXT, escalas_visita_json TEXT,
     criado_em TEXT, atualizado_em TEXT, alta_em TEXT, alta_por TEXT, alta_motivo TEXT, UNIQUE(data, id_leito));
 CREATE TABLE IF NOT EXISTS Mapa_Registro_Suplementos (
     id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL, id_suplemento INTEGER,
@@ -162,6 +162,7 @@ _CAMPOS_REG = [
     "dm", "has", "laxativa", "constipante", "drc", "condicoes", "consistencia", "obs_sim", "obs_nao",
     "fi_estado", "fi_freq", "fi_dias_ausente",
     "nrs2002_json", "nrs2002_classificacao", "avaliacao_json", "avaliacao_classificacao", "pediatria_oms_json",
+    "escalas_visita_json",
     "alta_em", "alta_por", "alta_motivo",
 ]
 
@@ -217,7 +218,7 @@ def inicializar(db_path):
         for nome, tipo in (
             ("nrs2002_json", "TEXT"), ("nrs2002_classificacao", "TEXT"),
             ("avaliacao_json", "TEXT"), ("avaliacao_classificacao", "TEXT"),
-            ("pediatria_oms_json", "TEXT"),
+            ("pediatria_oms_json", "TEXT"), ("escalas_visita_json", "TEXT"),
         ):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
