@@ -223,7 +223,7 @@ def migrar(c):
         if col not in cols("itens"):
             c.execute("ALTER TABLE itens ADD COLUMN %s %s" % (col, tipo))
     if "observacao" not in cols("movimentos"):
-        c.execute("ALTER TABLE movimentos ADD COLUMN observacao TEXT)
+        c.execute("ALTER TABLE movimentos ADD COLUMN observacao TEXT")
     # Unidades antigas são convertidas para a unidade-base, preservando o conteúdo físico.
     # O valor por embalagem/preço não muda; apenas a representação da quantidade é normalizada.
     c.execute("UPDATE itens SET embalagem_qtd=embalagem_qtd*1000, embalagem_un='g' "
