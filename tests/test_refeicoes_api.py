@@ -1,7 +1,7 @@
 """Integração HTTP/API das refeições individualizadas, com dados sintéticos."""
 import tempfile
 import unittest
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from mobile import servidor as sv
