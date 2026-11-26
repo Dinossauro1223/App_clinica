@@ -1063,7 +1063,7 @@ def _rotear(c, ip, m, p, q, b, auth):
             unidade = str(b.get("unidade", "un")).strip() or "un"
             preco = None if b.get("preco_unitario") in (None, "") else num(b.get("preco_unitario"), "preço unitário")
             categoria = str(b.get("categoria") or "Gêneros alimentícios").strip()
-            categorias = ("Gêneros alimentícios", "Dietas enterais", "Suplementos", "Materiais", "Limpeza", "Outros")
+            categorias = ("Gêneros alimentícios", "Grãos e cereais", "Hortifrúti", "Carnes e proteínas", "Laticínios", "Temperos e condimentos", "Dietas enterais", "Suplementos", "Materiais", "Limpeza", "Outros")
             if categoria not in categorias:
                 raise Erro("Selecione uma categoria válida.")
             validade = str(b.get("validade") or "").strip() or None
