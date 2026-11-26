@@ -820,9 +820,11 @@ class TestEscalasVisita(unittest.TestCase):
         }
         mdb.salvar_registro(self.db, registro_base(
             self.db, self.leito, "2026-11-26",
+            tipo_dieta="Hipossódica",
             escalas_visita_json=__import__("json").dumps(respostas, ensure_ascii=False)))
         salvo = mdb.obter_registro(self.db, "2026-11-26", self.leito)
         self.assertEqual(__import__("json").loads(salvo["escalas_visita_json"]), respostas)
+        self.assertEqual(salvo["tipo_dieta"], "Hipossódica")
 
     def test_migracao_aditiva_e_idempotente(self):
         mdb.inicializar(self.db)
