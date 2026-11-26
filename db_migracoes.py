@@ -66,7 +66,8 @@ class Migracao:
     @property
     def checksum(self) -> str:
         """Identifica a definição `up` (versão, nome e instruções); `down` pode ser corrigido sem invalidar."""
-        bruto = "\x1f".join([str(self.versao), self.nome, *self.up])
+        instrucoes = [x if isinstance(x, str) else "callable:%s.%s" % (getattr(x, "__module__", ""), getattr(x, "__qualname__", type(x).__name__)) for x in self.up]
+        bruto = "\\x1f".join([str(self.versao), self.nome, *instrucoes])
         return hashlib.sha256(bruto.encode("utf-8")).hexdigest()
 
 
