@@ -284,6 +284,10 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 <script>
 const $=s=>document.querySelector(s),esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),v=x=>x==null?'':x;
 const S={tok:null,u:null,hoje:'',aba:'',setor:'',est:'almox',data:'',setores:[],itens:[],suplementos:[],timer:null};
+const lerTemaMobile=()=>{try{return (window.NLOffline&&NLOffline.get('aparencia'))||localStorage.getItem('nl:aparencia')||'sistema'}catch(e){return 'sistema'}};
+function aplicaTemaMobile(valor,salvar=true){const tema=['sistema','claro','escuro'].includes(valor)?valor:'sistema';document.documentElement.dataset.tema=tema;if(salvar){try{if(window.NLOffline&&NLOffline.set)NLOffline.set('aparencia',tema);else localStorage.setItem('nl:aparencia',tema)}catch(e){}}document.querySelectorAll('.tema-controle').forEach(sel=>{if(sel.value!==tema)sel.value=tema});}
+const temaSelectHtml=()=>'<select class=tema-controle aria-label="Aparência" onchange="aplicaTemaMobile(this.value)"><option value=sistema>Auto (sistema)</option><option value=claro>Claro</option><option value=escuro>Escuro</option></select>';
+aplicaTemaMobile(lerTemaMobile(),false);
 try{S.tok=(window.NLOffline&&NLOffline.get('token'))||sessionStorage.getItem('tok')}catch(e){}
 const NOME={admin:'Administrador',nutricionista:'Nutrição',copa:'Copa',estoque_cozinha:'Cozinha',estoque_almox:'Almoxarifado'};
 const COR={admin:'#0f4c5c',nutricionista:'#2f7d4f',copa:'#a85f00',estoque_cozinha:'#b5391f',estoque_almox:'#4b3f8f'};
@@ -309,7 +313,7 @@ const tenta=f=>async(...a)=>{try{await f(...a)}catch(e){aviso(e.message,1)}};
 function sair(){clearInterval(S.timer);S.tok=null;S.u=null;try{sessionStorage.removeItem('tok');if(window.NLOffline){NLOffline.remove('token');NLOffline.remove('user')}}catch(e){}telaLogin()}
 function telaLogin(msg){
   document.documentElement.style.setProperty('--cor','#0f4c5c');document.body.className='';
-  $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
+  $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${temaSelectHtml()}${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
   <label class=f>Login<input type=text id=lg autocapitalize=none autocomplete=username></label>
   <label class=f>Senha<input type=password id=sn autocomplete=current-password></label>
   <button class=btn style="width:100%" onclick="entrar()">Entrar</button>
@@ -421,12 +425,12 @@ async function entrar(){
 }
 async function abrir(u,hoje){
   S.u=u;S.hoje=hoje;S.data=hoje;try{if(window.NLOffline)NLOffline.set('user',JSON.stringify({usuario:u,hoje}))}catch(e){}
-  document.documentElement.style.setProperty('--cor',COR[u.perfil]);document.body.className=ehStaff()?'adm':'';
+  document.documentElement.style.setProperty('--cor',COR[u.perfil]);aplicaTemaMobile(lerTemaMobile(),false);document.body.className=ehStaff()?'adm':'';
   S.setores=(await api('/api/setores')).setores;S.setor=(S.setores[0]||{}).id||'';
   S.itens=(await api('/api/itens')).itens;S.suplementos=(await api('/api/suplementos')).suplementos||[];
   if(u.estoque)S.est=u.estoque;
   const sub=!escolheSetor()&&S.setores[0]?' · '+S.setores[0].nome:'';
-  $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span><button onclick="sair()">Sair</button></div></header>
+  $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span>${temaSelectHtml()}<button onclick="sair()">Sair</button></div></header>
   <nav>${ABAS[u.perfil].map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
   <footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   ir(ABAS[u.perfil][0][0]);
