@@ -46,6 +46,13 @@ def inicializar(db_path):
             atualizado_em TEXT NOT NULL,
             PRIMARY KEY(publico, refeicao)
         );
+        CREATE TABLE IF NOT EXISTS Refeicoes_Precos (
+            publico TEXT NOT NULL CHECK(publico IN ('paciente','funcionario','acompanhante')),
+            refeicao TEXT NOT NULL,
+            valor_unitario REAL NOT NULL CHECK(valor_unitario >= 0),
+            atualizado_em TEXT NOT NULL,
+            PRIMARY KEY(publico, refeicao)
+        );
         CREATE TABLE IF NOT EXISTS Refeicoes_Autorizacoes_Acompanhante (
             id_autorizacao INTEGER PRIMARY KEY AUTOINCREMENT,
             id_paciente TEXT NOT NULL,
@@ -377,4 +384,44 @@ def remover_janela(db_path, publico, refeicao):
             "DELETE FROM Refeicoes_Janelas WHERE publico=? AND refeicao=?",
             (publico, refeicao)
         )
+        return cur.rowcount == 1
+
+
+def listar_precos_refeicoes(db_path, publico=None):
+    if publico is not None:
+        _validar_publico(publico)
+    with conectar(db_path) as conn:
+        sql = "SELECT * FROM Refeicoes_Precos"
+        args = ()
+        if publico:
+            sql += " WHERE publico=?"
+            args = (publico,)
+        sql += " ORDER BY publico,refeicao"
+        return [dict(r) for r in conn.execute(sql, args)]
+
+
+def salvar_preco_refeicao(db_path, publico, refeicao, valor_unitario):
+    _validar_publico(publico)
+    _validar_refeicao(refeicao)
+    try:
+        valor = float(valor_unitario)
+    except (TypeError, ValueError):
+        raise ValueError("Informe um valor unitário válido.") from None
+    if not math.isfinite(valor) or valor < 0:
+        raise ValueError("O valor unitário não pode ser negativo.")
+    with conectar(db_path) as conn:
+        conn.execute("""
+            INSERT INTO Refeicoes_Precos(publico,refeicao,valor_unitario,atualizado_em)
+            VALUES(?,?,?,?)
+            ON CONFLICT(publico,refeicao) DO UPDATE SET
+                valor_unitario=excluded.valor_unitario,atualizado_em=excluded.atualizado_em
+        """, (publico, refeicao, valor, _agora()))
+
+
+def remover_preco_refeicao(db_path, publico, refeicao):
+    _validar_publico(publico)
+    _validar_refeicao(refeicao)
+    with conectar(db_path) as conn:
+        cur = conn.execute("DELETE FROM Refeicoes_Precos WHERE publico=? AND refeicao=?",
+                           (publico, refeicao))
         return cur.rowcount == 1
