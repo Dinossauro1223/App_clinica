@@ -18,6 +18,7 @@ from tkinter import messagebox, filedialog
 import customtkinter as ctk
 
 import condutas_alta as ca
+import midias_usuario
 import condutas_alta_export as ex
 import tema
 import mapa_db as mdb
@@ -198,6 +199,7 @@ class JanelaCondutasAlta(ctk.CTkFrame):
         self._cartoes, self._textos, self._motivos = [], {}, {}
         self._edicoes, self._motivos_digitados, self._abertos = {}, {}, set()
         self._opcoes = {}
+        self._imagens_orientacao = []
         self._montar()
         self._atualizar()
 
@@ -285,6 +287,20 @@ class JanelaCondutasAlta(ctk.CTkFrame):
                      text_color=VERDE_ESC).pack(side="left")
         ctk.CTkLabel(topo, text=etiqueta_estado(c), font=ctk.CTkFont(size=12, weight="bold"),
                      text_color=COR_ESTADO[estado]).pack(side="right")
+
+        # Imagem de apoio opcional, vinculada ao código da orientação e gerenciada nas Configurações.
+        caminho_imagem = midias_usuario.resolver_imagem("orientacoes", cod)
+        if caminho_imagem:
+            try:
+                from PIL import Image
+                imagem = Image.open(caminho_imagem).convert("RGB")
+                imagem.thumbnail((760, 420), Image.Resampling.LANCZOS)
+                foto = ctk.CTkImage(light_image=imagem, dark_image=imagem, size=imagem.size)
+                self._imagens_orientacao.append(foto)
+                ctk.CTkLabel(q, text="", image=foto).pack(anchor="w", padx=12, pady=(4, 6))
+            except Exception:
+                ctk.CTkLabel(q, text="Imagem de orientação cadastrada, mas não foi possível abri-la.",
+                             text_color=tema.LARANJA).pack(anchor="w", padx=12, pady=4)
 
         # Texto técnico: fechado por padrão (a folha do paciente é curta; a visão integral fica a um clique).
         det = ctk.CTkFrame(q, fg_color=tema.FUNDO)
