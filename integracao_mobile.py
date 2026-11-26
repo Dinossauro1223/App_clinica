@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS Mobile_Estoque_Dia (data TEXT, estoque TEXT, item TEX
     PRIMARY KEY (data, estoque, item));
 CREATE TABLE IF NOT EXISTS Mobile_Movimentos (data TEXT, id_mobile INTEGER, hora TEXT, origem TEXT, destino TEXT, item TEXT,
     unidade TEXT, qtd REAL, divergente INTEGER, id_item_mobile INTEGER, por_usuario INTEGER,
-    valor_unitario_snapshot REAL, custo_snapshot REAL, PRIMARY KEY (data, id_mobile));
+    valor_unitario_snapshot REAL, custo_snapshot REAL, observacao TEXT, PRIMARY KEY (data, id_mobile));
 """
 
 # Campos do registro do desktop que o mobile conhece (o resto do registro nunca é tocado).
@@ -58,7 +58,7 @@ def garantir_tabelas(db):
         c.executescript(_SCHEMA)
         colunas = {r[1] for r in c.execute("PRAGMA table_info(Mobile_Movimentos)")}
         for nome, tipo in (("id_item_mobile", "INTEGER"), ("por_usuario", "INTEGER"),
-                           ("valor_unitario_snapshot", "REAL"), ("custo_snapshot", "REAL")):
+                           ("valor_unitario_snapshot", "REAL"), ("custo_snapshot", "REAL"), ("observacao", "TEXT")):
             if nome not in colunas:
                 c.execute("ALTER TABLE Mobile_Movimentos ADD COLUMN %s %s" % (nome, tipo))
         c.commit()
@@ -713,9 +713,10 @@ def importar_movimentos_cozinha(db, mobile_db, inicio, fim):
         user_select = "m.por_usuario" if "por_usuario" in cols_mov else "NULL"
         price_select = "m.preco_unitario_snapshot" if "preco_unitario_snapshot" in cols_mov else "NULL"
         cost_select = "m.custo_snapshot" if "custo_snapshot" in cols_mov else "NULL"
+        obs_select = "m.observacao" if "observacao" in cols_mov else "NULL"
         rows = origem.execute(f"""SELECT m.data,m.id,m.hora,m.origem,m.destino,m.id_item,m.qtd,m.divergente,
                     {user_select} AS por_usuario,COALESCE({price_select},NULL) AS preco_unitario_snapshot,
-                    COALESCE({cost_select},NULL) AS custo_snapshot,i.nome AS item,i.unidade,
+                    COALESCE({cost_select},NULL) AS custo_snapshot,{obs_select} AS observacao,i.nome AS item,i.unidade,
                     {preco_select} AS preco_atual
                 FROM movimentos m LEFT JOIN itens i ON i.id=m.id_item
                 WHERE m.data BETWEEN ? AND ? ORDER BY m.data,m.hora,m.id""", (inicio, fim)).fetchall()
@@ -730,7 +731,7 @@ def importar_movimentos_cozinha(db, mobile_db, inicio, fim):
             preparados.append((
                 r["data"], r["id"], r["hora"], r["origem"], r["destino"], r["item"] or ("Item #%s" % r["id_item"]),
                 r["unidade"] or "", r["qtd"], int(r["divergente"] or 0), r["id_item"], r["por_usuario"],
-                preco, custo
+                preco, custo, r["observacao"]
             ))
     finally:
         origem.close()
@@ -738,14 +739,15 @@ def importar_movimentos_cozinha(db, mobile_db, inicio, fim):
     with closing(mdb.conectar(db)) as destino:
         destino.executemany("""INSERT INTO Mobile_Movimentos
             (data,id_mobile,hora,origem,destino,item,unidade,qtd,divergente,id_item_mobile,por_usuario,
-             valor_unitario_snapshot,custo_snapshot)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+             valor_unitario_snapshot,custo_snapshot,observacao)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(data,id_mobile) DO UPDATE SET
              hora=excluded.hora,origem=excluded.origem,destino=excluded.destino,item=excluded.item,
              unidade=excluded.unidade,qtd=excluded.qtd,divergente=excluded.divergente,
              id_item_mobile=excluded.id_item_mobile,por_usuario=excluded.por_usuario,
              valor_unitario_snapshot=COALESCE(excluded.valor_unitario_snapshot,Mobile_Movimentos.valor_unitario_snapshot),
-             custo_snapshot=COALESCE(excluded.custo_snapshot,Mobile_Movimentos.custo_snapshot)""", preparados)
+             custo_snapshot=COALESCE(excluded.custo_snapshot,Mobile_Movimentos.custo_snapshot),
+             observacao=COALESCE(excluded.observacao,Mobile_Movimentos.observacao)""", preparados)
         destino.commit()
     return {"importados": len(preparados), "inicio": inicio, "fim": fim,
             "retiradas_cozinha": sum(1 for x in preparados if str(x[3]).lower()=="almox" and str(x[4]).lower()=="cozinha")}
