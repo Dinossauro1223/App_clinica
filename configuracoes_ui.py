@@ -470,6 +470,7 @@ class ConfiguracoesUI:
         ctk.CTkButton(card, text="Salvar sequência", command=salvar, fg_color=tema.VERDE,
                       hover_color=tema.VERDE_HOVER, font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
 
+
     def _equipe(self, raiz):
         """Cadastro de estagiários e nutricionistas vinculados ao fluxo de evolução."""
         card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
