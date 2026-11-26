@@ -22,6 +22,24 @@ CINZA = tema.SUAVE
 UNIDADES = ["g", "kg", "mg", "ml", "L", "un"]
 CATEGORIAS = ["Salada", "Acompanhamento", "Prato principal", "Guarnição", "Sobremesa", "Suco", "Preparação", "Outra"]
 
+CATEGORIAS_MENU_PRINCIPAIS = [
+    ("Saladas", "salada"), ("Entradas", "entrada"),
+    ("Prato principal", "prato_principal"), ("Acompanhamentos", "acompanhamento"),
+    ("Sobremesas", "sobremesa"), ("Suco/fruta", "suco_fruta"),
+]
+
+
+def _categorias_menu(refeicao):
+    if refeicao in ("almoco", "jantar"):
+        return CATEGORIAS_MENU_PRINCIPAIS
+    return [("Geral", "geral")]
+
+
+def _rotulo_categoria_menu(refeicao, categoria):
+    return next((rotulo for rotulo, valor in _categorias_menu(refeicao) if valor == categoria),
+                "Sem categoria" if not categoria else str(categoria))
+
+
 
 def _fmt_num(valor, casas=2):
     if valor is None:
@@ -1270,23 +1288,35 @@ class PreparacoesDiaDialog:
         ctk.CTkLabel(topo,text="Data").pack(side="left")
         self.e_data=ctk.CTkEntry(topo,width=115);self.e_data.pack(side="left",padx=5);self.e_data.insert(0,self.data)
         ctk.CTkLabel(topo,text="Refeição").pack(side="left",padx=(12,3))
-        self.cb_ref=ctk.CTkComboBox(topo,width=150,values=["desjejum","colacao","almoco","lanche","jantar","ceia"])
+        self.cb_ref=ctk.CTkComboBox(topo,width=150,values=["desjejum","colacao","almoco","lanche","jantar","ceia"],
+                                      command=lambda _v: self._atualizar_categorias())
         self.cb_ref.set("almoco");self.cb_ref.pack(side="left")
         _btn(topo,"Carregar",self._carregar,100,cor=CINZA,hover=tema.SUAVE).pack(side="left",padx=6)
         bloco=ctk.CTkFrame(area);bloco.pack(fill="x",padx=14,pady=5)
-        self.e_nome=ctk.CTkEntry(bloco,width=230,placeholder_text="Nome da preparação esperada")
+        self.e_nome=ctk.CTkEntry(bloco,width=210,placeholder_text="Nome da preparação")
         self.e_nome.pack(side="left",padx=6,pady=8)
-        self.e_porcoes=ctk.CTkEntry(bloco,width=95,placeholder_text="Porções")
+        self.e_porcoes=ctk.CTkEntry(bloco,width=85,placeholder_text="Porções")
         self.e_porcoes.pack(side="left",padx=4,pady=8)
         op=["— sem ficha —"]+[f"{x['id_ficha']} | {x['nome']}" for x in self.fichas]
-        self.cb_ficha=ctk.CTkComboBox(bloco,width=235,values=op)
+        self.cb_ficha=ctk.CTkComboBox(bloco,width=205,values=op)
         self.cb_ficha.set(op[0]);self.cb_ficha.pack(side="left",padx=4,pady=8)
+        self.cb_categoria=ctk.CTkComboBox(bloco,width=150,values=[])
+        self.cb_categoria.pack(side="left",padx=4,pady=8)
         _btn(bloco,"Adicionar",self._adicionar,100).pack(side="left",padx=4)
-        frame,self.tree=_tree(area,[("nome","Preparação",260,"w"),("porcoes","Porções previstas",115,"e"),("ficha","Ficha vinculada",250,"w")],altura=12)
+        self._atualizar_categorias()
+        frame,self.tree=_tree(area,[("categoria","Grupo",125,"w"),("nome","Preparação",235,"w"),
+                                    ("porcoes","Porções previstas",115,"e"),("ficha","Ficha vinculada",220,"w")],altura=12)
         frame.pack(fill="both",expand=True,padx=14,pady=5)
         rod=ctk.CTkFrame(area,fg_color="transparent");rod.pack(fill="x",padx=14,pady=(4,12))
         _btn(rod,"Remover selecionada",self._remover,155,cor=LARANJA,hover=tema.LARANJA).pack(side="left")
         _btn(rod,"Salvar cardápio esperado",self._salvar,190).pack(side="right")
+
+    def _atualizar_categorias(self):
+        opcoes=_categorias_menu(self.cb_ref.get())
+        rotulos=[rotulo for rotulo,_valor in opcoes]
+        self.cb_categoria.configure(values=rotulos)
+        atual=self.cb_categoria.get() if hasattr(self,"cb_categoria") else ""
+        self.cb_categoria.set(atual if atual in rotulos else rotulos[0])
 
     def _carregar(self):
         try:
@@ -1295,7 +1325,9 @@ class PreparacoesDiaDialog:
             for iid in self.tree.get_children():self.tree.delete(iid)
             for i,r in enumerate(self.rows):
                 nome_ficha=r.get("nome_ficha") or "—"
-                self.tree.insert("", "end", iid=str(i), values=(r["nome"],_fmt_num(r.get("porcoes_previstas")),nome_ficha),
+                categoria=_rotulo_categoria_menu(self.cb_ref.get(), r.get("categoria"))
+                self.tree.insert("", "end", iid=str(i),
+                                 values=(categoria,r["nome"],_fmt_num(r.get("porcoes_previstas")),nome_ficha),
                                  tags=("linha_par" if i % 2 == 0 else "linha_impar",))
         except Exception as exc:
             messagebox.showerror("Preparações esperadas",str(exc),parent=self.janela)
@@ -1312,7 +1344,11 @@ class PreparacoesDiaDialog:
         if txt!="— sem ficha —" and " | " in txt:
             try:ficha=int(txt.split(" | ",1)[0])
             except ValueError:ficha=None
-        novo={"nome":nome,"porcoes_previstas":porcoes,"id_ficha":ficha}
+        categoria=next((valor for rotulo,valor in _categorias_menu(self.cb_ref.get())
+                        if rotulo==self.cb_categoria.get()),None)
+        if not categoria:
+            messagebox.showwarning("Preparações esperadas","Selecione a categoria da preparação.",parent=self.janela);return
+        novo={"nome":nome,"porcoes_previstas":porcoes,"id_ficha":ficha,"categoria":categoria}
         self.rows=[x for x in self.rows if x["nome"].casefold()!=nome.casefold()]
         self.rows.append(novo)
         self._render()
@@ -1324,7 +1360,8 @@ class PreparacoesDiaDialog:
             ficha_nome=next((x["nome"] for x in self.fichas if x["id_ficha"]==r.get("id_ficha")),"—")
             self.tree.insert(
                 "", "end", iid=str(i),
-                values=(r["nome"], _fmt_num(r.get("porcoes_previstas")), ficha_nome),
+                values=(_rotulo_categoria_menu(self.cb_ref.get(), r.get("categoria")), r["nome"],
+                        _fmt_num(r.get("porcoes_previstas")), ficha_nome),
                 tags=("linha_par" if i % 2 == 0 else "linha_impar",)
             )
 
