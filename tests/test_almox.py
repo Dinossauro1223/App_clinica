@@ -98,6 +98,9 @@ class TestAlmoxarifado(unittest.TestCase):
         db.registrar_movimento(self.path, "2026-11-25", tarde, "entrada", 10, "5,00", observacao="Recebimento parcial conferido")
         mov = db.listar_movimentos(self.path, id_item=tarde)[0]
         self.assertEqual(mov["observacao"], "Recebimento parcial conferido")
+        ui = (Path(__file__).resolve().parents[1] / "almox_ui.py").read_text(encoding="utf-8")
+        self.assertIn("def _filtrar_itens_movimento", ui)
+        self.assertIn("cb_filtro_categoria", ui)
 
     def test_unidades_nao_sao_convertidas_implicitamente(self):
         kg = self.item("4", "Farinha", "kg")
