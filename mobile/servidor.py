@@ -1001,8 +1001,10 @@ def _rotear(c, ip, m, p, q, b, auth):
                 nome_snapshot = str(estado.get("nome") or b.get("nome_paciente") or "")
                 leito_snapshot = str((estado.get("codigo") if estado else None)
                                      or b.get("leito") or (paciente_atual or {}).get("codigo") or "")
+                destinatario = ("Acompanhante(s) de " + nome_snapshot
+                                if publico == "acompanhante" else nome_snapshot)
                 dados.update(id_paciente=id_informado, nome_paciente=nome_snapshot,
-                             leito=leito_snapshot, destinatario_nome=nome_snapshot)
+                             leito=leito_snapshot, destinatario_nome=destinatario)
             if publico == "acompanhante":
                 dados["id_autorizacao_acompanhante"] = b.get("id_autorizacao_acompanhante")
             rid = refeicoes_operacionais.registrar_refeicao_servida(db, **dados)
