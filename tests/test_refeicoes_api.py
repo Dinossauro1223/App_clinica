@@ -73,7 +73,7 @@ class TestRefeicoesAPI(unittest.TestCase):
             "fim_vigencia": (agora + timedelta(hours=1)).isoformat()})
         self.api("POST", "/api/refeicoes/servicos", {
             "setor": sid, "data": dia, "id_leito": lid,
-            "id_paciente": joao["id_paciente"], "servido_em": agora.isoformat(),
+            "id_paciente": joao["id_paciente"], "servido_em": (t_joao + timedelta(minutes=1)).isoformat(),
             "publico": "acompanhante", "refeicao": "almoco", "quantidade": 2,
             "valor_unitario": 5.0, "id_autorizacao_acompanhante": auth["id_autorizacao"]})
         self.api("POST", "/api/refeicoes/precos", {
