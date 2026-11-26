@@ -34,7 +34,7 @@ STAFF = ("admin", "nutricionista")  # escolhem o dia; o que gravam só muda com 
 EST_PERFIL = {"copa": "copa", "estoque_cozinha": "cozinha", "estoque_almox": "almox"}
 # Hierarquia de abastecimento: de quem cada estoque pode receber.
 ORIGENS = {"almox": ["externo"], "cozinha": ["almox"], "copa": ["cozinha", "almox"]}
-CAMPOS = ["nome", "idade_anos", "idade_meses", "dieta", "diagnostico", "pref_sim", "pref_nao",
+CAMPOS = ["id_paciente", "nome", "idade_anos", "idade_meses", "dieta", "diagnostico", "pref_sim", "pref_nao",
           "acompanhante", "cor", "consistencia", "via", "dm", "has", "laxativa", "constipante", "drc", "suplementos_json"]
 # Refeições conferidas hoje: almoço e jantar. As demais ficam desligadas até o administrador habilitar (com horário).
 CFG_INICIAL = [("desjejum", 0, None, None), ("colacao", 0, None, None), ("almoco", 1, "09:00", "16:00"),
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT 
 CREATE TABLE IF NOT EXISTS leitos(id INTEGER PRIMARY KEY, id_setor INTEGER NOT NULL, codigo TEXT NOT NULL, UNIQUE(id_setor, codigo));
 CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL,
   preco_unitario REAL, embalagem_qtd REAL, embalagem_un TEXT, tbca_id TEXT);
-CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, id_ocupacao TEXT, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
+CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, id_paciente INTEGER, id_ocupacao TEXT, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
   idade_anos INTEGER, idade_meses INTEGER, diagnostico TEXT, pref_sim TEXT, pref_nao TEXT,
   cor TEXT, consistencia TEXT, via TEXT, dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
   constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, suplementos_json TEXT DEFAULT '[]',
@@ -212,6 +212,8 @@ def migrar(c):
     """Atualiza bancos da primeira versão (12/11/2026) e carrega a configuração inicial das refeições."""
     def cols(t):
         return {r[1] for r in c.execute("PRAGMA table_info(%s)" % t)}
+    if "id_paciente" not in cols("mapa_dia"):
+        c.execute("ALTER TABLE mapa_dia ADD COLUMN id_paciente INTEGER")
     if "id_ocupacao" not in cols("mapa_dia"):
         c.execute("ALTER TABLE mapa_dia ADD COLUMN id_ocupacao TEXT")
     # Atribui IDs estáveis aos pacientes já existentes, mantendo o mesmo ID
@@ -428,7 +430,13 @@ def norm(l):
             "batido_fruta": bool(s.get("batido_fruta")), "unidade": "ml"
         })
 
-    n = {"nome": t("nome"), "idade_anos": i("idade_anos", 130), "idade_meses": i("idade_meses", 11),
+    try:
+        id_paciente = int(l.get("id_paciente")) if l.get("id_paciente") not in (None, "") else None
+    except (TypeError, ValueError):
+        raise Erro("Identificador do paciente inválido.")
+    if id_paciente is not None and id_paciente <= 0:
+        raise Erro("Identificador do paciente inválido.")
+    n = {"id_paciente": id_paciente, "nome": t("nome"), "idade_anos": i("idade_anos", 130), "idade_meses": i("idade_meses", 11),
          "dieta": t("dieta", 60), "diagnostico": t("diagnostico", 200),
          "pref_sim": t("pref_sim", 200), "pref_nao": t("pref_nao", 200),
          "acompanhante": int(bool(l.get("acompanhante"))), "cor": cor,
@@ -436,7 +444,7 @@ def norm(l):
          "laxativa": flag("laxativa"), "constipante": flag("constipante"), "drc": flag("drc"),
          "suplementos": sup_norm, "suplementos_json": json.dumps(sup_norm, ensure_ascii=False)}
     if not n["nome"]:
-        n.update(idade_anos=None, idade_meses=None, dieta="", diagnostico="", pref_sim="", pref_nao="",
+        n.update(id_paciente=None, idade_anos=None, idade_meses=None, dieta="", diagnostico="", pref_sim="", pref_nao="",
                  acompanhante=0, cor="", consistencia="", via="", dm=0, has=0, laxativa=0,
                  constipante=0, drc=0, suplementos=[], suplementos_json="[]")
     n["ocupado"] = int(bool(n["nome"]))
@@ -463,7 +471,7 @@ def timestamp_novo(novo, atual):
 
 def atual(c, tipo, data, chave):
     if tipo == "mapa":
-        r = c.execute("SELECT id_ocupacao,ocupado,acompanhante,COALESCE(dieta,'') dieta,COALESCE(nome,'') nome,idade_anos,idade_meses,"
+        r = c.execute("SELECT id_paciente,id_ocupacao,ocupado,acompanhante,COALESCE(dieta,'') dieta,COALESCE(nome,'') nome,idade_anos,idade_meses,"
                       "COALESCE(diagnostico,'') diagnostico,COALESCE(pref_sim,'') pref_sim,COALESCE(pref_nao,'') pref_nao,"
                       "COALESCE(cor,'') cor,COALESCE(consistencia,'') consistencia,COALESCE(via,'') via,"
                       "COALESCE(dm,0) dm,COALESCE(has,0) has,COALESCE(laxativa,0) laxativa,"
@@ -494,18 +502,27 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
                 if herdado and herdado.get("data_base") not in (None, data):
                     anterior = {k: herdado.get(k) for k in CAMPOS}
                     anterior["ocupado"] = herdado.get("ocupado")
+                    anterior["id_paciente"] = herdado.get("id_paciente")
                     anterior["id_ocupacao"] = herdado.get("id_ocupacao")
                     anterior["por_perfil"] = herdado.get("por_perfil")
         if anterior:
             anterior.pop("por_perfil", None)
-        anterior_ocupacao = c.execute("SELECT id_ocupacao,nome,ocupado FROM mapa_dia WHERE id_leito=? AND data<=? ORDER BY data DESC LIMIT 1",
+        anterior_ocupacao = c.execute("SELECT id_paciente,id_ocupacao,nome,ocupado FROM mapa_dia WHERE id_leito=? AND data<=? ORDER BY data DESC LIMIT 1",
                                        (int(chave), data)).fetchone()
         nome_novo = str(v.get("nome") or "").strip()
         if v.get("ocupado") and nome_novo:
+            id_paciente = v.get("id_paciente")
             mesmo_paciente = (anterior_ocupacao and anterior_ocupacao["ocupado"]
                               and str(anterior_ocupacao["nome"] or "").strip().casefold() == nome_novo.casefold())
-            id_ocupacao = (anterior_ocupacao["id_ocupacao"] if mesmo_paciente else None) or secrets.token_hex(16)
+            if id_paciente is None and mesmo_paciente and anterior_ocupacao["id_paciente"]:
+                id_paciente = anterior_ocupacao["id_paciente"]
+                v["id_paciente"] = id_paciente
+            if id_paciente is not None:
+                id_ocupacao = "paciente:" + str(id_paciente)
+            else:
+                id_ocupacao = (anterior_ocupacao["id_ocupacao"] if mesmo_paciente else None) or secrets.token_hex(16)
         else:
+            v["id_paciente"] = None
             id_ocupacao = None
         campos = [k for k in CAMPOS if (anterior or {}).get(k) != v.get(k)]
         if campos:
@@ -521,16 +538,16 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
                  json.dumps({**{k: v.get(k) for k in CAMPOS}, "ocupado": v.get("ocupado"),
                              "id_ocupacao": id_ocupacao}, ensure_ascii=False)),
             )
-        c.execute("INSERT INTO mapa_dia(data,id_leito,id_ocupacao,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
+        c.execute("INSERT INTO mapa_dia(data,id_leito,id_paciente,id_ocupacao,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
                   "cor,consistencia,via,dm,has,laxativa,constipante,drc,suplementos_json,por_usuario,por_perfil,atualizado_em) "
-                  "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
-                  "id_ocupacao=excluded.id_ocupacao,ocupado=excluded.ocupado,acompanhante=excluded.acompanhante,dieta=excluded.dieta,nome=excluded.nome,"
+                  "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(data,id_leito) DO UPDATE SET "
+                  "id_paciente=excluded.id_paciente,id_ocupacao=excluded.id_ocupacao,ocupado=excluded.ocupado,acompanhante=excluded.acompanhante,dieta=excluded.dieta,nome=excluded.nome,"
                   "idade_anos=excluded.idade_anos,idade_meses=excluded.idade_meses,diagnostico=excluded.diagnostico,"
                   "pref_sim=excluded.pref_sim,pref_nao=excluded.pref_nao,cor=excluded.cor,consistencia=excluded.consistencia,"
                   "via=excluded.via,dm=excluded.dm,has=excluded.has,laxativa=excluded.laxativa,"
                   "constipante=excluded.constipante,drc=excluded.drc,suplementos_json=excluded.suplementos_json,"
                   "por_usuario=excluded.por_usuario,por_perfil=excluded.por_perfil,atualizado_em=excluded.atualizado_em",
-                  (data, int(chave), id_ocupacao, v["ocupado"], v.get("acompanhante", 0), v.get("dieta", ""), v.get("nome", ""),
+                  (data, int(chave), v.get("id_paciente"), id_ocupacao, v["ocupado"], v.get("acompanhante", 0), v.get("dieta", ""), v.get("nome", ""),
                    v.get("idade_anos"), v.get("idade_meses"), v.get("diagnostico", ""), v.get("pref_sim", ""),
                    v.get("pref_nao", ""), v.get("cor", ""), v.get("consistencia", ""), v.get("via", ""),
                    v.get("dm", 0), v.get("has", 0), v.get("laxativa", 0), v.get("constipante", 0), v.get("drc", 0),
@@ -569,7 +586,7 @@ def pendentes(c, tipo, data):
 
 # ----------------------------------------- leituras (já com a base do dia anterior)
 def linhas_mapa(c, sid, d, rascunho=False):
-    sql = ("SELECT l.id id_leito,l.codigo,h.id_ocupacao,COALESCE(h.ocupado,0) ocupado,COALESCE(h.acompanhante,0) acompanhante,COALESCE(h.dieta,'') dieta,"
+    sql = ("SELECT l.id id_leito,l.codigo,h.id_paciente,h.id_ocupacao,COALESCE(h.ocupado,0) ocupado,COALESCE(h.acompanhante,0) acompanhante,COALESCE(h.dieta,'') dieta,"
            "COALESCE(h.nome,'') nome,h.idade_anos,h.idade_meses,COALESCE(h.diagnostico,'') diagnostico,COALESCE(h.pref_sim,'') pref_sim,"
            "COALESCE(h.pref_nao,'') pref_nao,COALESCE(h.cor,'') cor,COALESCE(h.consistencia,'') consistencia,COALESCE(h.via,'') via,COALESCE(h.dm,0) dm,COALESCE(h.has,0) has,COALESCE(h.laxativa,0) laxativa,COALESCE(h.constipante,0) constipante,COALESCE(h.drc,0) drc,COALESCE(h.suplementos_json,'[]') suplementos_json,h.data data_base,h.por_perfil,h.atualizado_em FROM leitos l "
            "LEFT JOIN mapa_dia h ON h.id_leito=l.id AND h.data=(SELECT MAX(data) FROM mapa_dia WHERE id_leito=l.id AND data<=?) "
