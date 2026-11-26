@@ -179,8 +179,8 @@ class AlmoxUI:
             self._carregar_itens()
             self._atualizar_combos()
             messagebox.showinfo("Classificação do mobile",
-                f"Itens atualizados: {resultado['atualizados']}\\n"
-                f"Vínculos sem produto mobile: {resultado['sem_vinculo']}\\n\\n"
+                f"Itens atualizados: {resultado['atualizados']}\n"
+                f"Vínculos sem produto mobile: {resultado['sem_vinculo']}\n\n"
                 "Categorias padrão e validades vazias não apagam dados já cadastrados no desktop.")
         except Exception as e:
             messagebox.showwarning("Classificação do mobile",str(e))
