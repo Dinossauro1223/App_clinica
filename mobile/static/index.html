@@ -122,9 +122,11 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
           const prev=(old.linhas||[]).find(x=>String(x.id_leito)===String(l.id_leito));
           if(prev)base[l.id_leito]=prev;
           if(l.nome){
-            if(l.id_paciente)l.id_ocupacao='paciente:'+l.id_paciente;
-            else if(prev&&String(prev.nome||'').trim().toLowerCase()===String(l.nome).trim().toLowerCase()&&prev.id_ocupacao)l.id_ocupacao=prev.id_ocupacao;
-            else l.id_ocupacao='offline:'+Date.now()+'-'+Math.random().toString(36).slice(2);
+            const mesma=prev&&String(prev.nome||'').trim().toLowerCase()===String(l.nome).trim().toLowerCase();
+            const idDiferente=prev&&String(prev.id_paciente||'')!==String(l.id_paciente||'');
+            if(l.id_paciente&&(!prev||mesma||idDiferente))l.id_ocupacao='paciente:'+l.id_paciente;
+            else if(mesma&&prev.id_ocupacao){l.id_paciente=prev.id_paciente??null;l.id_ocupacao=prev.id_ocupacao}
+            else{l.id_paciente=null;l.id_ocupacao='offline:'+Date.now()+'-'+Math.random().toString(36).slice(2)}
           }else{l.id_ocupacao=null;l.id_paciente=null}
         }
       }catch(e){}
