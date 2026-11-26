@@ -504,6 +504,19 @@ class MobileTest(unittest.TestCase):
         self.assertIn("1. Conferir e atualizar saldo", html)
         self.assertIn("2. Registrar movimentação", html)
 
+    def test_mobile_tema_persistente_admin_recolhivel_e_fluxo_cozinha(self):
+        html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("temaSelectHtml", html)
+        self.assertIn("aplicaTemaMobile", html)
+        self.assertIn("html[data-tema=escuro]", html)
+        self.assertIn("html[data-tema=sistema]", html)
+        self.assertIn("colapsarCadastrosAdmin", html)
+        self.assertIn("aria-expanded", html)
+        self.assertIn("admin-grupo", html)
+        self.assertIn("Estoque da cozinha", html)
+        self.assertIn("1. Conferir e atualizar saldo", html)
+        self.assertIn("2. Registrar movimentação", html)
+
     def test_configuracoes_exibem_dois_qrs_e_compartilhamento(self):
         cfg = (Path(__file__).resolve().parents[1] / "configuracoes_ui.py").read_text(encoding="utf-8")
         servidor = (Path(__file__).resolve().parents[1] / "mobile" / "servidor.py").read_text(encoding="utf-8")
