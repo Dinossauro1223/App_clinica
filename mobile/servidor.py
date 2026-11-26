@@ -921,6 +921,14 @@ def exportar(c, d):
 
 
 # ---------------------------------------------------------------------- rotas
+def _regra_refeicao(funcao, *args, **kwargs):
+    """Converte validações do módulo de refeições em erros HTTP 400."""
+    try:
+        return funcao(*args, **kwargs)
+    except ValueError as exc:
+        raise Erro(str(exc)) from None
+
+
 def _rotear(c, ip, m, p, q, b, auth):
     if (m, p) == ("POST", "/api/login"):
         return login(c, ip, b)
@@ -962,8 +970,8 @@ def _rotear(c, ip, m, p, q, b, auth):
             refeicoes_operacionais.inicializar(db)
             publico, ref = b.get("publico"), b.get("refeicao")
             if not b.get("inicio") and not b.get("fim"):
-                return {"removida": refeicoes_operacionais.remover_janela(db, publico, ref)}
-            refeicoes_operacionais.salvar_janela(db, publico, ref, b.get("inicio"), b.get("fim"))
+                return {"removida": _regra_refeicao(refeicoes_operacionais.remover_janela, db, publico, ref)}
+            _regra_refeicao(refeicoes_operacionais.salvar_janela, db, publico, ref, b.get("inicio"), b.get("fim"))
             return {"ok": True}
     if p == "/api/refeicoes/precos":
         if m == "GET":
@@ -975,8 +983,8 @@ def _rotear(c, ip, m, p, q, b, auth):
             refeicoes_operacionais.inicializar(db)
             publico, ref = b.get("publico"), b.get("refeicao")
             if b.get("valor_unitario") in (None, ""):
-                return {"removido": refeicoes_operacionais.remover_preco_refeicao(db, publico, ref)}
-            refeicoes_operacionais.salvar_preco_refeicao(db, publico, ref, b.get("valor_unitario"))
+                return {"removido": _regra_refeicao(refeicoes_operacionais.remover_preco_refeicao, db, publico, ref)}
+            _regra_refeicao(refeicoes_operacionais.salvar_preco_refeicao, db, publico, ref, b.get("valor_unitario"))
             return {"ok": True}
     if p == "/api/refeicoes/servicos":
         if perfil not in ("admin", "nutricionista", "copa"):
@@ -1053,7 +1061,7 @@ def _rotear(c, ip, m, p, q, b, auth):
                              leito=leito_snapshot, destinatario_nome=destinatario)
             if publico == "acompanhante":
                 dados["id_autorizacao_acompanhante"] = b.get("id_autorizacao_acompanhante")
-            rid = refeicoes_operacionais.registrar_refeicao_servida(db, **dados)
+            rid = _regra_refeicao(refeicoes_operacionais.registrar_refeicao_servida, db, **dados)
             return {"ok": True, "id_servico": rid}
     if p == "/api/refeicoes/autorizacoes":
         if perfil not in ("admin", "nutricionista", "copa"):
@@ -1076,7 +1084,7 @@ def _rotear(c, ip, m, p, q, b, auth):
                              if int(x["id_leito"]) == lid and x.get("ocupado") and x.get("id_ocupacao")), None)
             if not paciente:
                 raise Erro("O leito não possui paciente ativo para vincular a autorização.")
-            aid = refeicoes_operacionais.salvar_autorizacao_acompanhante(
+            aid = _regra_refeicao(refeicoes_operacionais.salvar_autorizacao_acompanhante,
                 db, id_paciente=paciente["id_ocupacao"], nome_paciente=paciente["nome"],
                 leito=paciente["codigo"], quantidade=b.get("quantidade"),
                 refeicoes=b.get("refeicoes"), justificativa=b.get("justificativa"),
@@ -1090,7 +1098,7 @@ def _rotear(c, ip, m, p, q, b, auth):
         refeicoes_operacionais.inicializar(db)
         aid = int(p.rsplit("/", 1)[1])
         situacao = b.get("situacao", "encerrada")
-        if not refeicoes_operacionais.encerrar_autorizacao_acompanhante(db, aid, situacao):
+        if not _regra_refeicao(refeicoes_operacionais.encerrar_autorizacao_acompanhante, db, aid, situacao):
             raise Erro("Autorização não encontrada ou já encerrada.", 404)
         return {"ok": True, "situacao": situacao}
     if p == "/api/refeicoes/relatorio" and m == "GET":
