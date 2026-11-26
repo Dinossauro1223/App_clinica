@@ -506,12 +506,92 @@ const publica=tenta(async()=>{
 async function vRef(){
   if(!S.setor){$('#vista').innerHTML=filtros('setor')+semSetor;return}
   const j=await api(`/api/refeicoes?setor=${S.setor}&data=${S.data}`),st=ehStaff();
-  $('#vista').innerHTML=filtros('setor')+'<p class=mini>Conte as refeições servidas dentro do horário de cada uma. Fora do horário o campo fica bloqueado.</p>'+
+  const serv=await api(`/api/refeicoes/servicos?setor=${S.setor}&data=${S.data}`);
+  const pacientes=serv.pacientes||[],aut=serv.autorizacoes||[],janelas=serv.janelas||[];
+  const refs=Object.keys(REF);
+  const janela=(pub,ref)=>janelas.find(x=>x.publico===pub&&x.refeicao===ref);
+  const htmlPacientes=pacientes.map(p=>{
+    const minhas=aut.filter(a=>a.id_paciente===p.id_paciente);
+    const opcoes=minhas.map(a=>`<option value="${a.id_autorizacao}">Autorização #${a.id_autorizacao} · até ${a.fim_vigencia?esc(a.fim_vigencia.replace('T',' ')):'sem término'} · ${a.quantidade_acompanhantes} acompanhante(s)</option>`).join('');
+    return `<div class=cartao data-paciente="${p.id_leito}">
+      <b>Leito ${esc(p.leito)} · ${esc(p.nome)}</b><p class=mini>O registro ficará associado a esta internação, mesmo após a troca do paciente no leito.</p>
+      <div class=filtros><label class=f>Refeição<input class=sr-ref list=ref-list placeholder="Selecione" value="Almoço"></label>
+      <label class=f>Quantidade<input class=sr-qtd type=number min=1 step=1 value=1></label>
+      <label class=f>Valor unitário (R$)<input class=sr-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>
+      <datalist id=ref-list>${refs.map(r=>`<option value="${REF[r]}"></option>`).join('')}</datalist>
+      <button class=btn style="width:100%" onclick="registrarServicoPaciente(this,'paciente')">Registrar refeição servida ao paciente</button>
+      ${minhas.length?`<hr><b>Refeições autorizadas para acompanhantes</b><label class=f>Autorização<select class=ac-auth>${opcoes}</select></label>
+      <div class=filtros><label class=f>Refeição<select class=ac-ref>${minhas.flatMap(a=>a.refeicoes).filter((x,i,ar)=>ar.indexOf(x)===i).map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
+      <label class=f>Quantidade de acompanhantes<input class=ac-qtd type=number min=1 max="${Math.max(...minhas.map(a=>a.quantidade_acompanhantes))}" value=1></label>
+      <label class=f>Valor unitário (R$)<input class=ac-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>
+      <button class="btn sec" style="width:100%" onclick="registrarServicoPaciente(this,'acompanhante')">Registrar refeição de acompanhante</button>`:''}
+      ${st?`<details style="margin-top:10px"><summary><b>Autorizar refeições de acompanhantes</b></summary>
+        <label class=f>Quantidade de acompanhantes<input class=au-qtd type=number min=1 value=1></label>
+        <div class=f><b>Refeições autorizadas</b><div class=filtros>${refs.map(r=>`<label class=tg><input class=au-ref type=checkbox value="${r}">${REF[r]}</label>`).join('')}</div></div>
+        <label class=f>Justificativa<textarea class=au-just placeholder="Motivo da exceção autorizada pela assistência social"></textarea></label>
+        <div class=filtros><label class=f>Início da vigência<input class=au-inicio type=datetime-local></label><label class=f>Término (opcional)<input class=au-fim type=datetime-local></label></div>
+        <button class="btn sec" style="width:100%" onclick="criarAutorizacao(this)">Salvar autorização</button>
+      </details>`:''}
+      ${minhas.length?`<p class=mini>Autorizações ativas: ${minhas.map(a=>`#${a.id_autorizacao} (${a.quantidade_acompanhantes})`).join(', ')}</p>`:''}
+    </div>`;
+  }).join('');
+  const janelaUi=st?`<h2>Janelas por público</h2><p class=mini>Sem janela configurada, o registro fica bloqueado. Os horários de pacientes e funcionários são independentes.</p><div class=cartao>
+    ${['paciente','funcionario'].map(pub=>`<h3>${pub==='paciente'?'Pacientes':'Funcionários'}</h3>${refs.map(ref=>{const x=janela(pub,ref)||{};return `<div class=filtros data-rj="${pub}|${ref}"><label class=f>${REF[ref]} · início<input type=time class=ji value="${x.inicio||''}"></label><label class=f>fim<input type=time class=jf value="${x.fim||''}"></label></div>`}).join('')}`).join('')}
+    <button class="btn sec" style="width:100%" onclick="salvaJanelasPublico()">Salvar janelas por público</button></div>`: '';
+  const relatorio=st?`<h2>Relatório de custos das refeições</h2><div class=cartao><p class=mini>Apuração baseada somente nas refeições efetivamente registradas como servidas.</p>
+    <button class="btn sec" style="width:100%" onclick="carregarRelatorioRefeicoes()">Atualizar custos de ${br(S.data)}</button><div id=rel-ref class=mini></div></div>`: '';
+  $('#vista').innerHTML=filtros('setor')+'<h2>Contagem geral</h2><p class=mini>Contagem agregada por refeição, mantida para conferência operacional.</p>'+
   j.linhas.map(l=>{const ab=st||l.aberta,d=ab?'':'disabled';return `<div class=cartao data-r=${l.refeicao}><b>${REF[l.refeicao]}</b> <span class=mini>contagem das ${l.abre} às ${l.fecha}</span> ${ab?'':'<span class="chip pen">fechada agora</span>'} ${chips(l,S.setor+'|'+l.refeicao,j.pendentes)}
    <div class=passo style="margin-top:6px"><button class="btn sec" onclick="passo(this,-1)" ${d}>−</button><input type=number inputmode=numeric min=0 step=1 value="${l.qtd}" ${d}><button class="btn sec" onclick="passo(this,1)" ${d}>+</button></div></div>`}).join('')+
-  (st?`<h2>Horários de contagem deste setor</h2><div class=cartao>${j.linhas.map(l=>`<div class=filtros data-j=${l.refeicao}><label class=f>${REF[l.refeicao]}: abre<input type=time class=ja value="${l.abre}"></label><label class=f>fecha<input type=time class=jf value="${l.fecha}"></label></div>`).join('')}
-   <button class="btn sec" style="width:100%" onclick="salvaJanelas()">Salvar horários deste setor</button></div>`:'')+barra('salvaRef','Salvar contagem de '+br(j.data));
+  (st?`<h2>Horários da contagem geral deste setor</h2><div class=cartao>${j.linhas.map(l=>`<div class=filtros data-j=${l.refeicao}><label class=f>${REF[l.refeicao]}: abre<input type=time class=ja value="${l.abre}"></label><label class=f>fecha<input type=time class=jf value="${l.fecha}"></label></div>`).join('')}
+   <button class="btn sec" style="width:100%" onclick="salvaJanelas()">Salvar horários deste setor</button></div>`: '')+
+  '<h2>Refeições individualizadas</h2><p class=mini>Registre cada refeição no momento em que for entregue. O paciente e o leito ficam gravados como fotografia histórica.</p>'+
+  (htmlPacientes||'<div class=cartao>Nenhum paciente ativo no mapa deste setor/data.</div>')+
+  '<h2>Refeições de funcionários</h2><div class=cartao><label class=f>Nome do funcionário<input id=rf-nome type=text placeholder="Nome de quem recebeu"></label>'+
+  '<div class=filtros><label class=f>Refeição<select id=rf-ref>'+refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('')+'</select></label>'+
+  '<label class=f>Quantidade<input id=rf-qtd type=number min=1 value=1></label><label class=f>Valor unitário (R$)<input id=rf-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>'+
+  '<button class=btn style="width:100%" onclick="registrarServicoFuncionario()">Registrar refeição de funcionário</button></div>'+
+  janelaUi+relatorio+barra('salvaRef','Salvar contagem de '+br(j.data));
 }
+const registrarServicoPaciente=tenta(async(botao,pub)=>{
+  const card=botao.closest('[data-paciente]'),lid=Number(card.dataset.paciente),refInput=pub==='paciente'?card.querySelector('.sr-ref').value:card.querySelector('.ac-ref').value;
+  const ref=Object.keys(REF).find(k=>REF[k].toLowerCase()===String(refInput).toLowerCase())||refInput;
+  const body={setor:S.setor,data:S.data,id_leito:lid,publico:pub,refeicao:ref,
+    quantidade:pub==='paciente'?card.querySelector('.sr-qtd').value:card.querySelector('.ac-qtd').value,
+    valor_unitario:pub==='paciente'?card.querySelector('.sr-valor').value:card.querySelector('.ac-valor').value};
+  if(pub==='acompanhante'){body.id_autorizacao_acompanhante=card.querySelector('.ac-auth').value}
+  const r=await api('/api/refeicoes/servicos',body);await vRef();aviso('Refeição registrada no histórico individual.',0);
+});
+const registrarServicoFuncionario=tenta(async()=>{
+  const nome=$('#rf-nome').value.trim();if(!nome)throw new Error('Informe quem recebeu a refeição.');
+  await api('/api/refeicoes/servicos',{setor:S.setor,data:S.data,publico:'funcionario',destinatario_nome:nome,
+    refeicao:$('#rf-ref').value,quantidade:$('#rf-qtd').value,valor_unitario:$('#rf-valor').value});
+  await vRef();aviso('Refeição do funcionário registrada.',0);
+});
+const criarAutorizacao=tenta(async(botao)=>{
+  const card=botao.closest('[data-paciente]'),refs=[...card.querySelectorAll('.au-ref:checked')].map(x=>x.value);
+  const justificativa=card.querySelector('.au-just').value.trim();
+  if(!refs.length)throw new Error('Selecione ao menos uma refeição.');
+  if(!justificativa)throw new Error('Informe a justificativa da assistência social.');
+  await api('/api/refeicoes/autorizacoes',{setor:S.setor,data:S.data,id_leito:Number(card.dataset.paciente),
+    quantidade:card.querySelector('.au-qtd').value,refeicoes:refs,justificativa,
+    inicio_vigencia:card.querySelector('.au-inicio').value?new Date(card.querySelector('.au-inicio').value).toISOString():new Date().toISOString(),
+    fim_vigencia:card.querySelector('.au-fim').value?new Date(card.querySelector('.au-fim').value).toISOString():null});
+  await vRef();aviso('Autorização vinculada ao paciente.',0);
+});
+const salvaJanelasPublico=tenta(async()=>{
+  for(const e of document.querySelectorAll('[data-rj]')){
+    const [publico,refeicao]=e.dataset.rj.split('|'),inicio=e.querySelector('.ji').value,fim=e.querySelector('.jf').value;
+    await api('/api/refeicoes/janelas',{publico,refeicao,inicio,fim});
+  }
+  await vRef();aviso('Janelas por público atualizadas.',0);
+});
+const carregarRelatorioRefeicoes=tenta(async()=>{
+  const j=await api(`/api/refeicoes/relatorio?inicio=${S.data}&fim=${S.data}`),alvo=$('#rel-ref');
+  const nomes={pacientes:'Pacientes',funcionarios:'Funcionários',acompanhantes:'Acompanhantes'};
+  alvo.innerHTML=Object.keys(nomes).map(k=>`<p><b>${nomes[k]}:</b> ${j.custos[k]?'R$ '+Number(j.custos[k].custo||0).toFixed(2).replace('.',','):'Sem registros com custo'} · ${j.custos[k]?.servicos||0} serviço(s)</p>`).join('');
+});
+
 function passo(b,d){const i=b.parentNode.querySelector('input');i.value=Math.max(0,(+i.value||0)+d)}
 const salvaRef=tenta(async()=>{
   const linhas=[...document.querySelectorAll('[data-r]')].filter(e=>!e.querySelector('input').disabled).map(e=>({refeicao:e.dataset.r,qtd:e.querySelector('input').value||0}));
