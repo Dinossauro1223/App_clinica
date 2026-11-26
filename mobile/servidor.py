@@ -940,6 +940,19 @@ def _rotear(c, ip, m, p, q, b, auth):
                 return {"removida": refeicoes_operacionais.remover_janela(db, publico, ref)}
             refeicoes_operacionais.salvar_janela(db, publico, ref, b.get("inicio"), b.get("fim"))
             return {"ok": True}
+    if p == "/api/refeicoes/precos":
+        if m == "GET":
+            refeicoes_operacionais.inicializar(db)
+            return {"precos": refeicoes_operacionais.listar_precos_refeicoes(db)}
+        if m == "POST":
+            if not staff:
+                raise Erro("Somente a nutrição e o administrador podem configurar preços.", 403)
+            refeicoes_operacionais.inicializar(db)
+            publico, ref = b.get("publico"), b.get("refeicao")
+            if b.get("valor_unitario") in (None, ""):
+                return {"removido": refeicoes_operacionais.remover_preco_refeicao(db, publico, ref)}
+            refeicoes_operacionais.salvar_preco_refeicao(db, publico, ref, b.get("valor_unitario"))
+            return {"ok": True}
     if p == "/api/refeicoes/servicos":
         if perfil not in ("admin", "nutricionista", "copa"):
             raise Erro("Sem permissão.", 403)
@@ -956,7 +969,8 @@ def _rotear(c, ip, m, p, q, b, auth):
             autorizacoes = [a for a in refeicoes_operacionais.listar_autorizacoes_acompanhante(db, situacao="ativa")
                             if a["id_paciente"] in ids]
             return {"data": d, "setor": s, "pacientes": pacientes,
-                    "autorizacoes": autorizacoes, "janelas": refeicoes_operacionais.listar_janelas(db)}
+                    "autorizacoes": autorizacoes, "janelas": refeicoes_operacionais.listar_janelas(db),
+                    "precos": refeicoes_operacionais.listar_precos_refeicoes(db)}
         if m == "POST":
             s = setor_alvo(c, u, b.get("setor"))
             d = dia_alvo(u, b.get("data"))
@@ -973,10 +987,17 @@ def _rotear(c, ip, m, p, q, b, auth):
             if not staff and instante_dt.date() != agora_dt().date():
                 raise Erro("A Copa só pode registrar refeições do dia atual.", 403)
             d = instante_dt.date().isoformat()
+            preco = b.get("valor_unitario")
+            if preco in (None, ""):
+                cadastrado = next((x for x in refeicoes_operacionais.listar_precos_refeicoes(db, publico)
+                                   if x["refeicao"] == ref), None)
+                if not cadastrado:
+                    raise Erro("Cadastre o custo por porção desta refeição para este público nas Configurações.")
+                preco = cadastrado["valor_unitario"]
             dados = {"servido_em": instante_dt.isoformat(timespec="seconds"), "refeicao": ref, "publico": publico,
                      "destinatario_nome": b.get("destinatario_nome") or "",
                      "quantidade": b.get("quantidade", 1), "unidade": b.get("unidade", "porcao"),
-                     "valor_unitario": b.get("valor_unitario"), "destinatario_id": b.get("destinatario_id"),
+                     "valor_unitario": preco, "destinatario_id": b.get("destinatario_id"),
                      "usuario_registro": u["nome"], "observacao": b.get("observacao")}
             if publico in ("paciente", "acompanhante"):
                 lid = int(b.get("id_leito") or 0)
