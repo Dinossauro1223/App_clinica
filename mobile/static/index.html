@@ -532,6 +532,7 @@ async function vRef(){
       ${st?`<details style="margin-top:10px"><summary><b>Autorizar refeições de acompanhantes</b></summary>
         <label class=f>Quantidade de acompanhantes<input class=au-qtd type=number min=1 value=1></label>
         <div class=f><b>Refeições autorizadas</b><div class=filtros>${refs.map(r=>`<label class=tg><input class=au-ref type=checkbox value="${r}">${REF[r]}</label>`).join('')}</div></div>
+        <label class=f>Responsável pela autorização (Assistência Social)<input class=au-responsavel type=text placeholder="Nome do profissional responsável"></label>
         <label class=f>Justificativa<textarea class=au-just placeholder="Motivo da exceção autorizada pela assistência social"></textarea></label>
         <div class=filtros><label class=f>Início da vigência<input class=au-inicio type=datetime-local></label><label class=f>Término (opcional)<input class=au-fim type=datetime-local></label></div>
         <button class="btn sec" style="width:100%" onclick="criarAutorizacao(this)">Salvar autorização</button>
@@ -579,8 +580,10 @@ const criarAutorizacao=tenta(async(botao)=>{
   const justificativa=card.querySelector('.au-just').value.trim();
   if(!refs.length)throw new Error('Selecione ao menos uma refeição.');
   if(!justificativa)throw new Error('Informe a justificativa da assistência social.');
+  if(!card.querySelector('.au-responsavel').value.trim())throw new Error('Informe o responsável da assistência social.');
   await api('/api/refeicoes/autorizacoes',{setor:S.setor,data:S.data,id_leito:Number(card.dataset.paciente),
     quantidade:card.querySelector('.au-qtd').value,refeicoes:refs,justificativa,
+    responsavel_autorizacao:card.querySelector('.au-responsavel').value.trim(),
     inicio_vigencia:card.querySelector('.au-inicio').value?new Date(card.querySelector('.au-inicio').value).toISOString():new Date().toISOString(),
     fim_vigencia:card.querySelector('.au-fim').value?new Date(card.querySelector('.au-fim').value).toISOString():null});
   await vRef();aviso('Autorização vinculada ao paciente.',0);
