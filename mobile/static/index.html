@@ -137,9 +137,10 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     const user=read('user');
     let userId=null;try{userId=JSON.parse(user||'{}').usuario?.id||null}catch(e){}
     const operationId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('nl-'+Date.now()+'-'+Math.random().toString(36).slice(2));
-    const entry={path,body,base,userId,operationId,criado_em:new Date().toISOString()};
+    const baseCompleta=path==='/api/mapa'&&(body.linhas||[]).length>0&&(body.linhas||[]).every(l=>base&&base[l.id_leito]);
+    const entry={path,body,base,baseCompleta,userId,operationId,criado_em:new Date().toISOString()};
     const ix=path==='/api/mapa'?q.findIndex(x=>x.path===path&&x.body.setor===body.setor&&x.body.data===body.data):-1;
-    if(ix>=0){entry.base=q[ix].base;entry.userId=q[ix].userId;q[ix]=entry}else q.push(entry);
+    if(ix>=0){entry.base=q[ix].base;entry.baseCompleta=q[ix].baseCompleta;entry.userId=q[ix].userId;q[ix]=entry}else q.push(entry);
     write('queue',JSON.stringify(q));
     if(path==='/api/mapa'){
       const url=`/api/mapa?setor=${encodeURIComponent(body.setor||'')}&data=${encodeURIComponent(body.data||'')}`;
@@ -205,7 +206,8 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
   async function conflitos(q){
     let total=0,cache={};
     for(const item of q){
-      if(item.path!=='/api/mapa'||!item.base)continue;
+      if(item.path!=='/api/mapa')continue;
+      if(!item.baseCompleta||!item.base||!Object.keys(item.base).length)return -1;
       const key=String(item.body.setor)+'|'+String(item.body.data);
       if(!cache[key]){
         try{
@@ -228,7 +230,8 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     fechar();
     modal=document.createElement('div');modal.className='modal';
     modal.style.cssText='position:fixed;inset:0;z-index:99999;background:#0009;display:flex;align-items:center;justify-content:center;padding:16px';
-    const texto=nConflitos?`${nConflitos} leito(s) também foram alterados no servidor desde a última cópia local. Confira as diferenças antes de enviar. O servidor continuará aplicando suas regras de autorização.`:
+    const texto=nConflitos<0?'Não havia uma cópia anterior completa para comparar este mapa. Revise os dados com atenção antes de decidir pelo envio.':
+      nConflitos?`${nConflitos} leito(s) também foram alterados no servidor desde a última cópia local. Confira as diferenças antes de enviar. O servidor continuará aplicando suas regras de autorização.`:
       'Há alterações feitas sem conexão que ainda não foram enviadas ao servidor.';
     modal.innerHTML=`<div class=caixa style="max-width:520px;width:100%;background:white;padding:20px;border-radius:12px">
       <h2 style="margin-top:0">Sincronização pendente</h2><p>${texto}</p><p class=mini>${q.length} operação(ões) aguardando envio.</p>
