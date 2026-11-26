@@ -54,5 +54,33 @@ class TestStatusRedeLocal(unittest.TestCase):
         self.assertEqual(erro.exception.cod, 403)
 
 
+    def test_registro_ip_repetido_com_mesma_operacao_nao_aplica_novamente(self):
+        token = "Bearer " + self.admin
+        with patch.object(sv, "ip_lan", return_value="192.168.10.15"):
+            primeira = sv.rotear(self.db, "192.168.10.20", "POST",
+                                 "/api/admin/rede/registrar", {}, {}, token,
+                                 operation_id="op-registro-ip-001")
+        with patch.object(sv, "ip_lan", return_value="192.168.10.99"):
+            repetida = sv.rotear(self.db, "192.168.10.20", "POST",
+                                 "/api/admin/rede/registrar", {}, {}, token,
+                                 operation_id="op-registro-ip-001")
+        self.assertEqual(repetida, primeira)
+        status = sv.rotear(self.db, "192.168.10.20", "GET", "/api/status", {}, {}, "")
+        self.assertEqual(status["ip_registrado"], "192.168.10.15")
+
+    def test_id_de_operacao_nao_pode_ser_reutilizado_com_outro_conteudo(self):
+        token = "Bearer " + self.admin
+        with patch.object(sv, "ip_lan", return_value="192.168.10.15"):
+            sv.rotear(self.db, "192.168.10.20", "POST",
+                      "/api/admin/rede/registrar", {}, {}, token,
+                      operation_id="op-registro-ip-002")
+        with patch.object(sv, "ip_lan", return_value="192.168.10.99"):
+            with self.assertRaises(sv.Erro) as erro:
+                sv.rotear(self.db, "192.168.10.20", "POST",
+                          "/api/admin/rede/registrar", {"forjado": "valor"}, {}, token,
+                          operation_id="op-registro-ip-002")
+        self.assertEqual(erro.exception.cod, 409)
+
+
 if __name__ == "__main__":
     unittest.main()
