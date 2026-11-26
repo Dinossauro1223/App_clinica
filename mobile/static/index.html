@@ -212,8 +212,8 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
           const token=window.NL&&window.NL.token?window.NL.token():'';
           const url=`/api/mapa?setor=${encodeURIComponent(item.body.setor||'')}&data=${encodeURIComponent(item.body.data||'')}`;
           const r=await fetchOnline(url,{headers:token?{Authorization:'Bearer '+token}:{}});
-          if(!r.ok)continue;cache[key]=await r.json();
-        }catch(e){continue}
+          if(!r.ok)return null;cache[key]=await r.json();
+        }catch(e){return null}
       }
       const linhas=cache[key].linhas||[];
       for(const id of Object.keys(item.base)){
@@ -246,6 +246,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
         if(atual.some(x=>x.userId&&uid&&x.userId!==uid))throw new Error('As alterações pendentes pertencem a outro usuário. Entre com a conta que as criou.');
         for(let i=0;i<atual.length;i++){
           const item=atual[i];
+          write('queue',JSON.stringify(atual));
           const r=await fetchOnline(item.path,{method:'POST',headers:{'Content-Type':'application/json','X-Nutrilab-Operation-Id':idOperacao(item),...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(item.body)});
           if(r.status===401){fechar();if(window.NL&&window.NL.expired)window.NL.expired();return}
           const j=await r.json().catch(()=>({}));
@@ -294,6 +295,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     if(!q.length||adiado||modal||sincronizando)return;
     if(!(await servidorAcessivel()))return;
     const n=await conflitos(q);
+    if(n===null)return;
     if(n>0){mostrar(q,n);return}
     await enviarAutomaticamente(q);
   }
@@ -353,7 +355,8 @@ const tenta=f=>async(...a)=>{try{await f(...a)}catch(e){aviso(e.message,1)}};
 function sair(){clearInterval(S.timer);clearInterval(S.statusTimer);S.tok=null;S.u=null;try{sessionStorage.removeItem('tok');if(window.NLOffline){NLOffline.remove('token');NLOffline.remove('user')}}catch(e){}telaLogin()}
 function telaLogin(msg){
   document.documentElement.style.setProperty('--cor','#0f4c5c');document.body.className='';
-  $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
+  $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>
+  <div id=conexao class=wait><span>● Verificando conexão…</span><small> </small></div>${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
   <label class=f>Login<input type=text id=lg autocapitalize=none autocomplete=username></label>
   <label class=f>Senha<input type=password id=sn autocomplete=current-password></label>
   <button class=btn style="width:100%" onclick="entrar()">Entrar</button>
@@ -367,6 +370,7 @@ function telaLogin(msg){
    <button class="btn sec" style="margin-top:6px" onclick="fecharLeitorQR()">Cancelar</button>
   </section></div><footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   $('#sn').onkeydown=e=>{if(e.key==='Enter')entrar()};
+  atualizarConexao();clearInterval(S.statusTimer);S.statusTimer=setInterval(atualizarConexao,15000);
 }
 
 let qrStream=null, qrLoop=null;
