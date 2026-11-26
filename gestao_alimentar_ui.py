@@ -659,7 +659,7 @@ class GestaoAlimentarUI:
         barra.pack(fill="x", padx=6, pady=5)
         _btn(barra, "Distribuir retirada selecionada", self.alocar_retirada, 210).pack(side="left")
         defs = [("data","Data",90,"center"),("hora","Hora",65,"center"),("item","Ingrediente",180,"w"),
-                ("qtd","Quantidade líquida",105,"e"),("devolvido","Devolvido",85,"e"),("alocado","Alocado",90,"e"),("pendente","Sem destino",95,"e"),
+                ("qtd","Retirada",90,"e"),("devolvido","Devolvido",85,"e"),("alocado","Alocado",90,"e"),("pendente","Sem destino",95,"e"),
                 ("preco","Preço/un.",90,"e"),("custo","Custo",95,"e"),("fonte","Preço",95,"center"),("observacao","Observação",220,"w")]
         frame,self.tree_movimentos = _tree(tab_mov,defs,altura=13)
         frame.pack(fill="both",expand=True,padx=6,pady=(0,6))
