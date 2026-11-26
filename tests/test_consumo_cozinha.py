@@ -51,8 +51,15 @@ class TestConsumoCozinha(unittest.TestCase):
         finally:
             c.close()
         im.importar_movimentos_cozinha(self.db,self.mobile_db,"2026-11-20","2026-11-22")
-        feijao = next(x for x in ga.listar_movimentos_cozinha(self.db,"2026-11-20","2026-11-22") if x["id_mobile"]==105)
+        movimentos = ga.listar_movimentos_cozinha(self.db,"2026-11-20","2026-11-22")
+        feijao = next(x for x in movimentos if x["id_mobile"]==105)
+        original = next(x for x in movimentos if x["id_mobile"]==101)
         self.assertEqual(feijao["qtd"],-2)
+        self.assertEqual(original["qtd_devolvida"],2)
+        self.assertEqual(original["qtd_disponivel_para_alocar"],3)
+        with self.assertRaises(ValueError):
+            ga.salvar_alocacoes_retirada(self.db,"2026-11-20",101,[{"tipo_destino":"uso_geral","quantidade":5}])
+        ga.salvar_alocacoes_retirada(self.db,"2026-11-20",101,[{"tipo_destino":"uso_geral","quantidade":3}])
         with sqlite3.connect(self.db) as c:
             observacao = c.execute("SELECT observacao FROM Mobile_Movimentos WHERE data='2026-11-20' AND id_mobile=105").fetchone()[0]
         self.assertEqual(observacao, "Devolução de sobra")
