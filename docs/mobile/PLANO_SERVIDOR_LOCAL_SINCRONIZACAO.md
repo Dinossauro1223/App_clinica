@@ -89,3 +89,16 @@ O indicador não deve confundir conectividade à internet com disponibilidade do
 - Nenhum cliente não autorizado acessa dados clínicos ou operacionais.
 - O processo funciona em desktop Windows e APK Android.
 
+
+
+## Etapa de acesso remoto com Tailscale
+
+A branch também passa a reconhecer o acesso remoto por Tailscale:
+- O servidor procura o CLI `tailscale` no PATH e nos caminhos padrão do Windows e consulta `tailscale ip -4`, com cache curto.
+- `/api/status` informa `tailscale_conectado`, `ip_tailscale` e `url_tailscale` quando o computador está conectado à tailnet.
+- O indicador do desktop e o status do mobile exibem o endereço remoto para facilitar a configuração manual do celular.
+- O servidor aceita origem na faixa CGNAT `100.64.0.0/10` somente quando o destino da conexão é exatamente o endereço Tailscale detectado na própria máquina. O restante da faixa CGNAT e endereços públicos continuam recusados.
+- A descoberta UDP continua limitada à rede local; no acesso remoto, o usuário informa no celular o endereço Tailscale exibido pelo desktop.
+- O guia de instalação e configuração está em [ACESSO_REMOTO_TAILSCALE.md](ACESSO_REMOTO_TAILSCALE.md).
+
+A instalação do cliente Tailscale e a entrada na mesma tailnet são pré-requisitos operacionais: o NutriLab não instala nem autentica o cliente VPN automaticamente. A política da tailnet deve permitir somente os dispositivos autorizados a acessar TCP 8765. O túnel Tailscale protege o transporte; a API do aplicativo permanece HTTP dentro do túnel e não deve ser exposta diretamente à internet. A conexão remota não funciona se o computador ou o NutriLab Desktop estiverem desligados.
