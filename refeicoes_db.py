@@ -308,8 +308,8 @@ def registrar_refeicao_servida(
             """, (int(id_autorizacao_acompanhante), instante_registro_data(instante), refeicao)).fetchone()[0]
             if float(ja_servidas or 0) + quantidade > auth["quantidade_acompanhantes"]:
                 raise ValueError("A quantidade total registrada nesta refeição excede a autorização da assistência social.")
-            nome_paciente = auth["nome_paciente_snapshot"]
-            leito = auth["leito_snapshot"]
+            if not str(nome_paciente or "").strip() or not str(leito or "").strip():
+                raise ValueError("O serviço do acompanhante exige o paciente e o leito atuais.")
         instante_registro = instante
         cur = conn.execute("""
             INSERT INTO Refeicoes_Servidas(
