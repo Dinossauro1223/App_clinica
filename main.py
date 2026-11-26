@@ -7,7 +7,6 @@ import os
 import math
 import threading
 import socket
-import importlib.util
 import json
 import shutil
 import sys
@@ -258,15 +257,10 @@ class AppClinica(ctk.CTk):
         except OSError:
             pass
 
-        caminho_servidor = os.path.join(get_base_path(), "mobile", "servidor.py")
-        if not os.path.isfile(caminho_servidor):
-            caminho_servidor = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mobile", "servidor.py")
         try:
-            spec = importlib.util.spec_from_file_location("nutrilab_servidor_mobile", caminho_servidor)
-            if spec is None or spec.loader is None:
-                raise RuntimeError("Não foi possível carregar mobile/servidor.py.")
-            modulo = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(modulo)
+            # Reutiliza o mesmo módulo importado pela integração e pela interface mobile:
+            # uma única trava SQLite e o mesmo estado de sessões para todos os componentes.
+            from mobile import servidor as modulo
 
             # O servidor, o painel desktop e a integração devem apontar para o mesmo banco.
             caminho_db = im.caminho_mobile_db(caminho_do_banco(), get_base_path())
