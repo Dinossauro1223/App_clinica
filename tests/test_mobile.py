@@ -376,6 +376,10 @@ class MobileTest(unittest.TestCase):
         tempero = next(x for x in itens if x["nome"] == "Tempero Validade")
         self.assertEqual((tempero["categoria"], tempero["validade"]), ("Temperos e condimentos", "2026-11-30"))
         iid = tempero["id"]
+        self.assertEqual(self.chamar(self.t["alm"], "POST", f"/api/almox/itens/{iid}", {
+            "categoria":"Temperos e condimentos", "validade":"2026-11-29"})[0], 200)
+        tempero_atualizado = next(x for x in self.chamar(self.adm, "GET", "/api/itens")[1]["itens"] if x["id"] == iid)
+        self.assertEqual(tempero_atualizado["validade"], "2026-11-29")
         self.assertEqual(self.chamar(self.t["alm"], "POST", "/api/estoque/reposicao", {
             "estoque":"almox", "id_item":iid, "qtd":100, "origem":"externo", "observacao":"Compra inicial"})[0], 200)
         self.assertEqual(self.chamar(self.t["coz"], "POST", "/api/estoque/reposicao", {
@@ -393,6 +397,7 @@ class MobileTest(unittest.TestCase):
         self.assertIn("function filtrarEstoque()", html)
         self.assertIn("id=buscaEstoque", html)
         self.assertIn("id=categoriaEstoque", html)
+        self.assertIn("async function salvarClassificacao(id)", html)
 
     def test_hierarquia_almox_cozinha_copa(self):
         def rep(t, org, q):
