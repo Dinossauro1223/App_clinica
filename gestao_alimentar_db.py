@@ -687,6 +687,7 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
                 0.0, float(item["qtd"] or 0) - float(item["qtd_alocada"] or 0)
             )
             item["qtd_devolvida"] = 0.0
+            item["qtd_devolvida_alocada"] = 0.0
             item["devolucao_sobre_alocada"] = 0.0
             item["custo_retirada"] = (
                 float(item["custo_retirada"]) if item["custo_retirada"] is not None else None
@@ -715,6 +716,12 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
                         retirada["qtd_disponivel_para_alocar"] = max(0.0, disponivel - aplicado)
                         retirada["qtd_devolvida"] += aplicado
                         restante -= aplicado
+                    if restante > 1e-8:
+                        alocado = max(0.0, float(retirada["qtd_alocada"] or 0) - float(retirada["qtd_devolvida_alocada"] or 0))
+                        aplicado_alocado = min(restante, alocado)
+                        if aplicado_alocado > 0:
+                            retirada["qtd_devolvida_alocada"] += aplicado_alocado
+                            restante -= aplicado_alocado
                     if restante <= 1e-8:
                         break
                 movimento["devolucao_sobre_alocada"] = restante
