@@ -111,6 +111,10 @@ def _agora():
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+def instante_registro_data(instante):
+    return instante.date().isoformat()
+
+
 def _validar_publico(publico, permitir_acompanhante=True):
     if publico not in (PUBLICOS if permitir_acompanhante else PUBLICOS[:2]):
         raise ValueError("Público inválido.")
@@ -291,8 +295,12 @@ def registrar_refeicao_servida(
                 raise ValueError("A autorização pertence a outro paciente, não ao leito atual.")
             if refeicao not in permitidas or instante_comparacao < inicio or (fim and instante_comparacao > fim):
                 raise ValueError("A refeição ou o horário não está coberto pela autorização.")
-            if quantidade > auth["quantidade_acompanhantes"]:
-                raise ValueError("A quantidade excede a autorização da assistência social.")
+            ja_servidas = conn.execute("""
+                SELECT COALESCE(SUM(quantidade),0) FROM Refeicoes_Servidas
+                WHERE id_autorizacao_acompanhante=? AND data_refeicao=? AND refeicao=?
+            """, (int(id_autorizacao_acompanhante), instante_registro_data(instante), refeicao)).fetchone()[0]
+            if float(ja_servidas or 0) + quantidade > auth["quantidade_acompanhantes"]:
+                raise ValueError("A quantidade total registrada nesta refeição excede a autorização da assistência social.")
             nome_paciente = auth["nome_paciente_snapshot"]
             leito = auth["leito_snapshot"]
         instante_registro = instante
