@@ -484,6 +484,17 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
     t = v.get("_atualizado_em") or agora()
     if tipo == "mapa":
         anterior = atual(c, "mapa", data, chave)
+        if not anterior:
+            # O primeiro registro do dia pode substituir um paciente herdado do dia anterior.
+            # Esse estado anterior também precisa entrar na trilha para reconciliar serviços offline.
+            leito_ref = c.execute("SELECT id_setor FROM leitos WHERE id=?", (int(chave),)).fetchone()
+            if leito_ref:
+                herdado = next((x for x in linhas_mapa(c, leito_ref["id_setor"], data)
+                                if int(x["id_leito"]) == int(chave)), None)
+                if herdado and herdado.get("data_base") not in (None, data):
+                    anterior = {k: herdado.get(k) for k in CAMPOS}
+                    anterior["id_ocupacao"] = herdado.get("id_ocupacao")
+                    anterior["por_perfil"] = herdado.get("por_perfil")
         if anterior:
             anterior.pop("por_perfil", None)
         campos = [k for k in CAMPOS if (anterior or {}).get(k) != v.get(k)]
