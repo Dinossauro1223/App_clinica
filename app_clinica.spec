@@ -34,6 +34,7 @@ ARQUIVOS_DATA = [
     ('welcome_nutrilab.png', '.'),
     (os.path.join(SPECPATH, 'assets', 'identidade', 'nutrilab_identidade.png'), '.'),
     (os.path.join(SPECPATH, 'assets', 'escalas_visita'), 'assets/escalas_visita'),
+    (os.path.join(SPECPATH, 'assets', 'escalas_visita'), 'assets/escalas_visita'),
     (PASTA_CAMADAS, 'identidade_camadas'),
     (os.path.join(SPECPATH, 'mobile', 'servidor.py'), 'mobile'),
     (os.path.join(SPECPATH, 'mobile', 'static'), 'mobile/static'),
