@@ -13,8 +13,11 @@ class TestRefeicoesAPI(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.db = str(Path(self.tmp.name) / "mobile.db")
         senha = sv.preparar_banco(self.db)
-        with sv.conectar(self.db) as conn:
+        conn = sv.conectar(self.db)
+        try:
             sessao = sv.login(conn, "127.0.0.1", {"login": "admin", "senha": senha})
+        finally:
+            conn.close()
         self.token = sessao["token"]
 
     def api(self, metodo, caminho, corpo=None, query=None, token=None):
