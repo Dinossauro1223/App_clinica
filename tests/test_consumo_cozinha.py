@@ -41,6 +41,76 @@ class TestConsumoCozinha(unittest.TestCase):
         self.assertEqual((feijao["embalagem_qtd"], feijao["embalagem_un"]), (1000.0, "g"))
         self.assertEqual((feijao["qtd"], feijao["data_base"]), (8.0, "2026-11-21"))
 
+    def test_devolucao_cozinha_almox_reduz_retirada_e_custo_liquidos(self):
+        c = sv.conectar(self.mobile_db)
+        try:
+            c.execute("""INSERT INTO movimentos
+                (id,data,hora,origem,destino,id_item,qtd,por_usuario,divergente,preco_unitario_snapshot,custo_snapshot,observacao)
+                VALUES(105,'2026-11-20','12:00','cozinha','almox',1,2,1,0,7.2,14.4,'Devolução de sobra')""")
+            c.commit()
+        finally:
+            c.close()
+        im.importar_movimentos_cozinha(self.db,self.mobile_db,"2026-11-20","2026-11-22")
+        movimentos = ga.listar_movimentos_cozinha(self.db,"2026-11-20","2026-11-22")
+        feijao = next(x for x in movimentos if x["id_mobile"]==105)
+        original = next(x for x in movimentos if x["id_mobile"]==101)
+        self.assertEqual(feijao["qtd"],-2)
+        self.assertEqual(original["qtd_devolvida"],2)
+        self.assertEqual(original["qtd_disponivel_para_alocar"],3)
+        with self.assertRaises(ValueError):
+            ga.salvar_alocacoes_retirada(self.db,"2026-11-20",101,[{"tipo_destino":"uso_geral","quantidade":5}])
+        ga.salvar_alocacoes_retirada(self.db,"2026-11-20",101,[{"tipo_destino":"uso_geral","quantidade":3}])
+        with sqlite3.connect(self.db) as c:
+            observacao = c.execute("SELECT observacao FROM Mobile_Movimentos WHERE data='2026-11-20' AND id_mobile=105").fetchone()[0]
+        self.assertEqual(observacao, "Devolução de sobra")
+        original=next(x for x in ga.listar_movimentos_cozinha(self.db,"2026-11-20","2026-11-22") if x["id_mobile"]==101)
+        self.assertEqual(original["qtd_devolvida_alocada"],0)
+        self.assertEqual(original["qtd_devolvida_preparacao"],0)
+        resumo=ga.resumo_consumo_observado(self.db,"2026-11-20","2026-11-22")
+        item=next(x for x in resumo["itens"] if x["item"]=="Feijão")
+        self.assertEqual(item["total_retirado"],6.0)  # 5 + 3 - 2 devolvidos
+        self.assertAlmostEqual(item["custo_total"],45.6)  # 36 + 24 - 14.4
+
+    def test_devolucao_reduz_alocacao_ja_lancada_na_ficha(self):
+        ga.salvar_preparacoes_dia(self.db,"2026-11-20","almoco",[
+            {"nome":"Feijão cozido","porcoes_previstas":100}
+        ])
+        prep = ga.listar_preparacoes_dia(self.db,"2026-11-20","almoco")[0]["id_preparacao_dia"]
+        ga.salvar_alocacoes_retirada(self.db,"2026-11-20",101,[{
+            "tipo_destino":"preparacao","id_preparacao_dia":prep,"quantidade":5
+        }])
+        ga.salvar_preparacoes_dia(self.db,"2026-11-22","almoco",[
+            {"nome":"Feijão da refeição seguinte","porcoes_previstas":100}
+        ])
+        prep_seguinte = ga.listar_preparacoes_dia(self.db,"2026-11-22","almoco")[0]["id_preparacao_dia"]
+        ga.salvar_alocacoes_retirada(self.db,"2026-11-22",104,[{
+            "tipo_destino":"preparacao","id_preparacao_dia":prep_seguinte,"quantidade":3
+        }])
+        c=sv.conectar(self.mobile_db)
+        try:
+            c.execute("""INSERT INTO movimentos
+                (id,data,hora,origem,destino,id_item,qtd,por_usuario,divergente,preco_unitario_snapshot,custo_snapshot,observacao)
+                VALUES(105,'2026-11-20','12:00','cozinha','almox',1,2,1,0,7.2,14.4,'Devolução parcial')""")
+            c.commit()
+        finally:
+            c.close()
+        im.importar_movimentos_cozinha(self.db,self.mobile_db,"2026-11-20","2026-11-22")
+        original=next(x for x in ga.listar_movimentos_cozinha(self.db,"2026-11-20","2026-11-22") if x["id_mobile"]==101)
+        self.assertEqual(original["qtd_devolvida_alocada"],2)
+        self.assertEqual(original["qtd_devolvida_preparacao"],2)
+        resumo=ga.resumo_consumo_observado(self.db,"2026-11-20","2026-11-22")
+        item=next(x for x in resumo["itens"] if x["item"]=="Feijão")
+        fichas={x["preparacao"]:x for x in resumo["por_preparacao"]}
+        ficha=fichas["Feijão cozido"]
+        ficha_seguinte=fichas["Feijão da refeição seguinte"]
+        self.assertEqual(item["total_retirado"],6.0)
+        self.assertEqual(item["total_alocado"],6.0)
+        self.assertAlmostEqual(item["custo_alocado"],45.6)
+        self.assertEqual(ficha["quantidade_total"],3.0)
+        self.assertAlmostEqual(ficha["custo_total"],21.6)
+        self.assertEqual(ficha_seguinte["quantidade_total"],3.0)
+        self.assertAlmostEqual(ficha_seguinte["custo_total"],24.0)
+
     def test_custo_alocado_fica_indefinido_quando_preco_nao_existe(self):
         with sqlite3.connect(self.db) as c:
             c.execute("UPDATE Mobile_Movimentos SET valor_unitario_snapshot=NULL,custo_snapshot=NULL "

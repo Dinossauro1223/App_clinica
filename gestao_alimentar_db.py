@@ -638,7 +638,7 @@ def _colunas_mobile_movimentos(conn):
 
 
 def listar_movimentos_cozinha(db_path, inicio, fim):
-    """Lista apenas transferências Almoxarifado → Cozinha, nunca a segunda transferência Cozinha → Copa."""
+    """Lista retiradas Almoxarifado → Cozinha e devoluções Cozinha → Almoxarifado, sem duplicar Cozinha → Copa."""
     inicio, fim = _data_iso(inicio, "data inicial"), _data_iso(fim, "data final")
     if fim < inicio:
         raise ValueError("A data final deve ser igual ou posterior à inicial.")
@@ -653,14 +653,22 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
         preco_mov = "m.valor_unitario_snapshot" if "valor_unitario_snapshot" in cols else "NULL"
         custo_mov = "m.custo_snapshot" if "custo_snapshot" in cols else "NULL"
         por_usuario = "m.por_usuario" if "por_usuario" in cols else "NULL"
+        observacao = "m.observacao" if "observacao" in cols else "NULL"
         rows = conn.execute(f"""SELECT m.data,m.id_mobile,m.hora,m.origem,m.destino,m.item,m.unidade,
-                    m.qtd,m.divergente,{id_item} AS id_item_mobile,{por_usuario} AS por_usuario,
+                    {observacao} AS observacao,
+                    CASE WHEN lower(m.origem)='cozinha' AND lower(m.destino)='almox' THEN -m.qtd ELSE m.qtd END AS qtd,
+                    m.divergente,{id_item} AS id_item_mobile,{por_usuario} AS por_usuario,
                     COALESCE({preco_mov},p.preco_unitario) AS preco_unitario_snapshot,
                     CASE WHEN {preco_mov} IS NOT NULL THEN 'historico'
                          WHEN p.preco_unitario IS NOT NULL THEN 'atual_estimado' ELSE 'pendente' END AS origem_preco,
-                    COALESCE({custo_mov},m.qtd*COALESCE({preco_mov},p.preco_unitario)) AS custo_retirada,
+                    CASE WHEN lower(m.origem)='cozinha' AND lower(m.destino)='almox'
+                         THEN -COALESCE({custo_mov},m.qtd*COALESCE({preco_mov},p.preco_unitario))
+                         ELSE COALESCE({custo_mov},m.qtd*COALESCE({preco_mov},p.preco_unitario)) END AS custo_retirada,
                     COALESCE((SELECT SUM(a.quantidade) FROM GA_Consumo_Alocacoes a
                       WHERE a.data_movimento=m.data AND a.id_movimento_mobile=m.id_mobile AND a.ativa=1),0) AS qtd_alocada,
+                    COALESCE((SELECT SUM(a.quantidade) FROM GA_Consumo_Alocacoes a
+                      WHERE a.data_movimento=m.data AND a.id_movimento_mobile=m.id_mobile AND a.ativa=1
+                        AND a.tipo_destino='preparacao'),0) AS qtd_alocada_preparacao,
                     COALESCE((SELECT SUM(a.custo_snapshot) FROM GA_Consumo_Alocacoes a
                       WHERE a.data_movimento=m.data AND a.id_movimento_mobile=m.id_mobile AND a.ativa=1),0) AS custo_alocado,
                     COALESCE((SELECT SUM(CASE WHEN a.custo_snapshot IS NULL THEN 1 ELSE 0 END)
@@ -671,7 +679,9 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
                 LEFT JOIN {TABELA_PRODUTOS} p ON
                     (p.id_mobile={id_item}) OR ({id_item} IS NULL AND lower(p.nome)=lower(m.item)
                     AND lower(COALESCE(p.unidade_estoque,''))=lower(COALESCE(m.unidade,'')))
-                WHERE m.data BETWEEN ? AND ? AND lower(m.origem)='almox' AND lower(m.destino)='cozinha'
+                WHERE m.data BETWEEN ? AND ? AND (
+                    (lower(m.origem)='almox' AND lower(m.destino)='cozinha') OR
+                    (lower(m.origem)='cozinha' AND lower(m.destino)='almox'))
                 ORDER BY m.data DESC,m.hora DESC,m.id_mobile DESC""", (inicio, fim)).fetchall()
         resultado = []
         for row in rows:
@@ -679,6 +689,10 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
             item["qtd_disponivel_para_alocar"] = max(
                 0.0, float(item["qtd"] or 0) - float(item["qtd_alocada"] or 0)
             )
+            item["qtd_devolvida"] = 0.0
+            item["qtd_devolvida_alocada"] = 0.0
+            item["qtd_devolvida_preparacao"] = 0.0
+            item["devolucao_sobre_alocada"] = 0.0
             item["custo_retirada"] = (
                 float(item["custo_retirada"]) if item["custo_retirada"] is not None else None
             )
@@ -686,6 +700,38 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
                 None if item["custos_alocados_faltantes"] else float(item["custo_alocado"])
             )
             resultado.append(item)
+
+        # A devolução consome primeiro o saldo ainda não destinado da retirada anterior.
+        # Assim, 20 g devolvidos de uma retirada de 100 g deixam só 80 g disponíveis
+        # para a preparação original; uma nova retirada poderá ser destinada à refeição seguinte.
+        anteriores_por_item = {}
+        cronologico = sorted(resultado, key=lambda x: (x["data"], x["hora"], int(x["id_mobile"])))
+        for movimento in cronologico:
+            chave_item = (movimento.get("id_item_mobile"), movimento["item"], movimento["unidade"])
+            quantidade = float(movimento["qtd"] or 0)
+            if quantidade > 0:
+                anteriores_por_item.setdefault(chave_item, []).append(movimento)
+            elif quantidade < 0:
+                restante = abs(quantidade)
+                for retirada in reversed(anteriores_por_item.get(chave_item, [])):
+                    disponivel = float(retirada["qtd_disponivel_para_alocar"] or 0)
+                    aplicado = min(restante, disponivel)
+                    if aplicado > 0:
+                        retirada["qtd_disponivel_para_alocar"] = max(0.0, disponivel - aplicado)
+                        retirada["qtd_devolvida"] += aplicado
+                        restante -= aplicado
+                    if restante > 1e-8:
+                        alocado = max(0.0, float(retirada["qtd_alocada"] or 0) - float(retirada["qtd_devolvida_alocada"] or 0))
+                        aplicado_alocado = min(restante, alocado)
+                        if aplicado_alocado > 0:
+                            retirada["qtd_devolvida_alocada"] += aplicado_alocado
+                            alocado_prep = max(0.0, float(retirada.get("qtd_alocada_preparacao") or 0)
+                                               - float(retirada.get("qtd_devolvida_preparacao") or 0))
+                            retirada["qtd_devolvida_preparacao"] += min(aplicado_alocado, alocado_prep)
+                            restante -= aplicado_alocado
+                    if restante <= 1e-8:
+                        break
+                movimento["devolucao_sobre_alocada"] = restante
         return resultado
 
 
@@ -694,6 +740,14 @@ def salvar_alocacoes_retirada(db_path, data, id_movimento_mobile, alocacoes, usu
     data = _data_iso(data, "data do movimento")
     if not isinstance(alocacoes, (list, tuple)):
         raise ValueError("Informe as destinações da retirada.")
+    movimentos_periodo = listar_movimentos_cozinha(db_path, "0001-01-01", "9999-12-31")
+    referencia = next((x for x in movimentos_periodo
+                       if x["data"] == data and int(x["id_mobile"]) == int(id_movimento_mobile)), None)
+    limite_liquido = None
+    if referencia is not None:
+        limite_liquido = max(0.0, float(referencia["qtd"] or 0)
+                             - float(referencia.get("qtd_devolvida") or 0)
+                             - float(referencia.get("qtd_devolvida_alocada") or 0))
     with _conexao(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
         try:
@@ -761,9 +815,11 @@ def salvar_alocacoes_retirada(db_path, data, id_movimento_mobile, alocacoes, usu
                     nome = "Uso geral / não identificado" if tipo == "uso_geral" else "Perda"
                 total += quantidade
                 preparados.append((pid, nome, data_prep, refeicao, porcoes, tipo, quantidade))
-            if total > qtd_mov + 1e-8:
+            quantidade_permitida = qtd_mov if limite_liquido is None else limite_liquido
+            if total > quantidade_permitida + 1e-8:
                 raise ValueError(
-                    "A soma das destinações excede a quantidade retirada (%s %s)." % (qtd_mov, mov["unidade"])
+                    "A soma das destinações excede a quantidade disponível após devoluções (%s %s)." %
+                    (quantidade_permitida, mov["unidade"])
                 )
 
             revisao = conn.execute(
@@ -958,7 +1014,8 @@ def resumo_consumo_observado(db_path, inicio, fim):
         quantidade = float(mov["qtd"] or 0)
         item["total_retirado"] += quantidade
         item["movimentos"] += 1
-        item["dias"].add(mov["data"])
+        if quantidade > 0:
+            item["dias"].add(mov["data"])
         if mov.get("custo_retirada") is None:
             item["preco_completo"] = False
         else:
@@ -967,14 +1024,17 @@ def resumo_consumo_observado(db_path, inicio, fim):
             item["precos_historicos"] += 1
         elif mov.get("origem_preco") == "atual_estimado":
             item["precos_estimados"] += 1
-        item["total_alocado"] += float(mov["qtd_alocada"] or 0)
+        devolvida_alocada = float(mov.get("qtd_devolvida_alocada") or 0)
+        alocado_liquido = max(0.0, float(mov["qtd_alocada"] or 0) - devolvida_alocada)
+        item["total_alocado"] += alocado_liquido
         item["total_pendente"] += float(mov["qtd_disponivel_para_alocar"] or 0)
         if mov.get("custos_alocados_faltantes", 0) or (
             float(mov["qtd_alocada"] or 0) > 1e-8 and mov.get("custo_alocado") is None
-        ):
+        ) or (devolvida_alocada > 1e-8 and mov.get("preco_unitario_snapshot") is None):
             item["custo_alocado_completo"] = False
         elif mov.get("custo_alocado") is not None:
-            item["custo_alocado"] += float(mov["custo_alocado"])
+            preco_devolvido = float(mov.get("preco_unitario_snapshot") or 0)
+            item["custo_alocado"] += max(0.0, float(mov["custo_alocado"]) - devolvida_alocada * preco_devolvido)
     itens = []
     for item in por_item.values():
         dias = sorted(item["dias"])
@@ -992,10 +1052,12 @@ def resumo_consumo_observado(db_path, inicio, fim):
         })
     itens.sort(key=lambda x:x["item"].casefold())
 
-    # Primeiro agrega cada execução da preparação; depois calcula médias entre execuções.
+    # Mantém cada retirada separada para que uma devolução possa estornar a alocação
+    # mais recente daquela retirada antes de agregar por preparação.
     execucoes = {}
     with _conexao(db_path) as conn:
-        rows = conn.execute("""SELECT a.data_preparacao,a.refeicao_snapshot,a.preparacao_nome_snapshot,
+        rows_raw = conn.execute("""SELECT a.data_movimento,a.id_movimento_mobile,
+                    a.data_preparacao,a.refeicao_snapshot,a.preparacao_nome_snapshot,
                     a.id_item_mobile,a.unidade,SUM(a.quantidade) AS quantidade,
                     SUM(a.custo_snapshot) AS custo,
                     SUM(CASE WHEN a.custo_snapshot IS NULL THEN 1 ELSE 0 END) AS custos_faltantes,
@@ -1005,9 +1067,56 @@ def resumo_consumo_observado(db_path, inicio, fim):
                 LEFT JOIN GA_Produtos_Almox p ON p.id_mobile=a.id_item_mobile
                 WHERE a.ativa=1 AND a.tipo_destino='preparacao'
                   AND a.data_movimento BETWEEN ? AND ?
-                GROUP BY a.data_preparacao,a.refeicao_snapshot,a.preparacao_nome_snapshot,a.id_item_mobile,a.unidade
+                GROUP BY a.data_movimento,a.id_movimento_mobile,a.data_preparacao,
+                         a.refeicao_snapshot,a.preparacao_nome_snapshot,a.id_item_mobile,a.unidade
                 ORDER BY a.data_preparacao,a.refeicao_snapshot,a.preparacao_nome_snapshot,nome_item""",
             (inicio, fim)).fetchall()
+    linhas_alocadas = [dict(x) for x in rows_raw]
+    devolucoes_por_movimento = {
+        (m["data"], int(m["id_mobile"])): float(m.get("qtd_devolvida_preparacao") or 0)
+        for m in movimentos if float(m.get("qtd_devolvida_preparacao") or 0) > 1e-8
+    }
+    for chave_movimento, quantidade_devolvida in devolucoes_por_movimento.items():
+        candidatas = [r for r in linhas_alocadas
+                      if r["data_movimento"] == chave_movimento[0]
+                      and int(r["id_movimento_mobile"]) == chave_movimento[1]]
+        candidatas.sort(key=lambda r: (r["data_preparacao"], r["refeicao_snapshot"] or "",
+                                       r["preparacao_nome_snapshot"] or ""), reverse=True)
+        restante = quantidade_devolvida
+        for r in candidatas:
+            quantidade_original = float(r["quantidade"] or 0)
+            aplicada = min(restante, quantidade_original)
+            if aplicada <= 0:
+                continue
+            if not r["custos_faltantes"] and r["custo"] is not None and quantidade_original > 0:
+                r["custo"] = max(0.0, float(r["custo"]) - float(r["custo"]) / quantidade_original * aplicada)
+            else:
+                r["custos_faltantes"] = max(1, int(r["custos_faltantes"] or 0))
+            r["quantidade"] = max(0.0, quantidade_original - aplicada)
+            restante -= aplicada
+            if restante <= 1e-8:
+                break
+    agrupadas = {}
+    for r in linhas_alocadas:
+        quantidade = float(r["quantidade"] or 0)
+        if quantidade <= 1e-8:
+            continue
+        chave = (r["data_preparacao"],r["refeicao_snapshot"],r["preparacao_nome_snapshot"],
+                 r["id_item_mobile"],r["unidade"])
+        destino = agrupadas.setdefault(chave, {
+            "data_preparacao":r["data_preparacao"],"refeicao_snapshot":r["refeicao_snapshot"],
+            "preparacao_nome_snapshot":r["preparacao_nome_snapshot"],"id_item_mobile":r["id_item_mobile"],
+            "unidade":r["unidade"],"quantidade":0.0,"custo":0.0,"custos_faltantes":0,
+            "porcoes_previstas":r["porcoes_previstas"],"nome_item":r["nome_item"]
+        })
+        destino["quantidade"] += quantidade
+        destino["custos_faltantes"] += int(r["custos_faltantes"] or 0)
+        if r["custo"] is not None:
+            destino["custo"] += float(r["custo"])
+        if r["porcoes_previstas"] not in (None, 0):
+            destino["porcoes_previstas"] = max(float(destino["porcoes_previstas"] or 0),
+                                                 float(r["porcoes_previstas"]))
+    rows = list(agrupadas.values())
     agregado = {}
     por_execucao = []
     for row in rows:

@@ -715,6 +715,11 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
             cur = c.execute(f"INSERT INTO Mapa_Registros ({cols}) VALUES ({marc})",
                             [reg["data"], reg["id_leito"]] + valores + [_agora(), _agora()])
             id_reg = cur.lastrowid
+        # Uma evolução pertence ao paciente do registro, não apenas ao leito/data.
+        # Ao substituir o paciente no mesmo leito/dia, descarta a evolução anterior
+        # para impedir que dados clínicos sejam exibidos para outra pessoa.
+        if existente and existente["id_paciente"] != reg.get("id_paciente"):
+            c.execute("DELETE FROM Mapa_Evolucao_Dados WHERE id_registro=?", (id_reg,))
         c.execute("DELETE FROM Mapa_Liberacoes WHERE data=? AND id_leito=?", (reg["data"], reg["id_leito"]))
         c.execute("DELETE FROM Mapa_Registro_Suplementos WHERE id_registro=?", (id_reg,))
         for s in reg.get("suplementos") or []:
@@ -774,62 +779,19 @@ def _anexar_suplementos(c, registros):
 
 
 def _anexar_evolucao(c, registros):
-    """Anexa rascunho do registro e última evolução fechada, respeitando o vínculo do paciente."""
     if not registros:
         return registros
     ids = [r["id_registro"] for r in registros]
     marcas = ",".join("?" * len(ids))
-    dados_brutos = {r["id_registro"]: r["dados_json"] for r in c.execute(
+    dados = {r["id_registro"]: r["dados_json"] for r in c.execute(
         f"SELECT id_registro, dados_json FROM Mapa_Evolucao_Dados WHERE id_registro IN ({marcas})", ids)}
     for r in registros:
-        bruto = dados_brutos.get(r["id_registro"])
+        bruto = dados.get(r["id_registro"])
         try:
-            dados = json.loads(bruto) if bruto else {}
+            r["evolucao"] = json.loads(bruto) if bruto else {}
         except (TypeError, ValueError):
-            dados = {}
-        id_paciente_dados = dados.get("id_paciente")
-        if dados and id_paciente_dados is None:
-            try:
-                if dados.get("id_evolucao"):
-                    vinculo = c.execute("SELECT id_paciente FROM Pep_Evolucoes WHERE id_evolucao=?",
-                                        (int(dados["id_evolucao"]),)).fetchone()
-                elif dados.get("id_rascunho"):
-                    vinculo = c.execute("SELECT id_paciente FROM Pep_Rascunhos WHERE id_rascunho=?",
-                                        (int(dados["id_rascunho"]),)).fetchone()
-                else:
-                    vinculo = None
-                id_paciente_dados = vinculo["id_paciente"] if vinculo else None
-            except (sqlite3.OperationalError, TypeError, ValueError):
-                id_paciente_dados = None
-        try:
-            vinculo_valido = (id_paciente_dados is not None and r.get("id_paciente") is not None
-                              and int(id_paciente_dados) == int(r["id_paciente"]))
-        except (TypeError, ValueError):
-            vinculo_valido = False
-        if dados and not vinculo_valido:
-            dados, bruto = {}, None
-        r["evolucao"] = dados
+            r["evolucao"] = {}
         r["evolucao_json"] = bruto
-        operacional = dados if dados.get("status_evolucao") == "fechada" else {}
-        if not operacional and r.get("id_paciente"):
-            try:
-                anterior = c.execute(
-                    "SELECT id_evolucao, cabecalho_json FROM Pep_Evolucoes "
-                    "WHERE id_paciente=? AND data_evolucao<=? AND adendo_de IS NULL "
-                    "ORDER BY data_evolucao DESC, id_evolucao DESC LIMIT 1",
-                    (r["id_paciente"], r["data"]),
-                ).fetchone()
-                if anterior:
-                    cabecalho = json.loads(anterior["cabecalho_json"] or "{}")
-                    operacional = cabecalho.get("dados") or {}
-                    if operacional:
-                        operacional = dict(operacional)
-                        operacional.update({"status_evolucao": "fechada",
-                                            "id_evolucao": anterior["id_evolucao"],
-                                            "id_paciente": r["id_paciente"]})
-            except (sqlite3.OperationalError, TypeError, ValueError):
-                operacional = {}
-        r["evolucao_operacional"] = operacional
     return registros
 
 
@@ -922,13 +884,13 @@ def ultimo_registro_leito(db_path, id_leito, data_iso):
 
 
 def dados_operacionais_copa(registro, data_destino=None):
-    """Extrai somente instruções operacionais autorizadas; nunca expõe metas, TNE, DVA ou diagnósticos."""
+    """Extrai instruções operacionais apenas de evolução fechada e autorizada."""
     if not registro:
         return {}
-    via = str(registro.get("via") or "").casefold()
-    dados = registro.get("evolucao_operacional") or {}
-    if dados.get("status_evolucao") != "fechada":
+    dados = registro.get("evolucao") or {}
+    if dados.get("status_evolucao") != "fechada" and not dados.get("fechada"):
         return {}
+    via = str(registro.get("via") or "").casefold()
     if via == "oral":
         if dados.get("porcao_oral_autorizada") and dados.get("porcao_oral_ml") not in (None, ""):
             porcao = int(float(dados["porcao_oral_ml"]))
@@ -940,8 +902,8 @@ def dados_operacionais_copa(registro, data_destino=None):
     dieta = dados.get("dieta_enteral") or {}
     if not dieta.get("nome") or dieta.get("volume_por_etapa_ml") in (None, ""):
         return {}
-    volume = float(dieta["volume_por_etapa_ml"])
     etapas = int(dieta.get("etapas") or 1)
+    volume_total = float(dieta["volume_por_etapa_ml"]) * etapas
     progressao = dados.get("progressao_enteral") or {}
     if progressao.get("autorizada") and progressao.get("plano", {}).get("passos"):
         inicio_bruto = dados.get("data_evolucao") or registro["data"]
@@ -950,11 +912,20 @@ def dados_operacionais_copa(registro, data_destino=None):
         dias = max(0, (destino - inicio).days)
         passos = progressao["plano"]["passos"]
         if dias:
-            volume = float(passos[min(dias - 1, len(passos) - 1)]["volume_etapa_ml"])
-    total = volume * etapas
-    return {"via": "Enteral", "formula": dieta["nome"], "volume_por_etapa_ml": volume,
-            "etapas": etapas, "volume_total_ml": total,
-            "instrucao": f"{str(dieta['nome'])[:18]} {volume:g}mL/etapa x{etapas}={total:g}mL/d"}
+            volume_total = float(passos[min(dias - 1, len(passos) - 1)]["volume_total_ml"])
+    total_inteiro = int(round(volume_total))
+    base, resto = divmod(total_inteiro, etapas)
+    volumes_etapas = [base + 1] * resto + [base] * (etapas - resto)
+    volume_medio = volume_total / etapas
+    if len(set(volumes_etapas)) <= 1:
+        detalhe = f"{volumes_etapas[0]}mL/etapa x{etapas}"
+    else:
+        detalhe = f"{volumes_etapas[0]}mL x{resto} + {base}mL x{etapas-resto}"
+    nome_curto = str(dieta["nome"])[:16]
+    instrucao = f"{nome_curto} {detalhe}={total_inteiro}mL/d"
+    return {"via": "Enteral", "formula": dieta["nome"], "volume_por_etapa_ml": volume_medio,
+            "volumes_etapas_ml": volumes_etapas, "etapas": etapas,
+            "volume_total_ml": volume_total, "instrucao": instrucao}
 
 
 def mapa_do_dia(db_path, data_iso, id_setor=None):
@@ -1043,8 +1014,11 @@ def copiar_mapa(db_path, origem_iso, destino_iso, id_setor=None):
             marc = ", ".join("?" * (2 + len(_CAMPOS_REG) + 2))
             cur = c.execute(f"INSERT INTO Mapa_Registros ({cols}) VALUES ({marc})",
                             [destino_iso, r["id_leito"]] + [r.get(k) for k in _CAMPOS_REG] + [_agora(), _agora()])
-            # O rascunho/evolução permanece vinculado ao registro original; a última evolução
-            # assinada é recuperada por paciente em _anexar_evolucao, sem duplicar auditoria.
+            if r.get("evolucao"):
+                c.execute(
+                    "INSERT INTO Mapa_Evolucao_Dados (id_registro, dados_json, criado_em, atualizado_em) VALUES (?, ?, ?, ?)",
+                    (cur.lastrowid, json.dumps(r["evolucao"], ensure_ascii=False, sort_keys=True), _agora(), _agora()),
+                )
             for s in r["suplementos"]:
                 c.execute("""INSERT INTO Mapa_Registro_Suplementos
                              (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade, ml_oferta, agua_ml,

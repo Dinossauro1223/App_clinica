@@ -30,11 +30,6 @@ class FormEvolucaoUI(ctk.CTkFrame):
         super().__init__(self.painel, fg_color="transparent")
         self.pack(fill="both", expand=True)
         self.db = ui.db
-        try:
-            salvo_oral = json.loads(mdb.obter_config(self.db, "pep_progressao_oral_etapas", "[70, 100, 130, 160, 200]"))
-            self.progressao_oral = regras.validar_progressao_oral(salvo_oral)
-        except (ValueError, TypeError):
-            self.progressao_oral = [70, 100, 130, 160, 200]
         self.paciente = mdb.obter_paciente(self.db, registro.get("id_paciente")) or {}
         self.equipe = evdb.listar_equipe(self.db)
         self.estagiarios = [m for m in self.equipe if m["funcao"] == "estagiario"]
@@ -49,6 +44,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
                 self.dados_existentes = atual["dados"]
         self._montar()
         self._preencher()
+        self._atualizar_correcao()
 
     def _secao(self, pai, titulo):
         card = ctk.CTkFrame(pai, fg_color=tema.BRANCO, border_width=1,
@@ -80,7 +76,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
                                                font=tema.fonte(12), text_color=tema.TEXTO)
         self.lbl_antropometria.pack(fill="x", padx=12, pady=(0, 4))
         self.lbl_correcao = ctk.CTkLabel(q, text="", justify="left", anchor="w",
-                                         font=tema.fonte(11), text_color=tema.SUAVE)
+                                         font=tema.fonte(11), text_color=tema.LARANJA_TEXTO,
+                                         wraplength=760)
         self.lbl_correcao.pack(fill="x", padx=12, pady=(0, 8))
         linha = ctk.CTkFrame(q, fg_color="transparent")
         linha.pack(fill="x", padx=12)
@@ -107,6 +104,13 @@ class FormEvolucaoUI(ctk.CTkFrame):
                                     font=tema.fonte(11), text_color=tema.SUAVE)
         self.lbl_via.pack(anchor="w", padx=12, pady=(0, 8))
 
+        cfg_porcoes = mdb.obter_config(self.db, "porcoes_orais_ml", "70,100,130,160,200")
+        try:
+            self.porcoes_orais = sorted({int(x.strip()) for x in str(cfg_porcoes).split(",") if int(x.strip()) > 0})
+        except (TypeError, ValueError):
+            self.porcoes_orais = [70, 100, 130, 160, 200]
+        if not self.porcoes_orais:
+            self.porcoes_orais = [70, 100, 130, 160, 200]
         self.q_oral = self._secao(raiz, "Via oral — TNO e porção autorizada")
         linha = ctk.CTkFrame(self.q_oral, fg_color="transparent")
         linha.pack(fill="x", padx=12, pady=(0, 8))
@@ -115,8 +119,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.cb_tno.set("—")
         self.cb_tno.pack(side="left", padx=(0, 12))
         ctk.CTkLabel(linha, text="Porção (mL):", anchor="w").pack(side="left")
-        self.cb_porcao = ctk.CTkComboBox(linha, values=[str(x) for x in self.progressao_oral], width=100, state="readonly")
-        self.cb_porcao.set(str(self.progressao_oral[0]))
+        self.cb_porcao = ctk.CTkComboBox(linha, values=[str(x) for x in self.porcoes_orais], width=100, state="readonly")
+        self.cb_porcao.set(str(self.porcoes_orais[0]))
         self.cb_porcao.pack(side="left", padx=8)
         self.var_solicitar_porcao = tk.IntVar(value=0)
         ctk.CTkCheckBox(self.q_oral, text="Solicitar atualização da porção no mapa das copeiras",
@@ -140,8 +144,13 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.cb_formula = ctk.CTkComboBox(linha, values=nomes, width=260, state="readonly")
         self.cb_formula.set(nomes[0])
         self.cb_formula.pack(side="left", padx=(0, 10))
-        self.e_volume_etapa = self._entry(linha, "mL/etapa", largura=95)
-        self.e_etapas = self._entry(linha, "etapas/dia", "1", largura=90)
+        formula_inicial = self.formulas[0] if self.formulas else {}
+        etapas_iniciais = len(formula_inicial.get("refeicoes") or []) or 1
+        qtd_dia_inicial = float(formula_inicial.get("qtd_dia") or 0)
+        volume_inicial_etapa = qtd_dia_inicial / etapas_iniciais if qtd_dia_inicial else ""
+        self.e_volume_etapa = self._entry(linha, "mL/etapa", volume_inicial_etapa, largura=95)
+        self.e_etapas = self._entry(linha, "etapas/dia", str(etapas_iniciais), largura=90)
+        self.cb_formula.bind("<<ComboboxSelected>>", self._atualizar_formula)
         linha = ctk.CTkFrame(self.q_enteral, fg_color="transparent")
         linha.pack(fill="x", padx=12, pady=(0, 6))
         self.var_bomba = tk.IntVar(value=0)
@@ -150,12 +159,17 @@ class FormEvolucaoUI(ctk.CTkFrame):
         ctk.CTkCheckBox(linha, text="Solicitar progressão enteral automática", variable=self.var_progressao).pack(side="left")
         linha = ctk.CTkFrame(self.q_enteral, fg_color="transparent")
         linha.pack(fill="x", padx=12, pady=(0, 8))
-        self.e_incremento = self._entry(linha, "mL/etapa/dia", "10", largura=120)
+        self.e_incremento = self._entry(linha, "incremento diário (mL)", "35", largura=150)
         self.e_dias = self._entry(linha, "prazo (dias)", "4", largura=100)
+        self.e_volume_maximo = self._entry(linha, "volume máximo/dia (mL)", "", largura=170)
         self.var_tolerancia = tk.IntVar(value=1)
         ctk.CTkCheckBox(linha, text="Boa tolerância", variable=self.var_tolerancia).pack(side="left", padx=(0, 12))
         self.var_restricao = tk.IntVar(value=0)
         ctk.CTkCheckBox(linha, text="Restrição clínica", variable=self.var_restricao).pack(side="left")
+        ctk.CTkLabel(self.q_enteral,
+                     text="Referência: incremento total de 30–40 mL/dia, com meta em 3–4 dias quando matematicamente possível. A execução depende de tolerância, volume máximo e autorização do nutricionista.",
+                     font=tema.fonte(10), text_color=tema.SUAVE, wraplength=760,
+                     justify="left").pack(anchor="w", padx=12, pady=(0, 8))
 
         q = self._secao(raiz, "Suplementação por etapa")
         self.sup_fields = []
@@ -164,9 +178,12 @@ class FormEvolucaoUI(ctk.CTkFrame):
             linha.pack(fill="x", padx=12, pady=2)
             ctk.CTkLabel(linha, text=s.get("nome", "Suplemento"), width=220,
                          anchor="w", text_color=tema.TEXTO).pack(side="left")
-            qtd = self._entry(linha, "quantidade/etapa", s.get("qtd_dia"), 105)
+            etapas_padrao = len(s.get("refeicoes") or []) or 1
+            total_padrao = float(s.get("qtd_dia") or 0)
+            qtd_padrao = total_padrao / etapas_padrao if total_padrao else ""
+            qtd = self._entry(linha, "quantidade/etapa", qtd_padrao, 105)
             ctk.CTkLabel(linha, text=s.get("unidade") or "", width=35).pack(side="left")
-            etapas = self._entry(linha, "etapas/dia", "1", 85)
+            etapas = self._entry(linha, "etapas/dia", str(etapas_padrao), 85)
             self.sup_fields.append((s, qtd, etapas))
 
         q = self._secao(raiz, "Observações e conduta")
@@ -225,6 +242,19 @@ class FormEvolucaoUI(ctk.CTkFrame):
         if self._rascunho_fechado:
             self._somente_leitura()
 
+    def _atualizar_formula(self, _evento=None):
+        ficha = self.formula_por_nome.get(self.cb_formula.get())
+        if not ficha:
+            return
+        etapas = len(ficha.get("refeicoes") or []) or 1
+        total = float(ficha.get("qtd_dia") or 0)
+        volume = total / etapas if total else ""
+        self.e_volume_etapa.delete(0, "end")
+        if volume != "":
+            self.e_volume_etapa.insert(0, str(round(volume, 2)))
+        self.e_etapas.delete(0, "end")
+        self.e_etapas.insert(0, str(etapas))
+
     def _preencher(self):
         dados = self.dados_existentes if isinstance(self.dados_existentes, dict) else {}
         self.seg_dva.set("Sim" if dados.get("dva") is True else "Não" if dados.get("dva") is False else "—")
@@ -258,39 +288,42 @@ class FormEvolucaoUI(ctk.CTkFrame):
             if salvo:
                 _set(qtd, salvo.get("quantidade"))
                 _set(etapas, salvo.get("etapas", 1))
-        if not metas:
-            try:
-                peso = self._peso_nutricional()
-            except (TypeError, ValueError):
-                peso = None
-            if peso:
-                if self.reg.get("meta_kcal"):
-                    _set(self.e_kcal_kg, round(float(self.reg["meta_kcal"]) / peso, 2))
-                if self.reg.get("meta_proteina_g"):
-                    _set(self.e_ptn_kg, round(float(self.reg["meta_proteina_g"]) / peso, 2))
+        if not metas and self._peso_nutricional():
+            peso = self._peso_nutricional()
+            if self.reg.get("meta_kcal"):
+                _set(self.e_kcal_kg, round(float(self.reg["meta_kcal"]) / peso, 2))
+            if self.reg.get("meta_proteina_g"):
+                _set(self.e_ptn_kg, round(float(self.reg["meta_proteina_g"]) / peso, 2))
         self._atualizar_metas()
+
+    def _atualizar_correcao(self):
         try:
-            antropometria = self._antropometria()
-            self.lbl_antropometria.configure(text=regras.formatar_antropometria(antropometria))
             av = json.loads(self.reg.get("avaliacao_json") or "{}")
-            dados_av = av.get("dados") or {}
-            amputacoes = [f"{nome} ({qtd})" for nome, qtd in (dados_av.get("amputacoes") or {}).items()
-                          if int(qtd or 0) > 0]
-            if antropometria.get("peso_corrigido"):
-                original = float(self.reg.get("peso_kg") or 0)
-                fluidos = float(av.get("fluidos") or 0)
-                pct = float(av.get("amput_pct") or 0)
-                detalhe = (f"Peso original: {original:.1f} kg · retirada por edema/ascite: {fluidos:.1f} kg · "
-                           f"correção por amputação: {pct:.1f}% · peso nutricional utilizado: "
-                           f"{antropometria['peso_kg']:.1f} kg.")
-                if amputacoes:
-                    detalhe += " Segmentos: " + ", ".join(amputacoes) + "."
-                self.lbl_correcao.configure(text=detalhe)
-            else:
-                self.lbl_correcao.configure(text="Sem correção por ascite, edema ou amputação.")
-        except (ValueError, TypeError, KeyError) as erro:
-            self.lbl_antropometria.configure(text=f"Antropometria pendente: {erro}")
-            self.lbl_correcao.configure(text="Revise os dados antropométricos no registro do paciente.")
+        except (TypeError, ValueError):
+            av = {}
+        resultado = av.get("resultado") or av
+        if not resultado.get("ajustou"):
+            self.lbl_correcao.configure(text="")
+            return
+        original = resultado.get("peso")
+        final = resultado.get("ajustado", av.get("peso_ajustado"))
+        if original in (None, "") or final in (None, ""):
+            avisos = resultado.get("avisos") or av.get("avisos") or []
+            self.lbl_correcao.configure(
+                text="Correção antropométrica não calculável. " + " ".join(str(x) for x in avisos),
+                text_color=tema.ERRO)
+            return
+        dados_av = resultado.get("dados") or av.get("dados") or {}
+        edema = avaliacao.EDEMA.get(dados_av.get("edema"), 0)
+        ascite = avaliacao.ASCITE.get(dados_av.get("ascite"), 0)
+        amputacao = resultado.get("amput_pct", 0)
+        self.lbl_correcao.configure(
+            text=("Correção antropométrica — " +
+                  f"peso original: {regras.formatar_numero_pt(original, 1)} kg; " +
+                  f"edema: {regras.formatar_numero_pt(edema, 1)} kg; " +
+                  f"ascite: {regras.formatar_numero_pt(ascite, 1)} kg; " +
+                  f"amputação: {regras.formatar_numero_pt(amputacao, 1)}%; " +
+                  f"peso nutricional final: {regras.formatar_numero_pt(final, 1)} kg."))
 
     def _atualizar_metas(self):
         try:
@@ -307,17 +340,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
             av = json.loads(self.reg.get("avaliacao_json") or "{}")
         except (TypeError, ValueError):
             av = {}
-        dados_av = av.get("dados") or {}
-        ascite = dados_av.get("ascite") not in (None, "", "Ausente")
-        edema = dados_av.get("edema") not in (None, "", "Ausente")
-        amputacoes = dados_av.get("amputacoes") or {}
-        amputacao = any(float(qtd or 0) > 0 for qtd in amputacoes.values())
-        erro_amputacao = any("amputa" in str(aviso).casefold() for aviso in (av.get("avisos") or []))
-        peso = av.get("peso_ajustado")
-        if erro_amputacao:
-            raise ValueError("Revise os segmentos amputados: a correção antropométrica contém inconsistências.")
-        if (ascite or edema or amputacao) and peso in (None, ""):
-            raise ValueError("Não foi possível calcular o peso corrigido por ascite/edema/amputação. Revise a avaliação antes de calcular metas.")
+        resultado = av.get("resultado") or av
+        peso = resultado.get("ajustado", av.get("peso_ajustado"))
+        if peso in (None, "") and resultado.get("ajustou"):
+            return None
         if peso in (None, ""):
             peso = self.reg.get("peso_kg")
         return float(peso) if peso not in (None, "") else None
@@ -342,8 +368,11 @@ class FormEvolucaoUI(ctk.CTkFrame):
             classificacao = (imc_oms.get("classificacao") if imc_oms.get("status") == "calculado"
                              else "OMS pendente")
         else:
-            classificacao = av.get("classe") or self.reg.get("imc_class")
-        peso = self._peso_nutricional()
+            classificacao = av.get("classe") or (av.get("resultado") or {}).get("classe") or self.reg.get("imc_class")
+        resultado = av.get("resultado") or av
+        peso = resultado.get("ajustado", av.get("peso_ajustado"))
+        if peso in (None, "") and not resultado.get("ajustou"):
+            peso = self.reg.get("peso_kg")
         idade = self.reg.get("idade_anos")
         if idade is None and nascimento:
             idade = regras.idade_em_anos(nascimento, data_ref)
@@ -355,7 +384,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             "altura_origem": self.reg.get("altura_origem") or "R",
             "peso_kg": peso,
             "peso_origem": self.reg.get("peso_origem") or "R",
-            "peso_corrigido": bool(av.get("ajustou") or (
+            "peso_corrigido": bool(resultado.get("ajustou") or av.get("ajustou") or (
                 peso not in (None, "") and self.reg.get("peso_kg") not in (None, "") and
                 abs(float(peso) - float(self.reg["peso_kg"])) > 0.0001)),
             "imc_class": classificacao,
@@ -364,12 +393,6 @@ class FormEvolucaoUI(ctk.CTkFrame):
         }
 
     def _dados(self, para_fechamento=False):
-        def inteiro_positivo(valor, nome):
-            numero = float(str(valor).replace(",", "."))
-            if not numero.is_integer() or numero < 1:
-                raise ValueError(f"{nome} deve ser um número inteiro positivo.")
-            return int(numero)
-
         antropometria = self._antropometria()
         peso = self._peso_nutricional()
         txt_kcal, txt_ptn = self.e_kcal_kg.get().strip(), self.e_ptn_kg.get().strip()
@@ -383,21 +406,19 @@ class FormEvolucaoUI(ctk.CTkFrame):
         elif para_fechamento:
             raise ValueError("Informe os parâmetros energéticos e proteicos antes do fechamento.")
         via = str(self.reg.get("via") or "").casefold()
-        motivos_tne = [m for m, v in self.tne_vars.items() if v.get()] if via == "enteral" else []
-        tolerancia_enteral = regras.tolerancia_enteral_permite_progressao(
-            motivos_tne, bool(self.var_tolerancia.get()))
         dados = {
-            "id_paciente": self.reg.get("id_paciente"),
             "data_evolucao": self.reg.get("data"),
             "antropometria": antropometria,
             "metas": metas,
             "via": self.reg.get("via"),
             "dva": True if self.seg_dva.get() == "Sim" else False if self.seg_dva.get() == "Não" else None,
             "tno": self.cb_tno.get() if via == "oral" and self.cb_tno.get() != "—" else None,
-            "tne_motivos": motivos_tne,
+            "tne_motivos": [m for m, v in self.tne_vars.items() if v.get()] if via == "enteral" else [],
             "dieta_oral": {
                 "consistencia": self.reg.get("consistencia"),
-                "caracteristicas": [sigla for campo, sigla, _ in mdb.CARACTERISTICAS if self.reg.get(campo)]
+                "caracteristicas": [sigla for campo, sigla in (
+                    ("dm", "DM"), ("has", "HAS"), ("laxativa", "LAX"),
+                    ("constipante", "CON"), ("drc", "DRC")) if self.reg.get(campo)]
             } if via == "oral" else None,
             "porcao_oral_ml": int(self.cb_porcao.get()) if via == "oral" and self.cb_porcao.get() else None,
             "porcao_oral_solicitada": bool(self.var_solicitar_porcao.get()) if via == "oral" else False,
@@ -409,21 +430,28 @@ class FormEvolucaoUI(ctk.CTkFrame):
             quantidade_txt = qtd.get().strip()
             etapas_txt = etapas.get().strip() or "1"
             quantidade = float(quantidade_txt.replace(",", ".")) if quantidade_txt else 0
-            n_etapas = inteiro_positivo(etapas_txt, "Etapas do suplemento")
+            n_etapas_num = float(etapas_txt.replace(",", "."))
+            if not n_etapas_num.is_integer():
+                raise ValueError(f"Número de etapas de {s.get('nome', 'suplemento')} deve ser inteiro.")
+            n_etapas = int(n_etapas_num)
             if quantidade > 0:
                 suplementacao.append({"nome": s["nome"], "quantidade": quantidade,
                                       "unidade": s.get("unidade") or "mL", "etapas": n_etapas})
-        if via == "enteral":
-            nome = self.cb_formula.get()
-            suplementacao = [s for s in suplementacao if s["nome"] != nome]
         dados["suplementacao"] = suplementacao
         if via == "enteral":
+            nome = self.cb_formula.get()
             ficha = self.formula_por_nome.get(nome)
             volume_txt = self.e_volume_etapa.get().strip()
             etapas_txt = self.e_etapas.get().strip() or "1"
             volume_etapa = float(volume_txt.replace(",", ".")) if volume_txt else 0
-            etapas = inteiro_positivo(etapas_txt, "Etapas da dieta enteral")
+            etapas_num = float(etapas_txt.replace(",", "."))
+            if not etapas_num.is_integer():
+                raise ValueError("Número de etapas da dieta enteral deve ser inteiro.")
+            etapas = int(etapas_num)
             if ficha and volume_etapa > 0 and etapas > 0 and metas:
+                dias_num = float((self.e_dias.get().strip() or "4").replace(",", "."))
+                if not dias_num.is_integer():
+                    raise ValueError("Prazo da progressão deve ser inteiro (3 ou 4 dias).")
                 oferta = regras.calcular_oferta_enteral(
                     volume_etapa, etapas, ficha["kcal_100"], ficha["ptn_100"])
                 volume_meta = metas["kcal_dia"] / (ficha["kcal_100"] / 100)
@@ -434,14 +462,15 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     "kcal_100": ficha["kcal_100"], "ptn_100": ficha["ptn_100"],
                 }
                 dados["bomba"] = {"usa_bomba": bool(self.var_bomba.get()), "taxa_estimativa_ml_h": 10}
-                dados["orientacao_progressao"] = not bool(self.var_bomba.get())
                 dados["progressao_enteral"] = {
                     "solicitada": bool(self.var_progressao.get()), "autorizada": False,
                     "volume_atual_ml": oferta["volume_total_ml"], "volume_meta_ml": volume_meta,
                     "volume_etapa_atual_ml": volume_etapa, "etapas": etapas,
-                    "incremento_por_etapa_ml": float((self.e_incremento.get().strip() or "10").replace(",", ".")),
-                    "dias_alvo": inteiro_positivo(self.e_dias.get().strip() or "4", "Prazo da progressão"),
-                    "tolerancia": tolerancia_enteral, "restricao": bool(self.var_restricao.get()),
+                    "incremento_diario_ml": float((self.e_incremento.get().strip() or "35").replace(",", ".")),
+                    "dias_alvo": int(dias_num),
+                    "volume_maximo_ml": (float(self.e_volume_maximo.get().strip().replace(",", "."))
+                                         if self.e_volume_maximo.get().strip() else None),
+                    "tolerancia": bool(self.var_tolerancia.get()), "restricao": bool(self.var_restricao.get()),
                 }
             else:
                 dados["dieta_enteral"] = {"nome": nome}
@@ -463,6 +492,15 @@ class FormEvolucaoUI(ctk.CTkFrame):
             if not self.reg.get("id_paciente"):
                 raise ValueError("Vincule o paciente ao cadastro clínico antes de salvar a evolução.")
             dados = self._dados()
+            if dados.get("metas"):
+                self.form_registro.e_meta_kcal.delete(0, "end")
+                self.form_registro.e_meta_kcal.insert(0, str(round(dados["metas"]["kcal_dia"], 1)))
+                self.form_registro.e_meta_ptn.delete(0, "end")
+                self.form_registro.e_meta_ptn.insert(0, str(round(dados["metas"]["proteina_g_dia"], 1)))
+                if not self.form_registro._salvar(manter_aberto=True):
+                    raise ValueError("Não foi possível sincronizar as metas com o registro do Mapa.")
+                self.reg = mdb.obter_registro(self.db, self.reg["data"], self.reg["id_leito"]) or self.reg
+                self.form_registro.reg = self.reg
             id_elaborador, colaboradores = self._colaboradores()
             self.id_rascunho = evdb.salvar_rascunho(
                 self.db, self.reg["id_paciente"], self.reg["data"], dados, id_elaborador,
@@ -470,6 +508,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
             dados["id_rascunho"] = self.id_rascunho
             dados["status_evolucao"] = "rascunho"
             mdb.salvar_dados_evolucao(self.db, self.reg["id_registro"], dados)
+            self.reg = mdb.obter_registro(self.db, self.reg["data"], self.reg["id_leito"]) or self.reg
+            self.form_registro.reg = self.reg
             self.ui._recarregar()
             self.lbl_status.configure(text=f"Rascunho #{self.id_rascunho} salvo. Ainda não é uma evolução fechada.",
                                        text_color=tema.VERDE)
@@ -522,6 +562,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
             dados["status_evolucao"] = "fechada"
             dados["fechada"] = True
             mdb.salvar_dados_evolucao(self.db, self.reg["id_registro"], dados)
+            self.reg = mdb.obter_registro(self.db, self.reg["data"], self.reg["id_leito"]) or self.reg
+            self.form_registro.reg = self.reg
             self.ui._recarregar()
             self.lbl_status.configure(
                 text=f"Evolução #{id_evolucao} fechada e assinada por {revisor['nome']} — {revisor['crn']}.",

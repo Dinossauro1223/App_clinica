@@ -1,11 +1,23 @@
 # -*- coding: utf-8 -*-
 """Testes do cache, fila offline e fallback Android do NutriLab Mobile."""
+import os
 import re
 import shutil
+import sys
 import subprocess
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import integracao_mobile as im
+import mapa_db as mdb
+try:
+    from mobile import servidor as sv
+except ImportError:
+    sv = None
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML = ROOT / "mobile" / "static" / "index.html"
@@ -147,6 +159,157 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         jsqr = ROOT / "mobile" / "static" / "jsQR.js"
         r = subprocess.run([node, "--check", str(jsqr)], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
+
+
+@unittest.skipUnless(
+    sv is not None and all(hasattr(sv, n) for n in ("preparar_banco", "post_mapa", "exportar")),
+    "servidor mobile não disponível",
+)
+class TestBackendMobileSemAparelho(unittest.TestCase):
+    """Exercita o backend completo em SQLite, sem câmera, APK ou rede."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="nutrilab-backend-mobile-")
+        self.desktop = os.path.join(self.tmp, "desktop.db")
+        self.mobile = os.path.join(self.tmp, "mobile.db")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+        mdb.inicializar(self.desktop)
+        mdb.criar_setor(self.desktop, "Clinica A")
+        sid = next(
+            s["id_setor"] for s in mdb.listar_setores(self.desktop)
+            if s["nome"] == "Clinica A"
+        )
+        mdb.criar_leitos_sequencia(self.desktop, sid, "A", 1, 2)
+        self.leitos = {
+            l["codigo"]: l["id_leito"]
+            for l in mdb.listar_leitos(self.desktop, sid)
+        }
+        sv.preparar_banco(self.mobile)
+
+    def _salvar(self, nome="Paciente Teste", idade=72):
+        mdb.salvar_registro(self.desktop, {
+            "data": "2026-11-25",
+            "id_leito": self.leitos["A01"],
+            "nome_paciente": nome,
+            "idade_anos": idade,
+            "consistencia": "Pastosa",
+            "dm": 1,
+        })
+
+    def test_desktop_server_export_roundtrip_sem_aparelho(self):
+        """Desktop -> servidor -> exportação é validado somente com bancos locais."""
+        self._salvar()
+
+        resultado = im.enviar_mapa(self.desktop, self.mobile, "2026-11-25")
+        self.assertTrue(any(x["setor"] == "Clinica A" for x in resultado))
+
+        exportado = im.ler_mobile(self.mobile, "2026-11-25")
+        setor = next(x for x in exportado["setores"] if x["nome"] == "Clinica A")
+        leitos = [x for x in exportado["leitos"] if x["id_setor"] == setor["id"]]
+        mapa = [x for x in exportado["mapa"] if x["id_setor"] == setor["id"]]
+        self.assertEqual(len(leitos), 2)
+        self.assertEqual(len(mapa), 2)
+        paciente = next(x for x in mapa if x["codigo"] == "A01")
+        vazio = next(x for x in mapa if x["codigo"] == "A02")
+
+        self.assertEqual(paciente["nome"], "Paciente Teste")
+        self.assertEqual(paciente["idade_anos"], 72)
+        self.assertEqual(paciente["consistencia"], "Pastosa")
+        self.assertEqual(vazio["nome"], "")
+        self.assertEqual(vazio["ocupado"], 0)
+
+    def test_proposta_da_copa_e_aprovacao_sem_celular(self):
+        """Uma alteração de perfil Copa percorre proposta -> aprovação sem dispositivo."""
+        self._salvar("Paciente Original", 70)
+        im.enviar_mapa(self.desktop, self.mobile, "2026-11-25")
+
+        c = sv.conectar(self.mobile)
+        try:
+            sv.criar_usuario(c, "copa_teste", "Copa Teste", "copa", None, "senha123")
+            c.commit()
+            copa = dict(c.execute(
+                "SELECT * FROM usuarios WHERE login='copa_teste'"
+            ).fetchone())
+            sid = c.execute(
+                "SELECT id FROM setores WHERE nome='Clinica A'"
+            ).fetchone()["id"]
+            lid = c.execute(
+                "SELECT id FROM leitos WHERE id_setor=? AND codigo='A01'",
+                (sid,),
+            ).fetchone()["id"]
+
+            linhas = [{
+                "id_leito": lid,
+                "nome": "Paciente Corrigido",
+                "idade_anos": 71,
+                "idade_meses": None,
+                "ocupado": 1,
+                "acompanhante": 0,
+                "dieta": "Pastosa",
+                "diagnostico": "",
+                "pref_sim": "",
+                "pref_nao": "",
+                "cor": "",
+                "consistencia": "Pastosa",
+                "via": "Oral",
+                "dm": 1,
+                "has": 0,
+                "laxativa": 0,
+                "constipante": 0,
+                "drc": 0,
+                "suplementos_json": "[]",
+                "atualizado_em": "2026-11-25T10:00:00-03:00",
+            }]
+            res = sv.post_mapa(
+                c, copa, {"id": sid, "nome": "Clinica A"},
+                "2026-11-25", linhas
+            )
+            self.assertEqual(res["pendente"], 1)
+            c.commit()
+        finally:
+            c.close()
+
+        exportado = im.ler_mobile(self.mobile, "2026-11-25")
+        propostas = im.propostas_mapa(self.desktop, exportado)
+
+        self.assertEqual(len(propostas), 1)
+        self.assertIn("nome_paciente", propostas[0]["campos"])
+
+        aplicado = im.aplicar_mapa(
+            self.desktop, propostas, mobile_db=self.mobile
+        )
+        self.assertEqual(aplicado, {"aplicados": 1, "erros": []})
+        self.assertEqual(
+            mdb.obter_registro(
+                self.desktop, "2026-11-25", self.leitos["A01"]
+            )["nome_paciente"],
+            "Paciente Corrigido",
+        )
+
+    def test_reenvio_e_idempotencia_sem_aparelho(self):
+        """Repetir o envio local simula reconexão/reenvio sem duplicar setores ou leitos."""
+        self._salvar()
+        im.enviar_mapa(self.desktop, self.mobile, "2026-11-25")
+
+        with closing(sv.conectar(self.mobile)) as c:
+            setor_id = c.execute("SELECT id FROM setores WHERE nome='Clinica A'").fetchone()["id"]
+            antes = {
+                "setores": c.execute("SELECT COUNT(*) FROM setores").fetchone()[0],
+                "leitos": c.execute("SELECT COUNT(*) FROM leitos WHERE id_setor=?", (setor_id,)).fetchone()[0],
+                "mapa": c.execute("SELECT COUNT(*) FROM mapa_dia WHERE id_leito IN (SELECT id FROM leitos WHERE id_setor=?)", (setor_id,)).fetchone()[0],
+            }
+
+        im.enviar_mapa(self.desktop, self.mobile, "2026-11-25")
+
+        with closing(sv.conectar(self.mobile)) as c:
+            depois = {
+                "setores": c.execute("SELECT COUNT(*) FROM setores").fetchone()[0],
+                "leitos": c.execute("SELECT COUNT(*) FROM leitos WHERE id_setor=?", (setor_id,)).fetchone()[0],
+                "mapa": c.execute("SELECT COUNT(*) FROM mapa_dia WHERE id_leito IN (SELECT id FROM leitos WHERE id_setor=?)", (setor_id,)).fetchone()[0],
+            }
+            self.assertEqual(depois, antes)
+            self.assertEqual(antes["leitos"], 2)
 
 
 if __name__ == "__main__":
