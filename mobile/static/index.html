@@ -503,6 +503,9 @@ const publica=tenta(async()=>{
   aviso(`Publicado: ${r.leitos} leito(s) atualizado(s) para a copa. As copeiras veem o aviso ao abrir o app.`,0);
 });
 /* ---------- Refeições ---------- */
+function agoraLocalInput(){
+  const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16);
+}
 async function vRef(){
   if(!S.setor){$('#vista').innerHTML=filtros('setor')+semSetor;return}
   const j=await api(`/api/refeicoes?setor=${S.setor}&data=${S.data}`),st=ehStaff();
@@ -515,11 +518,13 @@ async function vRef(){
     const opcoes=minhas.map(a=>`<option value="${a.id_autorizacao}">Autorização #${a.id_autorizacao} · até ${a.fim_vigencia?esc(a.fim_vigencia.replace('T',' ')):'sem término'} · ${a.quantidade_acompanhantes} acompanhante(s)</option>`).join('');
     return `<div class=cartao data-paciente="${p.id_leito}" data-paciente-id="${esc(p.id_paciente)}" data-paciente-nome="${esc(p.nome)}" data-leito="${esc(p.leito)}">
       <b>Leito ${esc(p.leito)} · ${esc(p.nome)}</b><p class=mini>O registro ficará associado a esta internação, mesmo após a troca do paciente no leito.</p>
+      <label class=f>Data e hora da entrega<input class=sr-momento type=datetime-local value="${agoraLocalInput()}"></label>
       <div class=filtros><label class=f>Refeição<select class=sr-ref>${refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
       <label class=f>Quantidade<input class=sr-qtd type=number min=1 step=1 value=1></label>
       <label class=f>Valor unitário (R$)<input class=sr-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>
       <button class=btn style="width:100%" onclick="registrarServicoPaciente(this,'paciente')">Registrar refeição servida ao paciente</button>
       ${minhas.length?`<hr><b>Refeições autorizadas para acompanhantes</b><label class=f>Autorização<select class=ac-auth>${opcoes}</select></label>
+      <label class=f>Data e hora da entrega<input class=ac-momento type=datetime-local value="${agoraLocalInput()}"></label>
       <div class=filtros><label class=f>Refeição<select class=ac-ref>${minhas.flatMap(a=>a.refeicoes).filter((x,i,ar)=>ar.indexOf(x)===i).map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
       <label class=f>Quantidade de acompanhantes<input class=ac-qtd type=number min=1 max="${Math.max(...minhas.map(a=>a.quantidade_acompanhantes))}" value=1></label>
       <label class=f>Valor unitário (R$)<input class=ac-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>
@@ -547,6 +552,7 @@ async function vRef(){
   '<h2>Refeições individualizadas</h2><p class=mini>Registre cada refeição no momento em que for entregue. O paciente e o leito ficam gravados como fotografia histórica.</p>'+
   (htmlPacientes||'<div class=cartao>Nenhum paciente ativo no mapa deste setor/data.</div>')+
   '<h2>Refeições de funcionários</h2><div class=cartao><label class=f>Nome do funcionário<input id=rf-nome type=text placeholder="Nome de quem recebeu"></label>'+
+  '<label class=f>Data e hora da entrega<input id=rf-momento type=datetime-local value="${agoraLocalInput()}"></label>'+
   '<div class=filtros><label class=f>Refeição<select id=rf-ref>'+refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('')+'</select></label>'+
   '<label class=f>Quantidade<input id=rf-qtd type=number min=1 value=1></label><label class=f>Valor unitário (R$)<input id=rf-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>'+
   '<button class=btn style="width:100%" onclick="registrarServicoFuncionario()">Registrar refeição de funcionário</button></div>'+
@@ -556,7 +562,7 @@ const registrarServicoPaciente=tenta(async(botao,pub)=>{
   const card=botao.closest('[data-paciente]'),lid=Number(card.dataset.paciente),refInput=pub==='paciente'?card.querySelector('.sr-ref').value:card.querySelector('.ac-ref').value;
   const ref=Object.keys(REF).find(k=>REF[k].toLowerCase()===String(refInput).toLowerCase())||refInput;
   const body={setor:S.setor,data:S.data,id_leito:lid,id_paciente:card.dataset.pacienteId,
-    nome_paciente:card.dataset.pacienteNome,leito:card.dataset.leito,servido_em:new Date().toISOString(),publico:pub,refeicao:ref,
+    nome_paciente:card.dataset.pacienteNome,leito:card.dataset.leito,servido_em:new Date((pub==='paciente'?card.querySelector('.sr-momento'):card.querySelector('.ac-momento')).value).toISOString(),publico:pub,refeicao:ref,
     quantidade:pub==='paciente'?card.querySelector('.sr-qtd').value:card.querySelector('.ac-qtd').value,
     valor_unitario:pub==='paciente'?card.querySelector('.sr-valor').value:card.querySelector('.ac-valor').value};
   if(pub==='acompanhante'){body.id_autorizacao_acompanhante=card.querySelector('.ac-auth').value}
@@ -564,7 +570,7 @@ const registrarServicoPaciente=tenta(async(botao,pub)=>{
 });
 const registrarServicoFuncionario=tenta(async()=>{
   const nome=$('#rf-nome').value.trim();if(!nome)throw new Error('Informe quem recebeu a refeição.');
-  await api('/api/refeicoes/servicos',{setor:S.setor,data:S.data,servido_em:new Date().toISOString(),publico:'funcionario',destinatario_nome:nome,
+  await api('/api/refeicoes/servicos',{setor:S.setor,data:S.data,servido_em:new Date($('#rf-momento').value).toISOString(),publico:'funcionario',destinatario_nome:nome,
     refeicao:$('#rf-ref').value,quantidade:$('#rf-qtd').value,valor_unitario:$('#rf-valor').value});
   await vRef();aviso('Refeição do funcionário registrada.',0);
 });
