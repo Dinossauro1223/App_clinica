@@ -558,7 +558,10 @@ async function vRef(){
   }).join('');
   const janelaUi=st?`<h2>Janelas por público</h2><p class=mini>Sem janela configurada, o registro fica bloqueado. Os horários de pacientes e funcionários são independentes.</p><div class=cartao>
     ${['paciente','funcionario'].map(pub=>`<h3>${pub==='paciente'?'Pacientes':'Funcionários'}</h3>${refs.map(ref=>{const x=janela(pub,ref)||{};return `<div class=filtros data-rj="${pub}|${ref}"><label class=f>${REF[ref]} · início<input type=time class=ji value="${x.inicio||''}"></label><label class=f>fim<input type=time class=jf value="${x.fim||''}"></label></div>`}).join('')}`).join('')}
-    <button class="btn sec" style="width:100%" onclick="salvaJanelasPublico()">Salvar janelas por público</button></div>`: '';
+    <button class="btn sec" style="width:100%" onclick="salvaJanelasPublico()">Salvar janelas por público</button>
+    <hr><h3>Custos por porção</h3><p class=mini>Os valores cadastrados são copiados para o histórico quando a refeição é servida. Campos vazios removem o preço.</p>
+    ${['paciente','funcionario','acompanhante'].map(pub=>`<h3>${pub==='paciente'?'Pacientes':pub==='funcionario'?'Funcionários':'Acompanhantes'}</h3>${refs.map(ref=>`<div class=filtros data-rp="${pub}|${ref}"><label class=f>${REF[ref]} · custo por porção (R$)<input type=number min=0 step=0.01 class=rpv value="${preco(pub,ref)??''}" placeholder="Não configurado"></label></div>`).join('')}`).join('')}
+    <button class="btn sec" style="width:100%" onclick="salvaPrecosRefeicoes()">Salvar custos por público</button></div>`: '';
   const relatorio=st?`<h2>Relatório de custos das refeições</h2><div class=cartao><p class=mini>Apuração baseada somente nas refeições efetivamente registradas como servidas.</p>
     <button class="btn sec" style="width:100%" onclick="carregarRelatorioRefeicoes()">Atualizar custos de ${br(S.data)}</button><div id=rel-ref class=mini></div></div>`: '';
   $('#vista').innerHTML=filtros('setor')+'<h2>Contagem geral</h2><p class=mini>Contagem agregada por refeição, mantida para conferência operacional.</p>'+
@@ -616,6 +619,13 @@ const salvaJanelasPublico=tenta(async()=>{
     await api('/api/refeicoes/janelas',{publico,refeicao,inicio,fim});
   }
   await vRef();aviso('Janelas por público atualizadas.',0);
+});
+const salvaPrecosRefeicoes=tenta(async()=>{
+  for(const e of document.querySelectorAll('[data-rp]')){
+    const [publico,refeicao]=e.dataset.rp.split('|');
+    await api('/api/refeicoes/precos',{publico,refeicao,valor_unitario:e.querySelector('.rpv').value});
+  }
+  await vRef();aviso('Custos por porção atualizados.',0);
 });
 const carregarRelatorioRefeicoes=tenta(async()=>{
   const j=await api(`/api/refeicoes/relatorio?inicio=${S.data}&fim=${S.data}`),alvo=$('#rel-ref');
