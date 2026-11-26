@@ -113,5 +113,23 @@ class TestStatusRedeLocal(unittest.TestCase):
             servidor.server_close()
 
 
+    def test_status_expoe_endereco_tailscale_quando_conectado(self):
+        with patch.object(sv, "ip_lan", return_value="192.168.10.15"), \
+             patch.object(sv, "detectar_ip_tailscale", return_value="100.88.1.20"):
+            status = sv.rotear(self.db, "192.168.10.20", "GET", "/api/status", {}, {}, "")
+        self.assertTrue(status["tailscale_conectado"])
+        self.assertEqual(status["ip_tailscale"], "100.88.1.20")
+        self.assertEqual(status["url_tailscale"], "http://100.88.1.20:8765")
+
+    def test_cliente_tailscale_so_e_aceito_no_ip_tailscale_do_servidor(self):
+        self.assertTrue(sv.cliente_autorizado("100.90.1.2", "100.88.1.20", "100.88.1.20"))
+        self.assertFalse(sv.cliente_autorizado("100.90.1.2", "192.168.10.15", "100.88.1.20"))
+        self.assertFalse(sv.cliente_autorizado("100.90.1.2", "100.88.1.21", "100.88.1.20"))
+
+    def test_origem_publica_nao_e_autorizada(self):
+        self.assertFalse(sv.cliente_autorizado("8.8.8.8", "100.88.1.20", "100.88.1.20"))
+        self.assertTrue(sv.cliente_autorizado("192.168.10.20", "192.168.10.15", None))
+
+
 if __name__ == "__main__":
     unittest.main()
