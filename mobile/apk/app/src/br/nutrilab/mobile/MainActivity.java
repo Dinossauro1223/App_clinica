@@ -10,6 +10,8 @@ import android.net.DhcpInfo;
 import android.net.wifi.WifiManager;
 import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Base64;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
@@ -34,6 +36,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.security.KeyStore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -68,6 +71,16 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private SharedPreferences prefs;
+    private volatile boolean offlineMode = false;
+    private final AtomicBoolean descobertaEmAndamento = new AtomicBoolean(false);
+    private final Handler handlerDescoberta = new Handler(Looper.getMainLooper());
+    private final Runnable tentarRedescobrir = new Runnable() {
+        @Override public void run() {
+            if (!offlineMode) return;
+            descobrirServidor(true);
+            handlerDescoberta.postDelayed(this, 15000);
+        }
+    };
     private PermissionRequest pedidoCamera;
     private ValueCallback<Uri[]> retornoArquivo;
     private boolean abrirScannerPendente = false;
@@ -274,6 +287,8 @@ public class MainActivity extends Activity {
     }
 
     private void abrir() {
+        offlineMode = false;
+        handlerDescoberta.removeCallbacks(tentarRedescobrir);
         String url = prefs.getString("servidor", "");
         web.loadUrl(url.isEmpty() ? "file:///android_asset/config.html" : url);
     }
@@ -282,6 +297,8 @@ public class MainActivity extends Activity {
     private void abrirOffline() {
         String servidor = prefs.getString("servidor", "");
         if (servidor.isEmpty()) {
+            offlineMode = false;
+            handlerDescoberta.removeCallbacks(tentarRedescobrir);
             web.loadUrl("file:///android_asset/config.html");
             return;
         }
@@ -306,9 +323,19 @@ public class MainActivity extends Activity {
                 html.replace(posQr, posQr + referenciaQr.length(),
                         "<script>" + qrCodigo.toString() + "</script>");
             }
+            offlineMode = true;
             web.loadDataWithBaseURL(servidor + "/", html.toString(), "text/html", "UTF-8", null);
+            if (!prefs.getString("server_identity", "").isEmpty()) {
+                handlerDescoberta.removeCallbacks(tentarRedescobrir);
+                handlerDescoberta.postDelayed(tentarRedescobrir, 1200);
+            }
         } catch (Exception e) {
+            offlineMode = true;
             web.loadUrl("file:///android_asset/erro.html?motivo=conexao");
+            if (!prefs.getString("server_identity", "").isEmpty()) {
+                handlerDescoberta.removeCallbacks(tentarRedescobrir);
+                handlerDescoberta.postDelayed(tentarRedescobrir, 15000);
+            }
         }
     }
 
@@ -474,15 +501,21 @@ public class MainActivity extends Activity {
 
     /** Localiza o servidor por broadcast, mas só aceita o servidor já vinculado neste aparelho. */
     private void descobrirServidor() {
+        descobrirServidor(false);
+    }
+
+    /** Tenta localizar o servidor vinculado; no modo offline repete sem interromper o usuário. */
+    private void descobrirServidor(final boolean silencioso) {
+        if (!descobertaEmAndamento.compareAndSet(false, true)) return;
         new Thread(new Runnable() {
             @Override public void run() {
-                String identidadeSalva = prefs.getString("server_identity", "");
-                if (identidadeSalva.isEmpty()) {
-                    avisar("Este aparelho ainda não possui vínculo com um servidor. Faça a primeira conexão pelo QR code ou endereço fornecido pelo administrador.");
-                    return;
-                }
                 DatagramSocket socket = null;
                 try {
+                    String identidadeSalva = prefs.getString("server_identity", "");
+                    if (identidadeSalva.isEmpty()) {
+                        if (!silencioso) avisar("Este aparelho ainda não possui vínculo com um servidor. Faça a primeira conexão pelo QR code ou endereço fornecido pelo administrador.");
+                        return;
+                    }
                     socket = new DatagramSocket();
                     socket.setBroadcast(true);
                     socket.setSoTimeout(900);
@@ -499,7 +532,7 @@ public class MainActivity extends Activity {
                             break;
                         }
                         String texto = new String(resposta.getData(), 0, resposta.getLength(), "UTF-8");
-                        String[] partes = texto.split("\\|", 3);
+                        String[] partes = texto.split("\\\\|", 3);
                         if (partes.length != 3 || !"NUTRILAB_SERVER_V1".equals(partes[0])
                                 || !identidadeSalva.equals(partes[2])) continue;
                         final String url = normalizar(partes[1]);
@@ -509,21 +542,25 @@ public class MainActivity extends Activity {
                         runOnUiThread(new Runnable() {
                             @Override public void run() {
                                 prefs.edit().putString("servidor", url).apply();
+                                offlineMode = false;
+                                handlerDescoberta.removeCallbacks(tentarRedescobrir);
                                 abrir();
                             }
                         });
                         return;
                     }
-                    avisar("Não encontrei o servidor vinculado nesta rede. Confira se o computador da clínica está ligado e se o celular está no Wi-Fi correto.");
+                    if (!silencioso) avisar("Não encontrei o servidor vinculado nesta rede. Confira se o computador da clínica está ligado e se o celular está no Wi-Fi correto.");
                 } catch (Exception e) {
-                    avisar("Não foi possível procurar o servidor nesta rede. Confira a conexão Wi-Fi e tente novamente.");
+                    if (!silencioso) avisar("Não foi possível procurar o servidor nesta rede. Confira a conexão Wi-Fi e tente novamente.");
                     android.util.Log.w("NutriLabDiscovery", "Falha na descoberta local", e);
                 } finally {
                     if (socket != null) socket.close();
+                    descobertaEmAndamento.set(false);
                 }
             }
         }, "nutrilab-server-discovery").start();
     }
+
 
     /** Mostra uma mensagem na pagina de configuracao (config.html). */
     private void avisar(final String texto) {
