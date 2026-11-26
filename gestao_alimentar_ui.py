@@ -1373,7 +1373,8 @@ class PreparacoesDiaDialog:
     def _render(self):
         # Mantém o estado de expansão das categorias enquanto a lista é atualizada.
         primeira_renderizacao=not getattr(self,"_render_iniciado",False)
-        grupos_abertos={iid for iid in self.tree.get_children("")
+        grupos_existentes=set(self.tree.get_children(""))
+        grupos_abertos={iid for iid in grupos_existentes
                         if self.tree.item(iid,"open")}
         for iid in self.tree.get_children():
             self.tree.delete(iid)
@@ -1406,7 +1407,7 @@ class PreparacoesDiaDialog:
                     continue
                 gid=f"grupo:{valor}"
                 self.tree.insert("","end",iid=gid,values=(rotulo,"","",""),
-                                 open=(primeira_renderizacao or gid in grupos_abertos),
+                                 open=(primeira_renderizacao or gid in grupos_abertos or gid not in grupos_existentes),
                                  tags=("grupo_menu",))
                 for indice,r in itens:
                     inserir_preparacao(gid,indice,r,False)
@@ -1414,7 +1415,7 @@ class PreparacoesDiaDialog:
                 gid=f"grupo:{categoria}"
                 self.tree.insert("","end",iid=gid,
                     values=(_rotulo_categoria_menu(self.cb_ref.get(),categoria),"","",""),
-                    open=(gid in grupos_abertos or not grupos_abertos),tags=("grupo_menu",))
+                    open=(primeira_renderizacao or gid in grupos_abertos or gid not in grupos_existentes),tags=("grupo_menu",))
                 for indice,r in itens:
                     inserir_preparacao(gid,indice,r,False)
             if sem_categoria:
