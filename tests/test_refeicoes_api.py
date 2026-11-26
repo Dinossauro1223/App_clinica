@@ -105,6 +105,7 @@ class TestRefeicoesAPI(unittest.TestCase):
         self.api("POST", "/api/mapa", {
             "setor": sid, "data": dia, "completo": True,
             "linhas": [{"id_leito": lid, "nome": "Paciente Offline",
+                        "id_ocupacao": "offline:teste-paciente",
                         "atualizado_em": datetime.fromisoformat(servida_em).replace(hour=8).isoformat()}]})
 
         self.api("POST", "/api/admin/usuarios", {
