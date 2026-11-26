@@ -79,6 +79,13 @@ class TestConsumoCozinha(unittest.TestCase):
         ga.salvar_alocacoes_retirada(self.db,"2026-11-20",101,[{
             "tipo_destino":"preparacao","id_preparacao_dia":prep,"quantidade":5
         }])
+        ga.salvar_preparacoes_dia(self.db,"2026-11-22","almoco",[
+            {"nome":"Feijão da refeição seguinte","porcoes_previstas":100}
+        ])
+        prep_seguinte = ga.listar_preparacoes_dia(self.db,"2026-11-22","almoco")[0]["id_preparacao_dia"]
+        ga.salvar_alocacoes_retirada(self.db,"2026-11-22",104,[{
+            "tipo_destino":"preparacao","id_preparacao_dia":prep_seguinte,"quantidade":3
+        }])
         c=sv.conectar(self.mobile_db)
         try:
             c.execute("""INSERT INTO movimentos
@@ -90,12 +97,16 @@ class TestConsumoCozinha(unittest.TestCase):
         im.importar_movimentos_cozinha(self.db,self.mobile_db,"2026-11-20","2026-11-22")
         resumo=ga.resumo_consumo_observado(self.db,"2026-11-20","2026-11-22")
         item=next(x for x in resumo["itens"] if x["item"]=="Feijão")
-        ficha=next(x for x in resumo["por_preparacao"] if x["preparacao"]=="Feijão cozido")
+        fichas={x["preparacao"]:x for x in resumo["por_preparacao"]}
+        ficha=fichas["Feijão cozido"]
+        ficha_seguinte=fichas["Feijão da refeição seguinte"]
         self.assertEqual(item["total_retirado"],6.0)
-        self.assertEqual(item["total_alocado"],3.0)
-        self.assertAlmostEqual(item["custo_alocado"],21.6)
+        self.assertEqual(item["total_alocado"],6.0)
+        self.assertAlmostEqual(item["custo_alocado"],45.6)
         self.assertEqual(ficha["quantidade_total"],3.0)
         self.assertAlmostEqual(ficha["custo_total"],21.6)
+        self.assertEqual(ficha_seguinte["quantidade_total"],3.0)
+        self.assertAlmostEqual(ficha_seguinte["custo_total"],24.0)
 
     def test_custo_alocado_fica_indefinido_quando_preco_nao_existe(self):
         with sqlite3.connect(self.db) as c:
