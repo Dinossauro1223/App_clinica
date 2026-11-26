@@ -56,7 +56,7 @@ class TestConsumoCozinha(unittest.TestCase):
         resumo=ga.resumo_consumo_observado(self.db,"2026-11-20","2026-11-22")
         item=next(x for x in resumo["itens"] if x["item"]=="Feijão")
         self.assertEqual(item["total_retirado"],6.0)  # 5 + 3 - 2 devolvidos
-        self.assertAlmostEqual(item["custo_total"],43.2)  # 36 + 24 - 14.4
+        self.assertAlmostEqual(item["custo_total"],45.6)  # 36 + 24 - 14.4
 
     def test_custo_alocado_fica_indefinido_quando_preco_nao_existe(self):
         with sqlite3.connect(self.db) as c:
