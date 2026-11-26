@@ -493,6 +493,7 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
                                 if int(x["id_leito"]) == int(chave)), None)
                 if herdado and herdado.get("data_base") not in (None, data):
                     anterior = {k: herdado.get(k) for k in CAMPOS}
+                    anterior["ocupado"] = herdado.get("ocupado")
                     anterior["id_ocupacao"] = herdado.get("id_ocupacao")
                     anterior["por_perfil"] = herdado.get("por_perfil")
         if anterior:
@@ -517,7 +518,8 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
                  usuario["nome"] if usuario else "Usuário removido", perfil, t, origem,
                  json.dumps(campos, ensure_ascii=False),
                  json.dumps(anterior, ensure_ascii=False) if anterior is not None else None,
-                 json.dumps({**{k: v.get(k) for k in CAMPOS}, "id_ocupacao": id_ocupacao}, ensure_ascii=False)),
+                 json.dumps({**{k: v.get(k) for k in CAMPOS}, "ocupado": v.get("ocupado"),
+                             "id_ocupacao": id_ocupacao}, ensure_ascii=False)),
             )
         c.execute("INSERT INTO mapa_dia(data,id_leito,id_ocupacao,ocupado,acompanhante,dieta,nome,idade_anos,idade_meses,diagnostico,pref_sim,pref_nao,"
                   "cor,consistencia,via,dm,has,laxativa,constipante,drc,suplementos_json,por_usuario,por_perfil,atualizado_em) "
