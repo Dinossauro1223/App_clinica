@@ -280,6 +280,42 @@ class TestGestaoAlimentar(unittest.TestCase):
         self.assertEqual(resultado["alocadas"], 0)
 
 
+    def test_categorias_respeitam_tipo_de_refeicao_e_sao_persistidas(self):
+        ga.salvar_preparacoes_dia(self.db, "2026-11-26", "almoco", [
+            {"nome": "Salada verde", "categoria": "salada", "porcoes_previstas": 20},
+            {"nome": "Frango assado", "categoria": "prato_principal", "porcoes_previstas": 20},
+            {"nome": "Arroz", "categoria": "acompanhamento", "porcoes_previstas": 20},
+        ])
+        itens = ga.listar_preparacoes_dia(self.db, "2026-11-26", "almoco")
+        self.assertEqual({item["categoria"] for item in itens},
+                         {"salada", "prato_principal", "acompanhamento"})
+        ga.salvar_preparacoes_dia(self.db, "2026-11-26", "jantar", [
+            {"nome": "Sopa", "categoria": "entrada"}
+        ])
+        ga.salvar_preparacoes_dia(self.db, "2026-11-26", "desjejum", [
+            {"nome": "Pão", "categoria": "geral"}
+        ])
+        with self.assertRaises(ValueError):
+            ga.salvar_preparacoes_dia(self.db, "2026-11-26", "jantar", [
+                {"nome": "Arroz", "categoria": "geral"}
+            ])
+        with self.assertRaises(ValueError):
+            ga.salvar_preparacoes_dia(self.db, "2026-11-26", "colacao", [
+                {"nome": "Salada", "categoria": "salada"}
+            ])
+
+    def test_categoria_do_menu_fica_registrada_no_snapshot_de_producao(self):
+        ga.salvar_preparacoes_dia(self.db, "2026-11-26", "almoco", [
+            {"nome": "Feijão", "categoria": "acompanhamento", "porcoes_previstas": 10}
+        ])
+        preparacao = ga.listar_preparacoes_dia(self.db, "2026-11-26", "almoco")[0]
+        registro = ga.salvar_registro_producao(
+            self.db, preparacao["id_preparacao_dia"], "2026-11-26", "almoco", 10,
+            porcoes_produzidas=10
+        )
+        self.assertEqual(registro["categoria_snapshot"], "acompanhamento")
+
+
 
     def test_produto_de_almoxarifado_persiste_vinculo_tbca(self):
         ga.importar_tbca_excel(self.db, self.planilha_tbca())
