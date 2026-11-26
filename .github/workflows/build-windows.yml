@@ -112,6 +112,17 @@ jobs:
           if ((Get-Item $classificacoes).Length -le 100) {
             throw "Metadados OMS estão vazios ou incompletos: $classificacoes"
           }
+          $escalaBristol = "dist/NutriLab/_internal/assets/escalas_visita/escala_bristol.jpeg"
+          $escalaUrina = "dist/NutriLab/_internal/assets/escalas_visita/escala_urina_armstrong.png"
+          $escalaAceitacao = "dist/NutriLab/_internal/assets/escalas_visita/escala_aceitacao_alimentar.jpeg"
+          foreach ($imagem in @($escalaBristol, $escalaUrina, $escalaAceitacao)) {
+            if (!(Test-Path $imagem)) {
+              throw "Imagem obrigatória das escalas não foi empacotada: $imagem"
+            }
+            if ((Get-Item $imagem).Length -lt 1000) {
+              throw "Imagem das escalas está vazia ou incompleta: $imagem"
+            }
+          }
           $camadas = "dist/NutriLab/_internal/identidade_camadas/folhas.json"
           if (!(Test-Path $camadas)) {
             throw "Camadas transparentes da tela inicial não foram empacotadas: $camadas"
