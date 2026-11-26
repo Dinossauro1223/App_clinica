@@ -337,10 +337,13 @@ class AppClinica(ctk.CTk):
         """Inicia o servidor local uma única vez; não assume propriedade de processo preexistente."""
         self._servidor_mobile = None
         try:
-            with socket.create_connection(("127.0.0.1", 8765), timeout=0.35):
-                # O BAT/manual ou outra instância já atende a porta: não iniciar nem encerrar esse processo.
-                return
-        except OSError:
+            with urllib.request.urlopen("http://127.0.0.1:8765/api/status", timeout=0.5) as resposta:
+                if resposta.status == 200:
+                    estado = json.loads(resposta.read().decode("utf-8"))
+                    if estado.get("status") == "online":
+                        # Uma instância NutriLab já atende; não assumir propriedade do processo.
+                        return
+        except (OSError, ValueError, urllib.error.URLError):
             pass
 
         try:
