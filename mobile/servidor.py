@@ -34,7 +34,7 @@ STAFF = ("admin", "nutricionista")  # escolhem o dia; o que gravam só muda com 
 EST_PERFIL = {"copa": "copa", "estoque_cozinha": "cozinha", "estoque_almox": "almox"}
 # Hierarquia de abastecimento: de quem cada estoque pode receber.
 ORIGENS = {"almox": ["externo"], "cozinha": ["almox"], "copa": ["cozinha", "almox"]}
-CAMPOS = ["id_paciente", "nome", "idade_anos", "idade_meses", "dieta", "diagnostico", "pref_sim", "pref_nao",
+CAMPOS = ["id_paciente", "id_ocupacao", "nome", "idade_anos", "idade_meses", "dieta", "diagnostico", "pref_sim", "pref_nao",
           "acompanhante", "cor", "consistencia", "via", "dm", "has", "laxativa", "constipante", "drc", "suplementos_json"]
 # Refeições conferidas hoje: almoço e jantar. As demais ficam desligadas até o administrador habilitar (com horário).
 CFG_INICIAL = [("desjejum", 0, None, None), ("colacao", 0, None, None), ("almoco", 1, "09:00", "16:00"),
@@ -436,7 +436,10 @@ def norm(l):
         raise Erro("Identificador do paciente inválido.")
     if id_paciente is not None and id_paciente <= 0:
         raise Erro("Identificador do paciente inválido.")
-    n = {"id_paciente": id_paciente, "nome": t("nome"), "idade_anos": i("idade_anos", 130), "idade_meses": i("idade_meses", 11),
+    id_ocupacao = str(l.get("id_ocupacao") or "").strip()[:100] or None
+    if id_ocupacao and not id_ocupacao.startswith(("offline:", "paciente:")):
+        id_ocupacao = None
+    n = {"id_paciente": id_paciente, "id_ocupacao": id_ocupacao, "nome": t("nome"), "idade_anos": i("idade_anos", 130), "idade_meses": i("idade_meses", 11),
          "dieta": t("dieta", 60), "diagnostico": t("diagnostico", 200),
          "pref_sim": t("pref_sim", 200), "pref_nao": t("pref_nao", 200),
          "acompanhante": int(bool(l.get("acompanhante"))), "cor": cor,
@@ -444,7 +447,7 @@ def norm(l):
          "laxativa": flag("laxativa"), "constipante": flag("constipante"), "drc": flag("drc"),
          "suplementos": sup_norm, "suplementos_json": json.dumps(sup_norm, ensure_ascii=False)}
     if not n["nome"]:
-        n.update(id_paciente=None, idade_anos=None, idade_meses=None, dieta="", diagnostico="", pref_sim="", pref_nao="",
+        n.update(id_paciente=None, id_ocupacao=None, idade_anos=None, idade_meses=None, dieta="", diagnostico="", pref_sim="", pref_nao="",
                  acompanhante=0, cor="", consistencia="", via="", dm=0, has=0, laxativa=0,
                  constipante=0, drc=0, suplementos=[], suplementos_json="[]")
     n["ocupado"] = int(bool(n["nome"]))
@@ -519,11 +522,14 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
                 v["id_paciente"] = id_paciente
             if id_paciente is not None:
                 id_ocupacao = "paciente:" + str(id_paciente)
+            elif v.get("id_ocupacao", "").startswith("offline:") and not mesmo_paciente:
+                id_ocupacao = v["id_ocupacao"]
             else:
                 id_ocupacao = (anterior_ocupacao["id_ocupacao"] if mesmo_paciente else None) or secrets.token_hex(16)
         else:
             v["id_paciente"] = None
             id_ocupacao = None
+        v["id_ocupacao"] = id_ocupacao
         campos = [k for k in CAMPOS if (anterior or {}).get(k) != v.get(k)]
         if campos:
             leito = c.execute("SELECT id_setor FROM leitos WHERE id=?", (int(chave),)).fetchone()
