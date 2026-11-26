@@ -1019,7 +1019,8 @@ def _rotear(c, ip, m, p, q, b, auth):
                 db, id_paciente=paciente["id_ocupacao"], nome_paciente=paciente["nome"],
                 leito=paciente["codigo"], quantidade=b.get("quantidade"),
                 refeicoes=b.get("refeicoes"), justificativa=b.get("justificativa"),
-                autorizado_por=u["nome"], inicio_vigencia=b.get("inicio_vigencia") or agora(),
+                autorizado_por=b.get("responsavel_autorizacao") or u["nome"],
+                registrado_por=u["nome"], inicio_vigencia=b.get("inicio_vigencia") or agora(),
                 fim_vigencia=b.get("fim_vigencia"))
             return {"ok": True, "id_autorizacao": aid}
     if p.startswith("/api/refeicoes/autorizacoes/") and m == "POST":
