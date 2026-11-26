@@ -984,8 +984,8 @@ def _rotear(c, ip, m, p, q, b, auth):
                 instante_dt = instante_dt.replace(tzinfo=TZ) if instante_dt.tzinfo is None else instante_dt.astimezone(TZ)
             except ValueError:
                 raise Erro("Data e hora do serviço inválidas.")
-            if not staff and instante_dt.date() != agora_dt().date():
-                raise Erro("A Copa só pode registrar refeições do dia atual.", 403)
+            if not staff and instante_dt.date() > agora_dt().date():
+                raise Erro("A Copa não pode registrar refeições com data futura.", 403)
             d = instante_dt.date().isoformat()
             preco = b.get("valor_unitario")
             if preco in (None, ""):
