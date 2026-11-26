@@ -1397,6 +1397,7 @@ class FormRegistro(_Janela):
         self._resultado_nrs = {}
         self._resultado_avaliacao = {}
         self._resultado_pediatria = {}
+        self._escalas_visita = {"bristol": "", "urina": "", "aceitacao": ""}
         self._montar()
         self.bind("<Control-s>", self._atalho_salvar)
         self.bind("<Control-S>", self._atalho_salvar)
@@ -1591,6 +1592,38 @@ class FormRegistro(_Janela):
             text_color=VERDE_ESC, anchor="w")
         self.lbl_nrs_classificacao.pack(anchor="w", padx=12, pady=(2, 10))
 
+        # Escalas ilustradas para avaliação durante a visita; respostas ficam no registro do dia.
+        q = self._secao("Escalas de apoio à visita — mostrar ao paciente")
+        l = self._linha(q)
+        ctk.CTkLabel(l, text="Escala de Bristol").pack(side="left", padx=(0, 6))
+        self.cb_bristol = self._reg(ctk.CTkComboBox(
+            l, values=["—"] + [f"{i} — {rot}" for i, rot in enumerate((
+                "Muito dura", "Dura e encostada", "Como salsicha", "Suave e macia (ideal)",
+                "Pequenas bolas com bordas", "Pastosa", "Totalmente líquida"), 1)],
+            width=260, state="readonly"))
+        self.cb_bristol.set("—")
+        self.cb_bristol.pack(side="left", padx=(0, 8))
+        _btn(l, "Mostrar escala", lambda: self._mostrar_escala("bristol"), 125, CINZA_BTN, CINZA_HOVER, 28).pack(side="left")
+        l = self._linha(q)
+        ctk.CTkLabel(l, text="Coloração da urina").pack(side="left", padx=(0, 6))
+        self.cb_urina = self._reg(ctk.CTkComboBox(
+            l, values=["—"] + [f"{i} — {rot}" for i, rot in enumerate((
+                "Muito clara", "Clara", "Amarelo claro", "Amarelo", "Amarelo escuro",
+                "Âmbar", "Âmbar escuro", "Marrom"), 1)],
+            width=260, state="readonly"))
+        self.cb_urina.set("—")
+        self.cb_urina.pack(side="left", padx=(0, 8))
+        _btn(l, "Mostrar escala", lambda: self._mostrar_escala("urina"), 125, CINZA_BTN, CINZA_HOVER, 28).pack(side="left")
+        l = self._linha(q)
+        ctk.CTkLabel(l, text="Aceitação alimentar").pack(side="left", padx=(0, 6))
+        self.cb_aceitacao = self._reg(ctk.CTkComboBox(
+            l, values=["—", "0%", "25%", "50%", "75%", "100%"], width=130, state="readonly"))
+        self.cb_aceitacao.set("—")
+        self.cb_aceitacao.pack(side="left", padx=(0, 8))
+        _btn(l, "Mostrar escala", lambda: self._mostrar_escala("aceitacao"), 125, CINZA_BTN, CINZA_HOVER, 28).pack(side="left")
+        ctk.CTkLabel(q, text="Selecione a resposta indicada pelo paciente. As imagens podem ser ampliadas durante a conversa.",
+                     text_color=tema.SUAVE, font=ctk.CTkFont(size=11)).pack(anchor="w", padx=12, pady=(0, 8))
+
         # Avaliação nutricional: reaproveita o núcleo validado e exibe apenas a classificação final.
         q = self._secao("Avaliação nutricional")
         l = self._linha(q)
@@ -1676,6 +1709,10 @@ class FormRegistro(_Janela):
         _set_entry(self.e_fi_dias, r.get("fi_dias_ausente"))
         self._atualizar_sup()
         try:
+            salvo_escalas = json.loads(r.get("escalas_visita_json") or "{}")
+            self.cb_bristol.set(salvo_escalas.get("bristol") or "—")
+            self.cb_urina.set(salvo_escalas.get("urina") or "—")
+            self.cb_aceitacao.set(salvo_escalas.get("aceitacao") or "—")
             salvo_nrs = json.loads(r.get("nrs2002_json") or "{}")
             for codigo, valor in (salvo_nrs.get("respostas") or {}).items():
                 if codigo in self.nrs_respostas:
@@ -1694,6 +1731,38 @@ class FormRegistro(_Janela):
                 cb.set(str((dados_av.get("amputacoes") or {}).get(nivel, 0)))
         except (TypeError, ValueError, KeyError):
             pass
+
+    def _mostrar_escala(self, tipo):
+        """Abre a imagem original da escala em janela ampliável, sem bloquear a ficha."""
+        arquivos = {
+            "bristol": ("escala_bristol.jpeg", "Escala de Bristol"),
+            "urina": ("escala_urina_armstrong.png", "Escala de coloração da urina"),
+            "aceitacao": ("escala_aceitacao_alimentar.jpeg", "Escala de aceitação alimentar"),
+        }
+        if tipo not in arquivos:
+            return
+        nome, titulo = arquivos[tipo]
+        caminho = os.path.join(self.ui.base_dir, "assets", "escalas_visita", nome)
+        if not os.path.isfile(caminho):
+            messagebox.showerror("Escala indisponível", f"Não foi possível localizar a imagem:\\n{caminho}", parent=self)
+            return
+        try:
+            from PIL import Image
+            janela = ctk.CTkToplevel(self)
+            janela.title(titulo)
+            janela.geometry("1000x760")
+            janela.minsize(520, 420)
+            janela.transient(self)
+            imagem = Image.open(caminho).convert("RGB")
+            imagem.thumbnail((1500, 1100), Image.Resampling.LANCZOS)
+            foto = ctk.CTkImage(light_image=imagem, dark_image=imagem, size=imagem.size)
+            lbl = ctk.CTkLabel(janela, text="", image=foto)
+            lbl.image = foto
+            lbl.pack(fill="both", expand=True, padx=10, pady=10)
+            _btn(janela, "Fechar", janela.destroy, 100).pack(pady=(0, 10))
+            janela.lift()
+        except Exception as erro:
+            messagebox.showerror("Erro ao abrir escala", str(erro), parent=self)
 
     def _fi_mudou(self, valor):
         if valor == "Presente" and not self.e_fi_freq.get().strip():
@@ -1751,6 +1820,11 @@ class FormRegistro(_Janela):
             "avaliacao_json": json.dumps(self._resultado_avaliacao, ensure_ascii=False),
             "avaliacao_classificacao": self._resultado_avaliacao.get("classe", ""),
             "pediatria_oms_json": json.dumps(self._resultado_pediatria, ensure_ascii=False),
+            "escalas_visita_json": json.dumps({
+                "bristol": "" if self.cb_bristol.get() == "—" else self.cb_bristol.get(),
+                "urina": "" if self.cb_urina.get() == "—" else self.cb_urina.get(),
+                "aceitacao": "" if self.cb_aceitacao.get() == "—" else self.cb_aceitacao.get(),
+            }, ensure_ascii=False),
             "alta_em": self.reg.get("alta_em"),
             "alta_por": self.reg.get("alta_por"),
             "alta_motivo": self.reg.get("alta_motivo"),
