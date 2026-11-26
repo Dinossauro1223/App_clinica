@@ -534,6 +534,35 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(cod, 403)
 
 
+    def test_imagem_de_orientacao_e_compartilhada_e_persiste_apos_atualizacao(self):
+        orientacoes = self.chamar(self.adm, "GET", "/api/orientacoes")[1]["orientacoes"]
+        dil = next(o for o in orientacoes if o["slug"] == "diluicao")
+        # PNG mínimo conhecido; o servidor valida a assinatura e persiste o conteúdo no SQLite.
+        png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/pZ8AAAAASUVORK5CYII="
+        cod, resposta = self.chamar(self.adm, "POST", "/api/admin/orientacoes/imagem",
+                                    {"id": dil["id"], "tipo": "image/png", "imagem_data": png})
+        self.assertEqual(cod, 200, resposta)
+        self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/admin/orientacoes/imagem",
+                                     {"id": dil["id"], "tipo": "image/png", "imagem_data": png})[0], 403)
+        salvo = next(o for o in self.chamar(self.t["cop"], "GET", "/api/orientacoes")[1]["orientacoes"]
+                     if o["slug"] == "diluicao")
+        self.assertEqual((salvo["imagem_tipo"], salvo["imagem_data"]), ("image/png", png))
+        # Reexecutar a preparação/migração simula uma atualização do servidor sem perder a mídia.
+        sv.preparar_banco(self.db)
+        depois = next(o for o in self.chamar(self.adm, "GET", "/api/orientacoes")[1]["orientacoes"]
+                      if o["slug"] == "diluicao")
+        self.assertEqual((depois["imagem_tipo"], depois["imagem_data"]), ("image/png", png))
+
+    def test_upload_orientacao_rejeita_formato_invalido(self):
+        dil = next(o for o in self.chamar(self.adm, "GET", "/api/orientacoes")[1]["orientacoes"]
+                   if o["slug"] == "diluicao")
+        cod, resposta = self.chamar(self.adm, "POST", "/api/admin/orientacoes/imagem",
+                                    {"id": dil["id"], "tipo": "image/png", "imagem_data": "bm90LWEtcG5n"})
+        self.assertEqual(cod, 400)
+        self.assertIn("formato", resposta["erro"].lower())
+
+
+
 
 if __name__ == "__main__":
     unittest.main()
