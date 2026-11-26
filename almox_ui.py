@@ -291,6 +291,7 @@ class AlmoxUI:
     def _movimentos(self):
         self._atualizar_combos()
         f=ctk.CTkFrame(self.conteudo,fg_color="transparent");f.pack(fill="x")
+        self.e_mov_busca=ctk.CTkEntry(f,placeholder_text="Buscar produto pelo nome...",width=200);self.e_mov_busca.pack(side="left",padx=3);self.e_mov_busca.bind("<KeyRelease>",lambda _e:self._filtrar_itens_movimento())
         self.cb_mov_item=ctk.CTkComboBox(f,values=[f"{x['id_item']} — {x['nome']} ({x['unidade']})" for x in self.itens],width=240);self.cb_mov_item.pack(side="left",padx=3)
         self.cb_tipo=ctk.CTkComboBox(f,values=["entrada","consumo","perda","ajuste_entrada","ajuste_saida"],width=150);self.cb_tipo.pack(side="left",padx=3);self.cb_tipo.set("entrada")
         self.e_mov_data=ctk.CTkEntry(f,width=120);self.e_mov_data.pack(side="left",padx=3);_set(self.e_mov_data,adb.hoje())
@@ -304,6 +305,14 @@ class AlmoxUI:
         bar=ctk.CTkFrame(self.conteudo,fg_color="transparent");bar.pack(fill="x")
         ctk.CTkButton(bar,text="Estornar movimento selecionado",command=self._estornar,fg_color=tema.ERRO).pack(side="left",padx=4)
         self._carregar_movimentos()
+    def _filtrar_itens_movimento(self):
+        termo=self.e_mov_busca.get().strip()
+        itens=adb.listar_itens(self.db,True,termo=termo or None)
+        valores=[f"{x['id_item']} — {x['nome']} ({x['unidade']})" for x in itens]
+        self.cb_mov_item.configure(values=valores)
+        if self.cb_mov_item.get() not in valores:
+            self.cb_mov_item.set(valores[0] if valores else "")
+
     def _registrar(self):
         try:
             escolha=self.cb_mov_item.get();iid=int(escolha.split("—",1)[0].strip())
