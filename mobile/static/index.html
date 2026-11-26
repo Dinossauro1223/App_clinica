@@ -94,6 +94,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
  .btn.sec{background:var(--sec-bg);color:var(--sec-texto)}.barra{background:var(--papel)}
  .admin-secao h2{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;outline-offset:3px}
 .admin-secao[data-aberto=false] > :not(h2){display:none}
+.admin-grupo{grid-column:1/-1;margin:12px 0 0;font-size:1rem;color:var(--tinta);border-bottom:1px solid var(--linha);padding-bottom:6px}
  .admin-secao h2::before{content:'▸';display:inline-block;width:1em;color:var(--cor);transition:transform .15s ease}
  .admin-secao[data-aberto=true] h2::before{transform:rotate(90deg)}
  .tema-controle{min-height:38px;width:auto;max-width:130px;padding:4px 8px;border:1px solid #ffffff55;border-radius:7px;background:#ffffff12;color:inherit;font-size:.82rem}
@@ -834,7 +835,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)verAvisos(
 async function vCad(){
   const [u,r]=await Promise.all([api('/api/admin/usuarios'),api('/api/admin/refeicoes')]);
   const opSet=(sel,vazio)=>`<option value="">${vazio}</option>`+S.setores.map(s=>`<option value=${s.id} ${s.id===sel?'selected':''}>${esc(s.nome)}</option>`).join('');
-  $('#vista').innerHTML=`<div class=grade><div class=cartao><h2 style="margin-top:0">Novo usuário</h2>
+  $('#vista').innerHTML=`<div class=grade><h2 class=admin-grupo>Contas e permissões</h2><div class=cartao><h2 style="margin-top:0">Novo usuário</h2>
   <label class=f>Login<input type=text id=nl autocapitalize=none></label><label class=f>Nome<input type=text id=nn></label>
   <label class=f>Perfil<select id=np onchange="$('#ns').parentNode.style.display=(this.value==='nutricionista')?'block':'none'">${Object.keys(NOME).map(k=>`<option value=${k}>${NOME[k]}${k==='copa'?' (copeira: mapa compartilhado, refeições e estoque da copa)':k==='nutricionista'?' (publica mapa, avisos, horários)':''}</option>`).join('')}</select></label>
   <label class=f style="display:none">Setor da nutrição (vazio = todos os setores)<select id=ns>${opSet(null,'— todos os setores —')}</select></label>
@@ -842,13 +843,13 @@ async function vCad(){
   <div class=cartao><h2 style="margin-top:0">Usuários</h2>${u.usuarios.map(x=>`<div style="padding:6px 0;border-bottom:1px solid var(--linha)"><b>${esc(x.nome)}</b> <span class=mini>${esc(x.login)} · ${NOME[x.perfil]}${x.ativo?'':' · desativado'}</span><br>
    ${x.perfil==='copa'?'<span class=mini>Todos os setores · mapa compartilhado</span>':x.perfil==='nutricionista'?`<select onchange="trocaSetor(${x.id},this.value)" style="width:auto;min-height:36px">${opSet(x.id_setor,'todos os setores')}</select> `:''}
    <button class="btn sec peq" onclick="ativa(${x.id},${x.ativo?0:1})">${x.ativo?'Desativar':'Reativar'}</button> <button class="btn sec peq" onclick="senha(${x.id})">Nova senha</button></div>`).join('')}</div>
-  <div class=cartao><h2 style="margin-top:0">Atividade de atualização dos mapas</h2>
+  <h2 class=admin-grupo>Monitoramento e auditoria</h2><div class=cartao><h2 style="margin-top:0">Atividade de atualização dos mapas</h2>
    <p class=mini>Conta alterações efetivamente aplicadas no mapa, por copeira. Salvamentos sem mudança e propostas pendentes não entram no ranking.</p>
    <label class=f>Período<select id=periodoAtividade><option value=mes>Mês atual</option><option value=ano>Ano atual</option></select></label>
    <button class="btn sec" onclick="carregaAtividade()">Atualizar gráfico</button>
    <div id=graficoAtividade class=mini style="margin-top:10px">Carregando atividade…</div>
   </div>
-  <div class=cartao><h2 style="margin-top:0">Prazo médio de reposição dos insumos</h2>
+  <h2 class=admin-grupo>Abastecimento e almoxarifado</h2><div class=cartao><h2 style="margin-top:0">Prazo médio de reposição dos insumos</h2>
    <p class=mini>Tempo em dias corridos entre o registro do pedido e a confirmação do recebimento. A média considera apenas pedidos recebidos.</p>
    <button class="btn sec" onclick="carregaPrazos()">Atualizar prazos</button>
    <div id=graficoPrazos class=mini style="margin-top:10px">Carregando prazos…</div>
@@ -859,14 +860,14 @@ async function vCad(){
    <label class=f>Fornecedor<input type=text id=pedidoFornecedor></label></div>
    <button class=btn onclick="novoPedidoMobile()">Registrar pedido</button>
   </div>
-  <div class=cartao><h2 style="margin-top:0">Refeições contadas</h2><p class=mini>Habilite outras refeições quando quiser. O horário vale para todos os setores; a nutrição de cada setor pode ajustar o do seu.</p>
+  <h2 class=admin-grupo>Distribuição de refeições</h2><div class=cartao><h2 style="margin-top:0">Refeições contadas</h2><p class=mini>Habilite outras refeições quando quiser. O horário vale para todos os setores; a nutrição de cada setor pode ajustar o do seu.</p>
   ${r.refeicoes.map(x=>`<div data-cf=${x.refeicao} style="margin-bottom:8px"><label class=tg><input type=checkbox class=ca ${x.ativa?'checked':''}><b>${REF[x.refeicao]}</b></label>
    <div class=filtros><label class=f>Abre<input type=time class=cb value="${v(x.abre)}"></label><label class=f>Fecha<input type=time class=cc value="${v(x.fecha)}"></label></div></div>`).join('')}
   <button class=btn onclick="salvaCfg()">Salvar refeições</button></div>
-  <div class=cartao><h2 style="margin-top:0">Setor e leitos</h2><label class=f>Setor<select id=ss>${opSet(null,'— novo setor —')}</select></label>
+  <h2 class=admin-grupo>Organização dos setores</h2><div class=cartao><h2 style="margin-top:0">Setor e leitos</h2><label class=f>Setor<select id=ss>${opSet(null,'— novo setor —')}</select></label>
   <label class=f>Nome do novo setor<input type=text id=sn2></label><label class=f>Prefixo dos leitos (ex.: A)<input type=text id=sp></label>
   <div class=filtros><label class=f>De<input type=number id=si value=1></label><label class=f>Até<input type=number id=sf></label></div><button class=btn onclick="novoSetor()">Salvar setor/leitos</button></div>
-  <div class=cartao><h2 style="margin-top:0">Itens do almoxarifado</h2>
+  <h2 class=admin-grupo>Catálogo de insumos</h2><div class=cartao><h2 style="margin-top:0">Itens do almoxarifado</h2>
   <label class=f>Nome do produto<input type=text id=in></label>
   <label class=f>Unidade de estoque (ex.: pacote, frasco ou lata)<input type=text id=iu placeholder="Ex.: pacote"></label>
   <label class=f>Categoria<select id=icategoria><option>Gêneros alimentícios</option><option>Grãos e cereais</option><option>Hortifrúti</option><option>Carnes e proteínas</option><option>Laticínios</option><option>Temperos e condimentos</option><option>Dietas enterais</option><option>Suplementos</option><option>Materiais</option><option>Limpeza</option><option>Outros</option></select></label>
