@@ -130,6 +130,44 @@ class TestRefeicoesAPI(unittest.TestCase):
         self.assertAlmostEqual(relatorio["custos"]["pacientes"]["custo"], 7.25)
         self.assertEqual(relatorio["servicos"][0]["data_refeicao"], dia)
 
+
+    def test_autorizacao_acompanha_id_paciente_ao_trocar_de_leito(self):
+        setor = self.api("POST", "/api/admin/setores",
+                         {"nome": "Setor Teste Transferencia", "codigos": ["T1", "T2"]})
+        sid = setor["id"]
+        leitos = self.api("GET", "/api/mapa", query={"setor": str(sid)})["linhas"]
+        l1, l2 = leitos[0]["id_leito"], leitos[1]["id_leito"]
+        agora = sv.agora_dt().replace(second=0, microsecond=0)
+        dia = agora.date().isoformat()
+        self.api("POST", "/api/refeicoes/precos", {
+            "publico": "acompanhante", "refeicao": "almoco", "valor_unitario": 4.5})
+        self.api("POST", "/api/mapa", {
+            "setor": sid, "data": dia, "completo": True,
+            "linhas": [{"id_leito": l1, "id_paciente": 98765, "nome": "Paciente Transferido",
+                        "atualizado_em": (agora - timedelta(minutes=20)).isoformat()}]})
+        autorizacao = self.api("POST", "/api/refeicoes/autorizacoes", {
+            "setor": sid, "data": dia, "id_leito": l1, "quantidade": 1,
+            "refeicoes": ["almoco"], "justificativa": "Acompanhante autorizado",
+            "inicio_vigencia": (agora - timedelta(hours=1)).isoformat()})
+        self.api("POST", "/api/mapa", {
+            "setor": sid, "data": dia, "completo": True,
+            "linhas": [
+                {"id_leito": l1, "nome": "", "ocupado": 0,
+                 "atualizado_em": (agora - timedelta(minutes=5)).isoformat()},
+                {"id_leito": l2, "id_paciente": 98765, "nome": "Paciente Transferido",
+                 "atualizado_em": (agora - timedelta(minutes=5)).isoformat()}
+            ]})
+        atuais = self.api("GET", "/api/refeicoes/servicos",
+                          query={"setor": str(sid), "data": dia})["pacientes"]
+        paciente_novo_leito = next(x for x in atuais if x["id_leito"] == l2)
+        servico = self.api("POST", "/api/refeicoes/servicos", {
+            "setor": sid, "data": dia, "id_leito": l2,
+            "id_paciente": paciente_novo_leito["id_paciente"],
+            "servido_em": agora.isoformat(), "publico": "acompanhante",
+            "refeicao": "almoco", "quantidade": 1,
+            "id_autorizacao_acompanhante": autorizacao["id_autorizacao"]})
+        self.assertTrue(servico["ok"])
+
     def test_autorizacao_nao_pode_ser_reutilizada_por_novo_ocupante(self):
         setor = self.api("POST", "/api/admin/setores",
                          {"nome": "Setor Teste Autorizacao", "codigos": ["A1"]})
