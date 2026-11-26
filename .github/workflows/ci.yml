@@ -120,6 +120,9 @@ jobs:
           mkdir -p build/apk-libs
           curl --fail --location --retry 3 \
             https://repo.maven.apache.org/maven2/com/google/zxing/core/3.4.1/core-3.4.1.jar \
+            --output build/apk-libs/zxing-core-3.4.1.jar || \
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 2 \
+            https://maven-central.storage-download.googleapis.com/maven2/com/google/zxing/core/3.4.1/core-3.4.1.jar \
             --output build/apk-libs/zxing-core-3.4.1.jar
 
       - name: Compilar atividades Android
