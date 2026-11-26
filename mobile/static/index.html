@@ -610,7 +610,11 @@ const salvaJanelasPublico=tenta(async()=>{
 const carregarRelatorioRefeicoes=tenta(async()=>{
   const j=await api(`/api/refeicoes/relatorio?inicio=${S.data}&fim=${S.data}`),alvo=$('#rel-ref');
   const nomes={pacientes:'Pacientes',funcionarios:'Funcionários',acompanhantes:'Acompanhantes'};
-  alvo.innerHTML=Object.keys(nomes).map(k=>`<p><b>${nomes[k]}:</b> ${j.custos[k]?'R$ '+Number(j.custos[k].custo||0).toFixed(2).replace('.',','):'Sem registros com custo'} · ${j.custos[k]?.servicos||0} serviço(s)</p>`).join('');
+  const resumo=Object.keys(nomes).map(k=>`<p><b>${nomes[k]}:</b> ${j.custos[k]?'R$ '+Number(j.custos[k].custo||0).toFixed(2).replace('.',','):'Sem registros com custo'} · ${j.custos[k]?.servicos||0} serviço(s)</p>`).join('');
+  const refs={desjejum:'Desjejum',colacao:'Colação',almoco:'Almoço',lanche:'Lanche da tarde',jantar:'Jantar',ceia:'Ceia'};
+  const pub={paciente:'Paciente',funcionario:'Funcionário',acompanhante:'Acompanhante'};
+  const linhas=(j.servicos||[]).map(x=>`<tr><td>${esc(String(x.servido_em||'').replace('T',' ').slice(11,16))}</td><td>${refs[x.refeicao]||esc(x.refeicao)}</td><td>${pub[x.publico]||esc(x.publico)}</td><td>${esc(x.destinatario_nome_snapshot)}</td><td>${esc(x.nome_paciente_snapshot||'—')}</td><td>${esc(x.leito_snapshot||'—')}</td><td>${Number(x.quantidade||0)}</td><td>${x.custo_total_snapshot==null?'—':'R$ '+Number(x.custo_total_snapshot).toFixed(2).replace('.',',')}</td></tr>`).join('');
+  alvo.innerHTML=resumo+`<h3>Histórico individualizado</h3><div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:.82rem"><thead><tr><th>Hora</th><th>Refeição</th><th>Público</th><th>Destinatário</th><th>Paciente</th><th>Leito</th><th>Qtd.</th><th>Custo</th></tr></thead><tbody>${linhas||'<tr><td colspan=8>Sem serviços registrados no período.</td></tr>'}</tbody></table></div>`;
 });
 
 function passo(b,d){const i=b.parentNode.querySelector('input');i.value=Math.max(0,(+i.value||0)+d)}
