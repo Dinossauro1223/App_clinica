@@ -329,6 +329,7 @@ function telaLogin(msg){
    <button class="btn sec" style="margin-top:6px" onclick="fecharLeitorQR()">Cancelar</button>
   </section></div><footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   $('#sn').onkeydown=e=>{if(e.key==='Enter')entrar()};
+ aplicaTemaMobile(lerTemaMobile(),false);
 }
 
 let qrStream=null, qrLoop=null;
@@ -435,6 +436,7 @@ async function abrir(u,hoje){
   $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span>${temaSelectHtml()}<button onclick="sair()">Sair</button></div></header>
   <nav>${ABAS[u.perfil].map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
   <footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
+  aplicaTemaMobile(lerTemaMobile(),false);
   ir(ABAS[u.perfil][0][0]);
   verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
 }
