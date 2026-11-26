@@ -100,9 +100,10 @@ class TestStatusRedeLocal(unittest.TestCase):
         try:
             cliente = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             cliente.settimeout(2)
-            with cliente:
-                cliente.sendto(b"NUTRILAB_DISCOVER_V1", servidor.server_address)
-                dados, _ = cliente.recvfrom(512)
+            with patch.object(sv, "ip_lan", return_value="192.168.10.15"):
+                with cliente:
+                    cliente.sendto(b"NUTRILAB_DISCOVER_V1", servidor.server_address)
+                    dados, _ = cliente.recvfrom(512)
             partes = dados.decode("utf-8").split("|")
             self.assertEqual(partes[0], "NUTRILAB_SERVER_V1")
             self.assertEqual(partes[1], "http://192.168.10.15:8765")
