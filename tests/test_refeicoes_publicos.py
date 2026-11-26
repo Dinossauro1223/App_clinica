@@ -80,7 +80,8 @@ class TestRefeicoesPorPublico(unittest.TestCase):
         )
         rd.registrar_refeicao_servida(
             self.db, **comum, publico="acompanhante", destinatario_nome="Acompanhantes",
-            id_paciente="P1", id_autorizacao_acompanhante=auth
+            id_paciente="P1", nome_paciente="Paciente", leito="1",
+            id_autorizacao_acompanhante=auth
         )
         with self.assertRaisesRegex(ValueError, "quantidade total"):
             rd.registrar_refeicao_servida(
