@@ -15,7 +15,7 @@ CATEGORIAS = ("Gêneros alimentícios","Dietas enterais","Suplementos","Materiai
 DDL = """
 CREATE TABLE IF NOT EXISTS Almox_Itens(
  id_item INTEGER PRIMARY KEY AUTOINCREMENT,nome TEXT NOT NULL,unidade TEXT NOT NULL,
- categoria TEXT NOT NULL DEFAULT 'Gêneros alimentícios',valor_unitario REAL,estoque_minimo REAL,
+ categoria TEXT NOT NULL DEFAULT 'Gêneros alimentícios',validade TEXT,valor_unitario REAL,estoque_minimo REAL,
  embalagem_qtd REAL,embalagem_un TEXT,
  ativo INTEGER NOT NULL DEFAULT 1,observacao TEXT,criado_em TEXT NOT NULL,atualizado_em TEXT NOT NULL,
  UNIQUE(nome COLLATE NOCASE,unidade COLLATE NOCASE));
@@ -85,6 +85,7 @@ def inicializar(db):
   colunas={r[1] for r in c.execute("PRAGMA table_info(Almox_Itens)")}
   if "embalagem_qtd" not in colunas:c.execute("ALTER TABLE Almox_Itens ADD COLUMN embalagem_qtd REAL")
   if "embalagem_un" not in colunas:c.execute("ALTER TABLE Almox_Itens ADD COLUMN embalagem_un TEXT")
+  if "validade" not in colunas:c.execute("ALTER TABLE Almox_Itens ADD COLUMN validade TEXT")
   c.commit()
 
 def _saldo(c,iid):
@@ -114,12 +115,16 @@ def salvar_item(db,d):
     old=c.execute("SELECT * FROM Almox_Itens WHERE id_item=?",(int(iid),)).fetchone()
     if not old:raise ValueError("Item não encontrado.")
     anterior=old["valor_unitario"]
-    c.execute("UPDATE Almox_Itens SET nome=?,unidade=?,categoria=?,valor_unitario=?,estoque_minimo=?,embalagem_qtd=?,embalagem_un=?,observacao=?,atualizado_em=? WHERE id_item=?",
-      (nome,un,cat,_f(p),_f(mn),_f(embalagem_qtd),embalagem_un,str(d.get("observacao") or "").strip(),now,int(iid)))
+    validade=str(d.get("validade") or "").strip() or None
+    if validade is not None: validade=_data(validade)
+    c.execute("UPDATE Almox_Itens SET nome=?,unidade=?,categoria=?,validade=?,valor_unitario=?,estoque_minimo=?,embalagem_qtd=?,embalagem_un=?,observacao=?,atualizado_em=? WHERE id_item=?",
+      (nome,un,cat,validade,_f(p),_f(mn),_f(embalagem_qtd),embalagem_un,str(d.get("observacao") or "").strip(),now,int(iid)))
     iid=int(iid)
    else:
-    cur=c.execute("INSERT INTO Almox_Itens(nome,unidade,categoria,valor_unitario,estoque_minimo,embalagem_qtd,embalagem_un,observacao,criado_em,atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?)",
-      (nome,un,cat,_f(p),_f(mn),_f(embalagem_qtd),embalagem_un,str(d.get("observacao") or "").strip(),now,now))
+    validade=str(d.get("validade") or "").strip() or None
+    if validade is not None: validade=_data(validade)
+    cur=c.execute("INSERT INTO Almox_Itens(nome,unidade,categoria,validade,valor_unitario,estoque_minimo,embalagem_qtd,embalagem_un,observacao,criado_em,atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+      (nome,un,cat,validade,_f(p),_f(mn),_f(embalagem_qtd),embalagem_un,str(d.get("observacao") or "").strip(),now,now))
     iid=cur.lastrowid;anterior=None
   except sqlite3.IntegrityError as e:c.rollback();raise ValueError("Já existe um item com esse nome e unidade.") from e
   if p is not None and (anterior is None or round(float(anterior),8)!=float(p)):
@@ -142,7 +147,7 @@ def listar_itens(db,apenas_ativos=True,termo=None):
  args=[]
  if apenas_ativos:sql+=" AND i.ativo=1"
  if termo:sql+=" AND i.nome LIKE ?";args.append("%"+str(termo).strip()+"%")
- sql+=" ORDER BY i.categoria,i.nome"
+ sql+=" ORDER BY CASE WHEN i.validade IS NULL OR i.validade='' THEN 1 ELSE 0 END,i.validade,i.categoria,i.nome"
  with closing(conectar(db)) as c:return [dict(r) for r in c.execute(sql,args)]
 def obter_item(db,iid):
  return next((x for x in listar_itens(db,False) if x["id_item"]==int(iid)),None)
