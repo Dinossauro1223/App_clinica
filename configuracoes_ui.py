@@ -20,7 +20,8 @@ import tema
 import nrs2002 as nrs
 import mapa_db as mdb
 import evolucao_nutricional as evregras
-import midias_usuario\nimport integracao_mobile
+import midias_usuario
+import integracao_mobile
 from mobile import servidor as servidor_mobile
 
 CAMINHO = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
@@ -80,7 +81,8 @@ class ConfiguracoesUI:
         self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
         self._distribuicao(conteudo)
         self._contas_compartilhadas(conteudo)
-        self._nrs(conteudo)\n        self._midias_personalizadas(conteudo)
+        self._nrs(conteudo)
+        self._midias_personalizadas(conteudo)
         self._progressao_oral(conteudo)
         self._equipe(conteudo)
         self._backups(conteudo)
