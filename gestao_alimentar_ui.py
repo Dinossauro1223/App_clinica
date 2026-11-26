@@ -1382,7 +1382,7 @@ class PreparacoesDiaDialog:
         def inserir_preparacao(parent, indice, r, categoria_visivel=True):
             ficha_nome=next((x["nome"] for x in self.fichas
                              if x["id_ficha"]==r.get("id_ficha")),"—")
-            categoria=_rotulo_categoria_menu(self.cb_ref.get(),r.get("categoria"))
+            categoria=("Geral" if self.cb_ref.get() not in ("almoco","jantar") else\n                       _rotulo_categoria_menu(self.cb_ref.get(),r.get("categoria")))
             self.tree.insert(parent,"end",iid=f"prep:{indice}",
                 values=(categoria if categoria_visivel else "",r["nome"],
                         _fmt_num(r.get("porcoes_previstas")),ficha_nome),
