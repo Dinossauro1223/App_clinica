@@ -1306,6 +1306,13 @@ class PreparacoesDiaDialog:
         self._atualizar_categorias()
         frame,self.tree=_tree(area,[("categoria","Grupo",125,"w"),("nome","Preparação",235,"w"),
                                     ("porcoes","Porções previstas",115,"e"),("ficha","Ficha vinculada",220,"w")],altura=12)
+        # A coluna hierárquica nativa do Treeview fornece o controle de expandir/recolher.
+        self.tree.configure(show="tree headings")
+        self.tree.heading("#0",text="")
+        self.tree.column("#0",width=22,minwidth=22,stretch=False)
+        self.tree.tag_configure("grupo_menu",font=("TkDefaultFont",10,"bold"),
+                                background=tema.cor_atual(tema.FUNDO),
+                                foreground=tema.cor_atual(tema.TEXTO))
         frame.pack(fill="both",expand=True,padx=14,pady=5)
         rod=ctk.CTkFrame(area,fg_color="transparent");rod.pack(fill="x",padx=14,pady=(4,12))
         _btn(rod,"Remover selecionada",self._remover,155,cor=LARANJA,hover=tema.LARANJA).pack(side="left")
@@ -1322,13 +1329,7 @@ class PreparacoesDiaDialog:
         try:
             self.data=self.e_data.get().strip()
             self.rows=ga.listar_preparacoes_dia(self.db,self.data,self.cb_ref.get())
-            for iid in self.tree.get_children():self.tree.delete(iid)
-            for i,r in enumerate(self.rows):
-                nome_ficha=r.get("nome_ficha") or "—"
-                categoria=_rotulo_categoria_menu(self.cb_ref.get(), r.get("categoria"))
-                self.tree.insert("", "end", iid=str(i),
-                                 values=(categoria,r["nome"],_fmt_num(r.get("porcoes_previstas")),nome_ficha),
-                                 tags=("linha_par" if i % 2 == 0 else "linha_impar",))
+            self._render()
         except Exception as exc:
             messagebox.showerror("Preparações esperadas",str(exc),parent=self.janela)
 
@@ -1355,20 +1356,73 @@ class PreparacoesDiaDialog:
         self.e_nome.delete(0,"end");self.e_porcoes.delete(0,"end");self.cb_ficha.set("— sem ficha —")
 
     def _render(self):
-        for iid in self.tree.get_children():self.tree.delete(iid)
-        for i,r in enumerate(self.rows):
-            ficha_nome=next((x["nome"] for x in self.fichas if x["id_ficha"]==r.get("id_ficha")),"—")
-            self.tree.insert(
-                "", "end", iid=str(i),
-                values=(_rotulo_categoria_menu(self.cb_ref.get(), r.get("categoria")), r["nome"],
-                        _fmt_num(r.get("porcoes_previstas")), ficha_nome),
-                tags=("linha_par" if i % 2 == 0 else "linha_impar",)
-            )
+        # Mantém o estado de expansão das categorias enquanto a lista é atualizada.
+        grupos_abertos={iid for iid in self.tree.get_children("")
+                        if self.tree.item(iid,"open")}
+        for iid in self.tree.get_children():
+            self.tree.delete(iid)
+
+        def inserir_preparacao(parent, indice, r, categoria_visivel=True):
+            ficha_nome=next((x["nome"] for x in self.fichas
+                             if x["id_ficha"]==r.get("id_ficha")),"—")
+            categoria=_rotulo_categoria_menu(self.cb_ref.get(),r.get("categoria"))
+            self.tree.insert(parent,"end",iid=f"prep:{indice}",
+                values=(categoria if categoria_visivel else "",r["nome"],
+                        _fmt_num(r.get("porcoes_previstas")),ficha_nome),
+                tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
+
+        if self.cb_ref.get() in ("almoco","jantar"):
+            ordem=list(CATEGORIAS_MENU_PRINCIPAIS)
+            agrupadas={valor:[] for _rotulo,valor in ordem}
+            sem_categoria=[]
+            outras={}
+            for indice,r in enumerate(self.rows):
+                categoria=r.get("categoria")
+                if categoria in agrupadas:
+                    agrupadas[categoria].append((indice,r))
+                elif not categoria:
+                    sem_categoria.append((indice,r))
+                else:
+                    outras.setdefault(categoria,[]).append((indice,r))
+            for rotulo,valor in ordem:
+                itens=agrupadas[valor]
+                if not itens:
+                    continue
+                gid=f"grupo:{valor}"
+                self.tree.insert("","end",iid=gid,values=(rotulo,"","",""),
+                                 open=(gid in grupos_abertos or not grupos_abertos),
+                                 tags=("grupo_menu",))
+                for indice,r in itens:
+                    inserir_preparacao(gid,indice,r,False)
+            for categoria,itens in outras.items():
+                gid=f"grupo:{categoria}"
+                self.tree.insert("","end",iid=gid,
+                    values=(_rotulo_categoria_menu(self.cb_ref.get(),categoria),"","",""),
+                    open=(gid in grupos_abertos or not grupos_abertos),tags=("grupo_menu",))
+                for indice,r in itens:
+                    inserir_preparacao(gid,indice,r,False)
+            if sem_categoria:
+                gid="grupo:sem_categoria"
+                self.tree.insert("","end",iid=gid,values=("Sem categoria","","",""),
+                                 open=(gid in grupos_abertos or not grupos_abertos),
+                                 tags=("grupo_menu",))
+                for indice,r in sem_categoria:
+                    inserir_preparacao(gid,indice,r,False)
+        else:
+            # Desjejum, colação, lanche e ceia permanecem em lista única (categoria Geral).
+            for indice,r in enumerate(self.rows):
+                inserir_preparacao("",indice,r,True)
 
     def _remover(self):
         sel=self.tree.selection()
         if not sel:return
-        idx=int(sel[0])
+        iid=sel[0]
+        if not iid.startswith("prep:"):
+            messagebox.showinfo("Preparações esperadas",
+                                "Selecione uma preparação dentro de uma categoria para removê-la.",
+                                parent=self.janela)
+            return
+        idx=int(iid.split(":",1)[1])
         if 0<=idx<len(self.rows):
             self.rows.pop(idx);self._render()
 
