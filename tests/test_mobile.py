@@ -424,7 +424,9 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(rep("cop", "cozinha", 4), 200)
         self.assertEqual(rep("cop", "almox", 2), 200)  # cozinha zerou: pode ir ao almoxarifado
         self.assertEqual((self.qtd("almox"), self.qtd("cozinha"), self.qtd("copa")), (4, 0, 6))
-        self.assertEqual(rep("alm", "cozinha", 1), 400)  # almoxarifado só recebe de fora
+        self.assertEqual(rep("coz", "almox", 1), 200)  # cozinha recebe do almoxarifado
+        self.assertEqual(rep("alm", "cozinha", 1), 200)  # devolução de sobra ao almoxarifado
+        self.assertEqual((self.qtd("almox"), self.qtd("cozinha"), self.qtd("copa")), (4, 0, 6))
         self.assertEqual(rep("alm", "externo", 5), 200)
         self.assertEqual(self.qtd("almox"), 9)
 
