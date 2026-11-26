@@ -64,8 +64,8 @@ class TestConsumoCozinha(unittest.TestCase):
             observacao = c.execute("SELECT observacao FROM Mobile_Movimentos WHERE data='2026-11-20' AND id_mobile=105").fetchone()[0]
         self.assertEqual(observacao, "Devolução de sobra")
         original=next(x for x in ga.listar_movimentos_cozinha(self.db,"2026-11-20","2026-11-22") if x["id_mobile"]==101)
-        self.assertEqual(original["qtd_devolvida_alocada"],2)
-        self.assertEqual(original["qtd_devolvida_preparacao"],2)
+        self.assertEqual(original["qtd_devolvida_alocada"],0)
+        self.assertEqual(original["qtd_devolvida_preparacao"],0)
         resumo=ga.resumo_consumo_observado(self.db,"2026-11-20","2026-11-22")
         item=next(x for x in resumo["itens"] if x["item"]=="Feijão")
         self.assertEqual(item["total_retirado"],6.0)  # 5 + 3 - 2 devolvidos
@@ -95,6 +95,9 @@ class TestConsumoCozinha(unittest.TestCase):
         finally:
             c.close()
         im.importar_movimentos_cozinha(self.db,self.mobile_db,"2026-11-20","2026-11-22")
+        original=next(x for x in ga.listar_movimentos_cozinha(self.db,"2026-11-20","2026-11-22") if x["id_mobile"]==101)
+        self.assertEqual(original["qtd_devolvida_alocada"],2)
+        self.assertEqual(original["qtd_devolvida_preparacao"],2)
         resumo=ga.resumo_consumo_observado(self.db,"2026-11-20","2026-11-22")
         item=next(x for x in resumo["itens"] if x["item"]=="Feijão")
         fichas={x["preparacao"]:x for x in resumo["por_preparacao"]}
