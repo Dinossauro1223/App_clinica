@@ -105,7 +105,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
   const pathOf=u=>{try{const x=new URL(typeof u==='string'?u:u.url,location.href);return x.pathname+x.search}catch(e){return String(u)}};
   const jsonResponse=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'Content-Type':'application/json; charset=utf-8'}});
   const snapshot=l=>JSON.stringify({
-    id_paciente:l.id_paciente??null,nome:l.nome||'',idade_anos:l.idade_anos??null,idade_meses:l.idade_meses??null,acompanhante:!!l.acompanhante,cor:l.cor||'',dieta:l.dieta||'',diagnostico:l.diagnostico||'',pref_sim:l.pref_sim||'',pref_nao:l.pref_nao||'',
+    id_paciente:l.id_paciente??null,id_ocupacao:l.id_ocupacao||null,nome:l.nome||'',idade_anos:l.idade_anos??null,idade_meses:l.idade_meses??null,acompanhante:!!l.acompanhante,cor:l.cor||'',dieta:l.dieta||'',diagnostico:l.diagnostico||'',pref_sim:l.pref_sim||'',pref_nao:l.pref_nao||'',
     consistencia:l.consistencia||'',via:l.via||'',dm:!!l.dm,has:!!l.has,laxativa:!!l.laxativa,
     constipante:!!l.constipante,drc:!!l.drc,
     suplementos:(l.suplementos||[]).map(s=>({id_suplemento:s.id_suplemento,nome:s.nome,ml_oferta:Number(s.ml_oferta||0),
@@ -116,7 +116,18 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     let base=null;
     if(path==='/api/mapa'){
       const url=`/api/mapa?setor=${encodeURIComponent(body.setor||'')}&data=${encodeURIComponent(body.data||'')}`;
-      try{const old=JSON.parse(read('GET:'+url)||'{}');base={};for(const l of body.linhas||[]){const prev=(old.linhas||[]).find(x=>String(x.id_leito)===String(l.id_leito));if(prev)base[l.id_leito]=prev}}catch(e){}
+      try{
+        const old=JSON.parse(read('GET:'+url)||'{}');base={};
+        for(const l of body.linhas||[]){
+          const prev=(old.linhas||[]).find(x=>String(x.id_leito)===String(l.id_leito));
+          if(prev)base[l.id_leito]=prev;
+          if(l.nome){
+            if(l.id_paciente)l.id_ocupacao='paciente:'+l.id_paciente;
+            else if(prev&&String(prev.nome||'').trim().toLowerCase()===String(l.nome).trim().toLowerCase()&&prev.id_ocupacao)l.id_ocupacao=prev.id_ocupacao;
+            else l.id_ocupacao='offline:'+Date.now()+'-'+Math.random().toString(36).slice(2);
+          }else{l.id_ocupacao=null;l.id_paciente=null}
+        }
+      }catch(e){}
     }
     const user=read('user');
     let userId=null;try{userId=JSON.parse(user||'{}').usuario?.id||null}catch(e){}
@@ -136,6 +147,15 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
             data_base:body.data,herdado:false,rascunho:!!(window.NL&&window.NL.isStaff&&window.NL.isStaff())});
         }
         write('GET:'+url,JSON.stringify(old));
+        const servUrl=`/api/refeicoes/servicos?setor=${encodeURIComponent(body.setor||'')}&data=${encodeURIComponent(body.data||'')}`;
+        try{
+          const serv=JSON.parse(read('GET:'+servUrl)||'{}');
+          serv.pacientes=(old.linhas||[]).filter(l=>l.ocupado&&l.nome&&l.id_ocupacao)
+            .map(l=>({id_leito:l.id_leito,leito:l.codigo,id_paciente:l.id_ocupacao,nome:l.nome}));
+          const ids=new Set(serv.pacientes.map(x=>x.id_paciente));
+          serv.autorizacoes=(serv.autorizacoes||[]).filter(a=>ids.has(a.id_paciente));
+          write('GET:'+servUrl,JSON.stringify(serv));
+        }catch(e){}
       }catch(e){}
     }
   }
