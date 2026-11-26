@@ -45,6 +45,10 @@ SENHA_ADMIN_INICIAL = "123456789"
 
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS sistema_config(chave TEXT PRIMARY KEY, valor TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS operacoes_idempotentes(
+  operation_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, resultado_json TEXT NOT NULL, criado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_operacoes_idempotentes_criado ON operacoes_idempotentes(criado_em);
 CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, login TEXT UNIQUE NOT NULL, nome TEXT NOT NULL,
   perfil TEXT NOT NULL, id_setor INTEGER, salt TEXT NOT NULL, senha TEXT NOT NULL, ativo INTEGER DEFAULT 1, criado_em TEXT);
 CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL);
@@ -1370,11 +1374,39 @@ def _rotear(c, ip, m, p, q, b, auth):
     raise Erro("Rota não encontrada.", 404)
 
 
-def rotear(db, ip, m, p, q, b, auth):
+def rotear(db, ip, m, p, q, b, auth, operation_id=None):
+    """Executa uma rota e, quando solicitado, torna POSTs repetidos idempotentes."""
     with LOCK:
         c = conectar(db)
         try:
+            fingerprint = None
+            if operation_id:
+                if m != "POST" or p == "/api/login":
+                    raise Erro("Identificador de operação inválido para esta rota.", 400)
+                token = auth[7:] if auth.startswith("Bearer ") else ""
+                sessao = SESSOES.get(token)
+                if not sessao or sessao[1] < time.time():
+                    raise Erro("Sessão expirada. Entre novamente.", 401)
+                fingerprint = hashlib.sha256(json.dumps(
+                    {"usuario": sessao[0], "metodo": m, "rota": p, "dados": b},
+                    ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                ).encode("utf-8")).hexdigest()
+                anterior = c.execute(
+                    "SELECT fingerprint,resultado_json FROM operacoes_idempotentes WHERE operation_id=?",
+                    (str(operation_id),)
+                ).fetchone()
+                if anterior:
+                    if not hmac.compare_digest(anterior["fingerprint"], fingerprint):
+                        raise Erro("Identificador de operação já utilizado com outros dados.", 409)
+                    return json.loads(anterior["resultado_json"])
             r = _rotear(c, ip, m, p, q, b, auth)
+            if operation_id:
+                c.execute(
+                    "INSERT INTO operacoes_idempotentes(operation_id,fingerprint,resultado_json,criado_em) VALUES(?,?,?,?)",
+                    (str(operation_id), fingerprint, json.dumps(r, ensure_ascii=False), agora())
+                )
+                c.execute("DELETE FROM operacoes_idempotentes WHERE criado_em < ?",
+                          ((datetime.now(TZ) - timedelta(days=30)).isoformat(timespec="seconds"),))
             c.commit()
             return r
         except Exception:
@@ -1436,7 +1468,8 @@ class Manipulador(BaseHTTPRequestHandler):
             if m == "POST":
                 n = min(int(self.headers.get("Content-Length") or 0), 1_000_000)
                 b = json.loads(self.rfile.read(n) or b"{}")
-            self._enviar(200, rotear(self.server.db, self.client_address[0], m, u.path, q, b, self.headers.get("Authorization", "")))
+            self._enviar(200, rotear(self.server.db, self.client_address[0], m, u.path, q, b,
+                self.headers.get("Authorization", ""), self.headers.get("X-Nutrilab-Operation-Id")))
         except Erro as e:
             self._enviar(e.cod, {"erro": e.msg})
         except (ValueError, KeyError, TypeError) as e:
