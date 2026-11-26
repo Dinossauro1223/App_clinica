@@ -58,6 +58,7 @@ class ConfiguracoesUI:
                       text_color=tema.VERDE).pack(anchor="w", padx=24, pady=(22, 8))
         conteudo = ctk.CTkScrollableFrame(raiz, fg_color="transparent")
         conteudo.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        self._grupo(conteudo, "Aparência")
         card = ctk.CTkFrame(conteudo, fg_color=tema.BRANCO, border_width=1,
                            border_color=tema.BORDA, corner_radius=12)
         card.pack(fill="x", padx=24, pady=12)
