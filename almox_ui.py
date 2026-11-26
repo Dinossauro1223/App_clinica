@@ -196,6 +196,7 @@ class AlmoxUI:
         self.itens=adb.listar_itens(self.db,True)
         if hasattr(self,"cb_mov_item"):self.cb_mov_item.configure(values=[f"{x['id_item']} — {x['nome']} ({x['unidade']})" for x in self.itens])
         if hasattr(self,"cb_prog_item"):self.cb_prog_item.configure(values=[f"{x['id_item']} — {x['nome']} ({x['unidade']})" for x in self.itens])
+        if hasattr(self,"e_mov_busca") and hasattr(self,"cb_mov_item"):self._filtrar_itens_movimento()
     def _reposicao(self):
         self._atualizar_combos()
         form=ctk.CTkFrame(self.conteudo,fg_color="transparent");form.pack(fill="x")
