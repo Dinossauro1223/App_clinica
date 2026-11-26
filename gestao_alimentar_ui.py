@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, ttk
 import customtkinter as ctk
 
 import gestao_alimentar_db as ga
+import refeicoes_db as rdb
 import integracao_mobile as im
 import ui_workers
 import tema
@@ -148,13 +149,16 @@ class GestaoAlimentarUI:
         self.tab_almox = self.tabs.add("Almoxarifado")
         self.tab_tbca = self.tabs.add("Base TBCA")
         self.tab_consumo = self.tabs.add("Consumo observado")
+        self.tab_refeicoes = self.tabs.add("Refeições servidas")
         self._montar_tab_fichas()
         self._montar_tab_almox()
         self._montar_tab_tbca()
         self._montar_tab_consumo()
+        self._montar_tab_refeicoes()
         self.carregar_fichas()
         self.carregar_produtos()
         self.carregar_tbca_count()
+        self._carregar_refeicoes_servidas()
         # Tenta sincronizar automaticamente; falha de conexão não impede o uso da ficha.
         self.sincronizar(silencioso=True)
 
@@ -890,6 +894,131 @@ def _extrair_id_tbca(valor):
         return None
     return texto.split(" | ", 1)[0].strip() or None
 
+
+
+    def _montar_tab_refeicoes(self):
+        """Consulta o histórico individualizado no mesmo banco compartilhado do mobile."""
+        topo = ctk.CTkFrame(self.tab_refeicoes, fg_color="transparent")
+        topo.pack(fill="x", padx=8, pady=(8, 4))
+        ctk.CTkLabel(topo, text="Histórico de refeições efetivamente servidas",
+                     font=ctk.CTkFont(size=14, weight="bold"), text_color=VERDE_ESC).pack(side="left")
+        filtros = ctk.CTkFrame(self.tab_refeicoes, fg_color="transparent")
+        filtros.pack(fill="x", padx=8, pady=4)
+        ctk.CTkLabel(filtros, text="De").pack(side="left")
+        self.e_ref_inicio = ctk.CTkEntry(filtros, width=112)
+        self.e_ref_inicio.pack(side="left", padx=4)
+        self.e_ref_inicio.insert(0, __import__("datetime").date.today().isoformat())
+        ctk.CTkLabel(filtros, text="Até").pack(side="left", padx=(8, 0))
+        self.e_ref_fim = ctk.CTkEntry(filtros, width=112)
+        self.e_ref_fim.pack(side="left", padx=4)
+        self.e_ref_fim.insert(0, __import__("datetime").date.today().isoformat())
+        _btn(filtros, "Atualizar relatório", self._carregar_refeicoes_servidas, 155,
+             cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=6)
+        self.lbl_ref_custos = ctk.CTkLabel(self.tab_refeicoes, text="",
+            font=ctk.CTkFont(size=12, weight="bold"), anchor="w", justify="left")
+        self.lbl_ref_custos.pack(fill="x", padx=12, pady=(4, 8))
+        ctk.CTkLabel(self.tab_refeicoes, text="Serviços registrados",
+                     font=ctk.CTkFont(size=12, weight="bold"), anchor="w").pack(fill="x", padx=10)
+        frame, self.tree_refeicoes = _tree(self.tab_refeicoes, [
+            ("data", "Data", 85, "center"), ("hora", "Horário", 75, "center"),
+            ("ref", "Refeição", 105, "w"), ("publico", "Público", 100, "w"),
+            ("dest", "Destinatário", 160, "w"), ("paciente", "Paciente vinculado", 160, "w"),
+            ("leito", "Leito", 65, "center"), ("qtd", "Qtd.", 65, "e"),
+            ("custo", "Custo", 95, "e"), ("usuario", "Registrado por", 125, "w")
+        ], altura=12)
+        frame.pack(fill="both", expand=True, padx=8, pady=(2, 8))
+        ctk.CTkLabel(self.tab_refeicoes, text="Autorizações ativas de acompanhantes",
+                     font=ctk.CTkFont(size=12, weight="bold"), anchor="w").pack(fill="x", padx=10)
+        frame, self.tree_ref_aut = _tree(self.tab_refeicoes, [
+            ("id", "ID", 48, "center"), ("paciente", "Paciente", 170, "w"),
+            ("leito", "Leito", 65, "center"), ("qtd", "Acompanhantes", 90, "center"),
+            ("refs", "Refeições autorizadas", 180, "w"), ("just", "Justificativa", 220, "w"),
+            ("responsavel", "Autorizado por", 120, "w"), ("vigencia", "Vigência", 170, "w")
+        ], altura=6)
+        frame.pack(fill="both", expand=True, padx=8, pady=(2, 4))
+        acoes_auth = ctk.CTkFrame(self.tab_refeicoes, fg_color="transparent")
+        acoes_auth.pack(anchor="e", padx=10, pady=(0, 10))
+        _btn(acoes_auth, "Encerrar autorização", self._encerrar_autorizacao_refeicao,
+             190, cor=LARANJA, hover=tema.LARANJA).pack(side="left", padx=4)
+        _btn(acoes_auth, "Cancelar autorização", self._cancelar_autorizacao_refeicao,
+             190, cor=LARANJA, hover=tema.LARANJA).pack(side="left", padx=4)
+
+    def _carregar_refeicoes_servidas(self):
+        try:
+            rdb.inicializar(self.mobile_db)
+            inicio = self.e_ref_inicio.get().strip()
+            fim = self.e_ref_fim.get().strip()
+            servicos = rdb.listar_refeicoes_servidas(self.mobile_db, inicio, fim)
+            custos = rdb.resumo_custos(self.mobile_db, inicio, fim)
+            nomes = {"pacientes": "Pacientes", "funcionarios": "Funcionários",
+                     "acompanhantes": "Acompanhantes"}
+            resumo = "   ·   ".join(
+                f"{nomes[k]}: {_fmt_brl(custos.get(k, {}).get('custo'))} "
+                f"({custos.get(k, {}).get('servicos', 0)} serviço(s))"
+                for k in nomes
+            )
+            self.lbl_ref_custos.configure(text=f"Período {inicio} a {fim}   |   {resumo}")
+            for iid in self.tree_refeicoes.get_children():
+                self.tree_refeicoes.delete(iid)
+            refs = {"desjejum": "Desjejum", "colacao": "Colação", "almoco": "Almoço",
+                    "lanche": "Lanche da tarde", "jantar": "Jantar", "ceia": "Ceia"}
+            publicos = {"paciente": "Paciente", "funcionario": "Funcionário",
+                        "acompanhante": "Acompanhante"}
+            for i, row in enumerate(servicos):
+                self.tree_refeicoes.insert("", "end", iid=str(i), values=(
+                    row.get("data_refeicao"), str(row.get("servido_em", "")).replace("T", " ")[11:16],
+                    refs.get(row.get("refeicao"), row.get("refeicao")),
+                    publicos.get(row.get("publico"), row.get("publico")),
+                    row.get("destinatario_nome_snapshot"), row.get("nome_paciente_snapshot") or "—",
+                    row.get("leito_snapshot") or "—", _fmt_num(row.get("quantidade")),
+                    _fmt_brl(row.get("custo_total_snapshot")), row.get("usuario_registro") or "—"
+                ), tags=("linha_par" if i % 2 == 0 else "linha_impar",))
+            for iid in self.tree_ref_aut.get_children():
+                self.tree_ref_aut.delete(iid)
+            autorizacoes = rdb.listar_autorizacoes_acompanhante(self.mobile_db, situacao="ativa")
+            for i, row in enumerate(autorizacoes):
+                vig = str(row.get("inicio_vigencia", ""))[:16].replace("T", " ")
+                if row.get("fim_vigencia"):
+                    vig += " até " + str(row["fim_vigencia"])[:16].replace("T", " ")
+                else:
+                    vig += " em aberto"
+                self.tree_ref_aut.insert("", "end", iid=str(row["id_autorizacao"]), values=(
+                    row["id_autorizacao"], row["nome_paciente_snapshot"], row["leito_snapshot"],
+                    row["quantidade_acompanhantes"], ", ".join(refs.get(x, x) for x in row["refeicoes"]),
+                    row["justificativa"], row["autorizado_por"], vig
+                ), tags=("linha_par" if i % 2 == 0 else "linha_impar",))
+        except Exception as exc:
+            messagebox.showerror("Relatório de refeições", str(exc), parent=self.app)
+
+    def _cancelar_autorizacao_refeicao(self):
+        selecao = self.tree_ref_aut.selection()
+        if not selecao:
+            messagebox.showinfo("Autorizações", "Selecione uma autorização ativa.", parent=self.app)
+            return
+        if not messagebox.askyesno("Cancelar autorização",
+                                   "Cancelar esta autorização? Refeições já servidas serão preservadas.",
+                                   parent=self.app):
+            return
+        try:
+            rdb.encerrar_autorizacao_acompanhante(self.mobile_db, int(selecao[0]), "cancelada")
+            self._carregar_refeicoes_servidas()
+        except Exception as exc:
+            messagebox.showerror("Autorizações", str(exc), parent=self.app)
+
+    def _encerrar_autorizacao_refeicao(self):
+        selecao = self.tree_ref_aut.selection()
+        if not selecao:
+            messagebox.showinfo("Autorizações", "Selecione uma autorização ativa.", parent=self.app)
+            return
+        if not messagebox.askyesno("Encerrar autorização",
+                                   "Encerrar esta autorização? O histórico de refeições já servidas será preservado.",
+                                   parent=self.app):
+            return
+        try:
+            rdb.encerrar_autorizacao_acompanhante(self.mobile_db, int(selecao[0]), "encerrada")
+            self._carregar_refeicoes_servidas()
+        except Exception as exc:
+            messagebox.showerror("Autorizações", str(exc), parent=self.app)
 
 class FichaDialog:
     """Editor de preparação com linhas de ingrediente e vínculo opcional à TBCA/Almoxarifado."""

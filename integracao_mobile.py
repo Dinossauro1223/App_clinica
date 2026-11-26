@@ -810,7 +810,8 @@ def _linha_mobile(reg, vivo):
             "refeicoes": s.get("refeicoes") or [], "qtd_dia": s.get("qtd_dia"),
             "batido_fruta": bool(s.get("batido_fruta")), "unidade": s.get("unidade") or "ml"
         })
-    return {"nome": reg["nome_paciente"], "idade_anos": reg.get("idade_anos"), "idade_meses": reg.get("idade_meses"),
+    return {"id_paciente": reg.get("id_paciente"), "nome": reg["nome_paciente"],
+            "idade_anos": reg.get("idade_anos"), "idade_meses": reg.get("idade_meses"),
             "acompanhante": bool(reg.get("acompanhante")), "pref_sim": reg.get("obs_sim") or "", "pref_nao": reg.get("obs_nao") or "",
             "cor": reg.get("cor") or "", "via": reg.get("via") or "", "consistencia": reg.get("consistencia") or "",
             "dm": bool(reg.get("dm")), "has": bool(reg.get("has")), "laxativa": bool(reg.get("laxativa")),
@@ -848,7 +849,7 @@ def _enviar_setor(db, sv, c, adm, nome, itens, data_iso, texto):
     if not linhas:
         return {"setor": nome, "leitos": 0}
     s = {"id": sid, "nome": nome}
-    sync = sv.post_mapa(c, adm, s, data_iso, linhas, completo=True)
+    sync = sv.post_mapa(c, adm, s, data_iso, linhas, completo=True, origem_desktop=True)
     n = sync.get("ok", 0)
     if n:
         mud = [{"leito": cod, "tipo": "alterado" if com else "liberado"} for cod, _, com in marcas]
