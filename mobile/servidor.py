@@ -1529,19 +1529,20 @@ def criar_servidor(db, porta=0, host="127.0.0.1"):
     srv.db = str(db)
     srv.discovery_server = None
     srv.discovery_thread = None
-    try:
-        descoberta = ServidorDescoberta(("0.0.0.0", 8766), ManipuladorDescoberta)
-        descoberta.db = str(db)
-        descoberta.http_port = srv.server_address[1]
-        thread = threading.Thread(
-            target=descoberta.serve_forever, name="NutriLabDescoberta", daemon=True
-        )
-        thread.start()
-        srv.discovery_server = descoberta
-        srv.discovery_thread = thread
-    except OSError:
-        # A porta UDP pode estar ocupada ou bloqueada; HTTP continua funcional.
-        pass
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        try:
+            descoberta = ServidorDescoberta(("0.0.0.0", 8766), ManipuladorDescoberta)
+            descoberta.db = str(db)
+            descoberta.http_port = srv.server_address[1]
+            thread = threading.Thread(
+                target=descoberta.serve_forever, name="NutriLabDescoberta", daemon=True
+            )
+            thread.start()
+            srv.discovery_server = descoberta
+            srv.discovery_thread = thread
+        except OSError:
+            # A porta UDP pode estar ocupada ou bloqueada; HTTP continua funcional.
+            pass
     return srv
 
 
