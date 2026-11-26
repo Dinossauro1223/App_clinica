@@ -93,7 +93,7 @@ class ConfiguracoesUI:
         self._precos_refeicoes(conteudo)
         self._grupo(conteudo, "Dados e recuperação")
         self._backups(conteudo)
-        self._recolher_cards_config(conteudo, card)
+        self._recolher_cards_config(conteudo)
         ctk.CTkButton(conteudo, text="Voltar ao início", fg_color=tema.VERDE,
                      hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=14, pady=10)
 
