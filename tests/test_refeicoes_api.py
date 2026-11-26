@@ -114,7 +114,7 @@ class TestRefeicoesAPI(unittest.TestCase):
         with sv.conectar(self.db) as conn:
             sessao = sv.login(conn, "127.0.0.1",
                               {"login": "copa_offline_teste", "senha": "senha123"})
-        token_copa = sessao
+        token_copa = sessao["token"]
         dados = self.api("GET", "/api/refeicoes/servicos",
                          query={"setor": str(sid)}, token=token_copa)
         paciente = next(x for x in dados["pacientes"] if x["id_leito"] == lid)
