@@ -733,6 +733,14 @@ def salvar_alocacoes_retirada(db_path, data, id_movimento_mobile, alocacoes, usu
     data = _data_iso(data, "data do movimento")
     if not isinstance(alocacoes, (list, tuple)):
         raise ValueError("Informe as destinações da retirada.")
+    movimentos_periodo = listar_movimentos_cozinha(db_path, "0001-01-01", "9999-12-31")
+    referencia = next((x for x in movimentos_periodo
+                       if x["data"] == data and int(x["id_mobile"]) == int(id_movimento_mobile)), None)
+    limite_liquido = None
+    if referencia is not None:
+        limite_liquido = max(0.0, float(referencia["qtd"] or 0)
+                             - float(referencia.get("qtd_devolvida") or 0)
+                             - float(referencia.get("qtd_devolvida_alocada") or 0))
     with _conexao(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
         try:
@@ -800,9 +808,11 @@ def salvar_alocacoes_retirada(db_path, data, id_movimento_mobile, alocacoes, usu
                     nome = "Uso geral / não identificado" if tipo == "uso_geral" else "Perda"
                 total += quantidade
                 preparados.append((pid, nome, data_prep, refeicao, porcoes, tipo, quantidade))
-            if total > qtd_mov + 1e-8:
+            quantidade_permitida = qtd_mov if limite_liquido is None else limite_liquido
+            if total > quantidade_permitida + 1e-8:
                 raise ValueError(
-                    "A soma das destinações excede a quantidade retirada (%s %s)." % (qtd_mov, mov["unidade"])
+                    "A soma das destinações excede a quantidade disponível após devoluções (%s %s)." %
+                    (quantidade_permitida, mov["unidade"])
                 )
 
             revisao = conn.execute(
