@@ -20,6 +20,8 @@ class TestRefeicoesPorPublico(unittest.TestCase):
         rd.salvar_janela(self.db, "funcionario", "almoco", "12:00", "14:00")
         self.assertEqual(rd.listar_janelas(self.db, "paciente")[0]["inicio"], "11:00")
         self.assertEqual(rd.listar_janelas(self.db, "funcionario")[0]["inicio"], "12:00")
+        self.assertTrue(rd.remover_janela(self.db, "paciente", "almoco"))
+        self.assertEqual(rd.listar_janelas(self.db, "paciente"), [])
         with self.assertRaises(ValueError):
             rd.salvar_janela(self.db, "acompanhante", "almoco", "11:00", "13:00")
 
@@ -80,6 +82,11 @@ class TestRefeicoesPorPublico(unittest.TestCase):
             self.db, **comum, publico="acompanhante", destinatario_nome="Acompanhantes",
             id_paciente="P1", id_autorizacao_acompanhante=auth
         )
+        with self.assertRaisesRegex(ValueError, "quantidade total"):
+            rd.registrar_refeicao_servida(
+                self.db, **comum, publico="acompanhante", destinatario_nome="Acompanhantes",
+                id_paciente="P1", id_autorizacao_acompanhante=auth
+            )
         resumo = rd.resumo_custos(self.db, "2026-11-25", "2026-11-25")
         self.assertEqual(set(resumo), {"pacientes", "funcionarios", "acompanhantes"})
         self.assertEqual({k: v["custo"] for k, v in resumo.items()},
