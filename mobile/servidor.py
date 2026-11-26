@@ -522,7 +522,7 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
                 v["id_paciente"] = id_paciente
             if id_paciente is not None:
                 id_ocupacao = "paciente:" + str(id_paciente)
-            elif v.get("id_ocupacao", "").startswith("offline:") and not mesmo_paciente:
+            elif (v.get("id_ocupacao") or "").startswith("offline:") and not mesmo_paciente:
                 id_ocupacao = v["id_ocupacao"]
             else:
                 id_ocupacao = (anterior_ocupacao["id_ocupacao"] if mesmo_paciente else None) or secrets.token_hex(16)
