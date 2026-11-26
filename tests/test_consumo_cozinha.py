@@ -69,9 +69,10 @@ class TestConsumoCozinha(unittest.TestCase):
         self.assertAlmostEqual(item["custo_total"],45.6)  # 36 + 24 - 14.4
 
     def test_devolucao_reduz_alocacao_ja_lancada_na_ficha(self):
-        prep = ga.salvar_preparacoes_dia(self.db,"2026-11-20","almoco",[
+        ga.salvar_preparacoes_dia(self.db,"2026-11-20","almoco",[
             {"nome":"Feijão cozido","porcoes_previstas":100}
-        ])[0]
+        ])
+        prep = ga.listar_preparacoes_dia(self.db,"2026-11-20","almoco")[0]["id_preparacao_dia"]
         ga.salvar_alocacoes_retirada(self.db,"2026-11-20",101,[{
             "tipo_destino":"preparacao","id_preparacao_dia":prep,"quantidade":5
         }])
@@ -83,6 +84,7 @@ class TestConsumoCozinha(unittest.TestCase):
             c.commit()
         finally:
             c.close()
+        im.importar_movimentos_cozinha(self.db,self.mobile_db,"2026-11-20","2026-11-22")
         resumo=ga.resumo_consumo_observado(self.db,"2026-11-20","2026-11-22")
         item=next(x for x in resumo["itens"] if x["item"]=="Feijão")
         ficha=next(x for x in resumo["por_preparacao"] if x["preparacao"]=="Feijão cozido")
