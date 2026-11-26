@@ -22,6 +22,13 @@
 5. Nome e instruções do estoque contextualizados para almoxarifado, cozinha e copa; separação textual entre etapa 1 (conferir/atualizar saldo) e etapa 2 (registrar movimentação).
 6. Teste de contrato de interface para tema, recolhimento dos grupos administrativos e identificação do fluxo de estoque.
 
+## Acessibilidade de escala mobile (nova implementação)
+
+- A opção **Configurações** está disponível na tela de entrada e no cabeçalho autenticado para todos os perfis.
+- O controle de escala vai de 50% a 200%, com passo de 10%, e guarda a preferência local no dispositivo.
+- O ajuste usa zoom de interface para aumentar/reduzir textos e controles em conjunto, favorecendo a reorganização dos ícones e componentes em vez de deixar elementos sobrepostos.
+- O menu de preferências fica fechado inicialmente; pode ser expandido quando necessário.
+
 ## Roteiro de auditoria visual e validação
 
 - [ ] Conferir login com os três temas e persistência após recarregar/abrir o app.
