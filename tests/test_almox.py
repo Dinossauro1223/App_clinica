@@ -118,7 +118,7 @@ class TestMigracaoAlmox(unittest.TestCase):
             db_migracoes.aplicar_migracoes(path, alvo=9, backup=False)
             c = sqlite3.connect(path)
             colunas = {r[1] for r in c.execute("PRAGMA table_info(Almox_Itens)")}
-            versao = c.execute("SELECT MAX(versao) FROM Schema_Migracoes").fetchone()[0]
+            versao = c.execute("SELECT MAX(versao) FROM schema_migrations").fetchone()[0]
             c.close()
             self.assertIn("validade", colunas)
             self.assertEqual(versao, 9)
