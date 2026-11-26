@@ -957,6 +957,8 @@ def _rotear(c, ip, m, p, q, b, auth):
                 instante_dt = instante_dt.replace(tzinfo=TZ) if instante_dt.tzinfo is None else instante_dt.astimezone(TZ)
             except ValueError:
                 raise Erro("Data e hora do serviço inválidas.")
+            if not staff and instante_dt.date() != agora_dt().date():
+                raise Erro("A Copa só pode registrar refeições do dia atual.", 403)
             d = instante_dt.date().isoformat()
             dados = {"servido_em": instante_dt.isoformat(timespec="seconds"), "refeicao": ref, "publico": publico,
                      "destinatario_nome": b.get("destinatario_nome") or "",
@@ -984,7 +986,8 @@ def _rotear(c, ip, m, p, q, b, auth):
                         or not id_informado or str(estado.get("id_ocupacao")) != id_informado):
                     raise Erro("O paciente informado não corresponde à ocupação do leito no horário da refeição.")
                 nome_snapshot = str(estado.get("nome") or b.get("nome_paciente") or "")
-                leito_snapshot = str(estado.get("codigo") or b.get("leito") or paciente_atual.get("codigo") if paciente_atual else b.get("leito") or "")
+                leito_snapshot = str((estado.get("codigo") if estado else None)
+                                     or b.get("leito") or (paciente_atual or {}).get("codigo") or "")
                 dados.update(id_paciente=id_informado, nome_paciente=nome_snapshot,
                              leito=leito_snapshot, destinatario_nome=nome_snapshot)
             if publico == "acompanhante":
