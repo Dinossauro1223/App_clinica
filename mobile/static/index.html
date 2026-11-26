@@ -136,7 +136,8 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     }
     const user=read('user');
     let userId=null;try{userId=JSON.parse(user||'{}').usuario?.id||null}catch(e){}
-    const entry={path,body,base,userId,criado_em:new Date().toISOString()};
+    const operationId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('nl-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+    const entry={path,body,base,userId,operationId,criado_em:new Date().toISOString()};
     const ix=path==='/api/mapa'?q.findIndex(x=>x.path===path&&x.body.setor===body.setor&&x.body.data===body.data):-1;
     if(ix>=0){entry.base=q[ix].base;entry.userId=q[ix].userId;q[ix]=entry}else q.push(entry);
     write('queue',JSON.stringify(q));
@@ -192,7 +193,8 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     return fetchOnline(input,init);
   };
 
-  let adiado=false,modal=null;
+  let adiado=false,modal=null,sincronizando=false,ultimoErro='';
+  const idOperacao=item=>item.operationId||(item.operationId='nl-'+Date.now()+'-'+Math.random().toString(36).slice(2));
   async function servidorAcessivel(){
     try{
       const token=window.NL&&window.NL.token?window.NL.token():'';
@@ -244,7 +246,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
         if(atual.some(x=>x.userId&&uid&&x.userId!==uid))throw new Error('As alterações pendentes pertencem a outro usuário. Entre com a conta que as criou.');
         for(let i=0;i<atual.length;i++){
           const item=atual[i];
-          const r=await fetchOnline(item.path,{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(item.body)});
+          const r=await fetchOnline(item.path,{method:'POST',headers:{'Content-Type':'application/json','X-Nutrilab-Operation-Id':idOperacao(item),...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(item.body)});
           if(r.status===401){fechar();if(window.NL&&window.NL.expired)window.NL.expired();return}
           const j=await r.json().catch(()=>({}));
           if(!r.ok)throw new Error(j.erro||'O servidor recusou uma atualização.');
@@ -262,13 +264,41 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
       if(window.NL&&window.NL.aviso)window.NL.aviso('Cópia local descartada. Os dados serão carregados do servidor.',false);
     };
   }
+  async function enviarAutomaticamente(q){
+    if(sincronizando||!q.length)return;
+    sincronizando=true;ultimoErro='';
+    const token=window.NL&&window.NL.token?window.NL.token():'';
+    const uid=window.NL&&window.NL.userId?window.NL.userId():null;
+    try{
+      if(q.some(x=>x.userId&&uid&&x.userId!==uid))
+        throw new Error('As alterações pendentes pertencem a outro usuário. Entre com a conta que as criou.');
+      for(const item of q){
+        const operationId=idOperacao(item);
+        write('queue',JSON.stringify(q));
+        const r=await fetchOnline(item.path,{method:'POST',headers:{
+          'Content-Type':'application/json','X-Nutrilab-Operation-Id':operationId,
+          ...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(item.body)});
+        if(r.status===401){if(window.NL&&window.NL.expired)window.NL.expired();return}
+        const j=await r.json().catch(()=>({}));
+        if(!r.ok)throw new Error(j.erro||'O servidor recusou uma atualização.');
+        const atual=queue(),ix=atual.findIndex(x=>idOperacao(x)===operationId);
+        if(ix>=0){atual.splice(ix,1);write('queue',JSON.stringify(atual))}
+      }
+      if(window.NL&&window.NL.refresh)await window.NL.refresh();
+      if(window.NL&&window.NL.aviso)window.NL.aviso('Alterações locais sincronizadas com o servidor.',false);
+    }catch(e){ultimoErro=e.message}
+    finally{sincronizando=false}
+  }
   async function ready(){
     const q=queue();
-    if(!q.length||adiado||modal)return;
+    if(!q.length||adiado||modal||sincronizando)return;
     if(!(await servidorAcessivel()))return;
-    const n=await conflitos(q);mostrar(q,n);
+    const n=await conflitos(q);
+    if(n>0){mostrar(q,n);return}
+    await enviarAutomaticamente(q);
   }
-  window.NLOffline={get:read,set:write,remove,clearData,ready,pendentes:()=>queue().length};
+  window.NLOffline={get:read,set:write,remove,clearData,ready,pendentes:()=>queue().length,
+    sincronizando:()=>sincronizando,erro:()=>ultimoErro};
   window.addEventListener('online',()=>{adiado=false;setTimeout(ready,500)});
   document.addEventListener('DOMContentLoaded',()=>setTimeout(ready,800));
 })();
@@ -299,17 +329,22 @@ async function api(p,b){
 function aviso(t,erro){const a=$('#aviso');if(a){a.innerHTML=t?`<div class="aviso ${erro?'erro':''}">${esc(t)}</div>`:'';if(t)scrollTo(0,0)}}
 async function atualizarConexao(){
   const el=$('#conexao');if(!el)return;
+  const pendentes=window.NLOffline?NLOffline.pendentes():0;
   try{
     const j=await api('/api/status');
     if(j.__offline)throw new Error('cache');
-    el.className='';el.innerHTML='<span>● Conectado ao servidor da clínica</span><small>IP: '+esc(j.ip_lan||'detectado')+'</small>';
+    if(window.NLOffline&&NLOffline.sincronizando()){
+      el.className='wait';el.innerHTML='<span>↻ Sincronizando alterações</span><small>'+pendentes+' pendente(s)</small>';
+    }else{
+      el.className='';el.innerHTML='<span>● Conectado ao servidor da clínica</span><small>'+(pendentes?pendentes+' pendente(s) · IP: ':'IP: ')+esc(j.ip_lan||'detectado')+'</small>';
+    }
   }catch(e){
-    el.className='off';el.innerHTML='<span>● Desconectado — modo local</span><small>Alterações aguardam sincronização</small>';
+    el.className='off';el.innerHTML='<span>● Desconectado — modo local</span><small>'+(pendentes?pendentes+' alteração(ões) aguardando envio':'Alterações ficam salvas neste aparelho')+'</small>';
   }
 }
 async function registrarRedeLocal(){
   try{
-    const j=await api('/api/admin/rede/registrar');
+    const j=await api('/api/admin/rede/registrar',{});
     if(j.queued){aviso('Servidor indisponível. O pedido de registro ficará pendente neste aparelho.',0);return}
     aviso('Endereço da rede local registrado: '+j.ip_lan+'.',0);await atualizarConexao();
   }catch(e){aviso(e.message,1)}
@@ -440,7 +475,7 @@ async function abrir(u,hoje){
   <nav>${ABAS[u.perfil].map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
   <footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   ir(ABAS[u.perfil][0][0]);
-  verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);clearInterval(S.statusTimer);atualizarConexao();S.statusTimer=setInterval(atualizarConexao,15000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
+  verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);clearInterval(S.statusTimer);atualizarConexao();S.statusTimer=setInterval(()=>{atualizarConexao();if(window.NLOffline)NLOffline.ready()},15000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
 }
 const ir=tenta(async aba=>{
   S.aba=aba;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.a===aba));aviso('');
