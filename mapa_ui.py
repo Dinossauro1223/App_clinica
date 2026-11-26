@@ -1498,6 +1498,8 @@ class FormRegistro(_Janela):
         l = self._linha(q)
         self.e_reav = self._entrada(l, "Reavaliação prevista (DD/MM/AAAA)", 100)
         self.seg_via = self._seg(l, "Via", mdb.VIAS, cmd=self._via_mudou)
+        self.e_tipo_dieta = self._reg(ctk.CTkComboBox(l, values=["Geral", "Branda", "Pastosa", "Líquida", "Líquida completa", "Líquida restrita", "Hipossódica", "Diabética", "Hipogordurosa", "Hipercalórica", "Hiperproteica", "Enteral", "Outra"], width=190))
+        self.e_tipo_dieta.set("")
         l = self._linha(q)
         ctk.CTkLabel(l, text="Características:").pack(side="left", padx=(0, 6))
         self.var_carac = {}
@@ -1691,6 +1693,7 @@ class FormRegistro(_Janela):
         _set_entry(self.e_reav, mdb.iso_para_br(r.get("data_reavaliacao")))
         if r.get("via"):
             self.seg_via.set(r["via"])
+        self.e_tipo_dieta.set(r.get("tipo_dieta") or "")
         _set_entry(self.e_meta_kcal, _fmt(r.get("meta_kcal")).replace(",0", "") if r.get("meta_kcal") is not None else "")
         _set_entry(self.e_meta_ptn, _fmt(r.get("meta_proteina_g")).replace(",0", "") if r.get("meta_proteina_g") is not None else "")
         self._via_mudou(r.get("via") or "Oral", preservar=True)
@@ -1807,6 +1810,7 @@ class FormRegistro(_Janela):
             "peso_kg": n(self.e_peso), "peso_origem": origem_p,
             "peso_metodo": self._peso_metodo if origem_p == "E" else None,
             "data_reavaliacao": reav, "via": self.seg_via.get() or None,
+            "tipo_dieta": self.e_tipo_dieta.get().strip() or None,
             "meta_kcal": n(self.e_meta_kcal), "meta_proteina_g": n(self.e_meta_ptn),
             **{campo: var.get() for campo, var in self.var_carac.items()},
             "condicoes": ",".join(c for c, var in self.var_cond.items() if var.get()) or None,
