@@ -9,7 +9,7 @@ import sys
 import webbrowser
 from pathlib import Path
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
 from urllib.parse import quote
 
 import customtkinter as ctk
@@ -20,7 +20,7 @@ import tema
 import nrs2002 as nrs
 import mapa_db as mdb
 import evolucao_nutricional as evregras
-import integracao_mobile
+import midias_usuario\nimport integracao_mobile
 from mobile import servidor as servidor_mobile
 
 CAMINHO = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
@@ -80,7 +80,7 @@ class ConfiguracoesUI:
         self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
         self._distribuicao(conteudo)
         self._contas_compartilhadas(conteudo)
-        self._nrs(conteudo)
+        self._nrs(conteudo)\n        self._midias_personalizadas(conteudo)
         self._progressao_oral(conteudo)
         self._equipe(conteudo)
         self._backups(conteudo)
@@ -598,6 +598,70 @@ class ConfiguracoesUI:
                     ctk.CTkButton(linha, text="Desativar", width=78, fg_color=tema.SUAVE,
                                   hover_color=tema.LARANJA, command=desativar).pack(side="right", padx=4)
         atualizar_lista()
+
+    def _midias_personalizadas(self, raiz):
+        """Gerencia escalas e imagens de apoio sem gravá-las dentro da pasta do executável."""
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                            border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=12)
+        ctk.CTkLabel(card, text="Imagens das escalas e orientações dos setores",
+                     font=tema.fonte(16, "bold"), text_color=tema.TEXTO).pack(
+                         anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(card, text=(
+            "Adicione ou substitua imagens sem reinstalar o NutriLab. Para escalas, use os identificadores "
+            "bristol, urina ou aceitacao. Para orientações, use o código da orientação (por exemplo, ENT-001). "
+            "Os arquivos ficam em ~/.nutrilab/midias e são preservados nas atualizações."
+        ), font=tema.fonte(12), text_color=tema.SUAVE, wraplength=820,
+            justify="left").pack(anchor="w", padx=18, pady=(0, 10))
+        linha = ctk.CTkFrame(card, fg_color="transparent")
+        linha.pack(fill="x", padx=14, pady=4)
+        categoria = ctk.CTkOptionMenu(linha, values=["Escalas", "Orientações"],
+            fg_color=tema.VERDE, button_color=tema.VERDE_HOVER, width=140)
+        categoria.set("Escalas")
+        categoria.pack(side="left", padx=4)
+        identificador = ctk.CTkEntry(linha, width=220, placeholder_text="Identificador / código")
+        identificador.pack(side="left", padx=4, fill="x", expand=True)
+        status = ctk.CTkLabel(card, text="", font=tema.fonte(11), text_color=tema.SUAVE)
+        status.pack(anchor="w", padx=18, pady=(2, 4))
+        lista = ctk.CTkScrollableFrame(card, height=120, fg_color="transparent")
+        lista.pack(fill="x", padx=12, pady=(0, 8))
+
+        def atualizar():
+            for w in lista.winfo_children():
+                w.destroy()
+            itens = midias_usuario.listar_imagens()
+            if not itens:
+                ctk.CTkLabel(lista, text="Nenhuma imagem personalizada cadastrada.",
+                             text_color=tema.SUAVE).pack(anchor="w", padx=8, pady=6)
+                return
+            for cat, chave, caminho in itens:
+                rotulo = ("Escala" if cat == "escalas" else "Orientação") + " · " + chave
+                ctk.CTkLabel(lista, text=rotulo + " · " + caminho.name,
+                             text_color=tema.TEXTO, anchor="w").pack(fill="x", padx=8, pady=2)
+
+        def adicionar():
+            cat = "escalas" if categoria.get() == "Escalas" else "orientacoes"
+            chave = identificador.get().strip()
+            if not chave:
+                status.configure(text="Informe o identificador antes de selecionar a imagem.",
+                                 text_color=tema.LARANJA_TEXTO)
+                return
+            origem = filedialog.askopenfilename(parent=self.app, title="Selecionar imagem",
+                filetypes=[("Imagens", "*.png *.jpg *.jpeg *.webp")])
+            if not origem:
+                return
+            try:
+                destino = midias_usuario.salvar_imagem(cat, chave, origem)
+            except Exception as erro:
+                status.configure(text="Não foi possível salvar: " + str(erro),
+                                 text_color=tema.LARANJA_TEXTO)
+                return
+            status.configure(text="Imagem salva em " + str(destino), text_color=tema.VERDE)
+            atualizar()
+
+        ctk.CTkButton(linha, text="Adicionar / substituir imagem", command=adicionar,
+            fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER).pack(side="left", padx=4)
+        atualizar()
 
     def _backups(self, raiz):
         """Lista snapshots locais por data e permite restauração protegida."""
