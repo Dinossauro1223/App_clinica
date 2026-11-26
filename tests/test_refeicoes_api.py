@@ -168,6 +168,9 @@ class TestRefeicoesAPI(unittest.TestCase):
             "refeicao": "almoco", "quantidade": 1,
             "id_autorizacao_acompanhante": autorizacao["id_autorizacao"]})
         self.assertTrue(servico["ok"])
+        relatorio = self.api("GET", "/api/refeicoes/relatorio",
+                             query={"inicio": dia, "fim": dia})
+        self.assertEqual(relatorio["servicos"][0]["leito_snapshot"], "T2")
 
     def test_autorizacao_nao_pode_ser_reutilizada_por_novo_ocupante(self):
         setor = self.api("POST", "/api/admin/setores",
