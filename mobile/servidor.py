@@ -941,6 +941,12 @@ def _regra_refeicao(funcao, *args, **kwargs):
 
 
 def _rotear(c, ip, m, p, q, b, auth):
+    if (m, p) == ("GET", "/api/status"):
+        cfg = {r["chave"]: r["valor"] for r in c.execute(
+            "SELECT chave,valor FROM sistema_config WHERE chave IN ('rede_ip_registrado','rede_ip_registrado_em')")}
+        return {"status": "online", "ip_lan": ip_lan(), "porta": 8765,
+                "ip_registrado": cfg.get("rede_ip_registrado"),
+                "registrado_em": cfg.get("rede_ip_registrado_em")}
     if (m, p) == ("POST", "/api/login"):
         return login(c, ip, b)
     # Reutiliza o mesmo arquivo SQLite para os módulos operacionais compartilhados.
@@ -950,6 +956,16 @@ def _rotear(c, ip, m, p, q, b, auth):
     adm, staff = perfil == "admin", perfil in STAFF
     if (m, p) == ("GET", "/api/eu"):
         return {"usuario": pub(u), "hoje": hoje()}
+    if (m, p) == ("POST", "/api/admin/rede/registrar"):
+        if not adm:
+            raise Erro("Somente o administrador pode registrar o endereço da rede.", 403)
+        endereco = ip_lan()
+        instante = agora()
+        c.execute("INSERT INTO sistema_config(chave,valor) VALUES('rede_ip_registrado',?) "
+                  "ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor", (endereco,))
+        c.execute("INSERT INTO sistema_config(chave,valor) VALUES('rede_ip_registrado_em',?) "
+                  "ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor", (instante,))
+        return {"ok": True, "ip_lan": endereco, "registrado_em": instante}
     if (m, p) == ("GET", "/api/itens"):
         return {"itens": [dict(r) for r in c.execute(
             "SELECT id,nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,categoria,validade FROM itens ORDER BY CASE WHEN validade IS NULL OR validade='' THEN 1 ELSE 0 END,validade,categoria COLLATE NOCASE,nome COLLATE NOCASE")]}
