@@ -1496,6 +1496,11 @@ class ManipuladorDescoberta(socketserver.BaseRequestHandler):
     """Responde apenas ao pacote de descoberta local; não concede acesso à API."""
     def handle(self):
         dados, sock = self.request
+        try:
+            if not ipaddress.ip_address(self.client_address[0]).is_private:
+                return
+        except ValueError:
+            return
         if dados.strip() != b"NUTRILAB_DISCOVER_V1":
             return
         try:
