@@ -1390,7 +1390,7 @@ def rotear(db, ip, m, p, q, b, auth, operation_id=None):
                 if not sessao or sessao[1] < time.time():
                     raise Erro("Sessão expirada. Entre novamente.", 401)
                 fingerprint = hashlib.sha256(json.dumps(
-                    {"usuario": sessao[0], "metodo": m, "rota": p, "dados": b},
+                    {"usuario": sessao[0], "metodo": m, "rota": p, "consulta": q, "dados": b},
                     ensure_ascii=False, sort_keys=True, separators=(",", ":")
                 ).encode("utf-8")).hexdigest()
                 anterior = c.execute(
