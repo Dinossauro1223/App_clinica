@@ -6,7 +6,7 @@ Organizar as retiradas de ingredientes do almoxarifado para a cozinha, permitir 
 
 ## Fluxo de dados
 
-1. **Cadastro do produto:** nome, unidade de estoque, categoria, validade, preço por unidade e conteúdo da embalagem podem ser mantidos no desktop e sincronizados com o catálogo mobile. O desktop mantém espelho do produto na tabela `GA_Produtos_Almox`.
+1. **Cadastro do produto:** nome, unidade de estoque, categoria, validade, preço por unidade e conteúdo da embalagem podem ser mantidos no desktop e publicados no catálogo mobile. Categorias não padrão e validades preenchidas no mobile podem ser importadas pelo botão **Importar categoria/validade do mobile**; campos vazios não apagam dados do desktop. O desktop mantém espelho do produto na tabela `GA_Produtos_Almox`.
 2. **Movimentação:** cada transferência ou devolução mobile guarda data/hora, origem/destino, ID do item, quantidade, usuário, observação opcional e preço/custo snapshot.
 3. **Importação:** o desktop importa um intervalo da base mobile para `Mobile_Movimentos`, mantendo `(data,id_mobile)` como chave única. A importação é idempotente.
 4. **Preparações esperadas:** a aba Consumo observado permite cadastrar o que a cozinha espera preparar para cada dia/refeição, número previsto de porções e vínculo opcional a uma ficha técnica existente.
