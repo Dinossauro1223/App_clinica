@@ -30,7 +30,9 @@ class TestRefeicoesAPI(unittest.TestCase):
         sid = setor["id"]
         mapa = self.api("GET", "/api/mapa", query={"setor": str(sid)})
         lid = mapa["linhas"][0]["id_leito"]
-        agora = sv.agora_dt().replace(second=0, microsecond=0)
+        # Horário fixo dentro do dia local evita que o cenário atravesse a meia-noite
+        # quando a suíte roda perto de 00:00 e o serviço pertence ao dia anterior.
+        agora = sv.agora_dt().replace(hour=12, minute=0, second=0, microsecond=0)
         t_maria = agora - timedelta(minutes=60)
         t_joao = agora - timedelta(minutes=30)
         dia = agora.date().isoformat()
