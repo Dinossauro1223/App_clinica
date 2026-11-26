@@ -93,6 +93,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
  .cartao,.passo-preparo,.fruta-card{background:var(--cartao);color:var(--tinta);box-shadow:var(--sombra)}
  .btn.sec{background:var(--sec-bg);color:var(--sec-texto)}.barra{background:var(--papel)}
  .admin-secao h2{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;outline-offset:3px}
+.admin-secao[data-aberto=false] > :not(h2){display:none}
  .admin-secao h2::before{content:'▸';display:inline-block;width:1em;color:var(--cor);transition:transform .15s ease}
  .admin-secao[data-aberto=true] h2::before{transform:rotate(90deg)}
  .tema-controle{min-height:38px;width:auto;max-width:130px;padding:4px 8px;border:1px solid #ffffff55;border-radius:7px;background:#ffffff12;color:inherit;font-size:.82rem}
@@ -883,9 +884,20 @@ async function vCad(){
    <button class="btn sec peq" onclick="editarItem(${i.id})">Editar preço/embalagem</button></div>`).join('')}
   </div></div>`;
   $('#pedidoItem').innerHTML=S.itens.map(i=>'<option value="'+i.id+'">'+esc(i.nome)+'</option>').join('');
+  colapsarCadastrosAdmin();
+  aplicaTemaMobile(lerTemaMobile(),false);
   await Promise.all([carregaAtividade(),carregaPrazos()]);
 }
 
+function colapsarCadastrosAdmin(){
+  document.querySelectorAll('#vista .cartao').forEach(card=>{
+    const titulo=card.querySelector('h2');if(!titulo||card.dataset.recolhivel==='1')return;
+    card.classList.add('admin-secao');card.dataset.recolhivel='1';card.dataset.aberto='false';
+    titulo.setAttribute('role','button');titulo.setAttribute('tabindex','0');titulo.setAttribute('aria-expanded','false');
+    const alternar=()=>{const aberto=card.dataset.aberto!=='true';card.dataset.aberto=String(aberto);titulo.setAttribute('aria-expanded',String(aberto));};
+    titulo.addEventListener('click',alternar);titulo.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();alternar()}});
+  });
+}
 const carregaAtividade=tenta(async()=>{
  const periodo=$('#periodoAtividade')?.value||'mes';
  const [ano,mes]=(S.hoje||'').split('-');
