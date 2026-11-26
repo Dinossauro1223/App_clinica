@@ -30,7 +30,7 @@
 - Um administrador pode registrar o IP detectado pelo servidor.
 - Reiniciar o roteador ou receber outro IP não pode ser interpretado como uma nova identidade de servidor.
 - O servidor anuncia sua presença por broadcast UDP local na porta 8766. O APK Android procura o computador na rede e só aceita automaticamente a identidade estável do servidor que já foi vinculada no primeiro acesso por QR/endereço.
-- A identidade do servidor é persistida no banco e devolvida também por `/api/status`. Ela serve para reconhecer o servidor esperado, não é senha nem substitui login.
+- A identidade do servidor é persistida no banco e devolvida também por `/api/status`. Ela serve para evitar a troca acidental para outro servidor, mas não é segredo nem prova criptográfica contra falsificação por alguém já conectado à mesma rede; não substitui TLS/VPN nem autenticação.
 - A troca manual de endereço/QR continua disponível como contingência. Se o firewall bloquear UDP 8766, a descoberta automática não funcionará até liberar essa porta; o acesso por endereço/QR continua disponível.
 
 ## Indicador de conexão
