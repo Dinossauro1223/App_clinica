@@ -665,7 +665,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void trocar() {
-            prefs.edit().remove("servidor").remove("server_identity").apply();
+            prefs.edit().remove("servidor").apply();
             recarregar();
         }
 
