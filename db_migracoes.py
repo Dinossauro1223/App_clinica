@@ -491,6 +491,16 @@ _PEP_MAPA_DOWN = (
     "DROP TABLE IF EXISTS Mapa_Evolucao_Dados",
 )
 
+def _almox_validade_up(conn):
+    """Adiciona validade ao cadastro de itens sem reescrever a migração v5 já publicada."""
+    colunas = {r[1] for r in conn.execute("PRAGMA table_info(Almox_Itens)")}
+    if "validade" not in colunas:
+        conn.execute("ALTER TABLE Almox_Itens ADD COLUMN validade TEXT")
+
+
+_ALMOX_VALIDADE_UP = (_almox_validade_up,)
+
+
 # Lista oficial. NOVAS migrações entram SEMPRE ao final, com versão contígua; nunca editar uma já publicada.
 MIGRACOES = (
     Migracao(versao=1, nome="baseline_esquema_legado", up=(), down=None, baseline=True),
@@ -503,6 +513,7 @@ MIGRACOES = (
     Migracao(versao=6, nome="pep_evolucoes_immutability", up=_PEP_UP, down=_PEP_DOWN),
     Migracao(versao=7, nome="pep_rascunhos_equipe_e_revisao", up=_PEP_EVOLUCAO_UP, down=_PEP_EVOLUCAO_DOWN),
     Migracao(versao=8, nome="pep_colaboradores_e_integracao_mapa", up=_PEP_MAPA_UP, down=_PEP_MAPA_DOWN),
+    Migracao(versao=9, nome="almox_validade_produtos", up=_ALMOX_VALIDADE_UP, down=None),
 )
 
 
