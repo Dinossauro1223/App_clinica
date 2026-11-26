@@ -215,7 +215,8 @@ def _janela_permite(conn, publico, refeicao, instante):
     ).fetchone()
     if not row:
         raise ValueError(f"Configure a janela de {refeicao} para {publico} antes de registrar o serviço.")
-    hora = instante.time().replace(tzinfo=None)
+    hora = (instante.astimezone().time().replace(tzinfo=None)
+            if instante.tzinfo is not None else instante.time().replace(tzinfo=None))
     ini, fim = _hora(row["inicio"], "início"), _hora(row["fim"], "fim")
     return ini <= hora <= fim if ini < fim else (hora >= ini or hora <= fim)
 
@@ -269,9 +270,16 @@ def registrar_refeicao_servida(
             """, (int(id_autorizacao_acompanhante),)).fetchone()
             if not auth:
                 raise ValueError("Autorização de acompanhante inexistente ou inativa.")
-            inicio = datetime.fromisoformat(auth["inicio_vigencia"]).replace(tzinfo=None)
-            fim = datetime.fromisoformat(auth["fim_vigencia"]).replace(tzinfo=None) if auth["fim_vigencia"] else None
-            instante_comparacao = instante.replace(tzinfo=None)
+            instante_local = instante.astimezone() if instante.tzinfo is not None else instante.astimezone()
+            inicio = datetime.fromisoformat(auth["inicio_vigencia"])
+            fim = datetime.fromisoformat(auth["fim_vigencia"]) if auth["fim_vigencia"] else None
+            if inicio.tzinfo is None:
+                inicio = inicio.replace(tzinfo=instante_local.tzinfo)
+            else:
+                inicio = inicio.astimezone(instante_local.tzinfo)
+            if fim is not None:
+                fim = fim.replace(tzinfo=instante_local.tzinfo) if fim.tzinfo is None else fim.astimezone(instante_local.tzinfo)
+            instante_comparacao = instante_local
             permitidas = json.loads(auth["refeicoes_json"])
             if str(id_paciente or "") != auth["id_paciente"]:
                 raise ValueError("A autorização pertence a outro paciente, não ao leito atual.")
@@ -281,6 +289,7 @@ def registrar_refeicao_servida(
                 raise ValueError("A quantidade excede a autorização da assistência social.")
             nome_paciente = auth["nome_paciente_snapshot"]
             leito = auth["leito_snapshot"]
+        instante_registro = instante.astimezone() if instante.tzinfo is not None else instante.astimezone()
         cur = conn.execute("""
             INSERT INTO Refeicoes_Servidas(
                 servido_em,data_refeicao,refeicao,pubLico,destinatario_id,
@@ -288,7 +297,7 @@ def registrar_refeicao_servida(
                 quantidade,unidade,valor_unitario_snapshot,custo_total_snapshot,
                 categoria_custo,id_autorizacao_acompanhante,usuario_registro,observacao,criado_em
             ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (instante.isoformat(), instante.date().isoformat(), refeicao, publico,
+        """, (instante_registro.isoformat(), instante_registro.date().isoformat(), refeicao, publico,
               str(destinatario_id) if destinatario_id is not None else None,
               str(destinatario_nome).strip(), str(id_paciente) if id_paciente is not None else None,
               nome_paciente, leito, quantidade, str(unidade or "porcao"), preco, custo,
