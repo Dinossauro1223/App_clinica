@@ -513,7 +513,7 @@ async function vRef(){
   const htmlPacientes=pacientes.map(p=>{
     const minhas=aut.filter(a=>a.id_paciente===p.id_paciente);
     const opcoes=minhas.map(a=>`<option value="${a.id_autorizacao}">Autorização #${a.id_autorizacao} · até ${a.fim_vigencia?esc(a.fim_vigencia.replace('T',' ')):'sem término'} · ${a.quantidade_acompanhantes} acompanhante(s)</option>`).join('');
-    return `<div class=cartao data-paciente="${p.id_leito}">
+    return `<div class=cartao data-paciente="${p.id_leito}" data-paciente-id="${esc(p.id_paciente)}" data-paciente-nome="${esc(p.nome)}" data-leito="${esc(p.leito)}">
       <b>Leito ${esc(p.leito)} · ${esc(p.nome)}</b><p class=mini>O registro ficará associado a esta internação, mesmo após a troca do paciente no leito.</p>
       <div class=filtros><label class=f>Refeição<select class=sr-ref>${refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('')}</select></label>
       <label class=f>Quantidade<input class=sr-qtd type=number min=1 step=1 value=1></label>
@@ -555,7 +555,8 @@ async function vRef(){
 const registrarServicoPaciente=tenta(async(botao,pub)=>{
   const card=botao.closest('[data-paciente]'),lid=Number(card.dataset.paciente),refInput=pub==='paciente'?card.querySelector('.sr-ref').value:card.querySelector('.ac-ref').value;
   const ref=Object.keys(REF).find(k=>REF[k].toLowerCase()===String(refInput).toLowerCase())||refInput;
-  const body={setor:S.setor,data:S.data,id_leito:lid,publico:pub,refeicao:ref,
+  const body={setor:S.setor,data:S.data,id_leito:lid,id_paciente:card.dataset.pacienteId,
+    nome_paciente:card.dataset.pacienteNome,leito:card.dataset.leito,servido_em:new Date().toISOString(),publico:pub,refeicao:ref,
     quantidade:pub==='paciente'?card.querySelector('.sr-qtd').value:card.querySelector('.ac-qtd').value,
     valor_unitario:pub==='paciente'?card.querySelector('.sr-valor').value:card.querySelector('.ac-valor').value};
   if(pub==='acompanhante'){body.id_autorizacao_acompanhante=card.querySelector('.ac-auth').value}
@@ -563,7 +564,7 @@ const registrarServicoPaciente=tenta(async(botao,pub)=>{
 });
 const registrarServicoFuncionario=tenta(async()=>{
   const nome=$('#rf-nome').value.trim();if(!nome)throw new Error('Informe quem recebeu a refeição.');
-  await api('/api/refeicoes/servicos',{setor:S.setor,data:S.data,publico:'funcionario',destinatario_nome:nome,
+  await api('/api/refeicoes/servicos',{setor:S.setor,data:S.data,servido_em:new Date().toISOString(),publico:'funcionario',destinatario_nome:nome,
     refeicao:$('#rf-ref').value,quantidade:$('#rf-qtd').value,valor_unitario:$('#rf-valor').value});
   await vRef();aviso('Refeição do funcionário registrada.',0);
 });
