@@ -15,6 +15,7 @@ import sys
 import platform
 import re
 import urllib.request
+import traceback
 from datetime import datetime
 from fpdf import FPDF
 from PIL import Image
@@ -317,6 +318,20 @@ class AppClinica(ctk.CTk):
             nome="nutrilab-sincronizacao-automatica"
         )
 
+    def _registrar_erro_servidor_mobile(self, erro, detalhes):
+        """Guarda diagnóstico técnico sem incluir dados de pacientes."""
+        try:
+            pasta = os.path.join(os.path.dirname(caminho_do_banco()), "logs")
+            os.makedirs(pasta, exist_ok=True)
+            arquivo = os.path.join(pasta, "mobile_server_startup.log")
+            with open(arquivo, "a", encoding="utf-8") as log:
+                log.write("[%s] %s: %s\n%s\n" % (
+                    datetime.now().isoformat(timespec="seconds"),
+                    type(erro).__name__, erro, detalhes
+                ))
+        except Exception:
+            pass
+
     def _iniciar_servidor_mobile(self):
         """Inicia o servidor local uma única vez; não assume propriedade de processo preexistente."""
         self._servidor_mobile = None
@@ -368,6 +383,7 @@ class AppClinica(ctk.CTk):
                     "Altere a senha após o primeiro acesso e guarde-a em local seguro."
                 )
         except OSError as erro:
+            self._registrar_erro_servidor_mobile(erro, traceback.format_exc())
             messagebox.showwarning(
                 "Servidor mobile indisponível",
                 "Não foi possível iniciar o servidor mobile na porta 8765. "
@@ -375,6 +391,7 @@ class AppClinica(ctk.CTk):
                 f"Detalhe: {erro}"
             )
         except Exception as erro:
+            self._registrar_erro_servidor_mobile(erro, traceback.format_exc())
             messagebox.showwarning(
                 "Servidor mobile indisponível",
                 "O NutriLab continuará funcionando, mas a integração mobile não foi iniciada.\n\n"
