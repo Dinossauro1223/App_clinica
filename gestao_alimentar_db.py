@@ -686,6 +686,8 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
             item["qtd_disponivel_para_alocar"] = max(
                 0.0, float(item["qtd"] or 0) - float(item["qtd_alocada"] or 0)
             )
+            item["qtd_devolvida"] = 0.0
+            item["devolucao_sobre_alocada"] = 0.0
             item["custo_retirada"] = (
                 float(item["custo_retirada"]) if item["custo_retirada"] is not None else None
             )
@@ -693,6 +695,29 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
                 None if item["custos_alocados_faltantes"] else float(item["custo_alocado"])
             )
             resultado.append(item)
+
+        # A devolução consome primeiro o saldo ainda não destinado da retirada anterior.
+        # Assim, 20 g devolvidos de uma retirada de 100 g deixam só 80 g disponíveis
+        # para a preparação original; uma nova retirada poderá ser destinada à refeição seguinte.
+        anteriores_por_item = {}
+        cronologico = sorted(resultado, key=lambda x: (x["data"], x["hora"], int(x["id_mobile"])))
+        for movimento in cronologico:
+            chave_item = (movimento.get("id_item_mobile"), movimento["item"], movimento["unidade"])
+            quantidade = float(movimento["qtd"] or 0)
+            if quantidade > 0:
+                anteriores_por_item.setdefault(chave_item, []).append(movimento)
+            elif quantidade < 0:
+                restante = abs(quantidade)
+                for retirada in reversed(anteriores_por_item.get(chave_item, [])):
+                    disponivel = float(retirada["qtd_disponivel_para_alocar"] or 0)
+                    aplicado = min(restante, disponivel)
+                    if aplicado > 0:
+                        retirada["qtd_disponivel_para_alocar"] = max(0.0, disponivel - aplicado)
+                        retirada["qtd_devolvida"] += aplicado
+                        restante -= aplicado
+                    if restante <= 1e-8:
+                        break
+                movimento["devolucao_sobre_alocada"] = restante
         return resultado
 
 
