@@ -244,19 +244,21 @@ class AppClinica(ctk.CTk):
         try:
             if estado_servidor and estado_servidor.get("status") == "online":
                 endereco = estado_servidor.get("ip_lan") or "rede local"
+                remoto = estado_servidor.get("url_tailscale")
+                sufixo_remoto = " · Tailscale: " + str(remoto) if remoto else ""
                 pendentes = int(getattr(self, "_sincronizacao_mobile_propostas", 0) or 0)
                 erro_sync = getattr(self, "_sincronizacao_mobile_erro", "")
                 if erro_sync:
                     texto = "● Servidor conectado — falha ao sincronizar dados: " + str(erro_sync)[:110]
                     cor = tema.LARANJA_TEXTO
                 elif not getattr(self, "_sincronizacao_mobile_concluida", False):
-                    texto = "● Servidor conectado — sincronização inicial dos setores em andamento · IP: " + str(endereco)
+                    texto = "● Servidor conectado — sincronização inicial dos setores em andamento · IP: " + str(endereco) + sufixo_remoto
                     cor = tema.SUAVE
                 elif pendentes:
-                    texto = "● Conectado — %d alteração(ões) do mobile aguardam revisão · IP: %s" % (pendentes, endereco)
+                    texto = "● Conectado — %d alteração(ões) do mobile aguardam revisão · IP: %s%s" % (pendentes, endereco, sufixo_remoto)
                     cor = tema.LARANJA_TEXTO
                 else:
-                    texto = "● Servidor conectado — setores sincronizados · IP: " + str(endereco)
+                    texto = "● Servidor conectado — setores sincronizados · IP: " + str(endereco) + sufixo_remoto
                     cor = tema.VERDE
                 self._lbl_status_conexao.configure(text=texto, text_color=cor)
             else:
