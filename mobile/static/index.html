@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>NutriLab Mobile</title>
 <style>
-:root{--tinta:#1d2a2a;--papel:#f3f6f2;--cartao:#fff;--linha:#cfd8d3;--suave:#5d6b66;--cor:#0f4c5c;--alerta:#b3261e;--alerta-bg:#fde8e6;--campo:#fff;--campo-texto:#1d2a2a;--sec-bg:#fff;--sec-texto:#0f4c5c;--sombra:0 1px 2px #00000008}
+:root{--tinta:#1d2a2a;--papel:#f3f6f2;--cartao:#fff;--linha:#cfd8d3;--suave:#5d6b66;--cor:#0f4c5c;--alerta:#b3261e;--alerta-bg:#fde8e6;--campo:#fff;--campo-texto:#1d2a2a;--sec-bg:#fff;--sec-texto:#0f4c5c;--sombra:0 1px 2px #00000008;--aviso-bg:#e6ece8;--chip-bg:#e6ece8;--nota-bg:#edf3ef}
 *{box-sizing:border-box}
 body{margin:0;font:16px/1.4 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:var(--tinta);background:var(--papel)}
 header{background:var(--cor);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px}
@@ -86,11 +86,13 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .editor-orientacao{border-top:1px solid var(--linha);padding-top:10px;margin-top:10px}
 .editor-orientacao textarea{min-height:140px}
 .orientacao-fonte{font-size:.78rem;color:var(--suave)}
- html[data-tema=escuro]{--tinta:#e6eeeb;--papel:#141c1b;--cartao:#202a28;--linha:#394744;--suave:#aab8b3;--campo:#18211f;--campo-texto:#e6eeeb;--sec-bg:#202a28;--sec-texto:#85c9b6;--alerta-bg:#482a29;color-scheme:dark}
- @media(prefers-color-scheme:dark){html[data-tema=sistema]{--tinta:#e6eeeb;--papel:#141c1b;--cartao:#202a28;--linha:#394744;--suave:#aab8b3;--campo:#18211f;--campo-texto:#e6eeeb;--sec-bg:#202a28;--sec-texto:#85c9b6;--alerta-bg:#482a29;color-scheme:dark}}
+ html[data-tema=escuro]{--tinta:#e6eeeb;--papel:#141c1b;--cartao:#202a28;--linha:#394744;--suave:#aab8b3;--campo:#18211f;--campo-texto:#e6eeeb;--sec-bg:#202a28;--sec-texto:#85c9b6;--alerta-bg:#482a29;--alerta:#f28d87;--aviso-bg:#263532;--chip-bg:#303b38;--nota-bg:#273734;color-scheme:dark}
+ @media(prefers-color-scheme:dark){html[data-tema=sistema]{--tinta:#e6eeeb;--papel:#141c1b;--cartao:#202a28;--linha:#394744;--suave:#aab8b3;--campo:#18211f;--campo-texto:#e6eeeb;--sec-bg:#202a28;--sec-texto:#85c9b6;--alerta-bg:#482a29;--alerta:#f28d87;--aviso-bg:#263532;--chip-bg:#303b38;--nota-bg:#273734;color-scheme:dark}}
  html[data-tema=claro]{color-scheme:light}
  input[type=text],input[type=number],input[type=password],input[type=date],input[type=time],input[type=datetime-local],input[type=search],select,textarea{background:var(--campo);color:var(--campo-texto);border-color:var(--linha)}
  .cartao,.passo-preparo,.fruta-card{background:var(--cartao);color:var(--tinta);box-shadow:var(--sombra)}
+.aviso{background:var(--aviso-bg);color:var(--tinta)}.chip{background:var(--chip-bg);color:var(--suave)}.orientacao-nota{background:var(--nota-bg);color:var(--tinta)}
+header .sub span{min-width:0;overflow-wrap:anywhere}
  .btn.sec{background:var(--sec-bg);color:var(--sec-texto)}.barra{background:var(--papel)}
  .admin-secao h2{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;outline-offset:3px}
 .admin-secao[data-aberto=false] > :not(h2){display:none}
