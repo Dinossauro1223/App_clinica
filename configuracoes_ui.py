@@ -666,6 +666,8 @@ class ConfiguracoesUI:
                         inicio = campos[(publico, refeicao, "inicio")].get().strip()
                         fim = campos[(publico, refeicao, "fim")].get().strip()
                         if not inicio and not fim:
+                            if rdb.remover_janela(caminho_db, publico, refeicao):
+                                alteradas += 1
                             continue
                         if not inicio or not fim:
                             raise ValueError(f"Preencha início e fim de {nomes[refeicao]} para {publico}.")
