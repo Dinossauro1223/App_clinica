@@ -656,26 +656,26 @@ class GestaoAlimentarUI:
                             segmented_button_unselected_color=tema.SUAVE,
                             segmented_button_unselected_hover_color=tema.SUAVE)
         sub.pack(fill="both", expand=True, padx=6, pady=(0, 6))
-        tab_mov = sub.add("Retiradas e destinações")
+        tab_mov = sub.add("Movimentações e destinações")
         tab_med = sub.add("Média por ingrediente")
         tab_prep = sub.add("Consumo por preparação")
         barra = ctk.CTkFrame(tab_mov, fg_color="transparent")
         barra.pack(fill="x", padx=6, pady=5)
         _btn(barra, "Distribuir retirada selecionada", self.alocar_retirada, 210).pack(side="left")
         defs = [("data","Data",90,"center"),("hora","Hora",65,"center"),("item","Ingrediente",180,"w"),
-                ("qtd","Retirado",90,"e"),("alocado","Alocado",90,"e"),("pendente","Sem destino",95,"e"),
-                ("preco","Preço/un.",90,"e"),("custo","Custo",95,"e"),("fonte","Preço",95,"center")]
+                ("qtd","Retirada",90,"e"),("devolvido","Devolvido",85,"e"),("alocado","Alocado",90,"e"),("pendente","Sem destino",95,"e"),
+                ("preco","Preço/un.",90,"e"),("custo","Custo",95,"e"),("fonte","Preço",95,"center"),("observacao","Observação",220,"w")]
         frame,self.tree_movimentos = _tree(tab_mov,defs,altura=13)
         frame.pack(fill="both",expand=True,padx=6,pady=(0,6))
         self.tree_movimentos.bind("<Double-1>", lambda _e: self.alocar_retirada())
 
         frame,self.tree_medias_consumo = _tree(tab_med,[
-            ("item","Ingrediente",190,"w"),("total","Total retirado",100,"e"),
+            ("item","Ingrediente",190,"w"),("total","Retirada líquida",110,"e"),
             ("media","Média/dia calendário",125,"e"),("intervalo","Intervalo médio",110,"e"),
             ("alocado","Associado",90,"e"),("pendente","Pendente",90,"e"),
-            ("custo","Custo retirado",105,"e")],altura=16)
+            ("custo","Custo líquido",105,"e")],altura=16)
         frame.pack(fill="both",expand=True,padx=6,pady=6)
-        ctk.CTkLabel(tab_med,text="A média diária divide o total retirado pelos dias do período. O intervalo médio considera apenas datas em que houve retirada; nenhum desses indicadores equivale sozinho ao consumo efetivo.",
+        ctk.CTkLabel(tab_med,text="A média diária divide a retirada líquida (retiradas menos devoluções) pelos dias do período. O intervalo médio considera datas com movimentação; nenhum desses indicadores equivale sozinho ao consumo efetivo.",
                      text_color=tema.SUAVE,font=ctk.CTkFont(size=10),wraplength=850,justify="left").pack(anchor="w",padx=9,pady=(0,8))
         frame,self.tree_preparacoes_consumo = _tree(tab_prep,[
             ("refeicao","Refeição",90,"center"),("preparacao","Preparação",180,"w"),
@@ -779,12 +779,17 @@ class GestaoAlimentarUI:
                     tree.delete(iid)
             for indice, m in enumerate(movimentos):
                 fonte = {"historico":"Histórico","atual_estimado":"Atual*","pendente":"Sem preço"}.get(m.get("origem_preco"),"—")
+                observacao = m.get("observacao") or "—"
+                if float(m.get("qtd_devolvida_alocada") or 0) > 1e-8:
+                    observacao += " · Devolução já alocada: revise a destinação"
+                if float(m.get("devolucao_sobre_alocada") or 0) > 1e-8:
+                    observacao += " · Devolução excede retiradas anteriores"
                 self.tree_movimentos.insert("", "end", iid=f"{m['data']}|{m['id_mobile']}",
                     values=(m["data"],m["hora"],m["item"],
-                            _fmt_num(m["qtd"]),_fmt_num(m["qtd_alocada"]),
-                            _fmt_num(m["qtd_disponivel_para_alocar"]),
+                            _fmt_num(m["qtd"]),_fmt_num(float(m.get("qtd_devolvida") or 0)+float(m.get("qtd_devolvida_alocada") or 0)),
+                            _fmt_num(m["qtd_alocada"]),_fmt_num(m["qtd_disponivel_para_alocar"]),
                             _fmt_brl(m.get("preco_unitario_snapshot")),
-                            _fmt_brl(m.get("custo_retirada")),fonte),
+                            _fmt_brl(m.get("custo_retirada")),fonte,observacao),
                     tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
             for indice, item in enumerate(resumo["itens"]):
                 intervalo = "—" if item["intervalo_medio_dias"] is None else _fmt_num(item["intervalo_medio_dias"],1)+" d"
@@ -801,7 +806,7 @@ class GestaoAlimentarUI:
                     tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
             pendentes = resumo["movimentos_pendentes"]
             self.lbl_consumo_status.configure(
-                text=f"{resumo['movimentos']} retirada(s) no período · {pendentes} com quantidade ainda sem destinação. *Preço atual é apenas estimativa para movimentos antigos sem snapshot histórico."
+                text=f"{resumo['movimentos']} movimentação(ões) no período · {pendentes} com quantidade ainda sem destinação. *Preço atual é apenas estimativa para movimentos antigos sem snapshot histórico."
             )
             return resumo
         except Exception as exc:
@@ -824,6 +829,9 @@ class GestaoAlimentarUI:
         mov = self._movimentos_cache.get((chave[0],int(chave[1])))
         if not mov:
             self.carregar_consumo()
+            return
+        if float(mov.get("qtd") or 0) <= 0:
+            messagebox.showinfo("Devolução registrada","Este movimento é uma devolução ao almoxarifado e já foi descontado do total líquido. Não precisa ser destinado a uma preparação.",parent=self.tab_consumo)
             return
         AlocarRetiradaDialog(self.app,self.db,mov,self.carregar_consumo)
 
