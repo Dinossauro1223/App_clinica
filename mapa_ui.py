@@ -1601,7 +1601,7 @@ class FormRegistro(_Janela):
         self.cb_bristol = self._reg(ctk.CTkComboBox(
             l, values=["—"] + [f"{i} — {rot}" for i, rot in enumerate((
                 "Muito dura", "Dura e encostada", "Como salsicha", "Suave e macia (ideal)",
-                "Pequenas bolas com bordas", "Pastosa", "Totalmente líquida"), 1)],
+                "Pequenas bolas com bordas", "Paposa", "Totalmente líquida"), 1)],
             width=260, state="readonly"))
         self.cb_bristol.set("—")
         self.cb_bristol.pack(side="left", padx=(0, 8))
