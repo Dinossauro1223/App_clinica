@@ -671,7 +671,7 @@ class GestaoAlimentarUI:
             ("alocado","Associado",90,"e"),("pendente","Pendente",90,"e"),
             ("custo","Custo líquido",105,"e")],altura=16)
         frame.pack(fill="both",expand=True,padx=6,pady=6)
-        ctk.CTkLabel(tab_med,text="A média diária divide o total retirado pelos dias do período. O intervalo médio considera apenas datas em que houve retirada; nenhum desses indicadores equivale sozinho ao consumo efetivo.",
+        ctk.CTkLabel(tab_med,text="A média diária divide a retirada líquida (retiradas menos devoluções) pelos dias do período. O intervalo médio considera datas com movimentação; nenhum desses indicadores equivale sozinho ao consumo efetivo.",
                      text_color=tema.SUAVE,font=ctk.CTkFont(size=10),wraplength=850,justify="left").pack(anchor="w",padx=9,pady=(0,8))
         frame,self.tree_preparacoes_consumo = _tree(tab_prep,[
             ("refeicao","Refeição",90,"center"),("preparacao","Preparação",180,"w"),
