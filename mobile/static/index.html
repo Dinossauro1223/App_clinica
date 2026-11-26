@@ -300,7 +300,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     await enviarAutomaticamente(q);
   }
   window.NLOffline={get:read,set:write,remove,clearData,ready,pendentes:()=>queue().length,
-    sincronizando:()=>sincronizando,erro:()=>ultimoErro};
+    sincronizando:()=>sincronizando,erro:()=>ultimoErro,temPendente:path=>queue().some(x=>x.path===path)};
   window.addEventListener('online',()=>{adiado=false;setTimeout(ready,500)});
   document.addEventListener('DOMContentLoaded',()=>setTimeout(ready,800));
 })();
@@ -335,11 +335,15 @@ async function atualizarConexao(){
   try{
     const j=await api('/api/status');
     if(j.__offline)throw new Error('cache');
-    if(S.u&&S.u.perfil==='admin'&&j.ip_lan&&j.ip_lan!==j.ip_registrado){
-      try{await api('/api/admin/rede/registrar',{});j.ip_registrado=j.ip_lan}catch(e){}
+    if(S.u&&S.u.perfil==='admin'&&j.ip_lan&&j.ip_lan!==j.ip_registrado&&
+       !(window.NLOffline&&NLOffline.temPendente('/api/admin/rede/registrar'))){
+      try{const salvo=await api('/api/admin/rede/registrar',{});if(!salvo.queued)j.ip_registrado=j.ip_lan}catch(e){}
     }
+    const erroSync=window.NLOffline?NLOffline.erro():'';
     if(window.NLOffline&&NLOffline.sincronizando()){
       el.className='wait';el.innerHTML='<span>↻ Sincronizando alterações</span><small>'+pendentes+' pendente(s)</small>';
+    }else if(erroSync){
+      el.className='wait';el.innerHTML='<span>● Conectado, mas há sincronização pendente</span><small>'+esc(erroSync)+'</small>';
     }else{
       el.className='';el.innerHTML='<span>● Conectado ao servidor da clínica</span><small>'+(pendentes?pendentes+' pendente(s) · IP: ':'IP: ')+esc(j.ip_lan||'detectado')+'</small>';
     }
