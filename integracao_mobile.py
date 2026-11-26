@@ -923,6 +923,8 @@ def sincronizar_automaticamente(db, mobile_db, data_iso):
     return {
         "leitos_enviados": sum(int(x.get("leitos") or 0) for x in enviados),
         "propostas_mapa": len(propostas),
+        "outras_correcoes": len([x for x in exportado.get("correcoes_pendentes", []) if x.get("tipo") != "mapa"]),
+        "revisoes_pendentes": len(propostas) + len([x for x in exportado.get("correcoes_pendentes", []) if x.get("tipo") != "mapa"]),
         "refeicoes_importadas": refeicoes,
         "itens_estoque_importados": estoque,
         "movimentos_importados": movimentos,
