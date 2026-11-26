@@ -14,7 +14,7 @@ class TestTabelasConsumoUI(unittest.TestCase):
             fim = fonte.index(proxima, inicio + 1) if proxima else len(fonte)
             trecho = fonte[inicio:fim]
             render = trecho.split("    def _render(self):", 1)[1]
-            self.assertIn('"linha_par" if i % 2 == 0 else "linha_impar"', render)
+            esperado = ('"linha_par" if indice % 2 == 0 else "linha_impar"'\n                        if classe.startswith("class PreparacoesDiaDialog:")\n                        else '"linha_par" if i % 2 == 0 else "linha_impar"')\n            self.assertIn(esperado, render)
 
 
 if __name__ == "__main__":
