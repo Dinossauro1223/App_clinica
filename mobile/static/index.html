@@ -835,7 +835,7 @@ async function verAvisos(){
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)verAvisos()});
 /* ---------- Cadastros (admin) ---------- */
 async function vCad(){
-  const [u,r,rede]=await Promise.all([api('/api/admin/usuarios'),api('/api/admin/refeicoes'),api('/api/status')]);
+  const [u,r,rede]=await Promise.all([api('/api/admin/usuarios'),api('/api/admin/refeicoes'),api('/api/status').catch(()=>({}))]);
   const opSet=(sel,vazio)=>`<option value="">${vazio}</option>`+S.setores.map(s=>`<option value=${s.id} ${s.id===sel?'selected':''}>${esc(s.nome)}</option>`).join('');
   $('#vista').innerHTML=`<div class=grade><div class=cartao><h2 style="margin-top:0">Rede local e servidor</h2>
   <p class=mini>Endereço detectado automaticamente no computador que está executando o servidor. Após reiniciar o roteador, registre novamente se o IP mudar.</p>
