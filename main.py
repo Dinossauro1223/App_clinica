@@ -165,7 +165,7 @@ class AppClinica(ctk.CTk):
 
         # --- NAVEGAÇÃO PRINCIPAL + PAINEL DE EDIÇÃO REDIMENSIONÁVEL ---
         self.area_principal_host = ctk.CTkFrame(self, corner_radius=10, fg_color=tema.FUNDO)
-        self.area_principal_host.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
+        self.area_principal_host.grid(row=0, column=1, padx=20, pady=(34, 20), sticky="nsew")
         self._layout_principal = ttk.Panedwindow(self.area_principal_host, orient=tk.HORIZONTAL)
         self._layout_principal.pack(fill="both", expand=True)
         self._pagina_host = ctk.CTkFrame(self._layout_principal, fg_color="transparent")
@@ -202,13 +202,47 @@ class AppClinica(ctk.CTk):
             config=("⚙️", "Configurações", lambda: self.abrir_pagina_principal("Configurações", self.tela_configuracoes)),
             rodape="© 2026 Neis Bila de Alencar. Todos os direitos reservados."
         )
+        # Faixa persistente: o funcionário identifica o estado do servidor sem abrir Configurações.
+        self._barra_status_conexao = ctk.CTkFrame(
+            self, height=26, corner_radius=0, fg_color=tema.BRANCO,
+            border_width=1, border_color=tema.BORDA
+        )
+        self._barra_status_conexao.place(x=58, y=0, relwidth=1, width=-58, height=26)
+        self._lbl_status_conexao = ctk.CTkLabel(
+            self._barra_status_conexao, text="● Verificando servidor da clínica…",
+            font=tema.fonte(11, "bold"), text_color=tema.SUAVE, anchor="w"
+        )
+        self._lbl_status_conexao.pack(fill="both", expand=True, padx=12)
         self.bind("<Escape>", self._fechar_ultima_aba_lateral, add="+")
         self.tela_inicial()
         self._iniciar_backups()
         self._iniciar_servidor_mobile()
+        self.after(500, self._atualizar_status_conexao)
         # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
         self.after(1200, lambda: atualizador.iniciar_verificacao(self, self._resultado_atualizacao))
 
+
+    def _atualizar_status_conexao(self):
+        """Mostra continuamente se o servidor central local está acessível aos dispositivos."""
+        try:
+            with socket.create_connection(("127.0.0.1", 8765), timeout=0.4):
+                conectado = True
+        except OSError:
+            conectado = False
+        try:
+            if conectado:
+                self._lbl_status_conexao.configure(
+                    text="● Servidor da clínica conectado — dispositivos podem sincronizar",
+                    text_color=tema.VERDE
+                )
+            else:
+                self._lbl_status_conexao.configure(
+                    text="● Servidor desconectado — o programa continua usando os dados locais",
+                    text_color=tema.LARANJA_TEXTO
+                )
+            self.after(5000, self._atualizar_status_conexao)
+        except (AttributeError, tk.TclError):
+            return
 
     def _iniciar_servidor_mobile(self):
         """Inicia o servidor local uma única vez; não assume propriedade de processo preexistente."""
