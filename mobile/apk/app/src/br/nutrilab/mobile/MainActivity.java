@@ -6,6 +6,9 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.net.DhcpInfo;
+import android.net.wifi.WifiManager;
+import android.content.Context;
 import android.os.Bundle;
 import android.util.Base64;
 import android.security.keystore.KeyGenParameterSpec;
@@ -26,6 +29,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.security.KeyStore;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -41,6 +48,7 @@ import org.json.JSONObject;
  */
 public class MainActivity extends Activity {
     private static final String PORTA = "8765";
+    private static final int PORTA_DESCOBERTA = 8766;
     private static final int PEDIR_CAMERA = 4102;
     private static final int ESCOLHER_IMAGEM_QR = 4103;
     private static final int ESCANEAR_QR = 4104;
@@ -142,6 +150,7 @@ public class MainActivity extends Activity {
             }
         });
         abrir();
+        atualizarIdentidadeServidorSalvo();
         verificarAtualizacao();
     }
 
@@ -412,6 +421,110 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Atualiza a identidade vinculada quando o endereço salvo ainda responde. */
+    private void atualizarIdentidadeServidorSalvo() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                String url = prefs.getString("servidor", "");
+                if (url.isEmpty()) return;
+                String identidade = obterIdentidade(url);
+                if (!identidade.isEmpty()) prefs.edit().putString("server_identity", identidade).apply();
+            }
+        }, "nutrilab-server-identity").start();
+    }
+
+    /** Consulta o identificador estável do servidor; não é credencial de acesso. */
+    private String obterIdentidade(String url) {
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL(url + "/api/status").openConnection();
+            c.setConnectTimeout(2500);
+            c.setReadTimeout(2500);
+            if (c.getResponseCode() != 200) return "";
+            BufferedReader leitor = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
+            StringBuilder corpo = new StringBuilder();
+            String linha;
+            while ((linha = leitor.readLine()) != null && corpo.length() < 4000) corpo.append(linha);
+            leitor.close();
+            return new JSONObject(corpo.toString()).optString("server_id", "");
+        } catch (Exception e) {
+            return "";
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    private InetAddress enderecoBroadcast() throws Exception {
+        try {
+            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            DhcpInfo dhcp = wifi == null ? null : wifi.getDhcpInfo();
+            if (dhcp != null && dhcp.ipAddress != 0 && dhcp.netmask != 0) {
+                int broadcast = (dhcp.ipAddress & dhcp.netmask) | ~dhcp.netmask;
+                byte[] bytes = new byte[] {
+                    (byte) (broadcast & 0xff), (byte) ((broadcast >> 8) & 0xff),
+                    (byte) ((broadcast >> 16) & 0xff), (byte) ((broadcast >> 24) & 0xff)
+                };
+                return InetAddress.getByAddress(bytes);
+            }
+        } catch (Exception e) {
+            android.util.Log.w("NutriLabDiscovery", "Não foi possível calcular o broadcast Wi-Fi", e);
+        }
+        return InetAddress.getByName("255.255.255.255");
+    }
+
+    /** Localiza o servidor por broadcast, mas só aceita o servidor já vinculado neste aparelho. */
+    private void descobrirServidor() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                String identidadeSalva = prefs.getString("server_identity", "");
+                if (identidadeSalva.isEmpty()) {
+                    avisar("Este aparelho ainda não possui vínculo com um servidor. Faça a primeira conexão pelo QR code ou endereço fornecido pelo administrador.");
+                    return;
+                }
+                DatagramSocket socket = null;
+                try {
+                    socket = new DatagramSocket();
+                    socket.setBroadcast(true);
+                    socket.setSoTimeout(900);
+                    byte[] pedido = "NUTRILAB_DISCOVER_V1".getBytes("UTF-8");
+                    DatagramPacket envio = new DatagramPacket(pedido, pedido.length,
+                            enderecoBroadcast(), PORTA_DESCOBERTA);
+                    socket.send(envio);
+                    byte[] buffer = new byte[512];
+                    for (int tentativa = 0; tentativa < 4; tentativa++) {
+                        DatagramPacket resposta = new DatagramPacket(buffer, buffer.length);
+                        try {
+                            socket.receive(resposta);
+                        } catch (SocketTimeoutException timeout) {
+                            break;
+                        }
+                        String texto = new String(resposta.getData(), 0, resposta.getLength(), "UTF-8");
+                        String[] partes = texto.split("\\|", 3);
+                        if (partes.length != 3 || !"NUTRILAB_SERVER_V1".equals(partes[0])
+                                || !identidadeSalva.equals(partes[2])) continue;
+                        final String url = normalizar(partes[1]);
+                        if (url.isEmpty() || testar(url) != null) continue;
+                        String identidadeAtual = obterIdentidade(url);
+                        if (!identidadeSalva.equals(identidadeAtual)) continue;
+                        runOnUiThread(new Runnable() {
+                            @Override public void run() {
+                                prefs.edit().putString("servidor", url).apply();
+                                abrir();
+                            }
+                        });
+                        return;
+                    }
+                    avisar("Não encontrei o servidor vinculado nesta rede. Confira se o computador da clínica está ligado e se o celular está no Wi-Fi correto.");
+                } catch (Exception e) {
+                    avisar("Não foi possível procurar o servidor nesta rede. Confira a conexão Wi-Fi e tente novamente.");
+                    android.util.Log.w("NutriLabDiscovery", "Falha na descoberta local", e);
+                } finally {
+                    if (socket != null) socket.close();
+                }
+            }
+        }, "nutrilab-server-discovery").start();
+    }
+
     /** Mostra uma mensagem na pagina de configuracao (config.html). */
     private void avisar(final String texto) {
         runOnUiThread(new Runnable() {
@@ -523,7 +636,11 @@ public class MainActivity extends Activity {
                         @Override
                         public void run() {
                             if (problema == null) {
-                                prefs.edit().putString("servidor", url).apply();
+                                String identidade = obterIdentidade(url);
+                                SharedPreferences.Editor editor = prefs.edit().putString("servidor", url);
+                                if (identidade.isEmpty()) editor.remove("server_identity");
+                                else editor.putString("server_identity", identidade);
+                                editor.apply();
                                 abrir();
                             } else {
                                 avisar(problema);
@@ -542,8 +659,13 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void descobrirServidor() {
+            MainActivity.this.descobrirServidor();
+        }
+
+        @JavascriptInterface
         public void trocar() {
-            prefs.edit().remove("servidor").apply();
+            prefs.edit().remove("servidor").remove("server_identity").apply();
             recarregar();
         }
 
