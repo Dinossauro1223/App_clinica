@@ -652,14 +652,14 @@ class GestaoAlimentarUI:
                             segmented_button_unselected_color=tema.SUAVE,
                             segmented_button_unselected_hover_color=tema.SUAVE)
         sub.pack(fill="both", expand=True, padx=6, pady=(0, 6))
-        tab_mov = sub.add("Retiradas e destinações")
+        tab_mov = sub.add("Movimentações e destinações")
         tab_med = sub.add("Média por ingrediente")
         tab_prep = sub.add("Consumo por preparação")
         barra = ctk.CTkFrame(tab_mov, fg_color="transparent")
         barra.pack(fill="x", padx=6, pady=5)
         _btn(barra, "Distribuir retirada selecionada", self.alocar_retirada, 210).pack(side="left")
         defs = [("data","Data",90,"center"),("hora","Hora",65,"center"),("item","Ingrediente",180,"w"),
-                ("qtd","Retirado",90,"e"),("alocado","Alocado",90,"e"),("pendente","Sem destino",95,"e"),
+                ("qtd","Quantidade líquida",105,"e"),("alocado","Alocado",90,"e"),("pendente","Sem destino",95,"e"),
                 ("preco","Preço/un.",90,"e"),("custo","Custo",95,"e"),("fonte","Preço",95,"center"),("observacao","Observação",220,"w")]
         frame,self.tree_movimentos = _tree(tab_mov,defs,altura=13)
         frame.pack(fill="both",expand=True,padx=6,pady=(0,6))
