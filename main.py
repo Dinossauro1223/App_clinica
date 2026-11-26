@@ -299,6 +299,16 @@ class AppClinica(ctk.CTk):
         """Encerra somente o servidor criado por esta instância do desktop."""
         servidor = getattr(self, "_servidor_mobile", None)
         if servidor is not None:
+            descoberta = getattr(servidor, "discovery_server", None)
+            if descoberta is not None:
+                try:
+                    descoberta.shutdown()
+                except Exception:
+                    pass
+                try:
+                    descoberta.server_close()
+                except Exception:
+                    pass
             try:
                 servidor.shutdown()
             except Exception:
