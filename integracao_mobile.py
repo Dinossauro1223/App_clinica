@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS Mobile_Estoque_Dia (data TEXT, estoque TEXT, item TEX
     PRIMARY KEY (data, estoque, item));
 CREATE TABLE IF NOT EXISTS Mobile_Movimentos (data TEXT, id_mobile INTEGER, hora TEXT, origem TEXT, destino TEXT, item TEXT,
     unidade TEXT, qtd REAL, divergente INTEGER, id_item_mobile INTEGER, por_usuario INTEGER,
-    valor_unitario_snapshot REAL, custo_snapshot REAL, PRIMARY KEY (data, id_mobile));
+    valor_unitario_snapshot REAL, custo_snapshot REAL, observacao TEXT, PRIMARY KEY (data, id_mobile));
 """
 
 # Campos do registro do desktop que o mobile conhece (o resto do registro nunca é tocado).
@@ -58,7 +58,7 @@ def garantir_tabelas(db):
         c.executescript(_SCHEMA)
         colunas = {r[1] for r in c.execute("PRAGMA table_info(Mobile_Movimentos)")}
         for nome, tipo in (("id_item_mobile", "INTEGER"), ("por_usuario", "INTEGER"),
-                           ("valor_unitario_snapshot", "REAL"), ("custo_snapshot", "REAL")):
+                           ("valor_unitario_snapshot", "REAL"), ("custo_snapshot", "REAL"), ("observacao", "TEXT")):
             if nome not in colunas:
                 c.execute("ALTER TABLE Mobile_Movimentos ADD COLUMN %s %s" % (nome, tipo))
         c.commit()
@@ -126,16 +126,153 @@ def ler_produtos_almox(mobile_db):
     try:
         with sv.LOCK:
             rows = c.execute("""SELECT i.id AS id_item,i.nome,i.unidade,i.preco_unitario,
-                    i.embalagem_qtd,i.embalagem_un,i.tbca_id,e.qtd,e.data AS data_base
+                    i.embalagem_qtd,i.embalagem_un,i.tbca_id,i.categoria,i.validade,e.qtd,e.data AS data_base
                 FROM itens i
                 LEFT JOIN estoque_dia e ON e.id_item=i.id AND e.estoque='almox'
                   AND e.data=(SELECT MAX(e2.data) FROM estoque_dia e2
                               WHERE e2.id_item=i.id AND e2.estoque='almox')
-                ORDER BY i.nome COLLATE NOCASE""").fetchall()
+                ORDER BY CASE WHEN i.validade IS NULL OR i.validade='' THEN 1 ELSE 0 END,i.validade,i.categoria COLLATE NOCASE,i.nome COLLATE NOCASE""").fetchall()
             return [dict(row) for row in rows]
     finally:
         c.close()
 
+
+
+def importar_classificacao_almox_mobile(db, mobile_db):
+    """Importa categoria e validade preenchidas pelo almoxarifado no mobile para o cadastro desktop.
+
+    Só aplica categoria não padrão e validade preenchida; valores vazios do mobile antigo não apagam dados do desktop.
+    Para limpar uma validade, use o cadastro desktop.
+    """
+    import almox_db as adb
+    adb.inicializar(db)
+    sv, mobile = _abrir_mobile(mobile_db)
+    atualizados, sem_vinculo = 0, 0
+    try:
+        with closing(mdb.conectar(db)) as local:
+            tabelas = {r[0] for r in local.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if "Almox_Mobile_Vinculos" not in tabelas:
+                return {"atualizados": 0, "sem_vinculo": 0}
+            vinculos = [dict(r) for r in local.execute(
+                "SELECT id_item_desktop,id_item_mobile FROM Almox_Mobile_Vinculos").fetchall()]
+            for v in vinculos:
+                item = mobile.execute("SELECT categoria,validade FROM itens WHERE id=?", (v["id_item_mobile"],)).fetchone()
+                if not item:
+                    sem_vinculo += 1
+                    continue
+                categoria = item["categoria"] if item["categoria"] and item["categoria"] != "Gêneros alimentícios" else None
+                validade = item["validade"] or None
+                if categoria is None and validade is None:
+                    continue
+                local.execute("UPDATE Almox_Itens SET categoria=COALESCE(?,categoria),validade=COALESCE(?,validade),atualizado_em=? WHERE id_item=?",
+                              (categoria, validade, _agora(), v["id_item_desktop"]))
+                atualizados += 1
+            local.commit()
+    finally:
+        mobile.close()
+    return {"atualizados": atualizados, "sem_vinculo": sem_vinculo}
+
+
+def sincronizar_catalogo_almox_desktop(db, mobile_db):
+    """Publica itens do Almoxarifado desktop no catálogo central mobile e atualiza o espelho da Gestão Alimentar.
+
+    O vínculo entre IDs é persistente e independente dos autoincrementos dos dois bancos. A sincronização
+    nunca replica saldos/movimentos: cada estoque mantém seu próprio livro-razão.
+    """
+    import unicodedata
+    import almox_db as adb
+    import gestao_alimentar_db as gadb
+
+    adb.inicializar(db)
+    with closing(mdb.conectar(db)) as local:
+        local.executescript("""
+            CREATE TABLE IF NOT EXISTS Almox_Mobile_Vinculos(
+                id_item_desktop INTEGER PRIMARY KEY,
+                id_item_mobile INTEGER NOT NULL UNIQUE,
+                sincronizado_em TEXT NOT NULL
+            );
+        """)
+        local.commit()
+        itens = [dict(r) for r in local.execute(
+            "SELECT * FROM Almox_Itens ORDER BY id_item").fetchall()]
+
+    sv, mobile = _abrir_mobile(mobile_db)
+    sincronizados, criados, atualizados, erros = [], 0, 0, []
+    try:
+        with sv.LOCK:
+            mobile.execute("BEGIN IMMEDIATE")
+            try:
+                for item in itens:
+                    nome = str(item.get("nome") or "").strip()
+                    unidade = str(item.get("unidade") or "").strip()
+                    if not nome or not unidade:
+                        erros.append({"id_item": item["id_item"], "erro": "Nome ou unidade vazios."})
+                        continue
+                    vinculo = mdb.conectar(db)
+                    try:
+                        link = vinculo.execute(
+                            "SELECT id_item_mobile FROM Almox_Mobile_Vinculos WHERE id_item_desktop=?",
+                            (item["id_item"],)).fetchone()
+                    finally:
+                        vinculo.close()
+                    mobile_id = int(link["id_item_mobile"]) if link else None
+                    existente = mobile.execute("SELECT id,nome,unidade FROM itens WHERE id=?", (mobile_id,)).fetchone() if mobile_id else None
+                    if mobile_id and not existente:
+                        mobile_id = None
+                    if mobile_id is None:
+                        normalizar = lambda v: "".join(ch for ch in unicodedata.normalize("NFKD", str(v or "").casefold())
+                                                       if not unicodedata.combining(ch)).strip()
+                        iguais = mobile.execute("SELECT id,nome,unidade FROM itens WHERE lower(trim(nome))=lower(trim(?))",
+                                                 (nome,)).fetchall()
+                        correspondentes = [r for r in iguais if normalizar(r["unidade"]) == normalizar(unidade)]
+                        if len(correspondentes) > 1:
+                            erros.append({"id_item": item["id_item"], "erro": "Mais de um produto correspondente no catálogo mobile."})
+                            continue
+                        if correspondentes:
+                            mobile_id = int(correspondentes[0]["id"])
+                            existente = correspondentes[0]
+                        elif iguais:
+                            erros.append({"id_item": item["id_item"], "erro": "Já existe produto com o mesmo nome e unidade diferente no mobile; revise o cadastro antes de sincronizar."})
+                            continue
+                    valores = (nome, unidade, item.get("valor_unitario"), item.get("embalagem_qtd"),
+                               item.get("embalagem_un"), int(bool(item.get("ativo", 1))),
+                               item.get("categoria") or "Gêneros alimentícios", item.get("validade"))
+                    if mobile_id is None:
+                        try:
+                            cur = mobile.execute(
+                                "INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,ativo,categoria,validade) VALUES(?,?,?,?,?,?,?,?)",
+                                valores)
+                        except sqlite3.IntegrityError:
+                            erros.append({"id_item": item["id_item"], "erro": "Conflito de nome no catálogo mobile; nenhum item foi duplicado."})
+                            continue
+                        mobile_id = int(cur.lastrowid)
+                        criados += 1
+                    else:
+                        mobile.execute(
+                            "UPDATE itens SET nome=?,unidade=?,preco_unitario=?,embalagem_qtd=?,embalagem_un=?,ativo=?,categoria=?,validade=? WHERE id=?",
+                            (*valores, mobile_id))
+                        atualizados += 1
+                    sincronizados.append((int(item["id_item"]), mobile_id))
+                mobile.commit()
+            except Exception:
+                mobile.rollback()
+                raise
+    finally:
+        mobile.close()
+
+    agora = _agora()
+    with closing(mdb.conectar(db)) as local:
+        local.executemany(
+            "INSERT INTO Almox_Mobile_Vinculos(id_item_desktop,id_item_mobile,sincronizado_em) VALUES(?,?,?) "
+            "ON CONFLICT(id_item_desktop) DO UPDATE SET id_item_mobile=excluded.id_item_mobile,sincronizado_em=excluded.sincronizado_em",
+            [(a, b, agora) for a, b in sincronizados])
+        local.commit()
+
+    produtos = ler_produtos_almox(mobile_db)
+    gadb.inicializar(db)
+    gadb.sincronizar_produtos_almox(db, produtos)
+    return {"sincronizados": len(sincronizados), "criados": criados, "atualizados": atualizados,
+            "erros": erros, "produtos_espelhados": len(produtos)}
 
 
 def ler_janelas_refeicoes(mobile_db):
@@ -612,9 +749,10 @@ def importar_movimentos_cozinha(db, mobile_db, inicio, fim):
         user_select = "m.por_usuario" if "por_usuario" in cols_mov else "NULL"
         price_select = "m.preco_unitario_snapshot" if "preco_unitario_snapshot" in cols_mov else "NULL"
         cost_select = "m.custo_snapshot" if "custo_snapshot" in cols_mov else "NULL"
+        obs_select = "m.observacao" if "observacao" in cols_mov else "NULL"
         rows = origem.execute(f"""SELECT m.data,m.id,m.hora,m.origem,m.destino,m.id_item,m.qtd,m.divergente,
                     {user_select} AS por_usuario,COALESCE({price_select},NULL) AS preco_unitario_snapshot,
-                    COALESCE({cost_select},NULL) AS custo_snapshot,i.nome AS item,i.unidade,
+                    COALESCE({cost_select},NULL) AS custo_snapshot,{obs_select} AS observacao,i.nome AS item,i.unidade,
                     {preco_select} AS preco_atual
                 FROM movimentos m LEFT JOIN itens i ON i.id=m.id_item
                 WHERE m.data BETWEEN ? AND ? ORDER BY m.data,m.hora,m.id""", (inicio, fim)).fetchall()
@@ -629,7 +767,7 @@ def importar_movimentos_cozinha(db, mobile_db, inicio, fim):
             preparados.append((
                 r["data"], r["id"], r["hora"], r["origem"], r["destino"], r["item"] or ("Item #%s" % r["id_item"]),
                 r["unidade"] or "", r["qtd"], int(r["divergente"] or 0), r["id_item"], r["por_usuario"],
-                preco, custo
+                preco, custo, r["observacao"]
             ))
     finally:
         origem.close()
@@ -637,14 +775,15 @@ def importar_movimentos_cozinha(db, mobile_db, inicio, fim):
     with closing(mdb.conectar(db)) as destino:
         destino.executemany("""INSERT INTO Mobile_Movimentos
             (data,id_mobile,hora,origem,destino,item,unidade,qtd,divergente,id_item_mobile,por_usuario,
-             valor_unitario_snapshot,custo_snapshot)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+             valor_unitario_snapshot,custo_snapshot,observacao)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(data,id_mobile) DO UPDATE SET
              hora=excluded.hora,origem=excluded.origem,destino=excluded.destino,item=excluded.item,
              unidade=excluded.unidade,qtd=excluded.qtd,divergente=excluded.divergente,
              id_item_mobile=excluded.id_item_mobile,por_usuario=excluded.por_usuario,
              valor_unitario_snapshot=COALESCE(excluded.valor_unitario_snapshot,Mobile_Movimentos.valor_unitario_snapshot),
-             custo_snapshot=COALESCE(excluded.custo_snapshot,Mobile_Movimentos.custo_snapshot)""", preparados)
+             custo_snapshot=COALESCE(excluded.custo_snapshot,Mobile_Movimentos.custo_snapshot),
+             observacao=COALESCE(excluded.observacao,Mobile_Movimentos.observacao)""", preparados)
         destino.commit()
     return {"importados": len(preparados), "inicio": inicio, "fim": fim,
             "retiradas_cozinha": sum(1 for x in preparados if str(x[3]).lower()=="almox" and str(x[4]).lower()=="cozinha")}
