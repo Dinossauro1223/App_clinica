@@ -1045,10 +1045,12 @@ def resumo_consumo_observado(db_path, inicio, fim):
         })
     itens.sort(key=lambda x:x["item"].casefold())
 
-    # Primeiro agrega cada execução da preparação; depois calcula médias entre execuções.
+    # Mantém cada retirada separada para que uma devolução possa estornar a alocação
+    # mais recente daquela retirada antes de agregar por preparação.
     execucoes = {}
     with _conexao(db_path) as conn:
-        rows = conn.execute("""SELECT a.data_preparacao,a.refeicao_snapshot,a.preparacao_nome_snapshot,
+        rows_raw = conn.execute("""SELECT a.data_movimento,a.id_movimento_mobile,
+                    a.data_preparacao,a.refeicao_snapshot,a.preparacao_nome_snapshot,
                     a.id_item_mobile,a.unidade,SUM(a.quantidade) AS quantidade,
                     SUM(a.custo_snapshot) AS custo,
                     SUM(CASE WHEN a.custo_snapshot IS NULL THEN 1 ELSE 0 END) AS custos_faltantes,
@@ -1058,9 +1060,56 @@ def resumo_consumo_observado(db_path, inicio, fim):
                 LEFT JOIN GA_Produtos_Almox p ON p.id_mobile=a.id_item_mobile
                 WHERE a.ativa=1 AND a.tipo_destino='preparacao'
                   AND a.data_movimento BETWEEN ? AND ?
-                GROUP BY a.data_preparacao,a.refeicao_snapshot,a.preparacao_nome_snapshot,a.id_item_mobile,a.unidade
+                GROUP BY a.data_movimento,a.id_movimento_mobile,a.data_preparacao,
+                         a.refeicao_snapshot,a.preparacao_nome_snapshot,a.id_item_mobile,a.unidade
                 ORDER BY a.data_preparacao,a.refeicao_snapshot,a.preparacao_nome_snapshot,nome_item""",
             (inicio, fim)).fetchall()
+    linhas_alocadas = [dict(x) for x in rows_raw]
+    devolucoes_por_movimento = {
+        (m["data"], int(m["id_mobile"])): float(m.get("qtd_devolvida_alocada") or 0)
+        for m in movimentos if float(m.get("qtd_devolvida_alocada") or 0) > 1e-8
+    }
+    for chave_movimento, quantidade_devolvida in devolucoes_por_movimento.items():
+        candidatas = [r for r in linhas_alocadas
+                      if r["data_movimento"] == chave_movimento[0]
+                      and int(r["id_movimento_mobile"]) == chave_movimento[1]]
+        candidatas.sort(key=lambda r: (r["data_preparacao"], r["refeicao_snapshot"] or "",
+                                       r["preparacao_nome_snapshot"] or ""), reverse=True)
+        restante = quantidade_devolvida
+        for r in candidatas:
+            quantidade_original = float(r["quantidade"] or 0)
+            aplicada = min(restante, quantidade_original)
+            if aplicada <= 0:
+                continue
+            if not r["custos_faltantes"] and r["custo"] is not None and quantidade_original > 0:
+                r["custo"] = max(0.0, float(r["custo"]) - float(r["custo"]) / quantidade_original * aplicada)
+            else:
+                r["custos_faltantes"] = max(1, int(r["custos_faltantes"] or 0))
+            r["quantidade"] = max(0.0, quantidade_original - aplicada)
+            restante -= aplicada
+            if restante <= 1e-8:
+                break
+    agrupadas = {}
+    for r in linhas_alocadas:
+        quantidade = float(r["quantidade"] or 0)
+        if quantidade <= 1e-8:
+            continue
+        chave = (r["data_preparacao"],r["refeicao_snapshot"],r["preparacao_nome_snapshot"],
+                 r["id_item_mobile"],r["unidade"])
+        destino = agrupadas.setdefault(chave, {
+            "data_preparacao":r["data_preparacao"],"refeicao_snapshot":r["refeicao_snapshot"],
+            "preparacao_nome_snapshot":r["preparacao_nome_snapshot"],"id_item_mobile":r["id_item_mobile"],
+            "unidade":r["unidade"],"quantidade":0.0,"custo":0.0,"custos_faltantes":0,
+            "porcoes_previstas":r["porcoes_previstas"],"nome_item":r["nome_item"]
+        })
+        destino["quantidade"] += quantidade
+        destino["custos_faltantes"] += int(r["custos_faltantes"] or 0)
+        if r["custo"] is not None:
+            destino["custo"] += float(r["custo"])
+        if r["porcoes_previstas"] not in (None, 0):
+            destino["porcoes_previstas"] = max(float(destino["porcoes_previstas"] or 0),
+                                                 float(r["porcoes_previstas"]))
+    rows = list(agrupadas.values())
     agregado = {}
     por_execucao = []
     for row in rows:
