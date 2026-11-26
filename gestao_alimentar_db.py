@@ -653,7 +653,9 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
         preco_mov = "m.valor_unitario_snapshot" if "valor_unitario_snapshot" in cols else "NULL"
         custo_mov = "m.custo_snapshot" if "custo_snapshot" in cols else "NULL"
         por_usuario = "m.por_usuario" if "por_usuario" in cols else "NULL"
+        observacao = "m.observacao" if "observacao" in cols else "NULL"
         rows = conn.execute(f"""SELECT m.data,m.id_mobile,m.hora,m.origem,m.destino,m.item,m.unidade,
+                    {observacao} AS observacao,
                     CASE WHEN lower(m.origem)='cozinha' AND lower(m.destino)='almox' THEN -m.qtd ELSE m.qtd END AS qtd,
                     m.divergente,{id_item} AS id_item_mobile,{por_usuario} AS por_usuario,
                     COALESCE({preco_mov},p.preco_unitario) AS preco_unitario_snapshot,
