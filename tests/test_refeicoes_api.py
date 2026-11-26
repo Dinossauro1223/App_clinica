@@ -71,10 +71,12 @@ class TestRefeicoesAPI(unittest.TestCase):
             "id_paciente": joao["id_paciente"], "servido_em": agora.isoformat(),
             "publico": "acompanhante", "refeicao": "almoco", "quantidade": 2,
             "valor_unitario": 5.0, "id_autorizacao_acompanhante": auth["id_autorizacao"]})
+        self.api("POST", "/api/refeicoes/precos", {
+            "publico": "funcionario", "refeicao": "almoco", "valor_unitario": 6.0})
         self.api("POST", "/api/refeicoes/servicos", {
             "setor": sid, "data": dia, "servido_em": agora.isoformat(),
             "publico": "funcionario", "destinatario_nome": "Servidor Teste",
-            "refeicao": "almoco", "quantidade": 1, "valor_unitario": 6.0})
+            "refeicao": "almoco", "quantidade": 1})
 
         relatorio = self.api("GET", "/api/refeicoes/relatorio",
                              query={"inicio": dia, "fim": dia})
