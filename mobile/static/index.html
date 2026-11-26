@@ -676,13 +676,26 @@ async function vEstoque(){
   const j=EST=await api(`/api/estoque?estoque=${S.est}&data=${S.data}`);
   if(!j.linhas.length){$('#vista').innerHTML=filtros('estoque')+'<div class=cartao>Nenhum item cadastrado. Peça ao administrador.</div>';return}
   const dia=!ehStaff()||S.data===S.hoje;
-  $('#vista').innerHTML=filtros('estoque')+'<h2>Contagem do dia</h2><p class=mini>Começa com a quantidade do último dia salvo; altere só o que mudou.</p>'+
-  j.linhas.map(l=>`<div class=cartao data-i=${l.id_item}><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(l.nome)}</b><span class=mini>${esc(l.unidade)}</span></div>
+  const cats=[...new Set(j.linhas.map(l=>l.categoria||'Outros'))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  $('#vista').innerHTML=filtros('estoque')+'<h2>Estoque do almoxarifado</h2><p class=mini>Os produtos com validade mais próxima aparecem primeiro. Use a busca ou a categoria para localizar um item rapidamente.</p>'+
+  `<div class="cartao filtros"><label class=f>Buscar produto<input id=buscaEstoque type=search placeholder="Digite o nome do produto" oninput="filtrarEstoque()"></label><label class=f>Categoria<select id=categoriaEstoque onchange="filtrarEstoque()"><option value="">Todas as categorias</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select></label></div>`+
+  j.linhas.map(l=>`<div class=cartao data-i=${l.id_item} data-nome="${esc(l.nome.toLocaleLowerCase('pt-BR'))}" data-cat="${esc(l.categoria||'Outros')}"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(l.nome)}</b><span class=mini>${esc(l.unidade)}</span></div><div class=mini>${esc(l.categoria||'Outros')} · Validade: ${l.validade?br(l.validade):'não informada'}</div>
+   ${(S.u.perfil==='estoque_almox'||S.u.perfil==='admin')?`<details style="margin-top:6px"><summary>Editar categoria e validade</summary><label class=f>Categoria<select id="cat-${l.id_item}">${cats.map(c=>`<option value="${esc(c)}" ${c===(l.categoria||'Gêneros alimentícios')?'selected':''}>${esc(c)}</option>`).join('')}</select></label><label class=f>Validade<input type=date id="val-${l.id_item}" value="${l.validade||''}"></label><button class="btn sec peq" onclick="salvarClassificacao(${l.id_item})">Salvar categoria/validade</button></details>`:''}
    <input type=number inputmode=decimal min=0 step=any value="${l.qtd}" style="margin:6px 0">${chips(l,j.estoque+'|'+l.id_item,j.pendentes)}</div>`).join('')+
-  (dia?`<h2>Reposição: de quem você pegou</h2><div class=cartao><label class=f>Item<select id=ri onchange="origens()">${j.linhas.map(l=>`<option value=${l.id_item}>${esc(l.nome)} (${esc(l.unidade)})</option>`).join('')}</select></label>
-   <label class=f>Quantidade recebida<input type=number inputmode=decimal min=0 step=any id=rq></label><div class=seg id=ro></div>
-   <button class="btn sec" style="width:100%;margin-top:6px" onclick="repor()">Registrar reposição</button></div>`:'')+barra('salvaEst','Salvar contagem de '+br(j.data));
+  (dia?`<h2>Registrar recebimento, retirada ou devolução</h2><div class=cartao><label class=f>Item<select id=ri onchange="origens()">${j.linhas.map(l=>`<option value=${l.id_item}>${esc(l.nome)} (${esc(l.unidade)})</option>`).join('')}</select></label>
+   <label class=f>Quantidade movimentada<input type=number inputmode=decimal min=0 step=any id=rq></label><label class=f>Observação (opcional)<textarea id=robs rows=2 placeholder="Ex.: devolução de 20 g não utilizados"></textarea></label><div class=seg id=ro></div>
+   <button class="btn sec" style="width:100%;margin-top:6px" onclick="repor()">Registrar movimentação</button></div>`:'')+barra('salvaEst','Salvar contagem de '+br(j.data));
   if(dia)origens();
+}
+function filtrarEstoque(){
+ const termo=($('#buscaEstoque')?.value||'').trim().toLocaleLowerCase('pt-BR');
+ const cat=$('#categoriaEstoque')?.value||'';
+ document.querySelectorAll('#vista [data-i]').forEach(el=>{const nome=el.dataset.nome||'';el.style.display=((termo&&!nome.includes(termo))||(cat&&el.dataset.cat!==cat))?'none':'';});
+ const sel=$('#ri');if(sel&&EST){const atual=sel.value;const opcoes=EST.linhas.filter(l=>(!termo||l.nome.toLocaleLowerCase('pt-BR').includes(termo))&&(!cat||(l.categoria||'Outros')===cat));sel.innerHTML=opcoes.map(l=>`<option value=${l.id_item}>${esc(l.nome)} (${esc(l.unidade)})</option>`).join('');if(opcoes.some(l=>String(l.id_item)===atual))sel.value=atual;if(opcoes.length)origens();}
+}
+async function salvarClassificacao(id){
+ await api('/api/almox/itens/'+id,{categoria:$('#cat-'+id).value,validade:$('#val-'+id).value});
+ await vEstoque();aviso('Categoria e validade atualizadas.',0);
 }
 function origens(){
   const iid=$('#ri').value;let primeiro=true;
@@ -698,7 +711,7 @@ const salvaEst=tenta(async()=>{
 });
 const repor=tenta(async()=>{
   const o=document.querySelector('input[name=or]:checked');if(!o)throw new Error('Escolha de quem você pegou.');
-  const r=await api('/api/estoque/reposicao',{estoque:S.est,id_item:+$('#ri').value,qtd:$('#rq').value,origem:o.value});
+  const r=await api('/api/estoque/reposicao',{estoque:S.est,id_item:+$('#ri').value,qtd:$('#rq').value,origem:o.value,observacao:$('#robs')?.value||''});
   await vEstoque();aviso('Reposição registrada. Novo saldo: '+r.saldo+(r.divergente?' · atenção: o saldo da origem estava menor que o retirado; o administrador será avisado.':''),0);
 });
 /* ---------- Orientações para cozinha e copa ---------- */
@@ -838,6 +851,8 @@ async function vCad(){
   <div class=cartao><h2 style="margin-top:0">Itens do almoxarifado</h2>
   <label class=f>Nome do produto<input type=text id=in></label>
   <label class=f>Unidade de estoque (ex.: pacote, frasco ou lata)<input type=text id=iu placeholder="Ex.: pacote"></label>
+  <label class=f>Categoria<select id=icategoria><option>Gêneros alimentícios</option><option>Grãos e cereais</option><option>Hortifrúti</option><option>Carnes e proteínas</option><option>Laticínios</option><option>Temperos e condimentos</option><option>Dietas enterais</option><option>Suplementos</option><option>Materiais</option><option>Limpeza</option><option>Outros</option></select></label>
+  <label class=f>Data de validade (opcional)<input type=date id=ivalidade></label>
   <div class=filtros><label class=f>Preço unitário (R$)<input type=number id=ip min=0 step=0.01 placeholder="Ex.: 8,50"></label>
   <label class=f>Conteúdo por embalagem<input type=number id=ie min=0.000001 step=any placeholder="Ex.: 500"></label></div>
   <div class=f><b>Unidade do conteúdo</b><div class=seg id=unidadeConteudo>
@@ -849,7 +864,7 @@ async function vCad(){
   <button class=btn id=btnSalvarItem onclick="novoItem()">Adicionar item</button>
   <h3>Itens cadastrados (${S.itens.length})</h3>
   ${S.itens.map(i=>`<div style="padding:7px 0;border-bottom:1px solid var(--linha)"><b>${esc(i.nome)}</b>
-   <span class=mini>${esc(i.unidade)} · ${i.preco_unitario==null?'preço pendente':'R$ '+Number(i.preco_unitario).toFixed(2)} · ${i.embalagem_qtd==null?'conteúdo pendente':esc(i.embalagem_qtd+' '+i.embalagem_un)}</span>
+   <span class=mini>${esc(i.categoria||'Outros')} · Validade: ${i.validade?br(i.validade):'não informada'} · ${esc(i.unidade)} · ${i.preco_unitario==null?'preço pendente':'R$ '+Number(i.preco_unitario).toFixed(2)} · ${i.embalagem_qtd==null?'conteúdo pendente':esc(i.embalagem_qtd+' '+i.embalagem_un)}</span>
    <button class="btn sec peq" onclick="editarItem(${i.id})">Editar preço/embalagem</button></div>`).join('')}
   </div></div>`;
   $('#pedidoItem').innerHTML=S.itens.map(i=>'<option value="'+i.id+'">'+esc(i.nome)+'</option>').join('');
@@ -908,7 +923,7 @@ function editarItem(id){
  const item=S.itens.find(x=>String(x.id)===String(id));if(!item)return;
  S.itemEditando=id;
  $('#in').value=item.nome;$('#iu').value=item.unidade;
- $('#ip').value=item.preco_unitario??'';$('#ie').value=item.embalagem_qtd??'';
+ $('#ip').value=item.preco_unitario??'';$('#ie').value=item.embalagem_qtd??'';$('#icategoria').value=item.categoria||'Gêneros alimentícios';$('#ivalidade').value=item.validade||'';
  document.querySelectorAll('input[name=ieu]').forEach(r=>{r.checked=r.value===(item.embalagem_un||'g')});
  $('#btnSalvarItem').textContent='Salvar alterações do item';
  $('#in').scrollIntoView({behavior:'smooth',block:'center'});
@@ -916,7 +931,7 @@ function editarItem(id){
 const novoItem=tenta(async()=>{
  const unidadeConteudo=document.querySelector('input[name=ieu]:checked');
  const corpo={nome:$('#in').value,unidade:$('#iu').value,preco_unitario:$('#ip').value,
-  embalagem_qtd:$('#ie').value,embalagem_un:unidadeConteudo?unidadeConteudo.value:'g'};
+  embalagem_qtd:$('#ie').value,embalagem_un:unidadeConteudo?unidadeConteudo.value:'g',categoria:$('#icategoria').value,validade:$('#ivalidade').value};
  if(S.itemEditando)await api('/api/admin/itens/'+S.itemEditando,corpo);
  else await api('/api/admin/itens',corpo);
  S.itemEditando=null;await recarregaBase();await vCad();aviso('Item salvo.',0);
