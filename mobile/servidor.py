@@ -33,7 +33,7 @@ PERFIS = ["admin", "nutricionista", "copa", "estoque_cozinha", "estoque_almox"]
 STAFF = ("admin", "nutricionista")  # escolhem o dia; o que gravam só muda com autorização deles quando a copa discorda
 EST_PERFIL = {"copa": "copa", "estoque_cozinha": "cozinha", "estoque_almox": "almox"}
 # Hierarquia de abastecimento: de quem cada estoque pode receber.
-ORIGENS = {"almox": ["externo"], "cozinha": ["almox"], "copa": ["cozinha", "almox"]}
+ORIGENS = {"almox": ["externo", "cozinha"], "cozinha": ["almox"], "copa": ["cozinha", "almox"]}
 CAMPOS = ["id_paciente", "id_ocupacao", "nome", "idade_anos", "idade_meses", "dieta", "diagnostico", "pref_sim", "pref_nao",
           "acompanhante", "cor", "consistencia", "via", "dm", "has", "laxativa", "constipante", "drc", "suplementos_json"]
 # Refeições conferidas hoje: almoço e jantar. As demais ficam desligadas até o administrador habilitar (com horário).
@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, login TEXT UNIQUE NO
 CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL);
 CREATE TABLE IF NOT EXISTS leitos(id INTEGER PRIMARY KEY, id_setor INTEGER NOT NULL, codigo TEXT NOT NULL, UNIQUE(id_setor, codigo));
 CREATE TABLE IF NOT EXISTS itens(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL, unidade TEXT NOT NULL,
-  preco_unitario REAL, embalagem_qtd REAL, embalagem_un TEXT, tbca_id TEXT);
+  preco_unitario REAL, embalagem_qtd REAL, embalagem_un TEXT, tbca_id TEXT,
+  categoria TEXT NOT NULL DEFAULT 'Gêneros alimentícios', validade TEXT);
 CREATE TABLE IF NOT EXISTS mapa_dia(data TEXT, id_leito INTEGER, id_paciente INTEGER, id_ocupacao TEXT, ocupado INTEGER, acompanhante INTEGER, dieta TEXT, nome TEXT,
   idade_anos INTEGER, idade_meses INTEGER, diagnostico TEXT, pref_sim TEXT, pref_nao TEXT,
   cor TEXT, consistencia TEXT, via TEXT, dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
@@ -92,7 +93,7 @@ CREATE TABLE IF NOT EXISTS estoque_dia(data TEXT, estoque TEXT, id_item INTEGER,
   por_usuario INTEGER, por_perfil TEXT, atualizado_em TEXT, PRIMARY KEY(data, estoque, id_item));
 CREATE TABLE IF NOT EXISTS movimentos(id INTEGER PRIMARY KEY, data TEXT, hora TEXT, origem TEXT, destino TEXT,
   id_item INTEGER, qtd REAL, por_usuario INTEGER, divergente INTEGER DEFAULT 0,
-  preco_unitario_snapshot REAL, custo_snapshot REAL);
+  preco_unitario_snapshot REAL, custo_snapshot REAL, observacao TEXT);
 CREATE TABLE IF NOT EXISTS correcoes(id INTEGER PRIMARY KEY, tipo TEXT, data TEXT, chave TEXT, rotulo TEXT, id_setor INTEGER,
   valor_atual TEXT, valor_proposto TEXT, por_usuario INTEGER, criado_em TEXT, status TEXT DEFAULT 'pendente', decidido_em TEXT);
 CREATE TABLE IF NOT EXISTS avisos(id INTEGER PRIMARY KEY, criado_em TEXT, por_usuario INTEGER, tipo TEXT, id_setor INTEGER,
@@ -243,9 +244,11 @@ def migrar(c):
         if col not in cols("mapa_dia"):
             c.execute("ALTER TABLE mapa_dia ADD COLUMN %s %s" % (col, tipo))
     # Metadados comerciais e snapshots de custo são aditivos: bancos antigos mantêm todo o histórico.
-    for col, tipo in (("preco_unitario", "REAL"), ("embalagem_qtd", "REAL"), ("embalagem_un", "TEXT"), ("ativo", "INTEGER NOT NULL DEFAULT 1")):
+    for col, tipo in (("preco_unitario", "REAL"), ("embalagem_qtd", "REAL"), ("embalagem_un", "TEXT"), ("ativo", "INTEGER NOT NULL DEFAULT 1"), ("categoria", "TEXT NOT NULL DEFAULT 'Gêneros alimentícios'"), ("validade", "TEXT")):
         if col not in cols("itens"):
             c.execute("ALTER TABLE itens ADD COLUMN %s %s" % (col, tipo))
+    if "observacao" not in cols("movimentos"):
+        c.execute("ALTER TABLE movimentos ADD COLUMN observacao TEXT")
     # Unidades antigas são convertidas para a unidade-base, preservando o conteúdo físico.
     # O valor por embalagem/preço não muda; apenas a representação da quantidade é normalizada.
     c.execute("UPDATE itens SET embalagem_qtd=embalagem_qtd*1000, embalagem_un='g' "
@@ -653,9 +656,10 @@ def linhas_refeicoes(c, sid, d):
 
 
 def linhas_estoque(c, est, d):
-    sql = ("SELECT i.id id_item,i.nome,i.unidade,COALESCE(h.qtd,0) qtd,h.data data_base,h.por_perfil,h.atualizado_em FROM itens i "
+    sql = ("SELECT i.id id_item,i.nome,i.unidade,i.categoria,i.validade,COALESCE(h.qtd,0) qtd,h.data data_base,h.por_perfil,h.atualizado_em FROM itens i "
            "LEFT JOIN estoque_dia h ON h.id_item=i.id AND h.estoque=? AND "
-           "h.data=(SELECT MAX(data) FROM estoque_dia WHERE id_item=i.id AND estoque=? AND data<=?) ORDER BY i.nome")
+           "h.data=(SELECT MAX(data) FROM estoque_dia WHERE id_item=i.id AND estoque=? AND data<=?) "
+           "ORDER BY CASE WHEN i.validade IS NULL OR i.validade='' THEN 1 ELSE 0 END,i.validade,i.categoria COLLATE NOCASE,i.nome COLLATE NOCASE")
     return [{**dict(r), "herdado": r["data_base"] not in (None, d)} for r in c.execute(sql, (est, est, d))]
 
 
@@ -800,10 +804,11 @@ def post_reposicao(c, u, est, b):
     mover(c, u, est, iid, novo, d)
     preco = item["preco_unitario"]
     custo = qtd * float(preco) if preco is not None else None
+    observacao = str(b.get("observacao") or "").strip()[:1000] or None
     c.execute("""INSERT INTO movimentos
-        (data,hora,origem,destino,id_item,qtd,por_usuario,divergente,preco_unitario_snapshot,custo_snapshot)
-        VALUES(?,?,?,?,?,?,?,?,?,?)""",
-        (d, agora(), org, est, iid, qtd, u["id"], div, preco, custo))
+        (data,hora,origem,destino,id_item,qtd,por_usuario,divergente,preco_unitario_snapshot,custo_snapshot,observacao)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+        (d, agora(), org, est, iid, qtd, u["id"], div, preco, custo, observacao))
     return {"ok": True, "saldo": novo, "divergente": bool(div)}
 
 
@@ -947,7 +952,7 @@ def _rotear(c, ip, m, p, q, b, auth):
         return {"usuario": pub(u), "hoje": hoje()}
     if (m, p) == ("GET", "/api/itens"):
         return {"itens": [dict(r) for r in c.execute(
-            "SELECT id,nome,unidade,preco_unitario,embalagem_qtd,embalagem_un FROM itens ORDER BY nome")]}
+            "SELECT id,nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,categoria,validade FROM itens ORDER BY CASE WHEN validade IS NULL OR validade='' THEN 1 ELSE 0 END,validade,categoria COLLATE NOCASE,nome COLLATE NOCASE")]}
     if (m, p) == ("GET", "/api/orientacoes"):
         return {"orientacoes": [dict(r) for r in c.execute(
             "SELECT id,slug,titulo,texto,ordem,atualizado_em FROM orientacoes ORDER BY ordem,id")]}
@@ -1139,6 +1144,21 @@ def _rotear(c, ip, m, p, q, b, auth):
             lin = linhas_mapa(c, s["id"], d, staff) if mapa else linhas_refeicoes(c, s["id"], d)
             return {"data": d, "setor": s, "linhas": lin, "pendentes": pendentes(c, "mapa" if mapa else "refeicao", d)}
         return (post_mapa if mapa else post_refeicoes)(c, u, s, d, b.get("linhas", []), bool(b.get("completo"))) if mapa else post_refeicoes(c, u, s, d, b.get("linhas", []))
+    if m == "POST" and p.startswith("/api/almox/itens/"):
+        if perfil not in ("admin", "estoque_almox"):
+            raise Erro("Somente o almoxarifado pode classificar os produtos e atualizar a validade.", 403)
+        iid = int(p.rsplit("/", 1)[1])
+        if not c.execute("SELECT 1 FROM itens WHERE id=?", (iid,)).fetchone():
+            raise Erro("Item não encontrado.", 404)
+        categoria = str(b.get("categoria") or "Gêneros alimentícios").strip()
+        categorias = ("Gêneros alimentícios", "Grãos e cereais", "Hortifrúti", "Carnes e proteínas", "Laticínios", "Temperos e condimentos", "Dietas enterais", "Suplementos", "Materiais", "Limpeza", "Outros")
+        if categoria not in categorias:
+            raise Erro("Selecione uma categoria válida.")
+        validade = str(b.get("validade") or "").strip() or None
+        if validade:
+            validade = dia_valido(validade)
+        c.execute("UPDATE itens SET categoria=?,validade=? WHERE id=?", (categoria, validade, iid))
+        return {"ok": True}
     if p == "/api/estoque":
         est, d = estoque_alvo(u, q.get("estoque") or b.get("estoque")), dia_alvo(u, q.get("data") or b.get("data"))
         if m == "GET":
@@ -1300,6 +1320,13 @@ def _rotear(c, ip, m, p, q, b, auth):
             nome = str(b.get("nome", "")).strip()
             unidade = str(b.get("unidade", "un")).strip() or "un"
             preco = None if b.get("preco_unitario") in (None, "") else num(b.get("preco_unitario"), "preço unitário")
+            categoria = str(b.get("categoria") or "Gêneros alimentícios").strip()
+            categorias = ("Gêneros alimentícios", "Grãos e cereais", "Hortifrúti", "Carnes e proteínas", "Laticínios", "Temperos e condimentos", "Dietas enterais", "Suplementos", "Materiais", "Limpeza", "Outros")
+            if categoria not in categorias:
+                raise Erro("Selecione uma categoria válida.")
+            validade = str(b.get("validade") or "").strip() or None
+            if validade:
+                validade = dia_valido(validade)
             emb_qtd = None if b.get("embalagem_qtd") in (None, "") else num(b.get("embalagem_qtd"), "conteúdo da embalagem")
             emb_un = str(b.get("embalagem_un") or "").strip().lower() or None
             if emb_qtd is not None and emb_qtd <= 0:
@@ -1310,8 +1337,8 @@ def _rotear(c, ip, m, p, q, b, auth):
                 if not nome:
                     raise Erro("Informe o nome do item.")
                 try:
-                    cur = c.execute("INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,tbca_id) VALUES(?,?,?,?,?,?)",
-                                    (nome, unidade, preco, emb_qtd, emb_un, tbca_id))
+                    cur = c.execute("INSERT INTO itens(nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,tbca_id,categoria,validade) VALUES(?,?,?,?,?,?,?,?)",
+                                    (nome, unidade, preco, emb_qtd, emb_un, tbca_id, categoria, validade))
                 except sqlite3.IntegrityError:
                     raise Erro("Esse item já existe.")
                 return {"ok": True, "id": cur.lastrowid}
@@ -1321,8 +1348,8 @@ def _rotear(c, ip, m, p, q, b, auth):
             if "tbca_id" not in b:
                 existente = c.execute("SELECT tbca_id FROM itens WHERE id=?", (iid,)).fetchone()
                 tbca_id = existente["tbca_id"] if existente else None
-            c.execute("UPDATE itens SET preco_unitario=?,embalagem_qtd=?,embalagem_un=?,tbca_id=? WHERE id=?",
-                      (preco, emb_qtd, emb_un, tbca_id, iid))
+            c.execute("UPDATE itens SET preco_unitario=?,embalagem_qtd=?,embalagem_un=?,tbca_id=?,categoria=?,validade=? WHERE id=?",
+                      (preco, emb_qtd, emb_un, tbca_id, categoria, validade, iid))
             return {"ok": True}
     raise Erro("Rota não encontrada.", 404)
 
