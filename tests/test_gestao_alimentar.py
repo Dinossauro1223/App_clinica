@@ -173,6 +173,50 @@ class TestGestaoAlimentar(unittest.TestCase):
                 ("2026-11-24", 501, hora, "almox", "cozinha", "Pacote alimento",
                  "pacote", qtd, 0, 7, "almoxarife", 10.0, qtd * 10.0))
 
+    def test_registro_producao_registra_falta_e_desperdicio_por_cuba(self):
+        ficha_id = ga.salvar_ficha(self.db, "Feijão carioca", "acompanhamento", 50,
+            [{"nome": "Feijão", "qtd_per_capita": 80, "unidade": "g",
+              "fator_correcao": 1.0, "id_produto_mobile": None}])
+        with ga._conexao(self.db) as conn:
+            cur = conn.execute("""INSERT INTO GA_Preparacoes_Dia(
+                data,refeicao,nome,porcoes_previstas,id_ficha,ativa,criado_em,atualizado_em)
+                VALUES(?,?,?,?,?,1,?,?)""",
+                ("2026-11-26", "almoco", "Feijão", 50, ficha_id, "2026-11-26", "2026-11-26"))
+            id_dia = cur.lastrowid
+        registro = ga.salvar_registro_producao(
+            self.db, id_dia, "2026-11-26", "almoco", 50,
+            porcoes_produzidas=45, porcoes_faltantes=5, faltou_preparacao=False,
+            peso_por_porcao_g=160,
+            cubas=[
+                {"identificacao": "Cuba 1", "peso_desperdicio_kg": 0.3, "peso_sobra_kg": 0.5},
+                {"identificacao": "Cuba 2", "peso_desperdicio_kg": 0.1, "peso_sobra_kg": 0.2},
+            ], observacao="Reposição solicitada", usuario="cozinha")
+        self.assertEqual(registro["nome_preparacao_snapshot"], "Feijão carioca")
+        self.assertEqual(registro["porcoes_faltantes"], 5)
+        self.assertEqual(len(registro["cubas"]), 2)
+        self.assertAlmostEqual(sum(c["peso_desperdicio_kg"] for c in registro["cubas"]), 0.4)
+        self.assertAlmostEqual(sum(c["peso_sobra_kg"] for c in registro["cubas"]), 0.7)
+        atualizado = ga.salvar_registro_producao(
+            self.db, id_dia, "2026-11-26", "almoco", 50,
+            porcoes_produzidas=48, porcoes_faltantes=2,
+            peso_por_porcao_g=160, cubas=[
+                {"identificacao": "Cuba 1", "peso_desperdicio_kg": 0.2, "peso_sobra_kg": 0.1}
+            ])
+        self.assertEqual(atualizado["id_registro"], registro["id_registro"])
+        self.assertEqual(len(atualizado["cubas"]), 1)
+        self.assertEqual(len(ga.listar_registros_producao(
+            self.db, "2026-11-26", "2026-11-26", ficha_id)), 1)
+
+    def test_registro_producao_rejeita_pesos_negativos_e_preparacao_fora_do_menu(self):
+        with self.assertRaises(ValueError):
+            ga.salvar_registro_producao(self.db, 999, "2026-11-26", "almoco", 10,
+                                        cubas=[{"identificacao": "Cuba", "peso_sobra_kg": -1}])
+        ficha_id = ga.salvar_ficha(self.db, "Arroz", "acompanhamento", 10,
+            [{"nome": "Arroz", "qtd_per_capita": 50, "unidade": "g"}])
+        with self.assertRaises(ValueError):
+            ga.salvar_registro_producao(self.db, 999, "2026-11-26", "almoco", 10,
+                                        porcoes_produzidas=10)
+
     def test_gera_ficha_rascunho_com_base_no_horario_e_vinculo_tbca(self):
         ga.importar_tbca_excel(self.db, self.planilha_tbca())
         ga.sincronizar_produtos_almox(self.db, [{
