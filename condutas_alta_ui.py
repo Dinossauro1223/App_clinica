@@ -17,7 +17,8 @@ from tkinter import messagebox, filedialog
 
 import customtkinter as ctk
 
-import condutas_alta as ca\nimport midias_usuario
+import condutas_alta as ca
+import midias_usuario
 import condutas_alta_export as ex
 import tema
 import mapa_db as mdb
@@ -195,9 +196,11 @@ class JanelaCondutasAlta(ctk.CTkFrame):
         self.pack(fill="both", expand=True)
         self.sessao, self.db = sessao, sessao.db
         self.pasta_saida, self.ao_fechar = pasta_saida, ao_fechar
-        self._cartoes, self._textos, self._motivos = [], {}, {}\n        self._imagens_orientacao = []
+        self._cartoes, self._textos, self._motivos = [], {}, {}
+        self._imagens_orientacao = []
         self._edicoes, self._motivos_digitados, self._abertos = {}, {}, set()
-        self._opcoes = {}\n        self._imagens_orientacao = []
+        self._opcoes = {}
+        self._imagens_orientacao = []
         self._montar()
         self._atualizar()
 
