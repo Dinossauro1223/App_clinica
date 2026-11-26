@@ -200,7 +200,8 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     try{
       const token=window.NL&&window.NL.token?window.NL.token():'';
       const r=await fetchOnline('/api/eu',{headers:token?{Authorization:'Bearer '+token}:{}});
-      return r.status===200||r.status===401;
+      if(r.status===401){if(window.NL&&window.NL.expired)window.NL.expired();return false}
+      return r.status===200;
     }catch(e){return false}
   }
   async function conflitos(q){
