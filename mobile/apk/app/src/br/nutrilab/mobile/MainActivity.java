@@ -701,6 +701,11 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void descobrirServidorAutomaticamente() {
+            MainActivity.this.descobrirServidor(true);
+        }
+
+        @JavascriptInterface
         public void trocar() {
             prefs.edit().remove("servidor").apply();
             recarregar();
@@ -719,5 +724,12 @@ public class MainActivity extends Activity {
                 }
             });
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        offlineMode = false;
+        handlerDescoberta.removeCallbacks(tentarRedescobrir);
+        super.onDestroy();
     }
 }
