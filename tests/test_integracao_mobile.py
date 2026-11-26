@@ -370,7 +370,7 @@ class TestComServidor(_Base):
         segunda = im.sincronizar_automaticamente(self.db, self.mdb, DIA)
         self.assertEqual(segunda["propostas_mapa"], 1)
         # A sincronização de fundo não altera o prontuário: a equipe precisa aprovar a proposta.
-        self.assertEqual(self.reg("A01")["obs_nao"], "")
+        self.assertIsNone(self.reg("A01")["obs_nao"])
 
 
 def _importar_mobile_ui():
