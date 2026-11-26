@@ -300,7 +300,7 @@ class AlmoxUI:
         self.cb_mov_ref=ctk.CTkComboBox(g,values=["— sem refeição —"]+[v for _,v in adb.REFEICOES],width=180);self.cb_mov_ref.pack(side="left",padx=3);self.cb_mov_ref.set("— sem refeição —")
         self.e_mov_obs=ctk.CTkEntry(g,placeholder_text="Observação / documento de compra",width=360);self.e_mov_obs.pack(side="left",padx=3)
         ctk.CTkButton(g,text="Registrar movimento",command=self._registrar).pack(side="left",padx=3)
-        self.t_mov=self._tree(self.conteudo,("Data","Item","Tipo","Quantidade","Preço unitário","Total","Refeição"),(110,180,100,100,120,120,150),12)
+        self.t_mov=self._tree(self.conteudo,("Data","Item","Tipo","Quantidade","Preço unitário","Total","Refeição","Observação"),(100,150,90,90,105,105,120,230),12)
         bar=ctk.CTkFrame(self.conteudo,fg_color="transparent");bar.pack(fill="x")
         ctk.CTkButton(bar,text="Estornar movimento selecionado",command=self._estornar,fg_color=tema.ERRO).pack(side="left",padx=4)
         self._carregar_movimentos()
@@ -313,7 +313,7 @@ class AlmoxUI:
         except Exception as e:messagebox.showwarning("Movimento",str(e))
     def _carregar_movimentos(self):
         self.movs=adb.listar_movimentos(self.db);self.t_mov.delete(*self.t_mov.get_children())
-        for x in self.movs:self.t_mov.insert("","end",iid=str(x["id_movimento"]),values=(x["data"],x["item"],x["motivo"],_num(x["quantidade"]),_br(x["valor_unitario"]),_br(x["valor_total"]),adb.REFEICOES_LABEL.get(x["refeicao"],"—")))
+        for x in self.movs:self.t_mov.insert("","end",iid=str(x["id_movimento"]),values=(x["data"],x["item"],x["motivo"],_num(x["quantidade"]),_br(x["valor_unitario"]),_br(x["valor_total"]),adb.REFEICOES_LABEL.get(x["refeicao"],"—"),x.get("observacao") or "—"))
     def _estornar(self):
         sel=self.t_mov.selection()
         if not sel:messagebox.showinfo("Estorno","Selecione um movimento.");return
