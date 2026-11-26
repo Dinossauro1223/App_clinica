@@ -1381,6 +1381,8 @@ def rotear(db, ip, m, p, q, b, auth, operation_id=None):
         try:
             fingerprint = None
             if operation_id:
+                if len(str(operation_id)) > 128:
+                    raise Erro("Identificador de operação muito longo.", 400)
                 if m != "POST" or p == "/api/login":
                     raise Erro("Identificador de operação inválido para esta rota.", 400)
                 token = auth[7:] if auth.startswith("Bearer ") else ""
@@ -1405,8 +1407,8 @@ def rotear(db, ip, m, p, q, b, auth, operation_id=None):
                     "INSERT INTO operacoes_idempotentes(operation_id,fingerprint,resultado_json,criado_em) VALUES(?,?,?,?)",
                     (str(operation_id), fingerprint, json.dumps(r, ensure_ascii=False), agora())
                 )
-                c.execute("DELETE FROM operacoes_idempotentes WHERE criado_em < ?",
-                          ((datetime.now(TZ) - timedelta(days=30)).isoformat(timespec="seconds"),))
+                # Mantém os identificadores sem expiração: um aparelho pode ficar meses offline
+                # e ainda precisar repetir com segurança uma operação já confirmada pelo servidor.
             c.commit()
             return r
         except Exception:
