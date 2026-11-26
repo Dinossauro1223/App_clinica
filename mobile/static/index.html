@@ -335,6 +335,9 @@ async function atualizarConexao(){
   try{
     const j=await api('/api/status');
     if(j.__offline)throw new Error('cache');
+    if(S.u&&S.u.perfil==='admin'&&j.ip_lan&&j.ip_lan!==j.ip_registrado){
+      try{await api('/api/admin/rede/registrar',{});j.ip_registrado=j.ip_lan}catch(e){}
+    }
     if(window.NLOffline&&NLOffline.sincronizando()){
       el.className='wait';el.innerHTML='<span>↻ Sincronizando alterações</span><small>'+pendentes+' pendente(s)</small>';
     }else{
