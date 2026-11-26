@@ -659,7 +659,7 @@ class GestaoAlimentarUI:
         barra.pack(fill="x", padx=6, pady=5)
         _btn(barra, "Distribuir retirada selecionada", self.alocar_retirada, 210).pack(side="left")
         defs = [("data","Data",90,"center"),("hora","Hora",65,"center"),("item","Ingrediente",180,"w"),
-                ("qtd","Quantidade líquida",105,"e"),("alocado","Alocado",90,"e"),("pendente","Sem destino",95,"e"),
+                ("qtd","Quantidade líquida",105,"e"),("devolvido","Devolvido",85,"e"),("alocado","Alocado",90,"e"),("pendente","Sem destino",95,"e"),
                 ("preco","Preço/un.",90,"e"),("custo","Custo",95,"e"),("fonte","Preço",95,"center"),("observacao","Observação",220,"w")]
         frame,self.tree_movimentos = _tree(tab_mov,defs,altura=13)
         frame.pack(fill="both",expand=True,padx=6,pady=(0,6))
@@ -775,12 +775,17 @@ class GestaoAlimentarUI:
                     tree.delete(iid)
             for indice, m in enumerate(movimentos):
                 fonte = {"historico":"Histórico","atual_estimado":"Atual*","pendente":"Sem preço"}.get(m.get("origem_preco"),"—")
+                observacao = m.get("observacao") or "—"
+                if float(m.get("qtd_devolvida_alocada") or 0) > 1e-8:
+                    observacao += " · Devolução já alocada: revise a destinação"
+                if float(m.get("devolucao_sobre_alocada") or 0) > 1e-8:
+                    observacao += " · Devolução excede retiradas anteriores"
                 self.tree_movimentos.insert("", "end", iid=f"{m['data']}|{m['id_mobile']}",
                     values=(m["data"],m["hora"],m["item"],
-                            _fmt_num(m["qtd"]),_fmt_num(m["qtd_alocada"]),
-                            _fmt_num(m["qtd_disponivel_para_alocar"]),
+                            _fmt_num(m["qtd"]),_fmt_num(float(m.get("qtd_devolvida") or 0)+float(m.get("qtd_devolvida_alocada") or 0)),
+                            _fmt_num(m["qtd_alocada"]),_fmt_num(m["qtd_disponivel_para_alocar"]),
                             _fmt_brl(m.get("preco_unitario_snapshot")),
-                            _fmt_brl(m.get("custo_retirada")),fonte,m.get("observacao") or "—"),
+                            _fmt_brl(m.get("custo_retirada")),fonte,observacao),
                     tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
             for indice, item in enumerate(resumo["itens"]):
                 intervalo = "—" if item["intervalo_medio_dias"] is None else _fmt_num(item["intervalo_medio_dias"],1)+" d"
