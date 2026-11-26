@@ -163,9 +163,17 @@ jobs:
           "$ADB" shell settings put global transition_animation_scale 0
           "$ADB" shell settings put global animator_duration_scale 0
           "$ADB" install -r build/NutriLab-Mobile.apk
-          "$ADB" shell am start -n br.nutrilab.mobile/.MainActivity
+          "$ADB" shell am start -W -n br.nutrilab.mobile/.MainActivity
           sleep 8
-          "$ADB" shell dumpsys activity activities | grep -E "ResumedActivity.*br.nutrilab.mobile|topResumedActivity.*br.nutrilab.mobile"
+          # A saída de dumpsys varia entre versões do Android. Validamos o processo
+          # real do app em vez de depender do nome interno do campo de Activity.
+          APP_PID="$("$ADB" shell pidof br.nutrilab.mobile | tr -d '\r')"
+          if [ -z "$APP_PID" ]; then
+            echo "NutriLab Mobile não permaneceu em execução após a abertura."
+            "$ADB" logcat -d -s AndroidRuntime:E ActivityTaskManager:E
+            exit 1
+          fi
+          echo "NutriLab Mobile aberto no emulador (PID: $APP_PID)."
           if "$ADB" logcat -d | grep -q "FATAL EXCEPTION"; then
             "$ADB" logcat -d -s AndroidRuntime:E
             exit 1
