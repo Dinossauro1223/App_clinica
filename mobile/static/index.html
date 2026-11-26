@@ -552,7 +552,7 @@ async function vRef(){
   '<h2>Refeições individualizadas</h2><p class=mini>Registre cada refeição no momento em que for entregue. O paciente e o leito ficam gravados como fotografia histórica.</p>'+
   (htmlPacientes||'<div class=cartao>Nenhum paciente ativo no mapa deste setor/data.</div>')+
   '<h2>Refeições de funcionários</h2><div class=cartao><label class=f>Nome do funcionário<input id=rf-nome type=text placeholder="Nome de quem recebeu"></label>'+
-  '<label class=f>Data e hora da entrega<input id=rf-momento type=datetime-local value="${agoraLocalInput()}"></label>'+
+  '<label class=f>Data e hora da entrega<input id=rf-momento type=datetime-local value="'+agoraLocalInput()+'"></label>'+
   '<div class=filtros><label class=f>Refeição<select id=rf-ref>'+refs.map(r=>`<option value="${r}">${REF[r]}</option>`).join('')+'</select></label>'+
   '<label class=f>Quantidade<input id=rf-qtd type=number min=1 value=1></label><label class=f>Valor unitário (R$)<input id=rf-valor type=number min=0 step=0.01 placeholder="Opcional"></label></div>'+
   '<button class=btn style="width:100%" onclick="registrarServicoFuncionario()">Registrar refeição de funcionário</button></div>'+
