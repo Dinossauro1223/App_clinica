@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS GA_Preparacoes_Dia (
  data TEXT NOT NULL,
  refeicao TEXT NOT NULL,
  nome TEXT NOT NULL,
+ categoria TEXT,
  porcoes_previstas REAL,
  id_ficha INTEGER REFERENCES GA_Fichas(id_ficha),
  ativa INTEGER NOT NULL DEFAULT 1,
@@ -127,6 +128,7 @@ CREATE TABLE IF NOT EXISTS GA_Producao_Preparacao (
  refeicao TEXT NOT NULL,
  id_ficha INTEGER,
  nome_preparacao_snapshot TEXT NOT NULL,
+ categoria_snapshot TEXT,
  porcoes_planejadas REAL NOT NULL CHECK(porcoes_planejadas >= 0),
  porcoes_produzidas REAL CHECK(porcoes_produzidas >= 0),
  porcoes_faltantes REAL NOT NULL DEFAULT 0 CHECK(porcoes_faltantes >= 0),
@@ -187,6 +189,12 @@ def inicializar(db_path):
         colunas_produtos = {r[1] for r in conn.execute(f"PRAGMA table_info({TABELA_PRODUTOS})")}
         if "tbca_id" not in colunas_produtos:
             conn.execute(f"ALTER TABLE {TABELA_PRODUTOS} ADD COLUMN tbca_id TEXT")
+        colunas_preparacoes = {r[1] for r in conn.execute("PRAGMA table_info(GA_Preparacoes_Dia)")}
+        if "categoria" not in colunas_preparacoes:
+            conn.execute("ALTER TABLE GA_Preparacoes_Dia ADD COLUMN categoria TEXT")
+        colunas_producao = {r[1] for r in conn.execute("PRAGMA table_info(GA_Producao_Preparacao)")}
+        if "categoria_snapshot" not in colunas_producao:
+            conn.execute("ALTER TABLE GA_Producao_Preparacao ADD COLUMN categoria_snapshot TEXT")
 
 
 def _normalizar_cabecalho(valor):
@@ -579,6 +587,13 @@ def calcular_ficha(db_path, id_ficha):
 
 # --------------------------------------------------------- consumo observado
 _REFEICOES_CONSUMO = {"desjejum", "colacao", "almoco", "lanche", "jantar", "ceia"}
+_CATEGORIAS_REFEICOES_PRINCIPAIS = {"salada", "entrada", "prato_principal", "acompanhamento", "sobremesa", "suco_fruta"}
+_CATEGORIAS_REFEICOES_MENORES = {"geral"}
+_CATEGORIAS_POR_REFEICAO = {
+    "almoco": _CATEGORIAS_REFEICOES_PRINCIPAIS, "jantar": _CATEGORIAS_REFEICOES_PRINCIPAIS,
+    "desjejum": _CATEGORIAS_REFEICOES_MENORES, "colacao": _CATEGORIAS_REFEICOES_MENORES,
+    "lanche": _CATEGORIAS_REFEICOES_MENORES, "ceia": _CATEGORIAS_REFEICOES_MENORES,
+}
 _TIPOS_ALOCACAO = {"preparacao", "uso_geral", "perda"}
 
 
@@ -588,6 +603,19 @@ def _data_iso(valor, campo="data"):
         return date.fromisoformat(str(valor)).isoformat()
     except (TypeError, ValueError):
         raise ValueError("Informe %s no formato AAAA-MM-DD." % campo)
+
+
+def _normalizar_categoria_refeicao(refeicao, categoria):
+    """Valida a categoria de apresentação permitida para o tipo de refeição."""
+    if categoria in (None, ""):
+        return None  # compatibilidade com cardápios antigos ainda sem classificação
+    categoria = str(categoria).strip().lower().replace(" ", "_").replace("/", "_")
+    aliases = {"saladas": "salada", "acompanhamentos": "acompanhamento", "sobremesas": "sobremesa",
+               "suco": "suco_fruta", "fruta": "suco_fruta", "sucos_frutas": "suco_fruta"}
+    categoria = aliases.get(categoria, categoria)
+    if categoria not in _CATEGORIAS_POR_REFEICAO[refeicao]:
+        raise ValueError("Categoria não permitida para esta refeição.")
+    return categoria
 
 
 def salvar_preparacoes_dia(db_path, data, refeicao, preparacoes):
@@ -611,12 +639,13 @@ def salvar_preparacoes_dia(db_path, data, refeicao, preparacoes):
         porcoes = _numero(item.get("porcoes_previstas"))
         if porcoes is not None and porcoes <= 0:
             raise ValueError("As porções previstas precisam ser maiores que zero.")
+        categoria = _normalizar_categoria_refeicao(refeicao, item.get("categoria"))
         ficha_id = item.get("id_ficha")
         if ficha_id not in (None, ""):
             ficha_id = int(ficha_id)
         else:
             ficha_id = None
-        preparados.append((nome, porcoes, ficha_id))
+        preparados.append((nome, porcoes, ficha_id, categoria))
 
     agora = _agora()
     with _conexao(db_path) as conn:
@@ -630,14 +659,14 @@ def salvar_preparacoes_dia(db_path, data, refeicao, preparacoes):
                 "UPDATE GA_Preparacoes_Dia SET ativa=0, atualizado_em=? WHERE data=? AND refeicao=?",
                 (agora, data, refeicao)
             )
-            for nome, porcoes, ficha_id in preparados:
+            for nome, porcoes, ficha_id, categoria in preparados:
                 conn.execute("""INSERT INTO GA_Preparacoes_Dia
-                    (data,refeicao,nome,porcoes_previstas,id_ficha,ativa,criado_em,atualizado_em)
-                    VALUES(?,?,?,?,?,1,?,?)
+                    (data,refeicao,nome,categoria,porcoes_previstas,id_ficha,ativa,criado_em,atualizado_em)
+                    VALUES(?,?,?,?,?,?,1,?,?)
                     ON CONFLICT(data,refeicao,nome) DO UPDATE SET
-                    porcoes_previstas=excluded.porcoes_previstas,id_ficha=excluded.id_ficha,
-                    ativa=1,atualizado_em=excluded.atualizado_em""",
-                    (data, refeicao, nome, porcoes, ficha_id, agora, agora))
+                    categoria=excluded.categoria,porcoes_previstas=excluded.porcoes_previstas,
+                    id_ficha=excluded.id_ficha,ativa=1,atualizado_em=excluded.atualizado_em""",
+                    (data, refeicao, nome, categoria, porcoes, ficha_id, agora, agora))
         except Exception:
             conn.rollback()
             raise
@@ -708,18 +737,18 @@ def salvar_registro_producao(db_path, id_preparacao_dia, data, refeicao, porcoes
         ).fetchone()
         if existente:
             rid = existente["id_registro"]
-            conn.execute("""UPDATE GA_Producao_Preparacao SET refeicao=?,id_ficha=?,nome_preparacao_snapshot=?,
+            conn.execute("""UPDATE GA_Producao_Preparacao SET refeicao=?,id_ficha=?,nome_preparacao_snapshot=?,categoria_snapshot=?,
                 porcoes_planejadas=?,porcoes_produzidas=?,porcoes_faltantes=?,faltou_preparacao=?,
                 peso_por_porcao_g=?,observacao=?,usuario=?,atualizado_em=? WHERE id_registro=?""",
-                (refeicao, prep["id_ficha"], nome, planejadas, produzidas, faltantes,
+                (refeicao, prep["id_ficha"], nome, prep["categoria"], planejadas, produzidas, faltantes,
                  int(bool(faltou_preparacao)), peso_porcao, str(observacao or ""), str(usuario or ""), agora, rid))
             conn.execute("DELETE FROM GA_Producao_Cubas WHERE id_registro=?", (rid,))
         else:
             cur = conn.execute("""INSERT INTO GA_Producao_Preparacao(
-                id_preparacao_dia,data,refeicao,id_ficha,nome_preparacao_snapshot,porcoes_planejadas,
+                id_preparacao_dia,data,refeicao,id_ficha,nome_preparacao_snapshot,categoria_snapshot,porcoes_planejadas,
                 porcoes_produzidas,porcoes_faltantes,faltou_preparacao,peso_por_porcao_g,observacao,usuario,
                 criado_em,atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (int(id_preparacao_dia), data, refeicao, prep["id_ficha"], nome, planejadas, produzidas,
+                (int(id_preparacao_dia), data, refeicao, prep["id_ficha"], nome, prep["categoria"], planejadas, produzidas,
                  faltantes, int(bool(faltou_preparacao)), peso_porcao, str(observacao or ""),
                  str(usuario or ""), agora, agora))
             rid = cur.lastrowid
