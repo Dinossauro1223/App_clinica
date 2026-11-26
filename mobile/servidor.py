@@ -59,6 +59,9 @@ _TAILSCALE_CACHE = {"instante": 0.0, "ip": None}
 def _executaveis_tailscale():
     """Localiza o CLI sem presumir que esteja no PATH (instalação Windows padrão)."""
     encontrados = []
+    configurado = os.environ.get("TAILSCALE_BINARY")
+    if configurado:
+        encontrados.append(configurado)
     no_path = shutil.which("tailscale")
     if no_path:
         encontrados.append(no_path)
@@ -66,6 +69,7 @@ def _executaveis_tailscale():
         encontrados.extend([
             str(Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Tailscale" / "tailscale.exe"),
             str(Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "Tailscale" / "tailscale.exe"),
+            str(Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "Tailscale IPN" / "tailscale.exe"),
         ])
     else:
         encontrados.extend(["/usr/bin/tailscale", "/usr/local/bin/tailscale"])
