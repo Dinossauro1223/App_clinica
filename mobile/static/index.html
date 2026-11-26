@@ -460,7 +460,7 @@ function atualizaSup(el){
 }
 function removeSup(el){el.closest('[data-sup]').remove()}
 function adicionaSup(el){const c=el.closest('details'),box=c.querySelector('.lista-sup'),n=box.querySelectorAll('[data-sup]').length;box.insertAdjacentHTML('beforeend',suplementoHtml({},n))}
-const leito=(l,P)=>`<details class="cartao leito" data-id=${l.id_leito}><summary><b class=cod>${esc(l.codigo)}</b>${l.nome?esc(l.nome)+(idade(l)?', '+idade(l):''):'<i class=mini>livre</i>'} <span class=mini>${esc(l.dieta)}</span><br>${chips(l,l.id_leito,P)}<br><span class=mini>${l.atualizado_em?'Atualizado por '+esc(l.por_nome||'usuário')+' · '+esc(l.por_perfil||'')+' · '+esc(l.atualizado_em.replace('T',' ').slice(0,16)):'Sem atualização registrada'}</span></summary>
+const leito=(l,P)=>`<details class="cartao leito" data-id=${l.id_leito} data-paciente-id="${l.id_paciente??''}" data-ocupacao-id="${esc(l.id_ocupacao||'')}"><summary><b class=cod>${esc(l.codigo)}</b>${l.nome?esc(l.nome)+(idade(l)?', '+idade(l):''):'<i class=mini>livre</i>'} <span class=mini>${esc(l.dieta)}</span><br>${chips(l,l.id_leito,P)}<br><span class=mini>${l.atualizado_em?'Atualizado por '+esc(l.por_nome||'usuário')+' · '+esc(l.por_perfil||'')+' · '+esc(l.atualizado_em.replace('T',' ').slice(0,16)):'Sem atualização registrada'}</span></summary>
  <label class=f>Paciente (nome)<input type=text class=nm value="${esc(l.nome)}"></label>
  <div class=filtros><label class=f>Idade (anos)<input type=number inputmode=numeric min=0 max=130 class=ia value="${v(l.idade_anos)}"></label><label class=f>Meses<input type=number inputmode=numeric min=0 max=11 class=im value="${v(l.idade_meses)}"></label></div>
  <label class=f>Cor<select class=cor>${[['','— selecione —'],['B','Branco'],['N','Negro']].map(([val,label])=>`<option value="${val}" ${String(l.cor||'')===val?'selected':''}>${label}</option>`).join('')}</select></label>
@@ -486,7 +486,8 @@ const coleta=()=>[...document.querySelectorAll('details.leito[data-id]')].map(e=
   return {id_suplemento:id,nome:item?.nome||'',modulo:item?.modulo||'',ml_oferta:c.querySelector('.sp-ml').value,
    agua_ml:c.querySelector('.sp-agua').value,refeicoes,batido_fruta:c.querySelector('.sp-fruta').checked};
  }).filter(Boolean);
- return {id_leito:+e.dataset.id,nome:e.querySelector('.nm').value,idade_anos:e.querySelector('.ia').value,
+ return {id_leito:+e.dataset.id,id_paciente:e.dataset.pacienteId?Number(e.dataset.pacienteId):null,
+  id_ocupacao:e.dataset.ocupacaoId||null,nome:e.querySelector('.nm').value,idade_anos:e.querySelector('.ia').value,
   idade_meses:e.querySelector('.im').value,cor:e.querySelector('.cor').value,dieta:e.querySelector('.di').value,
   consistencia:e.querySelector('.cons').value,via:e.querySelector('.via').value,
   dm:e.querySelector('.car-dm').checked,has:e.querySelector('.car-has').checked,
