@@ -18,7 +18,6 @@ Organizar as retiradas de ingredientes do almoxarifado para a cozinha, permitir 
 - Transferências `almox` → `cozinha` entram como retirada original de ingredientes.
 - Devoluções `cozinha` → `almox` entram com quantidade e custo negativos na apuração líquida. Exemplo: retirada de 100 g e devolução de 20 g = 80 g líquidos.
 - Transferências `cozinha` → `copa` continuam no histórico geral, mas não entram novamente no total retirado do almoxarifado.
-- Transferências `cozinha` → `copa` continuam no histórico geral, mas não entram novamente no total retirado do almoxarifado.
 - A chave de movimento é `(data,id_mobile)`; reimportar um período não cria nova retirada.
 - Os IDs de item e movimento não são descartados na integração.
 - Unidades diferentes permanecem distintas. Não há conversão automática entre pacote, unidade, kg, g, litro ou ml sem equivalência cadastrada/confirmada.
