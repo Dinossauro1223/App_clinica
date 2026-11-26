@@ -747,7 +747,7 @@ def salvar_registro_producao(db_path, id_preparacao_dia, data, refeicao, porcoes
             cur = conn.execute("""INSERT INTO GA_Producao_Preparacao(
                 id_preparacao_dia,data,refeicao,id_ficha,nome_preparacao_snapshot,categoria_snapshot,porcoes_planejadas,
                 porcoes_produzidas,porcoes_faltantes,faltou_preparacao,peso_por_porcao_g,observacao,usuario,
-                criado_em,atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                criado_em,atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (int(id_preparacao_dia), data, refeicao, prep["id_ficha"], nome, prep["categoria"], planejadas, produzidas,
                  faltantes, int(bool(faltou_preparacao)), peso_porcao, str(observacao or ""),
                  str(usuario or ""), agora, agora))
