@@ -218,9 +218,10 @@ class AppClinica(ctk.CTk):
         )
         self._lbl_status_conexao.pack(fill="both", expand=True, padx=12)
         self.bind("<Escape>", self._fechar_ultima_aba_lateral, add="+")
+        # O servidor sobe antes de telas iniciais ou diálogos que possam aguardar interação.
+        self._iniciar_servidor_mobile()
         self.tela_inicial()
         self._iniciar_backups()
-        self._iniciar_servidor_mobile()
         self._sincronizacao_mobile_em_andamento = False
         self._sincronizacao_mobile_propostas = 0
         self._sincronizacao_mobile_erro = ""
