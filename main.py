@@ -32,6 +32,7 @@ import ambulatorial
 import pediatria_oms as oms
 import atualizador
 import ui_motion
+import ui_workers
 from backup_manager import BackupManager
 from ambulatorial_ui import PainelConsultaEstruturada, DialogoAssociacoesExames
 
@@ -217,7 +218,11 @@ class AppClinica(ctk.CTk):
         self.tela_inicial()
         self._iniciar_backups()
         self._iniciar_servidor_mobile()
+        self._sincronizacao_mobile_em_andamento = False
+        self._sincronizacao_mobile_propostas = 0
+        self._sincronizacao_mobile_erro = ""
         self.after(500, self._atualizar_status_conexao)
+        self.after(8000, self._sincronizar_mobile_periodicamente)
         # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
         self.after(1200, lambda: atualizador.iniciar_verificacao(self, self._resultado_atualizacao))
 
@@ -234,10 +239,18 @@ class AppClinica(ctk.CTk):
         try:
             if estado_servidor and estado_servidor.get("status") == "online":
                 endereco = estado_servidor.get("ip_lan") or "rede local"
-                self._lbl_status_conexao.configure(
-                    text="● Servidor conectado — dispositivos podem sincronizar · IP: " + str(endereco),
-                    text_color=tema.VERDE
-                )
+                pendentes = int(getattr(self, "_sincronizacao_mobile_propostas", 0) or 0)
+                erro_sync = getattr(self, "_sincronizacao_mobile_erro", "")
+                if erro_sync:
+                    texto = "● Servidor conectado — falha ao sincronizar dados: " + str(erro_sync)[:110]
+                    cor = tema.LARANJA_TEXTO
+                elif pendentes:
+                    texto = "● Conectado — %d alteração(ões) do mobile aguardam revisão · IP: %s" % (pendentes, endereco)
+                    cor = tema.LARANJA_TEXTO
+                else:
+                    texto = "● Servidor conectado — setores sincronizados · IP: " + str(endereco)
+                    cor = tema.VERDE
+                self._lbl_status_conexao.configure(text=texto, text_color=cor)
             else:
                 self._lbl_status_conexao.configure(
                     text="● Servidor desconectado — o programa continua usando os dados locais",
@@ -246,6 +259,56 @@ class AppClinica(ctk.CTk):
             self.after(5000, self._atualizar_status_conexao)
         except (AttributeError, tk.TclError):
             return
+
+    def _sincronizar_mobile_periodicamente(self):
+        """Sincroniza mapa, refeições e estoques sem bloquear a interface nem aprovar prontuários."""
+        if getattr(self, "_encerrando_app", False):
+            return
+        if getattr(self, "_sincronizacao_mobile_em_andamento", False):
+            try:
+                self.after(30000, self._sincronizar_mobile_periodicamente)
+            except tk.TclError:
+                pass
+            return
+        self._sincronizacao_mobile_em_andamento = True
+
+        def trabalho():
+            # O servidor precisa responder como NutriLab; uma porta aberta por outro programa não basta.
+            with urllib.request.urlopen("http://127.0.0.1:8765/api/status", timeout=1.0) as resposta:
+                if resposta.status != 200:
+                    return None
+                estado = json.loads(resposta.read().decode("utf-8"))
+            if estado.get("status") != "online":
+                return None
+            banco_desktop = caminho_do_banco()
+            banco_mobile = im.caminho_mobile_db(banco_desktop, get_base_path())
+            if not os.path.isfile(banco_mobile):
+                return None
+            return im.sincronizar_automaticamente(
+                banco_desktop, banco_mobile, datetime.now().date().isoformat()
+            )
+
+        def sucesso(resultado):
+            if resultado is None:
+                return
+            self._sincronizacao_mobile_propostas = resultado.get("revisoes_pendentes", 0)
+            self._sincronizacao_mobile_erro = ""
+
+        def erro(exc):
+            self._sincronizacao_mobile_erro = str(exc)
+
+        def finalizar():
+            self._sincronizacao_mobile_em_andamento = False
+            try:
+                self._atualizar_status_conexao()
+                self.after(30000, self._sincronizar_mobile_periodicamente)
+            except tk.TclError:
+                pass
+
+        return ui_workers.executar_em_segundo_plano(
+            self, trabalho, ao_sucesso=sucesso, ao_erro=erro, ao_finalizar=finalizar,
+            nome="nutrilab-sincronizacao-automatica"
+        )
 
     def _iniciar_servidor_mobile(self):
         """Inicia o servidor local uma única vez; não assume propriedade de processo preexistente."""
