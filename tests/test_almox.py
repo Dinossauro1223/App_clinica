@@ -87,6 +87,18 @@ class TestAlmoxarifado(unittest.TestCase):
         self.assertEqual(r["realizado_total"], 20)
         self.assertEqual(r["programado_total"], 0)
 
+    def test_validade_busca_categoria_e_observacao_de_movimento(self):
+        cedo = db.salvar_item(self.path, {"nome":"Tempero", "unidade":"g", "categoria":"Temperos e condimentos", "validade":"2026-11-30", "valor_unitario":"0,05"})
+        tarde = db.salvar_item(self.path, {"nome":"Arroz", "unidade":"kg", "categoria":"Grãos e cereais", "validade":"2026-12-15", "valor_unitario":"5,00"})
+        db.salvar_item(self.path, {"nome":"Feijão", "unidade":"kg", "categoria":"Grãos e cereais", "valor_unitario":"8,00"})
+        ordenados = db.listar_itens(self.path)
+        self.assertEqual([x["nome"] for x in ordenados], ["Tempero", "Arroz", "Feijão"])
+        self.assertEqual(db.listar_itens(self.path, termo="temp")[0]["id_item"], cedo)
+        self.assertEqual(ordenados[0]["categoria"], "Temperos e condimentos")
+        db.registrar_movimento(self.path, "2026-11-25", tarde, "entrada", 10, "5,00", observacao="Recebimento parcial conferido")
+        mov = db.listar_movimentos(self.path, id_item=tarde)[0]
+        self.assertEqual(mov["observacao"], "Recebimento parcial conferido")
+
     def test_unidades_nao_sao_convertidas_implicitamente(self):
         kg = self.item("4", "Farinha", "kg")
         g = self.item("0,004", "Farinha", "g")
