@@ -31,8 +31,10 @@ class TestRefeicoesAPI(unittest.TestCase):
         mapa = self.api("GET", "/api/mapa", query={"setor": str(sid)})
         lid = mapa["linhas"][0]["id_leito"]
         agora = sv.agora_dt().replace(second=0, microsecond=0)
-        t_maria = agora - timedelta(minutes=60)
-        t_joao = agora - timedelta(minutes=30)
+        # O leito recém-criado já possui uma linha vazia com timestamp de inicialização.
+        # Use eventos posteriores a essa linha para simular duas ocupações reais em sequência.
+        t_maria = agora + timedelta(minutes=1)
+        t_joao = agora + timedelta(minutes=30)
         dia = agora.date().isoformat()
 
         for publico in ("paciente", "funcionario"):
