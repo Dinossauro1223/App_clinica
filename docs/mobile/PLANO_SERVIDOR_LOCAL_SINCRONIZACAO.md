@@ -61,6 +61,8 @@ O indicador não deve confundir conectividade à internet com disponibilidade do
 - Administrador mobile registra automaticamente um IP diferente assim que o aplicativo volta a alcançar o servidor; o botão manual também permanece disponível.
 - Indicador de conexão no topo do mobile, inclusive na tela de login, com verificação periódica e quantidade de operações pendentes.
 - Indicador persistente no topo do desktop, mostrando se o servidor local está acessível.
+- Sincronização desktop ↔ mobile em segundo plano a cada 30 segundos, para o dia atual e todos os setores: publica alterações do mapa desktop e importa refeições, contagens e movimentos do mobile.
+- Alterações clínicas recebidas do mobile continuam como propostas para revisão humana; a rotina automática não as aplica ao prontuário.
 - Fila offline mobile: operações sem conexão ficam no armazenamento local do dispositivo.
 - Ao recuperar a conexão, operações sem conflito são enviadas automaticamente; mapas com divergências continuam aguardando revisão do funcionário.
 - Cada operação POST da fila recebe identificador único. O servidor guarda o resultado e devolve a mesma resposta em retentativas, evitando duplicação após queda de conexão.
@@ -69,11 +71,9 @@ O indicador não deve confundir conectividade à internet com disponibilidade do
 
 ### Ainda pendente — não considerar pronto para produção
 - Validar a descoberta UDP em roteadores e versões reais de Android/Windows, incluindo a liberação da porta UDP 8766 no Firewall do Windows. Se a descoberta estiver bloqueada, permanece o fluxo manual por QR/endereço.
-- Fila offline durável e sincronização equivalente para o desktop (além do banco local que já existe) e validação de cada setor/ação.
-- Distribuição incremental completa de atualizações centrais para todos os dispositivos.
-- Política de conflitos completa para prontuário, mapa, refeições e estoque; no momento, a verificação de conflito é aplicada ao mapa e outras regras continuam no servidor.
-- Distribuição incremental das alterações centrais para todos os dispositivos.
-- Política completa de conflitos para prontuário, mapa, refeições e estoque.
+- Fila offline durável para operações do próprio desktop quando o computador central estiver desconectado; a sincronização periódica atual cobre o desktop conectado ao banco local do servidor.
+- Sincronização do histórico de todas as datas e distribuição incremental em tempo real para todos os dispositivos; a rotina atual sincroniza o dia atual e os clientes atualizam cada setor ao consultá-lo.
+- Política de conflitos completa para prontuário, mapa, refeições e estoque; propostas clínicas do mapa não são aplicadas automaticamente e as demais regras continuam no servidor.
 - Identidade e revogação de dispositivos; criptografia de transporte e acesso remoto via VPN/túnel.
 - Backups, migração segura e testes de recuperação.
 - Execução dos testes locais e validação do CI em Windows e Linux.
