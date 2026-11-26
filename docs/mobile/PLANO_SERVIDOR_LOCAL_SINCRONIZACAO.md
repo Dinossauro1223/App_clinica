@@ -45,6 +45,7 @@ O indicador não deve confundir conectividade à internet com disponibilidade do
 ## Segurança e privacidade
 
 - A API atual limita clientes a endereços privados. Isso impede acesso direto a partir da internet, mas não substitui HTTPS.
+- O aplicativo desktop inicia o servidor local e exibe seu estado; para manter o servidor acessível, o programa desktop também precisa permanecer em execução nesta versão.
 - Para uso remoto, configurar VPN/túnel de saída no computador da clínica; não abrir a porta HTTP do servidor diretamente no roteador.
 - Autenticação individual, autorização por perfil no servidor, proteção contra tentativas repetidas, revogação de sessões/dispositivos e trilha de auditoria.
 - Não registrar dados de pacientes em logs técnicos ou testes.
@@ -53,18 +54,23 @@ O indicador não deve confundir conectividade à internet com disponibilidade do
 
 ## Estado desta branch
 
-### Implementado nesta primeira fatia
+### Implementado nesta branch até o momento
 - `GET /api/status`: informa disponibilidade, IP local detectado e último IP registrado.
 - `POST /api/admin/rede/registrar`: registra o IP atual, somente para perfil administrador.
-- Indicador de conexão no topo do mobile, com verificação periódica.
-- Configuração mobile para consultar e registrar o IP detectado.
-- Testes de status, registro e bloqueio para perfis não administradores.
+- Administrador mobile registra automaticamente um IP diferente assim que o aplicativo volta a alcançar o servidor; o botão manual também permanece disponível.
+- Indicador de conexão no topo do mobile, inclusive na tela de login, com verificação periódica e quantidade de operações pendentes.
+- Indicador persistente no topo do desktop, mostrando se o servidor local está acessível.
+- Fila offline mobile: operações sem conexão ficam no armazenamento local do dispositivo.
+- Ao recuperar a conexão, operações sem conflito são enviadas automaticamente; mapas com divergências continuam aguardando revisão do funcionário.
+- Cada operação POST da fila recebe identificador único. O servidor guarda o resultado e devolve a mesma resposta em retentativas, evitando duplicação após queda de conexão.
+- Reutilização de identificador com conteúdo diferente é recusada com HTTP 409.
+- Testes de status, registro, bloqueio de perfis não administradores e idempotência.
 
 ### Ainda pendente — não considerar pronto para produção
-- Indicador equivalente no cabeçalho do desktop.
-- Descoberta automática após mudança de IP, sem depender do endereço antigo.
-- Sincronização automática sem modal/confirmação manual, com protocolo de confirmação por operação.
-- Fila local durável e idempotente para todos os setores e operações do desktop e mobile.
+- Descoberta automática do servidor após mudança de IP, sem depender do endereço/QR anteriormente configurado. O registro automático ocorre depois que o cliente consegue reconectar; não resolve sozinho uma URL antiga que deixou de responder.
+- Fila offline durável e sincronização equivalente para o desktop (além do banco local que já existe) e validação de cada setor/ação.
+- Distribuição incremental completa de atualizações centrais para todos os dispositivos.
+- Política de conflitos completa para prontuário, mapa, refeições e estoque; no momento, a verificação de conflito é aplicada ao mapa e outras regras continuam no servidor.
 - Distribuição incremental das alterações centrais para todos os dispositivos.
 - Política completa de conflitos para prontuário, mapa, refeições e estoque.
 - Identidade e revogação de dispositivos; criptografia de transporte e acesso remoto via VPN/túnel.
