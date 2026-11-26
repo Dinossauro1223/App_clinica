@@ -430,6 +430,19 @@ class TestTela(_Base):
         self.assertEqual(self.reg("A02")["nome_paciente"], "Joao Teste")
 
 
+    def test_sincronizacao_automatica_publica_mapa_e_preserva_propostas_para_revisao(self):
+        primeira = im.sincronizar_automaticamente(self.db, self.mdb, DIA)
+        self.assertEqual(primeira["propostas_mapa"], 0)
+        self.assertGreaterEqual(primeira["leitos_enviados"], 1)
+
+        self.copa_salva({"A01": {"nome": "Maria Teste", "idade_anos": 70,
+                                  "dieta": "Branda", "pref_nao": "peixe"}})
+        segunda = im.sincronizar_automaticamente(self.db, self.mdb, DIA)
+        self.assertEqual(segunda["propostas_mapa"], 1)
+        # A sincronização de fundo não altera o prontuário: a equipe precisa aprovar a proposta.
+        self.assertEqual(self.reg("A01")["obs_nao"], "")
+
+
 class TestCatalogoPedidosAlmox(unittest.TestCase):
     def test_desktop_cadastra_item_tbca_e_calcula_prazo_de_recebimento(self):
         with tempfile.TemporaryDirectory() as pasta:
