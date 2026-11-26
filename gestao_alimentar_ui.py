@@ -1289,8 +1289,9 @@ class PreparacoesDiaDialog:
         self.e_data=ctk.CTkEntry(topo,width=115);self.e_data.pack(side="left",padx=5);self.e_data.insert(0,self.data)
         ctk.CTkLabel(topo,text="Refeição").pack(side="left",padx=(12,3))
         self.cb_ref=ctk.CTkComboBox(topo,width=150,values=["desjejum","colacao","almoco","lanche","jantar","ceia"],
-                                      command=lambda _v: self._atualizar_categorias())
+                                      command=self._mudar_refeicao)
         self.cb_ref.set("almoco");self.cb_ref.pack(side="left")
+        self._refeicao_atual="almoco"
         _btn(topo,"Carregar",self._carregar,100,cor=CINZA,hover=tema.SUAVE).pack(side="left",padx=6)
         bloco=ctk.CTkFrame(area);bloco.pack(fill="x",padx=14,pady=5)
         self.e_nome=ctk.CTkEntry(bloco,width=210,placeholder_text="Nome da preparação")
@@ -1317,6 +1318,20 @@ class PreparacoesDiaDialog:
         rod=ctk.CTkFrame(area,fg_color="transparent");rod.pack(fill="x",padx=14,pady=(4,12))
         _btn(rod,"Remover selecionada",self._remover,155,cor=LARANJA,hover=tema.LARANJA).pack(side="left")
         _btn(rod,"Salvar cardápio esperado",self._salvar,190).pack(side="right")
+
+    def _mudar_refeicao(self, nova_refeicao):
+        if nova_refeicao == self._refeicao_atual:
+            return
+        if self.rows and not messagebox.askyesno(
+                "Trocar refeição",
+                "A lista será carregada novamente. Alterações ainda não salvas serão descartadas. Continuar?",
+                parent=self.janela):
+            self.cb_ref.set(self._refeicao_atual)
+            self._atualizar_categorias()
+            return
+        self._refeicao_atual=nova_refeicao
+        self._atualizar_categorias()
+        self._carregar()
 
     def _atualizar_categorias(self):
         opcoes=_categorias_menu(self.cb_ref.get())
@@ -1357,6 +1372,7 @@ class PreparacoesDiaDialog:
 
     def _render(self):
         # Mantém o estado de expansão das categorias enquanto a lista é atualizada.
+        primeira_renderizacao=not getattr(self,"_render_iniciado",False)
         grupos_abertos={iid for iid in self.tree.get_children("")
                         if self.tree.item(iid,"open")}
         for iid in self.tree.get_children():
@@ -1390,7 +1406,7 @@ class PreparacoesDiaDialog:
                     continue
                 gid=f"grupo:{valor}"
                 self.tree.insert("","end",iid=gid,values=(rotulo,"","",""),
-                                 open=(gid in grupos_abertos or not grupos_abertos),
+                                 open=(primeira_renderizacao or gid in grupos_abertos),
                                  tags=("grupo_menu",))
                 for indice,r in itens:
                     inserir_preparacao(gid,indice,r,False)
@@ -1412,6 +1428,7 @@ class PreparacoesDiaDialog:
             # Desjejum, colação, lanche e ceia permanecem em lista única (categoria Geral).
             for indice,r in enumerate(self.rows):
                 inserir_preparacao("",indice,r,True)
+        self._render_iniciado=True
 
     def _remover(self):
         sel=self.tree.selection()
