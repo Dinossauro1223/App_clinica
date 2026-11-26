@@ -295,6 +295,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     finally{sincronizando=false}
   }
   async function ready(){
+    if(!window.NL||!window.NL.userId||!window.NL.userId())return;
     const q=queue();
     if(!q.length||adiado||modal||sincronizando)return;
     if(!(await servidorAcessivel()))return;
@@ -490,7 +491,7 @@ async function abrir(u,hoje){
   <nav>${ABAS[u.perfil].map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
   <footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   ir(ABAS[u.perfil][0][0]);
-  verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);clearInterval(S.statusTimer);atualizarConexao();S.statusTimer=setInterval(()=>{atualizarConexao();if(window.NLOffline)NLOffline.ready()},15000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
+  verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);clearInterval(S.statusTimer);atualizarConexao();S.statusTimer=setInterval(()=>{atualizarConexao();if(S.u&&window.NLOffline)NLOffline.ready()},15000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
 }
 const ir=tenta(async aba=>{
   S.aba=aba;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.a===aba));aviso('');
