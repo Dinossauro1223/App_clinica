@@ -11,7 +11,7 @@ FUSO = timezone(timedelta(hours=-3))
 REFEICOES = (("desjejum","Desjejum"),("colacao","Lanche da manhã"),("almoco","Almoço"),
              ("lanche","Lanche da tarde"),("jantar","Jantar"),("ceia","Ceia"))
 REFEICOES_LABEL = dict(REFEICOES)
-CATEGORIAS = ("Gêneros alimentícios","Dietas enterais","Suplementos","Materiais","Limpeza","Outros")
+CATEGORIAS = ("Gêneros alimentícios","Grãos e cereais","Hortifrúti","Carnes e proteínas","Laticínios","Temperos e condimentos","Dietas enterais","Suplementos","Materiais","Limpeza","Outros")
 DDL = """
 CREATE TABLE IF NOT EXISTS Almox_Itens(
  id_item INTEGER PRIMARY KEY AUTOINCREMENT,nome TEXT NOT NULL,unidade TEXT NOT NULL,
