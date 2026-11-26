@@ -539,6 +539,7 @@ public class MainActivity extends Activity {
                         if (url.isEmpty() || testar(url) != null) continue;
                         String identidadeAtual = obterIdentidade(url);
                         if (!identidadeSalva.equals(identidadeAtual)) continue;
+                        if (silencioso && !offlineMode) return;
                         runOnUiThread(new Runnable() {
                             @Override public void run() {
                                 prefs.edit().putString("servidor", url).apply();
@@ -702,6 +703,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void descobrirServidorAutomaticamente() {
+            offlineMode = true;
             MainActivity.this.descobrirServidor(true);
         }
 
