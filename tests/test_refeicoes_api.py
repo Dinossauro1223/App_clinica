@@ -111,9 +111,12 @@ class TestRefeicoesAPI(unittest.TestCase):
         self.api("POST", "/api/admin/usuarios", {
             "login": "copa_offline_teste", "nome": "Copa Offline",
             "perfil": "copa", "id_setor": sid, "senha": "senha123"})
-        with sv.conectar(self.db) as conn:
+        conn = sv.conectar(self.db)
+        try:
             sessao = sv.login(conn, "127.0.0.1",
                               {"login": "copa_offline_teste", "senha": "senha123"})
+        finally:
+            conn.close()
         token_copa = sessao["token"]
         dados = self.api("GET", "/api/refeicoes/servicos",
                          query={"setor": str(sid)}, token=token_copa)
