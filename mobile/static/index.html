@@ -541,7 +541,7 @@ async function vEstoque(){
 function filtrarEstoque(){
  const termo=($('#buscaEstoque')?.value||'').trim().toLocaleLowerCase('pt-BR');
  const cat=$('#categoriaEstoque')?.value||'';
- document.querySelectorAll('#vista [data-i]').forEach(el=>{const nome=el.dataset.nome||'';el.hidden=!!((termo&&!nome.includes(termo))||(cat&&el.dataset.cat!==cat));});
+ document.querySelectorAll('#vista [data-i]').forEach(el=>{const nome=el.dataset.nome||'';el.style.display=((termo&&!nome.includes(termo))||(cat&&el.dataset.cat!==cat))?'none':'';});
 }
 function origens(){
   const iid=$('#ri').value;let primeiro=true;
