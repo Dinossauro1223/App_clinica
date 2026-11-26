@@ -928,9 +928,12 @@ def _extrair_id_tbca(valor):
             ("responsavel", "Autorizado por", 120, "w"), ("vigencia", "Vigência", 170, "w")
         ], altura=6)
         frame.pack(fill="both", expand=True, padx=8, pady=(2, 4))
-        _btn(self.tab_refeicoes, "Encerrar autorização selecionada",
-             self._encerrar_autorizacao_refeicao, 220, cor=LARANJA, hover=tema.LARANJA).pack(
-                 anchor="e", padx=10, pady=(0, 10))
+        acoes_auth = ctk.CTkFrame(self.tab_refeicoes, fg_color="transparent")
+        acoes_auth.pack(anchor="e", padx=10, pady=(0, 10))
+        _btn(acoes_auth, "Encerrar autorização", self._encerrar_autorizacao_refeicao,
+             190, cor=LARANJA, hover=tema.LARANJA).pack(side="left", padx=4)
+        _btn(acoes_auth, "Cancelar autorização", self._cancelar_autorizacao_refeicao,
+             190, cor=LARANJA, hover=tema.LARANJA).pack(side="left", padx=4)
 
     def _carregar_refeicoes_servidas(self):
         try:
@@ -978,6 +981,21 @@ def _extrair_id_tbca(valor):
                 ), tags=("linha_par" if i % 2 == 0 else "linha_impar",))
         except Exception as exc:
             messagebox.showerror("Relatório de refeições", str(exc), parent=self.app)
+
+    def _cancelar_autorizacao_refeicao(self):
+        selecao = self.tree_ref_aut.selection()
+        if not selecao:
+            messagebox.showinfo("Autorizações", "Selecione uma autorização ativa.", parent=self.app)
+            return
+        if not messagebox.askyesno("Cancelar autorização",
+                                   "Cancelar esta autorização? Refeições já servidas serão preservadas.",
+                                   parent=self.app):
+            return
+        try:
+            rdb.encerrar_autorizacao_acompanhante(self.mobile_db, int(selecao[0]), "cancelada")
+            self._carregar_refeicoes_servidas()
+        except Exception as exc:
+            messagebox.showerror("Autorizações", str(exc), parent=self.app)
 
     def _encerrar_autorizacao_refeicao(self):
         selecao = self.tree_ref_aut.selection()
