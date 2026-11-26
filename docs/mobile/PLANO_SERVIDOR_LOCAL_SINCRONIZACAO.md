@@ -29,8 +29,9 @@
 - O aplicativo deve consultar o estado do servidor e mostrar o IP atual detectado.
 - Um administrador pode registrar o IP detectado pelo servidor.
 - Reiniciar o roteador ou receber outro IP não pode ser interpretado como uma nova identidade de servidor.
-- Próxima etapa: implementar descoberta automática (por nome local/mDNS ou mecanismo autenticado de descoberta), para recuperar o endereço quando o IP salvo deixar de responder.
-- A troca manual de endereço/QR deve continuar disponível como contingência.
+- O servidor anuncia sua presença por broadcast UDP local na porta 8766. O APK Android procura o computador na rede e só aceita automaticamente a identidade estável do servidor que já foi vinculada no primeiro acesso por QR/endereço.
+- A identidade do servidor é persistida no banco e devolvida também por `/api/status`. Ela serve para reconhecer o servidor esperado, não é senha nem substitui login.
+- A troca manual de endereço/QR continua disponível como contingência. Se o firewall bloquear UDP 8766, a descoberta automática não funcionará até liberar essa porta; o acesso por endereço/QR continua disponível.
 
 ## Indicador de conexão
 
@@ -67,7 +68,7 @@ O indicador não deve confundir conectividade à internet com disponibilidade do
 - Testes de status, registro, bloqueio de perfis não administradores e idempotência.
 
 ### Ainda pendente — não considerar pronto para produção
-- Descoberta automática do servidor após mudança de IP, sem depender do endereço/QR anteriormente configurado. O registro automático ocorre depois que o cliente consegue reconectar; não resolve sozinho uma URL antiga que deixou de responder.
+- Validar a descoberta UDP em roteadores e versões reais de Android/Windows, incluindo a liberação da porta UDP 8766 no Firewall do Windows. Se a descoberta estiver bloqueada, permanece o fluxo manual por QR/endereço.
 - Fila offline durável e sincronização equivalente para o desktop (além do banco local que já existe) e validação de cada setor/ação.
 - Distribuição incremental completa de atualizações centrais para todos os dispositivos.
 - Política de conflitos completa para prontuário, mapa, refeições e estoque; no momento, a verificação de conflito é aplicada ao mapa e outras regras continuam no servidor.
