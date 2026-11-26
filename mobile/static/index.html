@@ -536,7 +536,7 @@ async function vEstoque(){
    <input type=number inputmode=decimal min=0 step=any value="${l.qtd}" style="margin:6px 0">${chips(l,j.estoque+'|'+l.id_item,j.pendentes)}</div>`).join('')+
   (dia?`<h2>Registrar recebimento, retirada ou devolução</h2><div class=cartao><label class=f>Item<select id=ri onchange="origens()">${j.linhas.map(l=>`<option value=${l.id_item}>${esc(l.nome)} (${esc(l.unidade)})</option>`).join('')}</select></label>
    <label class=f>Quantidade movimentada<input type=number inputmode=decimal min=0 step=any id=rq></label><label class=f>Observação (opcional)<textarea id=robs rows=2 placeholder="Ex.: devolução de 20 g não utilizados"></textarea></label><div class=seg id=ro></div>
-   <button class="btn sec" style="width:100%;margin-top:6px" onclick="repor()">Registrar reposição</button></div>`:'')+barra('salvaEst','Salvar contagem de '+br(j.data));
+   <button class="btn sec" style="width:100%;margin-top:6px" onclick="repor()">Registrar movimentação</button></div>`:'')+barra('salvaEst','Salvar contagem de '+br(j.data));
   if(dia)origens();
 }
 function filtrarEstoque(){
