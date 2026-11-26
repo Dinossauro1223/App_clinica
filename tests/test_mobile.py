@@ -503,6 +503,12 @@ class MobileTest(unittest.TestCase):
         self.assertIn("Estoque da cozinha", html)
         self.assertIn("1. Conferir e atualizar saldo", html)
         self.assertIn("2. Registrar movimentação", html)
+        self.assertIn("lerEscalaTextoMobile", html)
+        self.assertIn("aplicaEscalaTextoMobile", html)
+        self.assertIn("min=50 max=200 step=10", html)
+        self.assertIn("Acessibilidade do texto", html)
+        self.assertIn("preferencias-conteudo", html)
+        self.assertIn("style.zoom", html)
 
     def test_configuracoes_exibem_dois_qrs_e_compartilhamento(self):
         cfg = (Path(__file__).resolve().parents[1] / "configuracoes_ui.py").read_text(encoding="utf-8")
