@@ -654,11 +654,14 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
         custo_mov = "m.custo_snapshot" if "custo_snapshot" in cols else "NULL"
         por_usuario = "m.por_usuario" if "por_usuario" in cols else "NULL"
         rows = conn.execute(f"""SELECT m.data,m.id_mobile,m.hora,m.origem,m.destino,m.item,m.unidade,
-                    m.qtd,m.divergente,{id_item} AS id_item_mobile,{por_usuario} AS por_usuario,
+                    CASE WHEN lower(m.origem)='cozinha' AND lower(m.destino)='almox' THEN -m.qtd ELSE m.qtd END AS qtd,
+                    m.divergente,{id_item} AS id_item_mobile,{por_usuario} AS por_usuario,
                     COALESCE({preco_mov},p.preco_unitario) AS preco_unitario_snapshot,
                     CASE WHEN {preco_mov} IS NOT NULL THEN 'historico'
                          WHEN p.preco_unitario IS NOT NULL THEN 'atual_estimado' ELSE 'pendente' END AS origem_preco,
-                    COALESCE({custo_mov},m.qtd*COALESCE({preco_mov},p.preco_unitario)) AS custo_retirada,
+                    CASE WHEN lower(m.origem)='cozinha' AND lower(m.destino)='almox'
+                         THEN -COALESCE({custo_mov},m.qtd*COALESCE({preco_mov},p.preco_unitario))
+                         ELSE COALESCE({custo_mov},m.qtd*COALESCE({preco_mov},p.preco_unitario)) END AS custo_retirada,
                     COALESCE((SELECT SUM(a.quantidade) FROM GA_Consumo_Alocacoes a
                       WHERE a.data_movimento=m.data AND a.id_movimento_mobile=m.id_mobile AND a.ativa=1),0) AS qtd_alocada,
                     COALESCE((SELECT SUM(a.custo_snapshot) FROM GA_Consumo_Alocacoes a
@@ -671,7 +674,9 @@ def listar_movimentos_cozinha(db_path, inicio, fim):
                 LEFT JOIN {TABELA_PRODUTOS} p ON
                     (p.id_mobile={id_item}) OR ({id_item} IS NULL AND lower(p.nome)=lower(m.item)
                     AND lower(COALESCE(p.unidade_estoque,''))=lower(COALESCE(m.unidade,'')))
-                WHERE m.data BETWEEN ? AND ? AND lower(m.origem)='almox' AND lower(m.destino)='cozinha'
+                WHERE m.data BETWEEN ? AND ? AND (
+                    (lower(m.origem)='almox' AND lower(m.destino)='cozinha') OR
+                    (lower(m.origem)='cozinha' AND lower(m.destino)='almox'))
                 ORDER BY m.data DESC,m.hora DESC,m.id_mobile DESC""", (inicio, fim)).fetchall()
         resultado = []
         for row in rows:
