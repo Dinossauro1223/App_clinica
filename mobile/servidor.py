@@ -463,7 +463,7 @@ def timestamp_novo(novo, atual):
 
 def atual(c, tipo, data, chave):
     if tipo == "mapa":
-        r = c.execute("SELECT ocupado,acompanhante,COALESCE(dieta,'') dieta,COALESCE(nome,'') nome,idade_anos,idade_meses,"
+        r = c.execute("SELECT id_ocupacao,ocupado,acompanhante,COALESCE(dieta,'') dieta,COALESCE(nome,'') nome,idade_anos,idade_meses,"
                       "COALESCE(diagnostico,'') diagnostico,COALESCE(pref_sim,'') pref_sim,COALESCE(pref_nao,'') pref_nao,"
                       "COALESCE(cor,'') cor,COALESCE(consistencia,'') consistencia,COALESCE(via,'') via,"
                       "COALESCE(dm,0) dm,COALESCE(has,0) has,COALESCE(laxativa,0) laxativa,"
@@ -497,7 +497,7 @@ def gravar(c, tipo, data, chave, v, uid, perfil, origem="mobile"):
                  usuario["nome"] if usuario else "Usuário removido", perfil, t, origem,
                  json.dumps(campos, ensure_ascii=False),
                  json.dumps(anterior, ensure_ascii=False) if anterior is not None else None,
-                 json.dumps({k: v.get(k) for k in CAMPOS}, ensure_ascii=False)),
+                 json.dumps({**{k: v.get(k) for k in CAMPOS}, "id_ocupacao": id_ocupacao}, ensure_ascii=False)),
             )
         anterior_ocupacao = c.execute("SELECT id_ocupacao,nome,ocupado FROM mapa_dia WHERE id_leito=? AND data<=? ORDER BY data DESC LIMIT 1",
                                        (int(chave), data)).fetchone()
@@ -952,19 +952,41 @@ def _rotear(c, ip, m, p, q, b, auth):
             if publico not in ("paciente", "funcionario", "acompanhante"):
                 raise Erro("Público inválido.")
             instante = b.get("servido_em") or agora()
-            dados = {"servido_em": instante, "refeicao": ref, "publico": publico,
+            try:
+                instante_dt = datetime.fromisoformat(str(instante).replace("Z", "+00:00"))
+                instante_dt = instante_dt.replace(tzinfo=TZ) if instante_dt.tzinfo is None else instante_dt.astimezone(TZ)
+            except ValueError:
+                raise Erro("Data e hora do serviço inválidas.")
+            d = instante_dt.date().isoformat()
+            dados = {"servido_em": instante_dt.isoformat(timespec="seconds"), "refeicao": ref, "publico": publico,
                      "destinatario_nome": b.get("destinatario_nome") or "",
                      "quantidade": b.get("quantidade", 1), "unidade": b.get("unidade", "porcao"),
                      "valor_unitario": b.get("valor_unitario"), "destinatario_id": b.get("destinatario_id"),
                      "usuario_registro": u["nome"], "observacao": b.get("observacao")}
             if publico in ("paciente", "acompanhante"):
                 lid = int(b.get("id_leito") or 0)
-                paciente = next((x for x in linhas_mapa(c, s["id"], d)
-                                 if int(x["id_leito"]) == lid and x.get("ocupado") and x.get("id_ocupacao")), None)
-                if not paciente:
-                    raise Erro("O leito não possui paciente ativo no mapa selecionado.")
-                dados.update(id_paciente=paciente["id_ocupacao"], nome_paciente=paciente["nome"],
-                             leito=paciente["codigo"], destinatario_nome=paciente["nome"])
+                paciente_atual = next((x for x in linhas_mapa(c, s["id"], d)
+                                       if int(x["id_leito"]) == lid), None)
+                historicos = c.execute(
+                    "SELECT atualizado_em,antes_json FROM mapa_historico WHERE data=? AND id_leito=? ORDER BY atualizado_em DESC",
+                    (d, lid)).fetchall()
+                estado = paciente_atual
+                for evento in historicos:
+                    try:
+                        instante_mudanca = datetime.fromisoformat(str(evento["atualizado_em"]).replace("Z", "+00:00"))
+                        instante_mudanca = instante_mudanca.replace(tzinfo=TZ) if instante_mudanca.tzinfo is None else instante_mudanca.astimezone(TZ)
+                    except ValueError:
+                        continue
+                    if instante_mudanca > instante_dt:
+                        estado = json.loads(evento["antes_json"]) if evento["antes_json"] else None
+                id_informado = str(b.get("id_paciente") or "")
+                if (not estado or not estado.get("ocupado") or not estado.get("id_ocupacao")
+                        or not id_informado or str(estado.get("id_ocupacao")) != id_informado):
+                    raise Erro("O paciente informado não corresponde à ocupação do leito no horário da refeição.")
+                nome_snapshot = str(estado.get("nome") or b.get("nome_paciente") or "")
+                leito_snapshot = str(estado.get("codigo") or b.get("leito") or paciente_atual.get("codigo") if paciente_atual else b.get("leito") or "")
+                dados.update(id_paciente=id_informado, nome_paciente=nome_snapshot,
+                             leito=leito_snapshot, destinatario_nome=nome_snapshot)
             if publico == "acompanhante":
                 dados["id_autorizacao_acompanhante"] = b.get("id_autorizacao_acompanhante")
             rid = refeicoes_operacionais.registrar_refeicao_servida(db, **dados)
