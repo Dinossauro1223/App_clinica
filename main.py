@@ -148,6 +148,8 @@ class AppClinica(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
 
         self.configurar_banco_dados()
+        # Sobe o servidor assim que o banco principal está pronto, antes da montagem de telas pesadas.
+        self._iniciar_servidor_mobile()
 
         # Mapa Nutricional: usa o mesmo banco da tela Pacientes (get_base_path) para unificar os dados.
         db_mapa = caminho_do_banco()
@@ -218,8 +220,6 @@ class AppClinica(ctk.CTk):
         )
         self._lbl_status_conexao.pack(fill="both", expand=True, padx=12)
         self.bind("<Escape>", self._fechar_ultima_aba_lateral, add="+")
-        # O servidor sobe antes de telas iniciais ou diálogos que possam aguardar interação.
-        self._iniciar_servidor_mobile()
         self.tela_inicial()
         self._iniciar_backups()
         self._sincronizacao_mobile_em_andamento = False
