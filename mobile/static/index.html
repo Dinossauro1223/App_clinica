@@ -553,7 +553,7 @@ async function vRef(){
         <div class=filtros><label class=f>Início da vigência<input class=au-inicio type=datetime-local></label><label class=f>Término (opcional)<input class=au-fim type=datetime-local></label></div>
         <button class="btn sec" style="width:100%" onclick="criarAutorizacao(this)">Salvar autorização</button>
       </details>`:''}
-      ${minhas.length?`<div class=mini><b>Autorizações ativas</b>${minhas.map(a=>`<p>#${a.id_autorizacao} · ${a.quantidade_acompanhantes} acompanhante(s) · ${a.refeicoes.map(r=>REF[r]).join(', ')} ${st?`<button class="btn no peq" onclick="encerrarAutorizacao(${a.id_autorizacao})">Encerrar</button>`:''}</p>`).join('')}</div>`:''}
+      ${minhas.length?`<div class=mini><b>Autorizações ativas</b>${minhas.map(a=>`<p>#${a.id_autorizacao} · ${a.quantidade_acompanhantes} acompanhante(s) · ${a.refeicoes.map(r=>REF[r]).join(', ')} ${st?`<button class="btn no peq" onclick="encerrarAutorizacao(${a.id_autorizacao},'encerrada')">Encerrar</button><button class="btn no peq" onclick="encerrarAutorizacao(${a.id_autorizacao},'cancelada')">Cancelar</button>`:''}</p>`).join('')}</div>`:''}
     </div>`;
   }).join('');
   const janelaUi=st?`<h2>Janelas por público</h2><p class=mini>Sem janela configurada, o registro fica bloqueado. Os horários de pacientes e funcionários são independentes.</p><div class=cartao>
@@ -604,10 +604,11 @@ const criarAutorizacao=tenta(async(botao)=>{
     fim_vigencia:card.querySelector('.au-fim').value?new Date(card.querySelector('.au-fim').value).toISOString():null});
   await vRef();aviso('Autorização vinculada ao paciente.',0);
 });
-const encerrarAutorizacao=tenta(async(id)=>{
-  if(!confirm('Encerrar esta autorização? Refeições já servidas continuarão no histórico.'))return;
-  await api('/api/refeicoes/autorizacoes/'+id,{situacao:'encerrada'});
-  await vRef();aviso('Autorização encerrada.',0);
+const encerrarAutorizacao=tenta(async(id,situacao='encerrada')=>{
+  const acao=situacao==='cancelada'?'Cancelar':'Encerrar';
+  if(!confirm(acao+' esta autorização? Refeições já servidas continuarão no histórico.'))return;
+  await api('/api/refeicoes/autorizacoes/'+id,{situacao});
+  await vRef();aviso('Autorização '+(situacao==='cancelada'?'cancelada':'encerrada')+'.',0);
 });
 const salvaJanelasPublico=tenta(async()=>{
   for(const e of document.querySelectorAll('[data-rj]')){
