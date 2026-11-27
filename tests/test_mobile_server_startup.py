@@ -58,5 +58,76 @@ class TestHealthCheckMobile(unittest.TestCase):
         self.assertEqual(data, {"status": "error", "database": "unavailable"})
 
 
+class _EncerramentoControlado:
+    """Evento mínimo para testar espera/cancelamento sem atrasos reais."""
+
+    def __init__(self, cancelar=False):
+        self.cancelar = cancelar
+        self.esperas = []
+
+    def is_set(self):
+        return False
+
+    def wait(self, segundos):
+        self.esperas.append(segundos)
+        return self.cancelar
+
+
+class TestRetryInicializacaoMobile(unittest.TestCase):
+    def _app_minimo(self, cancelar=False):
+        import queue
+        import main
+
+        app = main.AppClinica.__new__(main.AppClinica)
+        app._mobile_encerrando = _EncerramentoControlado(cancelar=cancelar)
+        app._mobile_lock = threading.Lock()
+        app._mobile_resultados = queue.Queue()
+        app._servidor_mobile = None
+        app._thread_servidor_mobile = None
+        return app
+
+    def test_falha_persistente_faz_tres_tentativas_e_publica_um_erro(self):
+        from unittest import mock
+        import main
+
+        app = self._app_minimo()
+        with (
+            mock.patch.object(main.im, "caminho_mobile_db", side_effect=OSError("banco indisponível")) as preparar,
+            mock.patch.object(main, "caminho_do_banco", return_value="clinica.db"),
+            mock.patch.object(main, "get_base_path", return_value="."),
+            mock.patch("os.makedirs"),
+            mock.patch("builtins.open", mock.mock_open()),
+            mock.patch("builtins.print"),
+        ):
+            app._iniciar_servidor_mobile_worker()
+
+        self.assertEqual(preparar.call_count, 3)
+        self.assertEqual(app._mobile_encerrando.esperas, [1.5, 3.0])
+        resultado = app._mobile_resultados.get_nowait()
+        self.assertEqual(resultado[0], "erro")
+        self.assertIn("banco indisponível", resultado[1])
+        self.assertTrue(app._mobile_resultados.empty())
+
+    def test_fechamento_cancela_nova_tentativa(self):
+        from unittest import mock
+        import main
+
+        app = self._app_minimo(cancelar=True)
+        with (
+            mock.patch.object(main.im, "caminho_mobile_db", side_effect=OSError("falha transitória")) as preparar,
+            mock.patch.object(main, "caminho_do_banco", return_value="clinica.db"),
+            mock.patch.object(main, "get_base_path", return_value="."),
+            mock.patch("os.makedirs"),
+            mock.patch("builtins.open", mock.mock_open()),
+            mock.patch("builtins.print"),
+        ):
+            app._iniciar_servidor_mobile_worker()
+
+        self.assertEqual(preparar.call_count, 1)
+        self.assertEqual(app._mobile_encerrando.esperas, [1.5])
+        self.assertTrue(app._mobile_resultados.empty())
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
