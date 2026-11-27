@@ -142,3 +142,44 @@ class TestCalculoOsmolaridadeDiluicao(unittest.TestCase):
         r = sc.calcular_osmolaridade_diluicao(dict(self.ficha, unidade_dose_ref="g"), 100, 50)
         self.assertIsNone(r["valor"])
         self.assertEqual(r["status"], "unidade_dose_incompativel")
+    def test_comparacao_substituicao_calcula_energia_proteina_e_peso(self):
+        atual = {"id_suplemento": 1, "nome": "A", "qtd_dia": 200, "unidade": "ml",
+                 "kcal_100": 100, "ptn_100": 4, "lip_100": 2, "carb_100": 10, "sod_100": 50,
+                 "agua_ml": 100, "agua_separada_ml": 200}
+        novo = {"id_suplemento": 2, "nome": "B", "qtd_dia": 200, "unidade": "ml",
+                "kcal_100": 150, "ptn_100": 6, "lip_100": 3, "carb_100": 15, "sod_100": 80,
+                "agua_ml": 50, "agua_separada_ml": 200}
+        r = sc.comparar_substituicao([atual], 1, novo, peso_kg=60,
+                                     meta_kcal=1800, meta_proteina_g=90)
+        self.assertEqual(r["antes"]["energia_kcal_dia"], 200)
+        self.assertEqual(r["depois"]["energia_kcal_dia"], 300)
+        self.assertEqual(r["comparacoes"]["energia_kcal_dia"]["diferenca"], 100)
+        self.assertEqual(r["depois"]["energia_kcal_kg_dia"], 5)
+        self.assertEqual(r["depois"]["proteina_g_kg_dia"], 0.2)
+        self.assertEqual(r["agua_misturada_ml_dia"]["diferenca"], -50)
+        self.assertEqual(r["agua_separada_ml_dia"]["diferenca"], 0)
+        self.assertEqual(r["osmolaridade_atual"]["status"], "preparacoes_nao_informadas")
+
+    def test_comparacao_osmolaridade_individual_por_preparacao(self):
+        ficha = {"id_suplemento": 1, "nome": "A", "qtd_dia": 100, "unidade": "ml",
+                 "kcal_100": 100, "ptn_100": 5, "lip_100": 1, "carb_100": 2, "sod_100": 3,
+                 "osmolaridade_ref": 300, "unidade_osmolaridade": "mOsm/L",
+                 "dose_ref": 100, "unidade_dose_ref": "ml", "volume_final_ref_ml": 100,
+                 "preparacoes": [{"dose": 50, "agua_adicionada_ml": 0},
+                                  {"dose": 50, "agua_adicionada_ml": 50, "agua_separada_ml": 100}]}
+        novo = dict(ficha, id_suplemento=2, nome="B", preparacoes=[
+            {"dose": 100, "agua_adicionada_ml": 100}])
+        r = sc.comparar_substituicao([ficha], 1, novo, peso_kg=50)
+        self.assertEqual(r["osmolaridade_atual"]["status"], "calculada")
+        self.assertEqual([p["valor"] for p in r["osmolaridade_atual"]["preparacoes"]], [300, 150])
+        self.assertEqual(r["osmolaridade_atual"]["agua_separada_total_ml"], 100)
+        self.assertEqual(r["osmolaridade_substituto"]["preparacoes"][0]["valor"], 150)
+
+    def test_comparacao_exige_item_e_dose_substituta(self):
+        with self.assertRaises(ValueError):
+            sc.comparar_substituicao([], 1, {"qtd_dia": 100, "unidade": "ml"})
+        with self.assertRaises(ValueError):
+            sc.comparar_substituicao([{"id_suplemento": 1}], 1,
+                                     {"qtd_dia": 0, "unidade": "ml"})
+
+
