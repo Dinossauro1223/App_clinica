@@ -1211,7 +1211,7 @@ class DialogOrdemSetores(_Janela):
 
 class DialogSuplemento(_Janela):
     def __init__(self, ui, sup):
-        super().__init__(ui, "Suplemento", "720x760")
+        super().__init__(ui, "Suplemento", "760x900")
         self.sup = sup or {}
         self.e = {}
         quadro = ctk.CTkFrame(self, fg_color="transparent")
@@ -1255,6 +1255,31 @@ class DialogSuplemento(_Janela):
         self.e_fonte_osm.grid(row=linha, column=1, sticky="w", pady=4)
         _set_entry(self.e_fonte_osm, self.sup.get("fonte_osmolaridade") or "")
         linha += 1
+        opcoes = [
+            ("classificacao_nutricional", "Classificação nutricional", [("polimerica", "Polimérica"), ("oligomerica", "Oligomérica / semi-elementar"), ("elementar", "Elementar"), ("modulo_nutriente", "Módulo de nutrientes"), ("formula_especifica", "Fórmula específica"), ("nao_informado", "Não informado")]),
+            ("grau_hidrolise", "Grau de hidrólise proteica", [("proteina_intacta", "Proteína intacta"), ("parcialmente_hidrolisada", "Parcialmente hidrolisada"), ("extensamente_hidrolisada", "Extensamente hidrolisada"), ("aminoacidos_livres", "Aminoácidos livres"), ("mista", "Mista"), ("nao_informado", "Não informado")]),
+            ("tipo_formula", "Apresentação da fórmula", [("fechada", "Fechada"), ("aberta", "Aberta / modular"), ("nao_informado", "Não informado")]),
+        ]
+        self.cb_classificacoes = {}
+        for chave, rotulo, opcoes_campo in opcoes:
+            ctk.CTkLabel(quadro, text=rotulo).grid(row=linha, column=0, sticky="w", pady=4)
+            cb = ctk.CTkComboBox(quadro, values=[rotulo for _, rotulo in opcoes_campo], width=330, state="readonly")
+            cb.grid(row=linha, column=1, sticky="w", pady=4)
+            atual = self.sup.get(chave) or "nao_informado"
+            rotulo_atual = next((rotulo for valor, rotulo in opcoes_campo if valor == atual), opcoes_campo[-1][1])
+            cb.set(rotulo_atual)
+            self.cb_classificacoes[chave] = (cb, opcoes_campo)
+            linha += 1
+        ctk.CTkLabel(quadro, text="Proteínas hidrolisadas (fonte/tipo)").grid(row=linha, column=0, sticky="w", pady=4)
+        self.e_proteinas_hidrolisadas = ctk.CTkEntry(quadro, width=330)
+        self.e_proteinas_hidrolisadas.grid(row=linha, column=1, sticky="w", pady=4)
+        _set_entry(self.e_proteinas_hidrolisadas, self.sup.get("proteinas_hidrolisadas") or "")
+        linha += 1
+        ctk.CTkLabel(quadro, text="Fonte da classificação (fabricante/ficha)").grid(row=linha, column=0, sticky="w", pady=4)
+        self.e_fonte_classificacao = ctk.CTkEntry(quadro, width=330)
+        self.e_fonte_classificacao.grid(row=linha, column=1, sticky="w", pady=4)
+        _set_entry(self.e_fonte_classificacao, self.sup.get("fonte_classificacao") or "")
+        linha += 1
         ctk.CTkLabel(quadro, text="Observações").grid(row=linha, column=0, sticky="nw", pady=4)
         self.t_obs = ctk.CTkTextbox(quadro, width=330, height=70)
         self.t_obs.grid(row=linha, column=1, sticky="w", pady=4)
@@ -1266,7 +1291,12 @@ class DialogSuplemento(_Janela):
         d.update(modulo=self.cb_mod.get().strip(), emb_un=self.cb_un.get(),
                  unidade_osmolaridade=self.cb_un_osm.get(), unidade_dose_ref=self.cb_un_dose.get(),
                  fonte_osmolaridade=self.e_fonte_osm.get().strip(),
-                 observacao=self.t_obs.get("1.0", "end-1c").strip(), id_suplemento=self.sup.get("id_suplemento"))
+                 observacao=self.t_obs.get("1.0", "end-1c").strip(), id_suplemento=self.sup.get("id_suplemento"),
+                 proteinas_hidrolisadas=self.e_proteinas_hidrolisadas.get().strip(),
+                 fonte_classificacao=self.e_fonte_classificacao.get().strip())
+        for chave, (cb, opcoes_campo) in self.cb_classificacoes.items():
+            rotulo = cb.get()
+            d[chave] = next((valor for valor, nome in opcoes_campo if nome == rotulo), "nao_informado")
         try:
             mdb.salvar_suplemento(self.ui.db, d)
         except ValueError as e:
