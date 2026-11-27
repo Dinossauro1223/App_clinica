@@ -36,7 +36,7 @@ KONDRUP, Jens et al. Nutritional risk screening (NRS 2002): a new method based o
 MIFFLIN, Mark D. et al. A new predictive equation for resting energy expenditure in healthy individuals. *The American Journal of Clinical Nutrition*, v. 51, n. 2, p. 241-247, 1990. DOI: https://doi.org/10.1093/ajcn/51.2.241. Disponível em: https://pubmed.ncbi.nlm.nih.gov/2305711/. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** equação preditiva de gasto energético em repouso; o resultado é estimativa e não substitui calorimetria indireta.
 
-SOCIEDADE BRASILEIRA DE DIABETES. *Diretriz da Sociedade Brasileira de Diabetes: edição 2026*. São Paulo: SBD, 2026. Disponível em: https://diretriz.diabetes.org.br/. Acesso em: 27 nov. 2026.  
+VALENTE, Fernando et al. Manejo do Diabetes Mellitus Tipo 2. In: SOCIEDADE BRASILEIRA DE DIABETES. *Diretriz Oficial da Sociedade Brasileira de Diabetes: edição 2026*. São Paulo: SBD, 2026. DOI: https://doi.org/10.29327/5881296.2026-2. Disponível em: https://diretriz.diabetes.org.br/manejo-do-diabetes-mellitus-tipo-2/. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** referência nacional para contextualizar diabetes mellitus, metas glicêmicas e recomendações nutricionais; a diretriz deve ser consultada por capítulo e data de atualização.
 
 UNIVERSIDADE FEDERAL DO RIO GRANDE DO NORTE. Sistema Integrado de Bibliotecas. *Orientações para normalização de trabalhos acadêmicos*. Natal: UFRN, [s. d.]. Disponível em: https://sisbi.ufrn.br/biblioteca/bczm/orientacoes. Acesso em: 27 nov. 2026.  
