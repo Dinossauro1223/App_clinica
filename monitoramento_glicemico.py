@@ -123,7 +123,9 @@ def listar_ofertas_nutricionais(caminho, id_paciente, inicio=None, fim=None):
         with closing(sqlite3.connect(caminho)) as conn, conn:
             rows = conn.execute(sql,args).fetchall()
     except sqlite3.Error:
-        return eventos
+        # O banco pode ainda não possuir o mapa de suplementos; isso não deve
+        # impedir a leitura das administrações enterais reais.
+        rows = []
     for data, nome, preparacoes_json, carb_100, fibra_100, tipo_fibra, unidade in rows:
         try:
             preparacoes = json.loads(preparacoes_json or "[]")
