@@ -15,6 +15,9 @@ CHUMLEA, William C.; ROCHE, Alex F.; STEINBAUGH, Marsha L. Estimating stature fr
 GOMES, F. et al. ESPEN practical guideline: clinical nutrition in hospitalized patients. *Clinical Nutrition*, v. 40, n. 12, p. 5684-5709, 2021. DOI: https://doi.org/10.1016/j.clnu.2021.09.012.  
 **Aplicação no NutriLab:** acompanhamento da ingestão alimentar e suporte nutricional em pacientes hospitalizados.
 
+ERNSTMEYER, K.; CHRISTMAN, E. (ed.). *Nursing fundamentals*. 2. ed. Eau Claire: Chippewa Valley Technical College, 2024. Part XV: Fluids and Electrolytes. Disponível em: https://www.ncbi.nlm.nih.gov/books/NBK610839/. Acesso em: 27 nov. 2026.  
+**Aplicação no NutriLab:** contextualiza a variação de peso superior a 1 kg em 24 horas como sinal relevante para revisão do balanço hídrico, quando a pesagem é padronizada; não é critério de diagnóstico de desnutrição.
+
 IKIZLER, T. Alp et al. KDOQI clinical practice guideline for nutrition in CKD: 2020 update. *American Journal of Kidney Diseases*, v. 76, n. 3, supl. 1, p. S1-S107, 2020. DOI: https://doi.org/10.1053/j.ajkd.2020.05.006. Disponível em: https://pubmed.ncbi.nlm.nih.gov/32829751/. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** referência alternativa selecionável para avaliação e cuidado nutricional na doença renal crônica; não é misturada automaticamente às recomendações KDIGO.
 
