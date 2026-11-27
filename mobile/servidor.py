@@ -5,6 +5,8 @@ Descrição completa e contrato de dados: docs/mobile/INTEGRACAO_MOBILE.md
 Uso:  python mobile/servidor.py [--porta 8765] [--db CAMINHO] [--redefinir-admin]
 """
 import argparse
+import base64
+import binascii
 import hashlib
 import hmac
 import ipaddress
@@ -331,6 +333,10 @@ def migrar(c):
                       ("drc", "INTEGER DEFAULT 0"), ("suplementos_json", "TEXT")):
         if col not in cols("mapa_dia"):
             c.execute("ALTER TABLE mapa_dia ADD COLUMN %s %s" % (col, tipo))
+    # Imagens de orientação são armazenadas no banco compartilhado e preservadas nas atualizações.
+    for col, tipo in (("imagem_data", "TEXT"), ("imagem_tipo", "TEXT")):
+        if col not in cols("orientacoes"):
+            c.execute("ALTER TABLE orientacoes ADD COLUMN %s %s" % (col, tipo))
     # Metadados comerciais e snapshots de custo são aditivos: bancos antigos mantêm todo o histórico.
     for col, tipo in (("preco_unitario", "REAL"), ("embalagem_qtd", "REAL"), ("embalagem_un", "TEXT"), ("ativo", "INTEGER NOT NULL DEFAULT 1"), ("categoria", "TEXT NOT NULL DEFAULT 'Gêneros alimentícios'"), ("validade", "TEXT")):
         if col not in cols("itens"):
@@ -1066,7 +1072,7 @@ def _rotear(c, ip, m, p, q, b, auth):
             "SELECT id,nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,categoria,validade FROM itens ORDER BY CASE WHEN validade IS NULL OR validade='' THEN 1 ELSE 0 END,validade,categoria COLLATE NOCASE,nome COLLATE NOCASE")]}
     if (m, p) == ("GET", "/api/orientacoes"):
         return {"orientacoes": [dict(r) for r in c.execute(
-            "SELECT id,slug,titulo,texto,ordem,atualizado_em FROM orientacoes ORDER BY ordem,id")]}
+            "SELECT id,slug,titulo,texto,ordem,atualizado_em,imagem_data,imagem_tipo FROM orientacoes ORDER BY ordem,id")]}
     if (m, p) == ("GET", "/api/suplementos"):
         return {"suplementos": [dict(r) for r in c.execute(
             "SELECT id_suplemento,nome,modulo,emb_qtd,emb_un,kcal_100,ptn_100,lip_100,carb_100,sod_100 "
@@ -1297,6 +1303,32 @@ def _rotear(c, ip, m, p, q, b, auth):
     if p.startswith("/api/admin/"):
         if not adm:
             raise Erro("Somente o administrador.", 403)
+        if (m == "POST" and p == "/api/admin/orientacoes/imagem"):
+            oid = b.get("id")
+            tipo = str(b.get("tipo") or "").lower().strip()
+            dados = str(b.get("imagem_data") or "").strip()
+            if not oid or tipo not in ("image/jpeg", "image/png", "image/webp"):
+                raise Erro("Selecione uma imagem JPEG, PNG ou WebP válida.")
+            if not dados or len(dados) > 650_000:
+                raise Erro("A imagem está vazia ou excede o limite permitido.")
+            try:
+                bruto = base64.b64decode(dados, validate=True)
+            except (binascii.Error, ValueError):
+                raise Erro("Arquivo de imagem inválido.")
+            if not bruto or len(bruto) > 480_000:
+                raise Erro("A imagem deve ter no máximo 480 KB após a compressão.")
+            assinaturas = {
+                "image/jpeg": bruto.startswith(b"\xff\xd8\xff"),
+                "image/png": bruto.startswith(b"\x89PNG\r\n\x1a\n"),
+                "image/webp": len(bruto) >= 12 and bruto[:4] == b"RIFF" and bruto[8:12] == b"WEBP",
+            }
+            if not assinaturas[tipo]:
+                raise Erro("O conteúdo do arquivo não corresponde ao formato informado.")
+            cur = c.execute("UPDATE orientacoes SET imagem_data=?,imagem_tipo=?,atualizado_por=?,atualizado_em=? WHERE id=?",
+                            (dados, tipo, u["id"], agora(), int(oid)))
+            if not cur.rowcount:
+                raise Erro("Tópico não encontrado.", 404)
+            return {"ok": True}
         if (m, p) == ("POST", "/api/admin/orientacoes"):
             titulo = str(b.get("titulo", "")).strip()
             texto = str(b.get("texto", "")).strip()
@@ -1564,7 +1596,9 @@ class Manipulador(BaseHTTPRequestHandler):
                 raise Erro("Página não encontrada.", 404)
             b = {}
             if m == "POST":
-                n = min(int(self.headers.get("Content-Length") or 0), 1_000_000)
+                n = int(self.headers.get("Content-Length") or 0)
+                if n < 0 or n > 900_000:
+                    raise Erro("A solicitação excede o limite de 900 KB.", 413)
                 b = json.loads(self.rfile.read(n) or b"{}")
             self._enviar(200, rotear(self.server.db, self.client_address[0], m, u.path, q, b,
                 self.headers.get("Authorization", ""), self.headers.get("X-Nutrilab-Operation-Id")))
