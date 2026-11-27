@@ -12,14 +12,14 @@ BRANDÃO, Andréa Araujo et al. Diretriz Brasileira de Hipertensão Arterial –
 CEDERHOLM, Tommy et al. GLIM criteria for the diagnosis of malnutrition: a consensus report from the global clinical nutrition community. *Clinical Nutrition*, v. 38, n. 1, p. 1-9, 2019. DOI: https://doi.org/10.1016/j.clnu.2018.08.002. Disponível em: https://pubmed.ncbi.nlm.nih.gov/30181091/. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** critérios fenotípicos e etiológicos de desnutrição; perda ponderal, IMC e massa muscular; exigência de pelo menos um critério fenotípico e um etiológico.
 
-CHUMLEA, William C.; ROCHE, Alex F.; STEINBAUGH, Marsha L. Estimating stature from knee height for persons 60 to 90 years of age. *Journal of the American Geriatrics Society*, v. 33, n. 2, p. 116-120, 1985.  
+CHUMLEA, William C.; ROCHE, Alex F.; STEINBAUGH, Marsha L. Estimating stature from knee height for persons 60 to 90 years of age. *Journal of the American Geriatrics Society*, v. 33, n. 2, p. 116-120, 1985. Disponível em: https://pubmed.ncbi.nlm.nih.gov/?term=Estimating+stature+from+knee+height+for+persons+60+to+90+years+of+age. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** referência histórica para estimativa de estatura por altura do joelho em idosos; o programa deve identificar a população de origem e manter o resultado como estimado.
-
-GOMES, F. et al. ESPEN practical guideline: clinical nutrition in hospitalized patients. *Clinical Nutrition*, v. 40, n. 12, p. 5684-5709, 2021. DOI: https://doi.org/10.1016/j.clnu.2021.09.012.  
-**Aplicação no NutriLab:** acompanhamento da ingestão alimentar e suporte nutricional em pacientes hospitalizados.
 
 ERNSTMEYER, K.; CHRISTMAN, E. (ed.). *Nursing fundamentals*. 2. ed. Eau Claire: Chippewa Valley Technical College, 2024. Part XV: Fluids and Electrolytes. Disponível em: https://www.ncbi.nlm.nih.gov/books/NBK610839/. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** contextualiza a variação de peso superior a 1 kg em 24 horas como sinal relevante para revisão do balanço hídrico, quando a pesagem é padronizada; não é critério de diagnóstico de desnutrição.
+
+GOMES, F. et al. ESPEN practical guideline: clinical nutrition in hospitalized patients. *Clinical Nutrition*, v. 40, n. 12, p. 5684-5709, 2021. DOI: https://doi.org/10.1016/j.clnu.2021.09.012. Disponível em: https://doi.org/10.1016/j.clnu.2021.09.012. Acesso em: 27 nov. 2026.  
+**Aplicação no NutriLab:** acompanhamento da ingestão alimentar e suporte nutricional em pacientes hospitalizados.
 
 IKIZLER, T. Alp et al. KDOQI clinical practice guideline for nutrition in CKD: 2020 update. *American Journal of Kidney Diseases*, v. 76, n. 3, supl. 1, p. S1-S107, 2020. DOI: https://doi.org/10.1053/j.ajkd.2020.05.006. Disponível em: https://pubmed.ncbi.nlm.nih.gov/32829751/. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** referência alternativa selecionável para avaliação e cuidado nutricional na doença renal crônica; não é misturada automaticamente às recomendações KDIGO.
@@ -30,7 +30,7 @@ JENSEN, Gordon L. et al. GLIM consensus approach to diagnosis of malnutrition: a
 KIDNEY DISEASE: IMPROVING GLOBAL OUTCOMES (KDIGO). *KDIGO 2024 clinical practice guideline for the evaluation and management of chronic kidney disease*. 2024. Disponível em: https://kdigo.org/wp-content/uploads/2024/03/KDIGO-2024-CKD-Guideline.pdf. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** referência renal padrão para avaliação da DRC, categorias de TFGe e albuminúria e contexto clínico.
 
-KONDRUP, Jens et al. Nutritional risk screening (NRS 2002): a new method based on an analysis of controlled clinical trials. *Clinical Nutrition*, v. 22, n. 3, p. 321-336, 2003.  
+KONDRUP, Jens et al. Nutritional risk screening (NRS 2002): a new method based on an analysis of controlled clinical trials. *Clinical Nutrition*, v. 22, n. 3, p. 321-336, 2003. Disponível em: https://pubmed.ncbi.nlm.nih.gov/?term=Nutritional+risk+screening+NRS+2002+Kondrup. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** triagem de risco nutricional e programação da reavaliação conforme o fluxo NRS-2002.
 
 MIFFLIN, Mark D. et al. A new predictive equation for resting energy expenditure in healthy individuals. *The American Journal of Clinical Nutrition*, v. 51, n. 2, p. 241-247, 1990. DOI: https://doi.org/10.1093/ajcn/51.2.241. Disponível em: https://pubmed.ncbi.nlm.nih.gov/2305711/. Acesso em: 27 nov. 2026.  
