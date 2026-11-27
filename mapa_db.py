@@ -126,10 +126,10 @@ CREATE TABLE IF NOT EXISTS Mapa_Suplementos (
     id_suplemento INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, modulo TEXT, preco REAL,
     emb_qtd REAL, emb_un TEXT DEFAULT 'ml', kcal_100 REAL, ptn_100 REAL, lip_100 REAL,
     carb_100 REAL, sod_100 REAL, observacao TEXT, ativo INTEGER DEFAULT 1,
-    osmolaridade_ref REAL, unidade_osmolaridade TEXT DEFAULT 'mOsm/L', dose_ref REAL,
+    osmolaridade_ref REAL, fibra_g_100 REAL, tipo_fibra TEXT, descricao_fibra TEXT, fonte_fibra TEXT, unidade_osmolaridade TEXT DEFAULT 'mOsm/L', dose_ref REAL,
     unidade_dose_ref TEXT, volume_final_ref_ml REAL, agua_recomendada_ml REAL, fonte_osmolaridade TEXT,
     classificacao_nutricional TEXT, grau_hidrolise TEXT, proteinas_hidrolisadas TEXT,
-    fonte_classificacao TEXT, tipo_formula TEXT);
+    fonte_classificacao TEXT, tipo_formula TEXT, fibra_g_100 REAL, tipo_fibra TEXT, descricao_fibra TEXT, fonte_fibra TEXT);
 CREATE TABLE IF NOT EXISTS Mapa_Registros (
     id_registro INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, id_leito INTEGER NOT NULL,
     id_paciente INTEGER, nome_paciente TEXT NOT NULL, acompanhante INTEGER DEFAULT 0,
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
     aj_cm REAL, pp_cm REAL, pb_cm REAL,
     altura_cm REAL, altura_origem TEXT, altura_metodo TEXT,
     peso_kg REAL, peso_origem TEXT, peso_metodo TEXT,
-    imc REAL, imc_class TEXT, data_reavaliacao TEXT, via TEXT, tipo_dieta TEXT, meta_kcal REAL, meta_proteina_g REAL,
+    imc REAL, imc_class TEXT, data_reavaliacao TEXT, via TEXT, tipo_dieta TEXT, meta_kcal REAL, meta_proteina_g REAL, meta_fibras_g REAL,
     dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
     constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, condicoes TEXT, consistencia TEXT,
     obs_sim TEXT, obs_nao TEXT, fi_estado TEXT, fi_freq REAL, fi_dias_ausente INTEGER,
@@ -166,7 +166,7 @@ CREATE INDEX IF NOT EXISTS ix_mapa_regsup_reg ON Mapa_Registro_Suplementos(id_re
 _CAMPOS_REG = [
     "id_paciente", "nome_paciente", "acompanhante", "sexo", "cor", "idade_anos", "idade_meses",
     "aj_cm", "pp_cm", "pb_cm", "altura_cm", "altura_origem", "altura_metodo",
-    "peso_kg", "peso_origem", "peso_metodo", "imc", "imc_class", "data_reavaliacao", "via", "tipo_dieta", "meta_kcal", "meta_proteina_g",
+    "peso_kg", "peso_origem", "peso_metodo", "imc", "imc_class", "data_reavaliacao", "via", "tipo_dieta", "meta_kcal", "meta_proteina_g", "meta_fibras_g",
     "dm", "has", "laxativa", "constipante", "drc", "condicoes", "consistencia", "obs_sim", "obs_nao",
     "fi_estado", "fi_freq", "fi_dias_ausente",
     "nrs2002_json", "nrs2002_classificacao", "avaliacao_json", "avaliacao_classificacao", "pediatria_oms_json",
@@ -230,19 +230,20 @@ def inicializar(db_path):
         ):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
-        for nome, tipo in (("meta_kcal", "REAL"), ("meta_proteina_g", "REAL"), ("tipo_dieta", "TEXT")):
+        for nome, tipo in (("meta_kcal", "REAL"), ("meta_proteina_g", "REAL"), ("meta_fibras_g", "REAL"), ("tipo_dieta", "TEXT")):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
         for nome, tipo in (("alta_em", "TEXT"), ("alta_por", "TEXT"), ("alta_motivo", "TEXT")):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
         colunas_catalogo = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Suplementos)")}
-        for nome, tipo in (("osmolaridade_ref", "REAL"), ("unidade_osmolaridade", "TEXT DEFAULT 'mOsm/L'"),
+        for nome, tipo in (("osmolaridade_ref", "REAL"), ("fibra_g_100", "REAL"), ("tipo_fibra", "TEXT"), ("descricao_fibra", "TEXT"), ("fonte_fibra", "TEXT"), ("unidade_osmolaridade", "TEXT DEFAULT 'mOsm/L'"),
                            ("dose_ref", "REAL"), ("unidade_dose_ref", "TEXT"),
                            ("volume_final_ref_ml", "REAL"), ("agua_recomendada_ml", "REAL"),
                            ("fonte_osmolaridade", "TEXT"), ("classificacao_nutricional", "TEXT"),
                            ("grau_hidrolise", "TEXT"), ("proteinas_hidrolisadas", "TEXT"),
-                           ("fonte_classificacao", "TEXT"), ("tipo_formula", "TEXT")):
+                           ("fonte_classificacao", "TEXT"), ("tipo_formula", "TEXT"), ("fibra_g_100", "REAL"),
+                           ("tipo_fibra", "TEXT"), ("descricao_fibra", "TEXT"), ("fonte_fibra", "TEXT")):
             if nome not in colunas_catalogo:
                 c.execute(f"ALTER TABLE Mapa_Suplementos ADD COLUMN {nome} {tipo}")
         colunas_sup = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
@@ -550,7 +551,7 @@ def listar_suplementos(db_path, apenas_ativos=True, modulo=None):
 
 
 _NUM_SUP = ["preco", "emb_qtd", "kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
-            "osmolaridade_ref", "dose_ref", "volume_final_ref_ml", "agua_recomendada_ml"]
+            "osmolaridade_ref", "dose_ref", "volume_final_ref_ml", "agua_recomendada_ml", "fibra_g_100"]
 
 
 def salvar_suplemento(db_path, d):
@@ -599,6 +600,11 @@ def salvar_suplemento(db_path, d):
         raise ValueError("Tipo de fórmula inválido.")
     proteinas_hidrolisadas = (d.get("proteinas_hidrolisadas") or "").strip() or None
     fonte_classificacao = (d.get("fonte_classificacao") or "").strip() or None
+    tipo_fibra = (d.get("tipo_fibra") or "nao_informado").strip()
+    if tipo_fibra not in ("soluvel", "insoluvel", "mista", "prebiotica", "outra", "nao_informado"):
+        raise ValueError("Tipo de fibra inválido.")
+    descricao_fibra = (d.get("descricao_fibra") or "").strip() or None
+    fonte_fibra = (d.get("fonte_fibra") or "").strip() or None
     un = (d.get("emb_un") or "ml").strip().lower()
     if un not in ("ml", "g"):
         raise ValueError("A unidade da embalagem deve ser ml ou g.")
@@ -611,13 +617,15 @@ def salvar_suplemento(db_path, d):
                 (d.get("observacao") or "").strip(), valores["osmolaridade_ref"], unidade_osm,
                 valores["dose_ref"], unidade_dose, valores["volume_final_ref_ml"],
                 valores["agua_recomendada_ml"], fonte_osm, classificacao, hidrolise,
-                proteinas_hidrolisadas, fonte_classificacao, tipo_formula)
+                proteinas_hidrolisadas, fonte_classificacao, tipo_formula, valores["fibra_g_100"],
+                tipo_fibra, descricao_fibra, fonte_fibra)
         if d.get("id_suplemento"):
             c.execute("""UPDATE Mapa_Suplementos SET nome=?, modulo=?, preco=?, emb_qtd=?, emb_un=?,
                          kcal_100=?, ptn_100=?, lip_100=?, carb_100=?, sod_100=?, observacao=?,
                          osmolaridade_ref=?, unidade_osmolaridade=?, dose_ref=?, unidade_dose_ref=?,
                          volume_final_ref_ml=?, agua_recomendada_ml=?, fonte_osmolaridade=?, classificacao_nutricional=?,
-                         grau_hidrolise=?, proteinas_hidrolisadas=?, fonte_classificacao=?, tipo_formula=?
+                         grau_hidrolise=?, proteinas_hidrolisadas=?, fonte_classificacao=?, tipo_formula=?,
+                         fibra_g_100=?, tipo_fibra=?, descricao_fibra=?, fonte_fibra=?
                          WHERE id_suplemento=?""", base + (d["id_suplemento"],))
             novo = d["id_suplemento"]
         else:
@@ -625,7 +633,8 @@ def salvar_suplemento(db_path, d):
                                ptn_100, lip_100, carb_100, sod_100, observacao, osmolaridade_ref,
                                unidade_osmolaridade, dose_ref, unidade_dose_ref, volume_final_ref_ml,
                                agua_recomendada_ml, fonte_osmolaridade, classificacao_nutricional, grau_hidrolise, proteinas_hidrolisadas,
-                               fonte_classificacao, tipo_formula) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                               fonte_classificacao, tipo_formula, fibra_g_100, tipo_fibra, descricao_fibra, fonte_fibra)
+                               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                             base)
             novo = cur.lastrowid
         c.commit()
@@ -795,7 +804,8 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
                 ficha = c.execute("SELECT kcal_100,ptn_100,lip_100,carb_100,sod_100,observacao, "
                                   "osmolaridade_ref,unidade_osmolaridade,dose_ref,unidade_dose_ref, "
                                   "volume_final_ref_ml,agua_recomendada_ml,fonte_osmolaridade, "
-                                  "classificacao_nutricional,grau_hidrolise,proteinas_hidrolisadas,fonte_classificacao,tipo_formula "
+                                  "classificacao_nutricional,grau_hidrolise,proteinas_hidrolisadas,fonte_classificacao,tipo_formula,"
+                                  "fibra_g_100,tipo_fibra,descricao_fibra,fonte_fibra "
                                   "FROM Mapa_Suplementos WHERE id_suplemento=?", (s["id_suplemento"],)).fetchone()
             campos_ficha = ("kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100")
             valores_ficha = [s[campo] if campo in s else (ficha[campo] if ficha else None)
@@ -803,7 +813,8 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
             observacao_ficha = s.get("ficha_observacao") if "ficha_observacao" in s else (ficha["observacao"] if ficha else None)
             campos_osm = ("osmolaridade_ref", "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
                           "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade", "classificacao_nutricional",
-                          "grau_hidrolise", "proteinas_hidrolisadas", "fonte_classificacao", "tipo_formula")
+                          "grau_hidrolise", "proteinas_hidrolisadas", "fonte_classificacao", "tipo_formula",
+                          "fibra_g_100", "tipo_fibra", "descricao_fibra", "fonte_fibra")
             valores_osm = [s[campo] if campo in s else (ficha[campo] if ficha else None) for campo in campos_osm]
             snapshot_em = s.get("ficha_snapshot_em") or (_agora() if any(v is not None for v in valores_ficha + valores_osm) else None)
             c.execute("""INSERT INTO Mapa_Registro_Suplementos
@@ -811,8 +822,9 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
                           refeicoes_json, preparacoes_json, batido_fruta, kcal_100, ptn_100, lip_100, carb_100, sod_100,
                           ficha_observacao, ficha_snapshot_em, osmolaridade_ref, unidade_osmolaridade,
                           dose_ref, unidade_dose_ref, volume_final_ref_ml, agua_recomendada_ml, fonte_osmolaridade, classificacao_nutricional,
-                          grau_hidrolise, proteinas_hidrolisadas, fonte_classificacao, tipo_formula)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                          grau_hidrolise, proteinas_hidrolisadas, fonte_classificacao, tipo_formula,
+                          fibra_g_100, tipo_fibra, descricao_fibra, fonte_fibra)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                       (id_reg, s.get("id_suplemento"), s["nome"], s.get("modulo"), s.get("qtd_dia"),
                        s.get("unidade"), s.get("ml_oferta"), s.get("agua_ml"),
                        json.dumps(s.get("refeicoes") or [], ensure_ascii=False),
