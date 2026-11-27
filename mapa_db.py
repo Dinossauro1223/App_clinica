@@ -554,7 +554,18 @@ _NUM_SUP = ["preco", "emb_qtd", "kcal_100", "ptn_100", "lip_100", "carb_100", "s
 
 
 def salvar_suplemento(db_path, d):
-    """Insere (sem id_suplemento) ou atualiza. Números aceitam vírgula. Retorna o id."""
+    """Insere (sem id_suplemento) ou atualiza. Números aceitam vírgula. Retorna o id.
+
+    Em edições parciais, campos técnicos não enviados preservam o valor cadastrado.
+    """
+    d = dict(d)
+    if d.get("id_suplemento"):
+        with closing(conectar(db_path)) as consulta:
+            existente = consulta.execute(
+                "SELECT * FROM Mapa_Suplementos WHERE id_suplemento=?",
+                (d["id_suplemento"],)).fetchone()
+        if existente:
+            d = {**dict(existente), **d}
     nome = (d.get("nome") or "").strip()
     if not nome:
         raise ValueError("Informe o nome do suplemento.")
