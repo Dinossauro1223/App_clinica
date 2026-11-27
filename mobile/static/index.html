@@ -320,10 +320,10 @@ const COR={admin:'#0f4c5c',nutricionista:'#2f7d4f',copa:'#a85f00',estoque_cozinh
 const REF={desjejum:'Desjejum',colacao:'Lanche da manhã',almoco:'Almoço',lanche:'Lanche da tarde',jantar:'Jantar',ceia:'Ceia'};
 const ORI={externo:'Entrada de fornecedor/compra',almox:'Almoxarifado',cozinha:'Cozinha'};
 const LB={nome:'paciente',idade_anos:'idade (anos)',idade_meses:'meses',dieta:'dieta',diagnostico:'diagnóstico',pref_sim:'gosta',pref_nao:'não aceita',acompanhante:'acompanhante'};
-const ABAS={admin:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoques'],['avisos','Avisos'],['cadastros','Cadastros'],['orientacoes','Orientações']],
- nutricionista:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['avisos','Avisos'],['orientacoes','Orientações']],
- copa:[['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoque'],['orientacoes','Orientações']],
- estoque_cozinha:[['estoque','Estoque'],['orientacoes','Orientações']],estoque_almox:[['estoque','Estoque'],['orientacoes','Orientações']]};
+const ABAS={admin:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['menu','Menu do Dia'],['estoque','Estoques'],['avisos','Avisos'],['cadastros','Cadastros'],['orientacoes','Orientações']],
+ nutricionista:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['menu','Menu do Dia'],['avisos','Avisos'],['orientacoes','Orientações']],
+ copa:[['mapa','Mapa'],['refeicoes','Refeições'],['menu','Menu do Dia'],['estoque','Estoque'],['orientacoes','Orientações']],
+ estoque_cozinha:[['menu','Menu do Dia'],['estoque','Estoque'],['orientacoes','Orientações']],estoque_almox:[['estoque','Estoque'],['orientacoes','Orientações']]};
 const ehStaff=()=>S.u.perfil==='admin'||S.u.perfil==='nutricionista';
 const escolheSetor=()=>S.u.perfil==='admin'||((S.u.perfil==='nutricionista'||S.u.perfil==='copa')&&!S.u.id_setor);
 const br=i=>i?i.slice(8,10)+'/'+i.slice(5,7):'';
@@ -467,7 +467,7 @@ async function entrar(){
 const ir=tenta(async aba=>{
   S.aba=aba;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.a===aba));aviso('');
   $('#vista').innerHTML='<p class=mini>Carregando…</p>';
-  await({painel:vPainel,mapa:vMapa,refeicoes:vRef,estoque:vEstoque,avisos:vAvisos,cadastros:vCad,orientacoes:vOrientacoes})[aba]();
+  await({painel:vPainel,mapa:vMapa,refeicoes:vRef,menu:vMenuDia,estoque:vEstoque,avisos:vAvisos,cadastros:vCad,orientacoes:vOrientacoes})[aba]();
 });
 function filtros(tipo){
   if(!ehStaff())return '';
@@ -480,6 +480,38 @@ const chips=(l,k,P)=>(l.rascunho?'<span class="chip pen">rascunho: não publicad
  (l.por_perfil==='admin'||l.por_perfil==='nutricionista'?`<span class="chip adm">${l.por_perfil==='admin'?'Admin':'Nutrição'}</span>`:'')+(P.includes(String(k))?'<span class="chip pen">Aguardando autorização</span>':'');
 const barra=(f,t)=>`<div class=barra><button class=btn onclick="${f}()">${t}</button></div>`;
 const semSetor='<div class=cartao>Nenhum setor definido para este usuário. Peça ao administrador.</div>';
+
+/* ---------- Menu do Dia e fechamento de produção ---------- */
+async function vMenuDia(){
+ const data=S.data||S.hoje,menus=(await api('/api/menu-dia?data='+encodeURIComponent(data))).menus||[];
+ let conteudo='';
+ for(const menu of menus){
+  conteudo+=`<section class="cartao"><h2>${esc(REF[menu.refeicao]||menu.refeicao)} · versão ${menu.versao}</h2><p class=mini>Publicado por ${esc(menu.publicado_por||'Nutrição')} · ${esc((menu.publicado_em||'').replace('T',' ').slice(0,16))}</p>`;
+  for(const item of menu.itens||[]){
+   const p=(menu.producao||{})[item.chave]||{},cubas=p.cubas||[];
+   conteudo+=`<article class="cartao" data-prod data-publicacao="${menu.publicacao_id}" data-chave="${esc(item.chave)}" style="margin:10px 0">
+    <h3>${esc(item.nome)}</h3><p class=mini>${esc(item.categoria||'Preparação')} · Planejadas: ${v(item.porcoes_planejadas)}</p>
+    ${item.imagem?`<img src="${esc(item.imagem)}" alt="" loading="lazy" style="max-width:100%;max-height:180px;object-fit:contain">`:''}
+    ${(item.etapas||[]).length?`<details><summary>Etapas de preparo</summary><ol>${item.etapas.map(e=>`<li>${esc(typeof e==='string'?e:e.texto||e.nome||'')}</li>`).join('')}</ol></details>`:''}
+    <div class=filtros><label class=f>Porções produzidas<input class=prod-qtd type=number min=0 step=1 value="${v(p.porcoes_produzidas)}"></label><label class=f>Porções faltantes<input class=prod-falta type=number min=0 step=1 value="${v(p.porcoes_faltantes||0)}"></label></div>
+    <label class=tg><input class=prod-nao type=checkbox ${p.faltou_preparacao?'checked':''}>Preparação não produzida/disponibilizada</label>
+    <h4>Sobras e desperdícios por cuba (kg)</h4><div class=prod-cubas>${cubas.map(c=>linhaCuba(c)).join('')}</div>
+    <button class="btn sec peq" type=button onclick="adicionaCubaMenu(this)">Adicionar cuba</button>
+    <label class=f>Observação<input class=prod-obs value="${esc(p.observacao||'')}"></label><button class=btn type=button onclick="salvarProducaoMenu(this)">Salvar produção</button>
+    ${p.responsavel?`<p class=mini>Último registro: ${esc(p.responsavel)} · ${esc((p.registrado_em||'').replace('T',' ').slice(0,16))}</p>`:''}</article>`;
+  }
+  conteudo+='</section>';
+ }
+ $('#vista').innerHTML=`<div class="cartao filtros"><label class=f>Data do menu<input type=date value="${data}" onchange="S.data=this.value||S.hoje;ir('menu')"></label><button class="btn sec" onclick="ir('menu')">Atualizar</button></div>${conteudo||'<div class=cartao><b>Nenhum Menu do Dia publicado.</b><p class=mini>A Nutrição precisa publicar o cardápio para esta data.</p></div>'}`;
+}
+function linhaCuba(c={}){return `<div data-cuba class=filtros style="align-items:end"><label class=f>Cuba/panela<input class=cuba-nome value="${esc(c.identificacao||'')}" placeholder="Identificação"></label><label class=f>Sobra (kg)<input class=cuba-sobra type=number min=0 step=.01 value="${v(c.peso_sobra_kg||0)}"></label><label class=f>Desperdício (kg)<input class=cuba-desperdicio type=number min=0 step=.01 value="${v(c.peso_desperdicio_kg||0)}"></label><button class="btn sec peq" type=button onclick="this.closest('[data-cuba]').remove()">Remover</button></div>`}
+function adicionaCubaMenu(btn){btn.previousElementSibling.insertAdjacentHTML('beforeend',linhaCuba())}
+async function salvarProducaoMenu(btn){
+ const card=btn.closest('[data-prod]'),cubas=[...card.querySelectorAll('[data-cuba]')].filter(x=>x.querySelector('.cuba-nome').value.trim()).map(x=>({identificacao:x.querySelector('.cuba-nome').value.trim(),peso_sobra_kg:x.querySelector('.cuba-sobra').value||0,peso_desperdicio_kg:x.querySelector('.cuba-desperdicio').value||0}));
+ const dados={item_chave:card.dataset.chave,porcoes_produzidas:card.querySelector('.prod-qtd').value||null,porcoes_faltantes:card.querySelector('.prod-falta').value||0,faltou_preparacao:card.querySelector('.prod-nao').checked,cubas,observacao:card.querySelector('.prod-obs').value};
+ await api('/api/menu-dia/'+card.dataset.publicacao+'/producao',dados);aviso('Produção registrada.');await vMenuDia();
+}
+
 /* ---------- Mapa ---------- */
 const idade=l=>l.idade_anos==null?'':l.idade_anos+'a'+(l.idade_meses?' '+l.idade_meses+'m':'');
 const REFS_SUP=['desjejum','colacao','almoco','lanche','jantar','ceia'];
