@@ -156,7 +156,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.var_bomba = tk.IntVar(value=0)
         ctk.CTkCheckBox(linha, text="Utiliza bomba de infusão", variable=self.var_bomba).pack(side="left", padx=(0, 16))
         self.e_horas_adm = self._entry(linha, "tempo de administração (h)", "", largura=175)
-        self.e_fator_gotas = self._entry(linha, "fator do equipo (gotas/mL)", "20", largura=190)
+        self.e_fator_gotas = self._entry(linha, "fator do equipo (gotas/mL)", "", largura=190)
         self.var_progressao = tk.IntVar(value=0)
         ctk.CTkCheckBox(linha, text="Solicitar progressão enteral automática", variable=self.var_progressao).pack(side="left")
         linha = ctk.CTkFrame(self.q_enteral, fg_color="transparent")
@@ -280,7 +280,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
         bomba_salva = dados.get("bomba") or {}
         self.var_bomba.set(int(bool(bomba_salva.get("usa_bomba"))))
         _set(self.e_horas_adm, bomba_salva.get("duracao_horas"))
-        _set(self.e_fator_gotas, bomba_salva.get("fator_gotas_ml", 20))
+        _set(self.e_fator_gotas, bomba_salva.get("fator_gotas_ml"))
         self.var_tolerancia.set(int(bool(progressao.get("tolerancia", True))))
         self.var_restricao.set(int(bool(progressao.get("restricao", False))))
         metas = dados.get("metas") or {}
@@ -473,7 +473,11 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     horas_txt = self.e_horas_adm.get().strip()
                     if not horas_txt:
                         raise ValueError("Informe em quantas horas a dieta fechada será administrada.")
-                    fator_txt = self.e_fator_gotas.get().strip() or "20"
+                    fator_txt = self.e_fator_gotas.get().strip()
+                    if not self.var_bomba.get() and not fator_txt:
+                        raise ValueError("Informe o fator de gotas/mL indicado no equipo utilizado.")
+                    if self.var_bomba.get() and not fator_txt:
+                        fator_txt = "20"  # ignorado no cálculo da bomba
                     # Dimensiona a administração pelo volume necessário para atingir a meta
                     # energética, não apenas pelo volume parcial atualmente selecionado.
                     administracao = regras.planejar_administracao_enteral(
@@ -481,8 +485,9 @@ class FormEvolucaoUI(ctk.CTkFrame):
                         usa_bomba=bool(self.var_bomba.get()), fator_gotas_ml=fator_txt)
                     administracao["volume_etapas_atual_ml"] = oferta["volume_total_ml"]
                     administracao["meta_kcal_dia"] = metas["kcal_dia"]
-                    dados["bomba"].update({"duracao_horas": float(horas_txt.replace(",", ".")),
-                                           "fator_gotas_ml": float(fator_txt.replace(",", "."))})
+                    dados["bomba"].update({"duracao_horas": float(horas_txt.replace(",", "."))})
+                    if not self.var_bomba.get():
+                        dados["bomba"]["fator_gotas_ml"] = float(fator_txt.replace(",", "."))
                     dados["administracao_enteral"] = administracao
                 dados["progressao_enteral"] = {
                     "solicitada": bool(self.var_progressao.get()), "autorizada": False,
