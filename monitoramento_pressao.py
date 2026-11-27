@@ -240,7 +240,10 @@ class PainelMonitoramentoPressao(ctk.CTkFrame):
                 res=comparar_tres_dias(self.caminho_banco,self.id_paciente,quando)
                 def fmt(d,k):
                     x=d[k]
-                    return "sem dados" if x["media"] is None else f'{x["media"]:.1f} (n={x["afericoes"]}; dias={x["dias_com_dados"]}/3)'
+                    if x["media"] is None:
+                        return "sem dados"
+                    aviso = "; amostra incompleta" if x["amostra_insuficiente"] else ""
+                    return f'{x["media"]:.1f} (n={x["afericoes"]}; dias={x["dias_com_dados"]}/3{aviso})'
                 msg=("ANTES — HGT: "+fmt(res["periodo_antes"],"hgt")+
                      "\\nANTES — PA sistólica: "+fmt(res["periodo_antes"],"sistolica")+
                      "\\nANTES — PA diastólica: "+fmt(res["periodo_antes"],"diastolica")+
