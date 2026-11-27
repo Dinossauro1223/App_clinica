@@ -55,7 +55,11 @@ def listar_pesos_historicos(db_path, id_paciente):
             avaliacao = json.loads(item.get("avaliacao_json") or "{}")
         except (TypeError, ValueError):
             avaliacao = {}
+        if not isinstance(avaliacao, dict):
+            avaliacao = {}
         resultado = avaliacao.get("resultado") or avaliacao
+        if not isinstance(resultado, dict):
+            resultado = avaliacao
         ajustado = resultado.get("ajustado", avaliacao.get("peso_ajustado"))
         if ajustado not in (None, "") and resultado.get("ajustou", True):
             try:
