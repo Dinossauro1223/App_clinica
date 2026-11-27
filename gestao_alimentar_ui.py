@@ -664,6 +664,7 @@ class GestaoAlimentarUI:
         _btn(topo, "Importar retiradas mobile", self.importar_retiradas, 170, cor=VERDE).pack(side="left", padx=4)
         _btn(topo, "Atualizar relatório", self.carregar_consumo, 135, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
         _btn(topo, "Preparações esperadas", self.abrir_preparacoes, 165, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
+        _btn(topo, "Publicar Menu do Dia para mobile", self.publicar_menu_mobile, 220, cor=AZUL).pack(side="left", padx=4)
         _btn(topo, "Registrar produção", self.abrir_registro_producao, 145, cor=VERDE).pack(side="left", padx=4)
         _btn(topo, "Histórico da produção", self.abrir_historico_producao, 165, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
         _btn(topo, "Gerar rascunhos por horário", self.gerar_rascunhos_por_horario, 205, cor=AZUL).pack(side="left", padx=4)
@@ -840,6 +841,21 @@ class GestaoAlimentarUI:
             PreparacoesDiaDialog(self.app,self.db,data,self.carregar_consumo)
         except Exception as exc:
             messagebox.showerror("Preparações esperadas",str(exc),parent=self.tab_consumo)
+
+    def publicar_menu_mobile(self):
+        try:
+            _inicio, data = self._periodo_consumo()
+            resultado = im.publicar_menu_dia(self.db, self.mobile_db, data)
+            alteradas = sum(1 for x in resultado["publicacoes"] if x.get("alterado"))
+            messagebox.showinfo(
+                "Menu do Dia publicado",
+                f"Publicação concluída para {data}.\\n"
+                f"Refeições verificadas: {resultado['total']}.\\n"
+                f"Snapshots novos/atualizados: {alteradas}.\\n"
+                "O aplicativo mobile receberá a versão publicada quando consultar o Menu do Dia.",
+                parent=self.tab_consumo)
+        except Exception as exc:
+            messagebox.showerror("Publicar Menu do Dia", str(exc), parent=self.tab_consumo)
 
     def abrir_registro_producao(self):
         try:

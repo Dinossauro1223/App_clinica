@@ -320,10 +320,10 @@ const COR={admin:'#0f4c5c',nutricionista:'#2f7d4f',copa:'#a85f00',estoque_cozinh
 const REF={desjejum:'Desjejum',colacao:'Lanche da manhã',almoco:'Almoço',lanche:'Lanche da tarde',jantar:'Jantar',ceia:'Ceia'};
 const ORI={externo:'Entrada de fornecedor/compra',almox:'Almoxarifado',cozinha:'Cozinha'};
 const LB={nome:'paciente',idade_anos:'idade (anos)',idade_meses:'meses',dieta:'dieta',diagnostico:'diagnóstico',pref_sim:'gosta',pref_nao:'não aceita',acompanhante:'acompanhante'};
-const ABAS={admin:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoques'],['avisos','Avisos'],['cadastros','Cadastros'],['orientacoes','Orientações']],
- nutricionista:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['avisos','Avisos'],['orientacoes','Orientações']],
- copa:[['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoque'],['orientacoes','Orientações']],
- estoque_cozinha:[['estoque','Estoque'],['orientacoes','Orientações']],estoque_almox:[['estoque','Estoque'],['orientacoes','Orientações']]};
+const ABAS={admin:[['painel','Painel'],['menu','Menu do Dia'],['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoques'],['avisos','Avisos'],['cadastros','Cadastros'],['orientacoes','Orientações']],
+ nutricionista:[['painel','Painel'],['menu','Menu do Dia'],['mapa','Mapa'],['refeicoes','Refeições'],['avisos','Avisos'],['orientacoes','Orientações']],
+ copa:[['menu','Menu do Dia'],['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoque'],['orientacoes','Orientações']],
+ estoque_cozinha:[['menu','Menu do Dia'],['estoque','Estoque'],['orientacoes','Orientações']],estoque_almox:[['estoque','Estoque'],['orientacoes','Orientações']]};
 const ehStaff=()=>S.u.perfil==='admin'||S.u.perfil==='nutricionista';
 const escolheSetor=()=>S.u.perfil==='admin'||((S.u.perfil==='nutricionista'||S.u.perfil==='copa')&&!S.u.id_setor);
 const br=i=>i?i.slice(8,10)+'/'+i.slice(5,7):'';
@@ -467,7 +467,7 @@ async function entrar(){
 const ir=tenta(async aba=>{
   S.aba=aba;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.a===aba));aviso('');
   $('#vista').innerHTML='<p class=mini>Carregando…</p>';
-  await({painel:vPainel,mapa:vMapa,refeicoes:vRef,estoque:vEstoque,avisos:vAvisos,cadastros:vCad,orientacoes:vOrientacoes})[aba]();
+  await({painel:vPainel,menu:vMenuDia,mapa:vMapa,refeicoes:vRef,estoque:vEstoque,avisos:vAvisos,cadastros:vCad,orientacoes:vOrientacoes})[aba]();
 });
 function filtros(tipo){
   if(!ehStaff())return '';
@@ -539,6 +539,33 @@ const coleta=()=>[...document.querySelectorAll('details.leito[data-id]')].map(e=
   pref_sim:e.querySelector('.ps').value,pref_nao:e.querySelector('.pn').value,
   acompanhante:e.querySelector('.ac').checked,suplementos};
 });
+async function vMenuDia(){
+  const j=await api('/api/menu-dia?data='+encodeURIComponent(S.data));
+  const nomes={desjejum:'Desjejum',colacao:'Lanche da manhã',almoco:'Almoço',lanche:'Lanche da tarde',jantar:'Jantar',ceia:'Ceia'};
+  if(!j.publicado){
+    $('#vista').innerHTML='<div class=cartao><h2>Menu do Dia</h2><p>Não há cardápio publicado para '+br(S.data)+'. O último menu recebido continuará disponível apenas nas datas em que foi publicado.</p></div>';
+    return;
+  }
+  const secoes=(j.refeicoes||[]).map(r=>{
+    const itens=r.snapshot?.preparacoes||[];
+    const conteudo=itens.map(p=>{
+      const f=p.ficha||{}, imgs=f.imagens||{}, ingredientes=f.ingredientes||[], etapas=f.etapas_preparo||[];
+      const foto=(tipo,titulo)=>imgs[tipo]?.data_url?'<figure style="margin:8px 0"><img loading=lazy src="'+imgs[tipo].data_url+'" alt="'+titulo+'" style="width:100%;max-height:240px;object-fit:contain;border-radius:8px"><figcaption class=mini>'+titulo+'</figcaption></figure>':'';
+      const ing=ingredientes.length?'<h4>Ingredientes por porção</h4><ul>'+ingredientes.map(i=>'<li>'+esc(i.nome)+': '+esc(i.qtd_per_capita)+' '+esc(i.unidade)+'</li>').join('')+'</ul>':'';
+      const prep=etapas.length?'<h4>Modo de preparo</h4><ol>'+etapas.map(e=>'<li>'+esc(e.instrucao)+'</li>').join('')+'</ol>':'';
+      return '<details class=cartao style="margin:8px 0"><summary><b>'+esc(p.nome)+'</b> <span class=mini>· '+esc(p.categoria||'Geral')+'</span></summary>'+
+        '<p class=mini>Porções previstas: '+esc(p.porcoes_previstas??'não informadas')+'</p>'+
+        (f.modo_preparo?'<p>'+esc(f.modo_preparo).replace(/\\n/g,'<br>')+'</p>':'')+
+        foto('porcao_individual','Porção individual')+foto('recipiente_cheio','Recipiente cheio')+ing+prep+'</details>';
+    }).join('');
+    return '<section class=cartao><h3>'+esc(nomes[r.refeicao]||r.refeicao)+'</h3>'+
+      '<p class=mini>Publicado em '+esc(r.publicado_em||'—')+'</p>'+
+      (conteudo||'<p class=mini>Nenhuma preparação cadastrada.</p>')+'</section>';
+  }).join('');
+  $('#vista').innerHTML='<div class=cartao><div class=filtros><label class=f>Data<input type=date value="'+esc(S.data)+'" onchange="S.data=this.value||S.hoje;ir(\'menu\')"></label></div>'+
+    '<h2>Menu do Dia</h2><p class=mini>Versão publicada pelo desktop. O conteúdo consultado fica no cache local para acesso sem conexão.</p></div>'+
+    (secoes||'<div class=cartao>Nenhuma refeição publicada para esta data.</div>');
+}
 async function vMapa(){
   if(!S.setor){$('#vista').innerHTML=filtros('setor')+semSetor;return}
   const j=await api(`/api/mapa?setor=${S.setor}&data=${S.data}`),st=ehStaff(),n=j.linhas.filter(l=>l.rascunho).length;
