@@ -142,6 +142,24 @@ class TestEvolucaoNutricional(unittest.TestCase):
         self.assertIn("IMC: 22,8 kg/m²", texto)
         self.assertNotIn("AJ:", texto)
 
+    def test_geracao_enteral_exibe_plano_de_dieta_fechada(self):
+        dados = {
+            "antropometria": {"idade_anos": 50, "altura_m": 1.7, "altura_origem": "A",
+                "peso_kg": 70, "peso_origem": "A"},
+            "via": "Enteral", "metas": ev.calcular_metas(70, 25, 1.2),
+            "oferta": {"kcal_dia": 1500, "proteina_g_dia": 60, "volume_total_ml": 1000,
+                       "volume_meta_ml": 1000},
+            "dieta_enteral": {"nome": "Fórmula fechada", "volume_por_etapa_ml": 1000,
+                              "etapas": 1, "tipo_formula": "fechada"},
+            "administracao_enteral": ev.planejar_administracao_enteral(
+                1000, 150, 10, usa_bomba=False, fator_gotas_ml=20),
+            "tne_motivos": [], "bomba": {"usa_bomba": False}}
+        texto = ev.gerar_evolucao(dados)
+        self.assertIn("Administração da dieta fechada", texto)
+        self.assertIn("100 gotas/min", texto)
+        self.assertIn("1.500 kcal no período", texto)
+        self.assertIn("150 kcal/h", texto)
+
     def test_geracao_enteral_com_dieta_e_sem_tempo_de_bomba_sem_bomba(self):
         dados = {
             "antropometria": {"data": "25/11/2026", "idade_anos": 72, "altura_m": 1.65,
