@@ -231,11 +231,11 @@ class AppClinica(ctk.CTk):
 
     def _iniciar_servidor_mobile_worker(self):
         """Prepara banco/API fora da thread gráfica e publica somente o resultado."""
-        caminho_db = im.caminho_mobile_db(caminho_do_banco(), get_base_path())
-        url_health = "http://127.0.0.1:8765/health"
         servidor = None
         thread = None
         try:
+            caminho_db = im.caminho_mobile_db(caminho_do_banco(), get_base_path())
+            url_health = "http://127.0.0.1:8765/health"
             if self._mobile_encerrando.is_set():
                 return
 
@@ -294,8 +294,13 @@ class AppClinica(ctk.CTk):
                 )
             self._mobile_resultados.put(("ok", "Banco preparado e API pronta para receber conexões.", senha_inicial))
         except Exception as erro:
-            if servidor is not None:
-                self._parar_servidor_mobile_worker(servidor, thread)
+            if servidor is not None and not self._mobile_encerrando.is_set():
+                with self._mobile_lock:
+                    if not self._mobile_encerrando.is_set():
+                        self._parar_servidor_mobile_worker(servidor, thread)
+                        if self._servidor_mobile is servidor:
+                            self._servidor_mobile = None
+                            self._thread_servidor_mobile = None
             if not self._mobile_encerrando.is_set():
                 try:
                     pasta_logs = os.path.join(
@@ -357,9 +362,28 @@ class AppClinica(ctk.CTk):
             pass
 
     def _encerrar_servidor_mobile(self):
-        """Encerra somente o servidor criado por esta instância do desktop."""
-        servidor = getattr(self, "_servidor_mobile", None)
-        thread = getattr(self, "_thread_servidor_mobile", None)
+        """Cancela a inicialização pendente e encerra apenas o servidor desta instância."""
+        self._mobile_encerrando.set()
+        poll_id = getattr(self, "_mobile_poll_id", None)
+        if poll_id is not None:
+            try:
+                self.after_cancel(poll_id)
+            except (tk.TclError, RuntimeError):
+                pass
+            self._mobile_poll_id = None
+
+        # O lock impede que o worker registre/inicie um servidor após o início do fechamento.
+        lock = getattr(self, "_mobile_lock", None)
+        if lock is None:
+            servidor = getattr(self, "_servidor_mobile", None)
+            thread = getattr(self, "_thread_servidor_mobile", None)
+        else:
+            with lock:
+                servidor = getattr(self, "_servidor_mobile", None)
+                thread = getattr(self, "_thread_servidor_mobile", None)
+                self._servidor_mobile = None
+                self._thread_servidor_mobile = None
+
         if servidor is not None:
             try:
                 servidor.shutdown()
@@ -369,13 +393,11 @@ class AppClinica(ctk.CTk):
                 servidor.server_close()
             except Exception:
                 pass
-            self._servidor_mobile = None
         # Aguarda o loop HTTP terminar antes de destruir a interface e liberar o processo.
         if thread is not None and thread.is_alive() and thread is not threading.current_thread():
             thread.join(timeout=2.0)
             if thread.is_alive():
                 print("NutriLab Mobile: servidor não encerrou dentro do prazo de 2 segundos.")
-        self._thread_servidor_mobile = None
 
     def _encerrar_e_destruir(self):
         self._encerrando_app = True
