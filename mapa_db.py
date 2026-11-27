@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
     sexo TEXT, cor TEXT, idade_anos INTEGER, idade_meses INTEGER,
     aj_cm REAL, pp_cm REAL, pb_cm REAL,
     altura_cm REAL, altura_origem TEXT, altura_metodo TEXT,
-    peso_kg REAL, peso_origem TEXT, peso_metodo TEXT,
+    peso_kg REAL, peso_origem TEXT, peso_metodo TEXT, peso_medido_em TEXT,
     imc REAL, imc_class TEXT, data_reavaliacao TEXT, via TEXT, tipo_dieta TEXT, meta_kcal REAL, meta_proteina_g REAL, meta_fibras_g REAL,
     dm INTEGER DEFAULT 0, has INTEGER DEFAULT 0, laxativa INTEGER DEFAULT 0,
     constipante INTEGER DEFAULT 0, drc INTEGER DEFAULT 0, condicoes TEXT, consistencia TEXT,
@@ -166,7 +166,7 @@ CREATE INDEX IF NOT EXISTS ix_mapa_regsup_reg ON Mapa_Registro_Suplementos(id_re
 _CAMPOS_REG = [
     "id_paciente", "nome_paciente", "acompanhante", "sexo", "cor", "idade_anos", "idade_meses",
     "aj_cm", "pp_cm", "pb_cm", "altura_cm", "altura_origem", "altura_metodo",
-    "peso_kg", "peso_origem", "peso_metodo", "imc", "imc_class", "data_reavaliacao", "via", "tipo_dieta", "meta_kcal", "meta_proteina_g", "meta_fibras_g",
+    "peso_kg", "peso_origem", "peso_metodo", "peso_medido_em", "imc", "imc_class", "data_reavaliacao", "via", "tipo_dieta", "meta_kcal", "meta_proteina_g", "meta_fibras_g",
     "dm", "has", "laxativa", "constipante", "drc", "condicoes", "consistencia", "obs_sim", "obs_nao",
     "fi_estado", "fi_freq", "fi_dias_ausente",
     "nrs2002_json", "nrs2002_classificacao", "avaliacao_json", "avaliacao_classificacao", "pediatria_oms_json",
@@ -230,7 +230,7 @@ def inicializar(db_path):
         ):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
-        for nome, tipo in (("meta_kcal", "REAL"), ("meta_proteina_g", "REAL"), ("meta_fibras_g", "REAL"), ("tipo_dieta", "TEXT")):
+        for nome, tipo in (("meta_kcal", "REAL"), ("meta_proteina_g", "REAL"), ("meta_fibras_g", "REAL"), ("tipo_dieta", "TEXT"), ("peso_medido_em", "TEXT")):
             if nome not in colunas:
                 c.execute(f"ALTER TABLE Mapa_Registros ADD COLUMN {nome} {tipo}")
         for nome, tipo in (("alta_em", "TEXT"), ("alta_por", "TEXT"), ("alta_motivo", "TEXT")):
