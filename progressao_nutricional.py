@@ -61,9 +61,12 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
     for bruto in registros or []:
         try:
             peso = float(str(bruto.get("peso_kg")).replace(",", "."))
-            quando = _data(bruto.get("data") or bruto.get("medido_em"))
+            valor_data = bruto.get("medido_em") or bruto.get("data")
+            quando = _data(valor_data)
+            texto_data = str(valor_data or "")
+            tem_hora = isinstance(valor_data, datetime) or (len(texto_data) > 10 and ":" in texto_data)
             if peso > 0:
-                itens.append({**bruto, "_data": quando, "_peso": peso})
+                itens.append({**bruto, "_data": quando, "_peso": peso, "_tem_hora": tem_hora})
         except (TypeError, ValueError):
             continue
     itens.sort(key=lambda x: x["_data"])
@@ -75,7 +78,7 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
     alertas, comparacoes = [], []
     for anterior in reversed(itens[:-1]):
         intervalo_h = (atual["_data"] - anterior["_data"]).total_seconds() / 3600
-        if 0 < intervalo_h <= 24:
+        if 0 < intervalo_h <= 24 and atual.get("_tem_hora") and anterior.get("_tem_hora"):
             diferenca = atual["_peso"] - anterior["_peso"]
             if abs(diferenca) >= 1.0:
                 alertas.append({
@@ -86,7 +89,8 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
                              "condições de pesagem e possível erro de medida. Não classificar como desnutrição isoladamente."
                 })
             break
-        if 0 < intervalo_h <= 48 and atual["_data"].date() != anterior["_data"].date():
+        if (0 < intervalo_h <= 48 and atual["_data"].date() != anterior["_data"].date()
+                and (not atual.get("_tem_hora") or not anterior.get("_tem_hora"))):
             # O mapa registra a data, mas não o horário real da aferição.
             # Não se afirma intervalo exato de 24 h sem timestamp de medida.
             diferenca = atual["_peso"] - anterior["_peso"]
