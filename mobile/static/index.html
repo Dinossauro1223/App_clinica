@@ -584,7 +584,7 @@ async function vMenuDia(){
       return '<details class=cartao style="margin:8px 0"><summary><b>'+esc(p.nome)+'</b> <span class=mini>· '+esc(p.categoria||'Geral')+'</span></summary>'+
         '<p class=mini>Porções previstas: '+esc(p.porcoes_previstas??'não informadas')+'</p>'+
         (f.modo_preparo?'<p>'+esc(f.modo_preparo).replace(/\\n/g,'<br>')+'</p>':'')+
-        foto('porcao_individual','Porção individual')+foto('recipiente_cheio','Recipiente cheio')+ing+prep+formProducao+'</details>';
+        foto('porcao_individual','Porção individual')+foto('recipiente_cheio','Recipiente cheio')+ing+prep+resumoRegistro+formProducao+'</details>';
     }).join('');
     return '<section class=cartao><h3>'+esc(nomes[r.refeicao]||r.refeicao)+'</h3>'+
       '<p class=mini>Publicado em '+esc(r.publicado_em||'—')+'</p>'+
