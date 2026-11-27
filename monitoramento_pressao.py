@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 import json
 from datetime import datetime, timedelta
 import tkinter as tk
@@ -58,7 +59,7 @@ def salvar_pressao(caminho, id_paciente, sistolica, diastolica, medido_em,
         raise ValueError("Informe valores válidos: sistólica maior que diastólica.")
     dt = datetime.strptime(medido_em, "%Y-%m-%d %H:%M")
     carimbo = (agora or datetime.now()).isoformat(timespec="seconds")
-    with sqlite3.connect(caminho) as conn:
+    with closing(sqlite3.connect(caminho)) as conn, conn:
         criar_tabelas(conn)
         if id_pa is None:
             cur = conn.execute("""INSERT INTO PA_Registros
@@ -86,13 +87,13 @@ def listar_pressao(caminho, id_paciente, inicio=None, fim=None):
     if fim:
         sql += " AND medido_em<=?"; args.append(fim)
     sql += " ORDER BY medido_em,id_pa"
-    with sqlite3.connect(caminho) as conn:
+    with closing(sqlite3.connect(caminho)) as conn, conn:
         criar_tabelas(conn)
         return conn.execute(sql,args).fetchall()
 
 
 def inativar_pressao(caminho, id_paciente, id_pa, agora=None):
-    with sqlite3.connect(caminho) as conn:
+    with closing(sqlite3.connect(caminho)) as conn, conn:
         criar_tabelas(conn)
         cur=conn.execute("UPDATE PA_Registros SET ativo=0,atualizado_em=? WHERE id_pa=? AND id_paciente=? AND ativo=1",
                          ((agora or datetime.now()).isoformat(timespec="seconds"),int(id_pa),int(id_paciente)))
@@ -107,7 +108,7 @@ def registrar_substituicao(caminho,id_paciente,substituido_em,suplemento_anterio
     if not novo:
         raise ValueError("Informe o suplemento novo.")
     carimbo=(agora or datetime.now()).isoformat(timespec="seconds")
-    with sqlite3.connect(caminho) as conn:
+    with closing(sqlite3.connect(caminho)) as conn, conn:
         criar_tabelas(conn)
         cur=conn.execute("""INSERT INTO Suplemento_Substituicoes
             (id_paciente,substituido_em,suplemento_anterior,suplemento_novo,motivo,autor,
@@ -121,7 +122,7 @@ def registrar_substituicao(caminho,id_paciente,substituido_em,suplemento_anterio
 
 
 def listar_substituicoes(caminho,id_paciente):
-    with sqlite3.connect(caminho) as conn:
+    with closing(sqlite3.connect(caminho)) as conn, conn:
         criar_tabelas(conn)
         return conn.execute("""SELECT id_substituicao,substituido_em,suplemento_anterior,suplemento_novo,
             id_suplemento_anterior,id_suplemento_novo,snapshot_anterior_json,snapshot_novo_json
@@ -151,7 +152,7 @@ def comparar_tres_dias(caminho,id_paciente,substituido_em):
     ini_antes=(troca-timedelta(days=3)).strftime("%Y-%m-%d %H:%M:%S")
     fim_antes=troca.strftime("%Y-%m-%d %H:%M:%S")
     fim_depois=(troca+timedelta(days=3)).strftime("%Y-%m-%d %H:%M:%S")
-    with sqlite3.connect(caminho) as conn:
+    with closing(sqlite3.connect(caminho)) as conn, conn:
         criar_tabelas(conn)
         hgt_antes=conn.execute("""SELECT medido_em,valor_mg_dl FROM HGT_Registros
             WHERE id_paciente=? AND ativo=1 AND medido_em>=? AND medido_em<? ORDER BY medido_em""",
