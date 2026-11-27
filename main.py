@@ -221,7 +221,7 @@ class AppClinica(ctk.CTk):
         # Se a porta já estiver ocupada, só reutilizamos um servidor NutriLab saudável.
         try:
             with socket.create_connection(("127.0.0.1", 8765), timeout=0.35):
-                if mobile_server_health.check_server_health(url_health, timeout=0.6):
+                if mobile_server_health.check_server_health(url_health, timeout=0.6, expected_db=caminho_db):
                     print("NutriLab Mobile: servidor já ativo e respondendo ao health-check.")
                     return
                 erro_porta = (
@@ -251,7 +251,7 @@ class AppClinica(ctk.CTk):
             self._servidor_mobile = servidor
             self._thread_servidor_mobile = thread
 
-            if not mobile_server_health.wait_for_server_health(url_health, timeout=3.0, interval=0.15):
+            if not mobile_server_health.wait_for_server_health(url_health, timeout=3.0, interval=0.15, expected_db=caminho_db):
                 self._encerrar_servidor_mobile()
                 raise RuntimeError("O servidor foi iniciado, mas não respondeu ao health-check em até 3 segundos.")
 
