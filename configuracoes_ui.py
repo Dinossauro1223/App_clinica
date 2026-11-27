@@ -87,7 +87,6 @@ class ConfiguracoesUI:
         self._contas_compartilhadas(conteudo)
         self._grupo(conteudo, "Configurações clínicas")
         self._nrs(conteudo)
-        self._midias_personalizadas(conteudo)
         self._progressao_oral(conteudo)
         self._grupo(conteudo, "Equipe de atendimento")
         self._equipe(conteudo)
