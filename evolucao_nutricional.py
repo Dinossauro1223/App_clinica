@@ -103,11 +103,16 @@ def avaliar_contexto_renal(dados, peso_kg=None, idade_anos=None, diabetes=False)
         raise ValueError("Referência renal inválida.")
     tfge = _numero(dados["tfge"], "TFGe") if dados.get("tfge") not in (None, "") else None
     faixa_tfge = classificar_categoria_tfge(tfge) if tfge is not None else None
-    estagio = str(dados.get("estagio") or "").strip().upper() or faixa_tfge
-    if estagio and estagio not in ("G1", "G2", "G3A", "G3B", "G4", "G5"):
+    estagio_informado = str(dados.get("estagio") or "").strip().upper()
+    if estagio_informado and estagio_informado not in ("G1", "G2", "G3A", "G3B", "G4", "G5"):
         raise ValueError("Estágio renal inválido.")
-    if estagio in ("G3A", "G3B"):
-        estagio = estagio[:2] + estagio[2:].lower()
+    # A categoria G é sempre derivada da TFGe do laudo, nunca da creatinina
+    # nem de um estágio digitado isoladamente.
+    estagio = faixa_tfge
+    if estagio_informado and faixa_tfge is None:
+        avisos_estagio_sem_tfge = True
+    else:
+        avisos_estagio_sem_tfge = False
     albuminuria = (_numero(dados["albuminuria_mg_g"], "Albuminúria")
                    if dados.get("albuminuria_mg_g") not in (None, "") else None)
     categoria_albuminuria = classificar_albuminuria_mg_g(albuminuria) if albuminuria is not None else None
@@ -139,8 +144,10 @@ def avaliar_contexto_renal(dados, peso_kg=None, idade_anos=None, diabetes=False)
         avisos.append("TFGe em G1/G2 isoladamente não confirma DRC; é necessário marcador de lesão renal e cronicidade.")
     if tfge is not None and tfge < 60:
         avisos.append("Confirme persistência por pelo menos 3 meses ou outro critério clínico para caracterização de DRC.")
-    if estagio and faixa_tfge and estagio != faixa_tfge:
-        avisos.append("Estágio informado difere da faixa calculada pela TFGe; conferir o laudo e o histórico.")
+    if avisos_estagio_sem_tfge:
+        avisos.append("Estágio G não classificado: informe a TFGe do laudo; estágio digitado isoladamente não determina a categoria.")
+    elif estagio_informado and faixa_tfge and estagio_informado != faixa_tfge.upper():
+        avisos.append("Estágio informado difere da faixa calculada pela TFGe; prevalece a categoria calculada pelo laudo.")
     if categoria_albuminuria:
         avisos.append(f"Albuminúria: categoria {categoria_albuminuria} (mg/g). Interpretar junto à TFGe e à cronicidade.")
     if condicao_renal in ("LRA", "DRC + LRA"):
