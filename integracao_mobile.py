@@ -14,6 +14,7 @@ ENVIAR (desktop -> mobile)
   enviar_mapa()      grava o mapa do dia no mobile e PUBLICA para a copa (a copa recebe o aviso com os leitos alterados).
 Descrição completa: docs/mobile/INTEGRACAO_DESKTOP.md
 """
+import base64
 import hashlib
 import json
 import os
@@ -904,3 +905,70 @@ def enviar_mapa(db, mobile_db, data_iso, id_setor=None, texto=None):
         raise ErroMobile(e.msg) from e
     finally:
         c.close()
+
+
+def publicar_menu_dia(db, mobile_db, data_iso, refeicao=None):
+    """Publica snapshots do Menu do Dia no banco mobile; ficha, etapas e fotos ficam congeladas."""
+    import gestao_alimentar_db as ga
+    from datetime import date
+    try:
+        data_iso = date.fromisoformat(str(data_iso)).isoformat()
+    except (TypeError, ValueError):
+        raise ErroMobile("Informe a data no formato AAAA-MM-DD.")
+    refeicao = str(refeicao or "").strip().lower() or None
+    validas = {"desjejum", "colacao", "almoco", "lanche", "jantar", "ceia"}
+    if refeicao and refeicao not in validas:
+        raise ErroMobile("Selecione uma refeição válida.")
+    agrupadas = {}
+    for prep in ga.listar_preparacoes_dia(db, data_iso, refeicao):
+        ficha = ga.obter_ficha(db, prep["id_ficha"]) if prep.get("id_ficha") else None
+        if ficha:
+            fotos = {}
+            for tipo in ("porcao_individual", "recipiente_cheio"):
+                foto = ga.obter_imagem_ficha(db, ficha["id_ficha"], tipo)
+                if foto and foto.get("conteudo"):
+                    fotos[tipo] = {
+                        "mime_type": foto["mime_type"], "sha256": foto["sha256"],
+                        "data_url": "data:%s;base64,%s" % (
+                            foto["mime_type"], base64.b64encode(bytes(foto["conteudo"])).decode("ascii"))
+                    }
+            ficha["imagens"] = fotos
+        agrupadas.setdefault(prep["refeicao"], []).append({
+            "id_preparacao_dia": prep["id_preparacao_dia"], "nome": prep["nome"],
+            "categoria": prep.get("categoria"), "porcoes_previstas": prep.get("porcoes_previstas"),
+            "ficha": ficha
+        })
+    sv, c = _abrir_mobile(mobile_db)
+    publicados = []
+    try:
+        with sv.LOCK:
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_publicacoes (
+                data TEXT NOT NULL, refeicao TEXT NOT NULL, snapshot_json TEXT NOT NULL,
+                publicado_em TEXT NOT NULL, PRIMARY KEY(data,refeicao))""")
+            alvos = {refeicao} if refeicao else validas
+            for ref in sorted(alvos):
+                snapshot = {"esquema": 1, "data": data_iso, "refeicao": ref,
+                            "publicado_em": _agora(), "preparacoes": agrupadas.get(ref, [])}
+                bruto = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
+                anterior = c.execute(
+                    "SELECT snapshot_json FROM menu_dia_publicacoes WHERE data=? AND refeicao=?",
+                    (data_iso, ref)).fetchone()
+                # Ignora o timestamp ao comparar para não criar nova versão sem mudança real.
+                if anterior:
+                    antigo = json.loads(anterior["snapshot_json"])
+                    if antigo.get("preparacoes") == snapshot["preparacoes"]:
+                        publicados.append({"data": data_iso, "refeicao": ref, "alterado": False})
+                        continue
+                c.execute("""INSERT INTO menu_dia_publicacoes(data,refeicao,snapshot_json,publicado_em)
+                    VALUES(?,?,?,?) ON CONFLICT(data,refeicao) DO UPDATE SET
+                    snapshot_json=excluded.snapshot_json,publicado_em=excluded.publicado_em""",
+                    (data_iso, ref, bruto, snapshot["publicado_em"]))
+                publicados.append({"data": data_iso, "refeicao": ref, "alterado": True,
+                                   "preparacoes": len(snapshot["preparacoes"])})
+            c.commit()
+    except Exception:
+        c.rollback()
+        raise
+    finally:
+        c.close()
+    return {"publicacoes": publicados, "total": len(publicados)}

@@ -954,6 +954,20 @@ def _rotear(c, ip, m, p, q, b, auth):
     u = usuario(c, auth)
     perfil = u["perfil"]
     adm, staff = perfil == "admin", perfil in STAFF
+    if m == "GET" and p == "/api/menu-dia":
+        if perfil not in ("admin", "nutricionista", "copa", "estoque_cozinha"):
+            raise Erro("Sem permissão para consultar o Menu do Dia.", 403)
+        d = dia_valido(q.get("data") or hoje())
+        c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_publicacoes (
+            data TEXT NOT NULL, refeicao TEXT NOT NULL, snapshot_json TEXT NOT NULL,
+            publicado_em TEXT NOT NULL, PRIMARY KEY(data,refeicao))""")
+        rows = c.execute(
+            "SELECT refeicao,snapshot_json,publicado_em FROM menu_dia_publicacoes WHERE data=? "
+            "ORDER BY CASE refeicao WHEN 'desjejum' THEN 1 WHEN 'colacao' THEN 2 WHEN 'almoco' THEN 3 "
+            "WHEN 'lanche' THEN 4 WHEN 'jantar' THEN 5 ELSE 6 END", (d,)).fetchall()
+        return {"data": d, "publicado": bool(rows), "refeicoes": [
+            {"refeicao": r["refeicao"], "publicado_em": r["publicado_em"],
+             "snapshot": json.loads(r["snapshot_json"])} for r in rows]}
     if (m, p) == ("GET", "/api/eu"):
         return {"usuario": pub(u), "hoje": hoje()}
     if (m, p) == ("GET", "/api/itens"):
