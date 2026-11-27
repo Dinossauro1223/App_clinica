@@ -307,7 +307,9 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     if(!(await servidorAcessivel()))return;
     const n=await conflitos(q);
     if(n===null)return;
-    if(n>0){mostrar(q,n);return}
+    // Sem uma base completa não é possível garantir que o mapa não tenha divergências.
+    // Nessa situação, assim como quando há conflitos, o envio exige confirmação humana.
+    if(n<0||n>0){mostrar(q,n);return}
     await enviarAutomaticamente(q);
   }
   window.NLOffline={get:read,set:write,remove,clearData,ready,pendentes:()=>queue().length,
