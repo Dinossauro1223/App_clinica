@@ -1,4 +1,5 @@
 import unittest
+from contextlib import closing
 
 import progressao_nutricional as pn
 
@@ -60,7 +61,7 @@ class TestProgressaoNutricional(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as pasta:
             db = os.path.join(pasta, "mapa.db")
-            with sqlite3.connect(db) as conn:
+            with closing(sqlite3.connect(db)) as conn, conn:
                 conn.execute("""CREATE TABLE Mapa_Registros (
                     id_registro INTEGER PRIMARY KEY, data TEXT, id_paciente INTEGER,
                     peso_kg REAL, peso_origem TEXT, peso_metodo TEXT, peso_medido_em TEXT,
