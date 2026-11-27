@@ -125,6 +125,27 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
                 })
             break
 
+    outras_medidas = []
+    if len(itens) > 1:
+        anterior_recente = itens[-2]
+        for campo, rotulo, unidade in (
+            ("altura_cm", "Estatura", "cm"), ("aj_cm", "Altura do joelho", "cm"),
+            ("pp_cm", "Perímetro da panturrilha", "cm"), ("pb_cm", "Perímetro do braço", "cm"),
+        ):
+            try:
+                valor_ant = float(str(anterior_recente.get(campo)).replace(",", "."))
+                valor_atual = float(str(atual.get(campo)).replace(",", "."))
+            except (TypeError, ValueError):
+                continue
+            if abs(valor_atual - valor_ant) >= 0.01:
+                outras_medidas.append({
+                    "medida": rotulo, "unidade": unidade,
+                    "anterior": valor_ant, "atual": valor_atual,
+                    "diferenca": round(valor_atual - valor_ant, 2),
+                    "data_anterior": anterior_recente["_data"].strftime("%d/%m/%Y"),
+                    "data_atual": atual["_data"].strftime("%d/%m/%Y"),
+                })
+
     data_atual = atual["_data"]
     for dias, tolerancia, limiar_moderado, limiar_elevado, rotulo in JANELAS_ASPEN:
         alvo = data_atual - timedelta(days=dias)
@@ -191,6 +212,7 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
     return {
         "status": "calculado", "data_atual": data_atual.strftime("%d/%m/%Y"),
         "peso_atual_kg": atual["_peso"], "comparacoes": comparacoes,
+        "outras_medidas": outras_medidas,
         "alertas": alertas, "imc": round(bmi, 2) if bmi is not None else None,
         "criterio_bmi_glim": criterio_bmi, "criterios_fenotipicos": fenotipicos,
         "criterios_etiologicos": etiologicos,
@@ -211,8 +233,15 @@ def formatar_progressao(resultado):
         )
         if item.get("origens_diferentes"):
             linhas.append("  Atenção: origem do peso anterior e atual é diferente (aferido/estimado).")
+    for medida in resultado.get("outras_medidas", []):
+        linhas.append(
+            f"• {medida['medida']}: {medida['anterior']:.1f} → {medida['atual']:.1f} {medida['unidade']} "
+            f"({medida['diferenca']:+.1f} {medida['unidade']}; {medida['data_anterior']} a {medida['data_atual']})."
+        )
+    if resultado.get("outras_medidas"):
+        linhas.append("As variações de perímetros/estatura são exibidas para acompanhamento; não recebem classificação diagnóstica automática.")
     if resultado.get("criterio_bmi_glim"):
-        linhas.append(resultado["criterio_bmi_glim"]["texto"])
+        linhas.append(resultado["criterio_bmi_glim"]["texto")
     linhas.extend(a["texto"] for a in resultado.get("alertas", []))
     linhas.append(resultado.get("nota", ""))
     return "\n".join(linhas)
