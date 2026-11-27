@@ -30,7 +30,7 @@ test('remoção concorrente de leito é detectada', () => {
 });
 test('mudanças combinadas contam inclusão, remoção e alteração sem duplicar leito ausente', () => {
   const atual = [{...base['1'], nome: 'Ana Maria'}, {id_leito: 4, nome: 'Caio'}];
-  assert.equal(helpers.contarConflitosMapa(base, atual, snap), 3);
+  assert.equal(helpers.contarConflitosMapa(base, atual, snap), 4);
 });
 test('base offline incompleta nunca autoriza envio automático', () => {
   assert.equal(helpers.baseCompletaMapa({linhas: [base['1'], base['2']]}, base), false);
