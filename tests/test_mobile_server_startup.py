@@ -148,5 +148,15 @@ class TestRetryInicializacaoMobile(unittest.TestCase):
         self.assertTrue(app._mobile_resultados.empty())
 
 
+class TestThreadInicializacaoMobile(unittest.TestCase):
+    def test_worker_de_inicio_e_referenciado_e_aguardado_no_fechamento(self):
+        fonte = Path(__file__).resolve().parents[1] / "main.py"
+        texto = fonte.read_text(encoding="utf-8")
+        self.assertIn('self._thread_inicializacao_mobile = worker', texto)
+        self.assertIn('worker_startup.join(timeout=2.0)', texto)
+        self.assertIn('self._mobile_encerrando.set()', texto)
+        self.assertIn('worker_startup.is_alive()', texto)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
