@@ -258,7 +258,7 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     modal=document.createElement('div');modal.className='modal';
     modal.style.cssText='position:fixed;inset:0;z-index:99999;background:#0009;display:flex;align-items:center;justify-content:center;padding:16px';
     const texto=nConflitos<0?'Não havia uma cópia anterior completa para comparar este mapa. Revise os dados com atenção antes de decidir pelo envio.':
-      nConflitos?`${nConflitos} leito(s) também foram alterados no servidor desde a última cópia local. Confira as diferenças antes de enviar. O servidor continuará aplicando suas regras de autorização.`:
+      nConflitos?`${nConflitos} divergência(s) foram encontradas no mapa do servidor desde a última cópia local (alterações, inclusões ou remoções de leitos). Confira as diferenças antes de enviar. O servidor continuará aplicando suas regras de autorização.`:
       'Há alterações feitas sem conexão que ainda não foram enviadas ao servidor.';
     modal.innerHTML=`<div class=caixa style="max-width:520px;width:100%;background:white;padding:20px;border-radius:12px">
       <h2 style="margin-top:0">Sincronização pendente</h2><p>${texto}</p><p class=mini>${q.length} operação(ões) aguardando envio.</p>
