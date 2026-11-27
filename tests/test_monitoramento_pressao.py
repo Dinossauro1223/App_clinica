@@ -50,6 +50,27 @@ class TestMonitoramentoPressao(unittest.TestCase):
         self.assertIsNone(res["periodo_antes"]["hgt"]["media"])
         self.assertEqual(res["periodo_antes"]["hgt"]["afericoes"],0)
 
+    def test_substituicao_guarda_ids_e_snapshot_e_pode_ser_listada(self):
+        rid=mp.registrar_substituicao(
+            self.db,7,"2026-11-20 10:00","Fórmula A","Fórmula B",
+            id_suplemento_anterior=11,id_suplemento_novo=12,
+            snapshot_anterior={"kcal_100":100},snapshot_novo={"kcal_100":150})
+        eventos=mp.listar_substituicoes(self.db,7)
+        self.assertEqual(eventos[0][0],rid)
+        self.assertEqual((eventos[0][4],eventos[0][5]),(11,12))
+        self.assertEqual(__import__("json").loads(eventos[0][6]),{"kcal_100":100})
+        self.assertEqual(__import__("json").loads(eventos[0][7]),{"kcal_100":150})
+
+    def test_cobertura_dos_periodos_e_calculada_em_blocos_de_24_horas(self):
+        for valor,data in [(100,"2026-11-17 13:00"),(110,"2026-11-18 13:00"),
+                           (120,"2026-11-19 13:00"),(130,"2026-11-20 13:00"),
+                           (140,"2026-11-21 13:00"),(150,"2026-11-22 13:00")]:
+            mg.salvar_hgt(self.db,7,valor,data,"Aleatória")
+        res=mp.comparar_tres_dias(self.db,7,"2026-11-20 13:00")
+        self.assertEqual(res["periodo_antes"]["hgt"]["dias_com_dados"],3)
+        self.assertFalse(res["periodo_antes"]["hgt"]["amostra_insuficiente"])
+        self.assertEqual(res["periodo_depois"]["hgt"]["dias_com_dados"],3)
+
 
 if __name__ == "__main__":
     unittest.main()
