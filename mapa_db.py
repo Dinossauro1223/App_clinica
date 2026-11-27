@@ -805,12 +805,7 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
                       (id_reg, s.get("id_suplemento"), s["nome"], s.get("modulo"), s.get("qtd_dia"),
                        s.get("unidade"), s.get("ml_oferta"), s.get("agua_ml"),
                        json.dumps(s.get("refeicoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta"))),
-                       *valores_ficha, observacao_ficha, snapshot_em, *valores_osm,
-                       s.get("classificacao_nutricional", ficha["classificacao_nutricional"] if ficha else None),
-                       s.get("grau_hidrolise", ficha["grau_hidrolise"] if ficha else None),
-                       s.get("proteinas_hidrolisadas", ficha["proteinas_hidrolisadas"] if ficha else None),
-                       s.get("fonte_classificacao", ficha["fonte_classificacao"] if ficha else None),
-                       s.get("tipo_formula", ficha["tipo_formula"] if ficha else None))
+                       *valores_ficha, observacao_ficha, snapshot_em, *valores_osm))
         dados_evolucao = reg.get("evolucao_json")
         if dados_evolucao not in (None, ""):
             try:
@@ -1094,12 +1089,20 @@ def copiar_mapa(db_path, origem_iso, destino_iso, id_setor=None):
                 c.execute("""INSERT INTO Mapa_Registro_Suplementos
                              (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade, ml_oferta, agua_ml,
                               refeicoes_json, batido_fruta, kcal_100, ptn_100, lip_100, carb_100, sod_100,
-                              ficha_observacao, ficha_snapshot_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                              ficha_observacao, ficha_snapshot_em, osmolaridade_ref, unidade_osmolaridade, dose_ref,
+                              unidade_dose_ref, volume_final_ref_ml, agua_recomendada_ml, fonte_osmolaridade,
+                              classificacao_nutricional, grau_hidrolise, proteinas_hidrolisadas,
+                              fonte_classificacao, tipo_formula)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                           (cur.lastrowid, s.get("id_suplemento"), s["nome"], s.get("modulo"), s["qtd_dia"],
                            s["unidade"], s.get("ml_oferta"), s.get("agua_ml"),
                            json.dumps(s.get("refeicoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta"))),
                            s.get("kcal_100"), s.get("ptn_100"), s.get("lip_100"), s.get("carb_100"), s.get("sod_100"),
-                           s.get("ficha_observacao"), s.get("ficha_snapshot_em")))
+                           s.get("ficha_observacao"), s.get("ficha_snapshot_em"), s.get("osmolaridade_ref"),
+                           s.get("unidade_osmolaridade"), s.get("dose_ref"), s.get("unidade_dose_ref"),
+                           s.get("volume_final_ref_ml"), s.get("agua_recomendada_ml"), s.get("fonte_osmolaridade"),
+                           s.get("classificacao_nutricional"), s.get("grau_hidrolise"),
+                           s.get("proteinas_hidrolisadas"), s.get("fonte_classificacao"), s.get("tipo_formula")))
             copiados += 1
         c.commit()
     return copiados
