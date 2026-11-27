@@ -256,7 +256,8 @@ def inicializar(db_path):
                            ("agua_recomendada_ml", "REAL"), ("fonte_osmolaridade", "TEXT"),
                            ("classificacao_nutricional", "TEXT"), ("grau_hidrolise", "TEXT"),
                            ("proteinas_hidrolisadas", "TEXT"), ("fonte_classificacao", "TEXT"),
-                           ("tipo_formula", "TEXT")):
+                           ("tipo_formula", "TEXT"), ("fibra_g_100", "REAL"), ("tipo_fibra", "TEXT"),
+                           ("descricao_fibra", "TEXT"), ("fonte_fibra", "TEXT")):
             if nome not in colunas_sup:
                 c.execute(f"ALTER TABLE Mapa_Registro_Suplementos ADD COLUMN {nome} {tipo}")
         # Pacientes pertence ao programa principal; garante existência em bancos novos.
