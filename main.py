@@ -975,6 +975,12 @@ class AppClinica(ctk.CTk):
         )
         painel_hgt.pack(fill="both", expand=True, padx=8, pady=8)
 
+        painel_pa = PainelMonitoramentoPressao(
+            aba_pa, caminho_do_banco(), self.paciente_atual_id,
+            fg_color=tema.FUNDO
+        )
+        painel_pa.pack(fill="both", expand=True, padx=8, pady=8)
+
     def gerar_pdf_evolucao(self, consulta_dados, exames_str):
         try:
             # ------------------------------------------------------------------
