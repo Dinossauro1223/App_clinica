@@ -298,13 +298,14 @@ class TestBanco(unittest.TestCase):
         sup = next(s for s in mdb.listar_suplementos(self.db) if s["modulo"] == "Fórmula completa")
         reg = registro_base(
             self.db, self.leitos[0]["id_leito"], "2026-10-25", via="Enteral",
-            meta_kcal=1800.0, meta_proteina_g=90.0,
+            meta_kcal=1800.0, meta_proteina_g=90.0, meta_fibras_g=25.0,
             suplementos=[dict(id_suplemento=sup["id_suplemento"], nome=sup["nome"],
                               modulo=sup["modulo"], qtd_dia=500.0, unidade="ml")])
         mdb.salvar_registro(self.db, reg)
         salvo = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])
         self.assertEqual(salvo["via"], "Enteral")
-        self.assertEqual((salvo["meta_kcal"], salvo["meta_proteina_g"]), (1800.0, 90.0))
+        self.assertEqual((salvo["meta_kcal"], salvo["meta_proteina_g"], salvo["meta_fibras_g"]),
+                         (1800.0, 90.0, 25.0))
         # A separação visual/operacional deriva da via; a fórmula permanece como dieta enteral.
         self.assertEqual("Dieta enteral" if salvo["via"] == "Enteral" else "Suplementação oral",
                          "Dieta enteral")
@@ -422,10 +423,14 @@ class TestBanco(unittest.TestCase):
                              "ficha_observacao", "ficha_snapshot_em", "osmolaridade_ref",
                              "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
                              "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade", "classificacao_nutricional",
-                             "grau_hidrolise", "proteinas_hidrolisadas", "fonte_classificacao", "tipo_formula"}.issubset(colunas))
+                             "grau_hidrolise", "proteinas_hidrolisadas", "fonte_classificacao", "tipo_formula",
+                             "fibra_g_100", "tipo_fibra", "descricao_fibra", "fonte_fibra"}.issubset(colunas))
             self.assertTrue({"osmolaridade_ref", "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
                              "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade", "classificacao_nutricional",
-                             "grau_hidrolise", "proteinas_hidrolisadas", "fonte_classificacao", "tipo_formula"}.issubset(colunas_catalogo))
+                             "grau_hidrolise", "proteinas_hidrolisadas", "fonte_classificacao", "tipo_formula",
+                             "fibra_g_100", "tipo_fibra", "descricao_fibra", "fonte_fibra"}.issubset(colunas_catalogo))
+            colunas_registro = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
+            self.assertIn("meta_fibras_g", colunas_registro)
         finally:
             try:
                 os.remove(legado)
