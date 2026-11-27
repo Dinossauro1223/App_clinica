@@ -70,7 +70,7 @@ body.zoom-texto{zoom:1}
 .caixa ul{margin:6px 0 0;padding-left:18px}
 #entrada{max-width:380px;margin:12vh auto;padding:0 16px}
 #entrada h1{font-size:2rem;margin:0 0 4px}
-.creditos{text-align:center;color:var(--suave);font-size:.78rem;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--linha);margin-top:12px}
+.creditos{text-align:center;color:var(--suave);font-size:.78rem;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--linha);margin-top:12px}.creditos-acoes{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px}.refs-caixa{max-width:680px;max-height:88vh}.refs-topo{display:flex;align-items:center;justify-content:space-between;gap:10px}.refs-topo h2{margin:4px 0 8px}.refs-lista{display:grid;gap:10px}.refs-item{padding:10px 0;border-bottom:1px solid var(--linha);font-size:.88rem;line-height:1.5}.refs-item b{display:block;margin-bottom:3px}.refs-item a{display:inline-block;margin-top:4px;color:var(--sec-texto);font-weight:700;overflow-wrap:anywhere}.refs-nota{padding:10px;border-radius:8px;background:var(--nota-bg);font-size:.82rem;line-height:1.5;margin:10px 0}
 .orientacao-texto{white-space:normal;line-height:1.55}
 .orientacao-texto br{display:block;margin-bottom:5px;content:""}
 .orientacao-nota{background:#edf3ef;border-left:4px solid var(--cor);border-radius:6px;padding:10px 12px;margin:8px 0}
@@ -352,10 +352,30 @@ function telaLogin(msg){
    <label class=f>Ou digitar o endereço do servidor<input id=qrManual type=text inputmode=url placeholder="http://192.168.0.10:8765"></label>
    <button class="btn" onclick="usarEnderecoQR($('#qrManual').value)">Conectar a este servidor</button>
    <button class="btn sec" style="margin-top:6px" onclick="fecharLeitorQR()">Cancelar</button>
-  </section></div><footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
+  </section></div><footer class=creditos><div class=creditos-acoes><span>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</span><button class="btn sec peq" onclick="abrirReferencias()">Referências utilizadas</button></div></footer>`;
   $('#sn').onkeydown=e=>{if(e.key==='Enter')entrar()};
 }
 
+function abrirReferencias(){
+ const referencias=[
+  {ref:"CEDERHOLM, Tommy et al. GLIM criteria for the diagnosis of malnutrition: a consensus report from the global clinical nutrition community. Clinical Nutrition, v. 38, n. 1, p. 1-9, 2019. DOI: 10.1016/j.clnu.2018.08.002.",uso:"Critérios fenotípicos e etiológicos para avaliação de desnutrição.",url:"https://doi.org/10.1016/j.clnu.2018.08.002"},
+  {ref:"CHUMLEA, William C.; ROCHE, Alex F.; STEINBAUGH, Marsha L. Estimating stature from knee height for persons 60 to 90 years of age. Journal of the American Geriatrics Society, v. 33, n. 2, p. 116-120, 1985.",uso:"Equação de estimativa de estatura por altura do joelho em idosos.",url:"https://pubmed.ncbi.nlm.nih.gov/?term=Estimating+stature+from+knee+height+for+persons+60+to+90+years+of+age"},
+  {ref:"IKIZLER, T. Alp et al. KDOQI clinical practice guideline for nutrition in CKD: 2020 update. American Journal of Kidney Diseases, v. 76, n. 3, supl. 1, p. S1-S107, 2020. DOI: 10.1053/j.ajkd.2020.05.006.",uso:"Referência alternativa para avaliação e cuidado nutricional na DRC.",url:"https://doi.org/10.1053/j.ajkd.2020.05.006"},
+  {ref:"JENSEN, Gordon L. et al. GLIM consensus approach to diagnosis of malnutrition: a 5-year update. JPEN Journal of Parenteral and Enteral Nutrition, v. 49, n. 4, p. 414-427, 2025. DOI: 10.1002/jpen.2756.",uso:"Atualização do consenso GLIM; critérios de perda de peso, IMC e ingestão/assimilação não foram modificados.",url:"https://doi.org/10.1002/jpen.2756"},
+  {ref:"KIDNEY DISEASE: IMPROVING GLOBAL OUTCOMES (KDIGO). KDIGO 2024 clinical practice guideline for the evaluation and management of chronic kidney disease. 2024.",uso:"Referência renal padrão para avaliação da DRC, TFGe e albuminúria.",url:"https://kdigo.org/wp-content/uploads/2024/03/KDIGO-2024-CKD-Guideline.pdf"},
+  {ref:"KONDRUP, Jens et al. Nutritional risk screening (NRS 2002): a new method based on an analysis of controlled clinical trials. Clinical Nutrition, v. 22, n. 3, p. 321-336, 2003.",uso:"Triagem de risco nutricional e programação da reavaliação.",url:"https://pubmed.ncbi.nlm.nih.gov/?term=Nutritional+risk+screening+NRS+2002+Kondrup"},
+  {ref:"MIFFLIN, Mark D. et al. A new predictive equation for resting energy expenditure in healthy individuals. The American Journal of Clinical Nutrition, v. 51, n. 2, p. 241-247, 1990. DOI: 10.1093/ajcn/51.2.241.",uso:"Equação preditiva de gasto energético em repouso.",url:"https://doi.org/10.1093/ajcn/51.2.241"},
+  {ref:"UNIVERSIDADE FEDERAL DO RIO GRANDE DO NORTE. Sistema Integrado de Bibliotecas. Orientações para normalização de trabalhos acadêmicos. Natal: UFRN, [s. d.].",uso:"Orientação institucional de normalização, incluindo ABNT NBR 6023:2025 e NBR 10520:2023.",url:"https://sisbi.ufrn.br/biblioteca/bczm/orientacoes"},
+  {ref:"WHITE, Jane V. et al. Consensus statement: Academy of Nutrition and Dietetics and American Society for Parenteral and Enteral Nutrition: characteristics recommended for the identification and documentation of adult malnutrition (undernutrition). JPEN Journal of Parenteral and Enteral Nutrition, v. 36, n. 3, p. 275-283, 2012. DOI: 10.1177/0148607112440285.",uso:"Faixas temporais de perda ponderal e características para documentação de desnutrição em adultos.",url:"https://doi.org/10.1177/0148607112440285"},
+  {ref:"WORLD HEALTH ORGANIZATION. WHO Child Growth Standards: length/height-for-age, weight-for-age, weight-for-length, weight-for-height and body mass index-for-age: methods and development. Geneva: WHO, 2006.",uso:"Padrões de crescimento infantil e parâmetros LMS de 0 a 5 anos.",url:"https://www.who.int/tools/child-growth-standards"},
+  {ref:"WORLD HEALTH ORGANIZATION. Growth reference data for 5-19 years. Geneva: WHO, 2007.",uso:"Referência de crescimento para crianças e adolescentes de 5 a 19 anos.",url:"https://www.who.int/tools/growth-reference-data-for-5to19-years"}
+ ];
+ const modal=document.createElement('div');modal.className='modal';modal.id='modalReferencias';
+ modal.innerHTML='<section class="caixa refs-caixa" role="dialog" aria-modal="true" aria-labelledby="tituloReferencias"><div class=refs-topo><h2 id=tituloReferencias>Referências utilizadas</h2><button class="btn sec peq" onclick="fecharReferencias()">Fechar</button></div><p class=mini>Fontes clínicas e metodológicas associadas aos módulos do NutriLab. Lista em ordem alfabética, conforme ABNT NBR 6023:2025 e orientações da UFRN.</p><div class=refs-nota>As referências apoiam a documentação e os cálculos, mas não substituem a avaliação do nutricionista. Uma variação de peso em até 24 horas é tratada como alerta para revisão do balanço hídrico e das condições de pesagem, não como diagnóstico isolado de desnutrição. A confirmação pelo GLIM exige pelo menos um critério fenotípico e um etiológico.</div><div class=refs-lista>'+referencias.map(r=>'<article class=refs-item><b>'+esc(r.ref)+'</b><span>'+esc(r.uso)+'</span><br><a href="'+esc(r.url)+'">Consultar fonte</a></article>').join('')+'</div></section>';
+ modal.addEventListener('click',e=>{if(e.target===modal)fecharReferencias()});
+ document.body.appendChild(modal);
+}
+function fecharReferencias(){const modal=document.getElementById('modalReferencias');if(modal)modal.remove()}
 let qrStream=null, qrLoop=null;
 function fecharLeitorQR(){
  const box=$('#qrLeitor');if(box)box.hidden=true;
@@ -471,7 +491,7 @@ async function entrar(){
   }
   $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span><button onclick="sair()">Sair</button></div></header>
   <nav>${abasAtivas.map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
-  <footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
+  <footer class=creditos><div class=creditos-acoes><span>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</span><button class="btn sec peq" onclick="abrirReferencias()">Referências utilizadas</button></div></footer>`;
   ir(abasAtivas[0]?.[0]||'painel');
   verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
 }
