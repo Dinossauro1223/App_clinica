@@ -133,6 +133,61 @@ class TestEvolucaoNutricional(unittest.TestCase):
         self.assertEqual(aviso["horas_estimadas"], 30)
         self.assertIn("aproximadamente 30.0 horas", aviso["texto"])
 
+
+    def test_classificacao_tfge_e_albuminuria_kdigo(self):
+        self.assertEqual(ev.classificar_categoria_tfge(52), "G3a")
+        self.assertEqual(ev.classificar_categoria_tfge(29), "G4")
+        self.assertEqual(ev.classificar_albuminuria_mg_g(29.9), "A1")
+        self.assertEqual(ev.classificar_albuminuria_mg_g(30), "A2")
+        self.assertEqual(ev.classificar_albuminuria_mg_g(301), "A3")
+
+    def test_kdigo_2024_nao_dialise_recomenda_08_sem_alterar_meta(self):
+        r = ev.avaliar_contexto_renal({
+            "referencia": "KDIGO 2024", "drc_confirmada": True, "tfge": 42,
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=60, idade_anos=65)
+        self.assertEqual(r["estagio"], "G3b")
+        self.assertEqual(r["recomendacao_proteica"]["g_kg_dia"], 0.8)
+        self.assertEqual(r["recomendacao_proteica"]["g_dia"], 48)
+
+    def test_kdoqi_2020_separa_drc_sem_dialise_e_dialise(self):
+        sem_dm = ev.avaliar_contexto_renal({
+            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G4",
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=70, diabetes=False)
+        com_dm = ev.avaliar_contexto_renal({
+            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G3a",
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=70, diabetes=True)
+        hd = ev.avaliar_contexto_renal({
+            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G5",
+            "dialise": "hemodialise", "estabilidade_metabolica": "estavel"
+        }, peso_kg=70)
+        self.assertEqual(sem_dm["recomendacao_proteica"]["g_kg_dia"], "0,55–0,60")
+        self.assertEqual(com_dm["recomendacao_proteica"]["g_kg_dia"], "0,6–0,8")
+        self.assertEqual(hd["recomendacao_proteica"]["g_kg_dia"], "1,0–1,2")
+
+    def test_instabilidade_catabolismo_e_crianca_bloqueiam_restricao_automatica(self):
+        instavel = ev.avaliar_contexto_renal({
+            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G4",
+            "dialise": "nao", "estabilidade_metabolica": "instavel"
+        }, peso_kg=50)
+        crianca = ev.avaliar_contexto_renal({
+            "referencia": "KDIGO 2024", "drc_confirmada": True, "estagio": "G4",
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=30, idade_anos=12)
+        self.assertIsNone(instavel["recomendacao_proteica"]["g_kg_dia"])
+        self.assertIsNone(crianca["recomendacao_proteica"]["g_kg_dia"])
+
+    def test_exames_isolados_nao_alteram_meta_proteica(self):
+        a = ev.avaliar_contexto_renal({
+            "referencia": "KDIGO 2024", "drc_confirmada": True, "estagio": "G4",
+            "dialise": "nao", "estabilidade_metabolica": "estavel",
+            "creatinina": 3.2, "ureia": 110, "albumina_serica": 2.8
+        }, peso_kg=60)
+        self.assertEqual(a["recomendacao_proteica"]["g_kg_dia"], 0.8)
+        self.assertEqual(len(a["avisos"]), 3)
+
     def test_antropometria_decimal_ptbr_e_peso_corrigido(self):
         texto = ev.formatar_antropometria({
             "data": "25/11/2026", "idade_anos": 72, "altura_m": 1.65, "altura_origem": "R",
