@@ -540,7 +540,8 @@ def _monitoramento_pressao_up(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS Suplemento_Substituicoes (
         id_substituicao INTEGER PRIMARY KEY AUTOINCREMENT, id_paciente INTEGER NOT NULL,
         substituido_em TEXT NOT NULL, suplemento_anterior TEXT, suplemento_novo TEXT NOT NULL,
-        motivo TEXT, autor TEXT, criado_em TEXT NOT NULL,
+        motivo TEXT, autor TEXT, id_suplemento_anterior INTEGER, id_suplemento_novo INTEGER,
+        snapshot_anterior_json TEXT, snapshot_novo_json TEXT, criado_em TEXT NOT NULL,
         ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1)))""")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_substituicao_paciente_data ON Suplemento_Substituicoes(id_paciente, substituido_em, ativo)")
     colunas = {r[1] for r in conn.execute("PRAGMA table_info(HGT_Registros)")}
