@@ -96,6 +96,34 @@ class MobileTest(unittest.TestCase):
             c.close()
 
     # ------------------------------------------------------------------ testes
+    def test_menu_dia_publicado_disponivel_aos_perfis_operacionais_e_bloqueado_ao_almox(self):
+        dia = "2026-11-26"
+        snapshot = {"esquema": 1, "data": dia, "refeicao": "almoco",
+                    "preparacoes": [{"nome": "Arroz", "categoria": "acompanhamento",
+                                     "ficha": {"ingredientes": [{"nome": "Arroz", "qtd_per_capita": 50,
+                                                                  "unidade": "g"}]}}]}
+        c = sv.conectar(self.db)
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_publicacoes (
+                data TEXT NOT NULL, refeicao TEXT NOT NULL, snapshot_json TEXT NOT NULL,
+                publicado_em TEXT NOT NULL, PRIMARY KEY(data,refeicao))""")
+            c.execute("INSERT OR REPLACE INTO menu_dia_publicacoes VALUES(?,?,?,?)",
+                      (dia, "almoco", json.dumps(snapshot, ensure_ascii=False), "2026-11-26T12:00:00-03:00"))
+            c.commit()
+        finally:
+            c.close()
+
+        for perfil in ("admin", "nut", "cop", "coz"):
+            cod, resposta = self.chamar(self.adm if perfil == "admin" else self.t[perfil],
+                                        "GET", "/api/menu-dia?data=" + dia)
+            self.assertEqual(cod, 200, resposta)
+            self.assertTrue(resposta["publicado"])
+            self.assertEqual(resposta["refeicoes"][0]["snapshot"]["preparacoes"][0]["ficha"]
+                             ["ingredientes"][0]["nome"], "Arroz")
+
+        cod, resposta = self.chamar(self.t["alm"], "GET", "/api/menu-dia?data=" + dia)
+        self.assertEqual(cod, 403, resposta)
+
     def test_admin_inicial_usa_credencial_solicitada(self):
         with tempfile.TemporaryDirectory() as pasta:
             banco = str(Path(pasta) / "mobile.db")
