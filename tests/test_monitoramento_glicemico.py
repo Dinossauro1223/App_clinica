@@ -7,6 +7,7 @@ from pathlib import Path
 from datetime import datetime
 
 import monitoramento_glicemico as mg
+import monitoramento_enteral as me
 
 
 class TestMonitoramentoGlicemico(unittest.TestCase):
@@ -82,6 +83,20 @@ class TestMonitoramentoGlicemico(unittest.TestCase):
         self.assertEqual(
             mg.intervalo_relativo_hora("2026-11-27 07:30", "2026-11-27 08:00"), -30
         )
+
+    def test_ofertas_temporais_incluem_administracao_enteral_real(self):
+        me.salvar_administracao(
+            self.db, 1, "2026-11-27 08:00", "2026-11-27 10:00",
+            volume_administrado_ml=300, taxa_ml_h=150,
+            via_administracao="bomba",
+        )
+        eventos = mg.listar_ofertas_nutricionais(
+            self.db, 1, "2026-11-27 00:00", "2026-11-27 23:59"
+        )
+        enterais = [e for e in eventos if e.get("tipo_evento") == "enteral"]
+        self.assertEqual(len(enterais), 1)
+        self.assertEqual(enterais[0]["dose"], 300)
+        self.assertEqual(enterais[0]["taxa_ml_h"], 150)
 
 
 if __name__ == "__main__":
