@@ -502,6 +502,31 @@ def _almox_validade_up(conn):
 _ALMOX_VALIDADE_UP = (_almox_validade_up,)
 
 
+def _monitoramento_hgt_up(conn):
+    """Cria armazenamento de HGT sem alterar dados clínicos existentes."""
+    conn.execute("""CREATE TABLE IF NOT EXISTS HGT_Registros (
+        id_hgt INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_paciente INTEGER NOT NULL,
+        valor_mg_dl REAL NOT NULL CHECK(valor_mg_dl > 0 AND valor_mg_dl < 2000),
+        medido_em TEXT NOT NULL,
+        contexto TEXT NOT NULL CHECK(contexto IN ('Jejum','Pré-prandial','Pós-prandial','Aleatória')),
+        observacoes TEXT, criado_em TEXT NOT NULL, atualizado_em TEXT,
+        ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1))
+    )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_hgt_paciente_data ON HGT_Registros(id_paciente, medido_em, ativo)")
+
+
+_MONITORAMENTO_HGT_UP = (_monitoramento_hgt_up,)
+
+
+def _monitoramento_hgt_down(conn):
+    conn.execute("DROP INDEX IF EXISTS idx_hgt_paciente_data")
+    conn.execute("DROP TABLE IF EXISTS HGT_Registros")
+
+
+_MONITORAMENTO_HGT_DOWN = (_monitoramento_hgt_down,)
+
+
 # Lista oficial. NOVAS migrações entram SEMPRE ao final, com versão contígua; nunca editar uma já publicada.
 MIGRACOES = (
     Migracao(versao=1, nome="baseline_esquema_legado", up=(), down=None, baseline=True),
@@ -515,6 +540,7 @@ MIGRACOES = (
     Migracao(versao=7, nome="pep_rascunhos_equipe_e_revisao", up=_PEP_EVOLUCAO_UP, down=_PEP_EVOLUCAO_DOWN),
     Migracao(versao=8, nome="pep_colaboradores_e_integracao_mapa", up=_PEP_MAPA_UP, down=_PEP_MAPA_DOWN),
     Migracao(versao=9, nome="almox_validade_produtos", up=_ALMOX_VALIDADE_UP, down=None),
+    Migracao(versao=10, nome="monitoramento_glicemico_hgt", up=_MONITORAMENTO_HGT_UP, down=_MONITORAMENTO_HGT_DOWN),
 )
 
 
