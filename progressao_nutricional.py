@@ -76,6 +76,10 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
                 "texto": "Sem avaliações de peso suficientes para analisar a progressão."}
 
     atual = itens[-1]
+    try:
+        adulto = idade_anos is not None and float(idade_anos) >= 18
+    except (TypeError, ValueError):
+        adulto = False
     alertas, comparacoes = [], []
     for anterior in reversed(itens[:-1]):
         intervalo_h = (atual["_data"] - anterior["_data"]).total_seconds() / 3600
@@ -90,7 +94,7 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
                 "data_anterior": anterior["_data"].strftime("%d/%m/%Y"),
                 "data_atual": atual["_data"].strftime("%d/%m/%Y"),
             })
-            if abs(diferenca) >= 1.0:
+            if adulto and abs(diferenca) >= 1.0:
                 alertas.append({
                     "tipo": "variacao_aguda_24h", "diferenca_kg": round(diferenca, 2),
                     "intervalo_horas": round(intervalo_h, 1),
@@ -114,7 +118,7 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
                 "data_anterior": anterior["_data"].strftime("%d/%m/%Y"),
                 "data_atual": atual["_data"].strftime("%d/%m/%Y"),
             })
-            if abs(diferenca) >= 1.0:
+            if adulto and abs(diferenca) >= 1.0:
                 alertas.append({
                     "tipo": "variacao_em_dias_consecutivos", "diferenca_kg": round(diferenca, 2),
                     "intervalo_horas": None,
@@ -147,7 +151,7 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
                 })
 
     data_atual = atual["_data"]
-    for dias, tolerancia, limiar_moderado, limiar_elevado, rotulo in JANELAS_ASPEN:
+    for dias, tolerancia, limiar_moderado, limiar_elevado, rotulo in (JANELAS_ASPEN if adulto else ()):
         alvo = data_atual - timedelta(days=dias)
         candidatos = [x for x in itens[:-1] if x["_data"] < data_atual]
         if not candidatos:
@@ -184,13 +188,13 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
     except (TypeError, ValueError, ZeroDivisionError):
         pass
     criterio_bmi = None
-    if bmi is not None and idade_anos is not None:
+    if bmi is not None and adulto:
         limite = 22 if float(idade_anos) >= 70 else 20
         if bmi < limite:
             criterio_bmi = {"imc": round(bmi, 2), "limite": limite,
                             "texto": f"IMC abaixo do ponto de corte GLIM para idade (IMC {bmi:.1f}; corte <{limite})."}
 
-    glim_peso = any(
+    glim_peso = adulto and any(
         (c["janela"] == "6 meses" and c["perda_percentual"] > 5) or
         (c["dias_reais"] > 180 and c["perda_percentual"] > 10)
         for c in comparacoes
@@ -217,8 +221,11 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
         "criterio_bmi_glim": criterio_bmi, "criterios_fenotipicos": fenotipicos,
         "criterios_etiologicos": etiologicos,
         "diagnostico_automatico": False,
-        "nota": "As faixas ASPEN apoiam a documentação clínica e não fecham diagnóstico isoladamente. "
-                "GLIM requer ≥1 critério fenotípico e ≥1 etiológico. Mudanças agudas de peso podem refletir líquidos.",
+        "nota": (
+            "As faixas ASPEN e os critérios GLIM apresentados são para adultos; não foram aplicados a menores de 18 anos. "
+            if not adulto else ""
+        ) + "As faixas ASPEN apoiam a documentação clínica e não fecham diagnóstico isoladamente. "
+            "GLIM requer ≥1 critério fenotípico e ≥1 etiológico. Mudanças agudas de peso podem refletir líquidos.",
     }
 
 
