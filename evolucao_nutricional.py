@@ -112,6 +112,11 @@ def avaliar_contexto_renal(dados, peso_kg=None, idade_anos=None, diabetes=False)
                    if dados.get("albuminuria_mg_g") not in (None, "") else None)
     categoria_albuminuria = classificar_albuminuria_mg_g(albuminuria) if albuminuria is not None else None
     dialise = str(dados.get("dialise") or "nao").strip().lower()
+    frequencia_dialise = (_numero(dados["frequencia_dialise_semana"], "Frequência de diálise", minimo=0.000001)
+                          if dados.get("frequencia_dialise_semana") not in (None, "") else None)
+    duracao_dialise = (_numero(dados["duracao_dialise_horas"], "Duração da diálise", minimo=0.000001)
+                       if dados.get("duracao_dialise_horas") not in (None, "") else None)
+    inicio_dialise = str(dados.get("inicio_dialise") or "").strip() or None
     if dialise not in ("nao", "hemodialise", "peritoneal"):
         raise ValueError("Modalidade de diálise inválida.")
     estabilidade = str(dados.get("estabilidade_metabolica") or "nao_informada").strip().lower()
@@ -182,7 +187,9 @@ def avaliar_contexto_renal(dados, peso_kg=None, idade_anos=None, diabetes=False)
         "tfge_ml_min_173": tfge, "faixa_tfge": faixa_tfge,
         "drc_confirmada": confirmada, "estagio": estagio,
         "albuminuria_mg_g": albuminuria, "categoria_albuminuria": categoria_albuminuria,
-        "dialise": dialise, "estabilidade_metabolica": estabilidade,
+        "dialise": dialise, "frequencia_dialise_semana": frequencia_dialise,
+        "duracao_dialise_horas": duracao_dialise, "inicio_dialise": inicio_dialise,
+        "estabilidade_metabolica": estabilidade,
         "catabolismo": catabolismo, "risco_desnutricao": risco_desnutricao,
         "fragilidade_sarcopenia": sarcopenia, "recomendacao_proteica": recomendacao,
         "avisos": avisos,
