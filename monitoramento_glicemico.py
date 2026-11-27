@@ -6,6 +6,7 @@ evitar dependências adicionais e manter compatibilidade com o executável Windo
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 import json
 from datetime import datetime, timedelta
 import tkinter as tk
@@ -48,7 +49,7 @@ def salvar_hgt(caminho, id_paciente, valor, medido_em, contexto, observacoes="",
     if contexto not in CONTEXTOS:
         raise ValueError("Contexto glicêmico inválido.")
     carimbo = (agora or datetime.now()).isoformat(timespec="seconds")
-    with sqlite3.connect(caminho) as conn:
+    with closing(sqlite3.connect(caminho)) as conn, conn:
         criar_tabela(conn)
         if id_hgt is None:
             cur = conn.execute("""
@@ -80,13 +81,13 @@ def listar_hgt(caminho, id_paciente, inicio=None, fim=None):
         sql += " AND medido_em <= ?"
         args.append(fim)
     sql += " ORDER BY medido_em, id_hgt"
-    with sqlite3.connect(caminho) as conn:
+    with closing(sqlite3.connect(caminho)) as conn, conn:
         criar_tabela(conn)
         return conn.execute(sql, args).fetchall()
 
 
 def inativar_hgt(caminho, id_paciente, id_hgt, agora=None):
-    with sqlite3.connect(caminho) as conn:
+    with closing(sqlite3.connect(caminho)) as conn, conn:
         criar_tabela(conn)
         cur = conn.execute("""
             UPDATE HGT_Registros SET ativo=0, atualizado_em=?
@@ -118,7 +119,7 @@ def listar_ofertas_nutricionais(caminho, id_paciente, inicio=None, fim=None):
     sql += " ORDER BY m.data,s.nome"
     eventos = []
     try:
-        with sqlite3.connect(caminho) as conn:
+        with closing(sqlite3.connect(caminho)) as conn, conn:
             rows = conn.execute(sql,args).fetchall()
     except sqlite3.Error:
         return eventos
