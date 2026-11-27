@@ -247,7 +247,7 @@ class PainelMonitoramentoGlicemico(ctk.CTkFrame):
         for item in self.ofertas_tabela.get_children():
             self.ofertas_tabela.delete(item)
         for i,evento in enumerate(self.ofertas):
-            dose=f'{evento["dose"]:g} {evento["unidade"]}'
+            dose="—" if evento.get("dose") is None else f'{evento["dose"]:g} {evento["unidade"]}'
             agua="—" if evento["agua_misturada_ml"] is None else f'{evento["agua_misturada_ml"]:g}'
             agua_sep="—" if evento["agua_separada_ml"] is None else f'{evento["agua_separada_ml"]:g}'
             carb="—" if evento["carboidratos_g"] is None else f'{evento["carboidratos_g"]:.1f}'
