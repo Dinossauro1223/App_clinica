@@ -184,7 +184,7 @@ class TestCalculoOsmolaridadeDiluicao(unittest.TestCase):
                  "osmolaridade_ref": None, "unidade_osmolaridade": "mOsm/L",
                  "dose_ref": 10, "unidade_dose_ref": "g", "volume_final_ref_ml": 100,
                  "preparacoes": [{"dose": 5, "agua_adicionada_ml": 20}]}
-        resumo = sc._resumo_preparacoes_osmolaridade(ficha)
+        resumo = sc.resumir_osmolaridade_preparacoes(ficha)
         self.assertEqual(resumo["status"], "dados_incompletos")
         self.assertEqual(resumo["volume_final_total_ml"], 70)
 
