@@ -11,6 +11,7 @@ import types
 import unittest
 from contextlib import closing
 from datetime import date, datetime
+from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
