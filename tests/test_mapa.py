@@ -356,7 +356,8 @@ class TestBanco(unittest.TestCase):
                                                     agua_recomendada_ml="130", fonte_osmolaridade="Ficha técnica 2026",
             classificacao_nutricional="oligomerica", grau_hidrolise="parcialmente_hidrolisada",
             proteinas_hidrolisadas="proteína do soro do leite", fonte_classificacao="Ficha fabricante 2026",
-            tipo_formula="fechada"))
+            tipo_formula="fechada", fibra_g_100="8,5", tipo_fibra="mista",
+            descricao_fibra="inulina + fibra de soja", fonte_fibra="Ficha técnica fabricante"))
         s = [x for x in mdb.listar_suplementos(self.db) if x["id_suplemento"] == novo][0]
         self.assertEqual((s["preco"], s["emb_qtd"], s["kcal_100"], s["ptn_100"]), (12.5, 200.0, 350.0, 2.5))
         self.assertEqual((s["osmolaridade_ref"], s["unidade_osmolaridade"], s["dose_ref"],
@@ -364,6 +365,8 @@ class TestBanco(unittest.TestCase):
                          (300.0, "mOsm/L", 20.0, "g", 150.0, 130.0))
         self.assertEqual((s["classificacao_nutricional"], s["grau_hidrolise"], s["proteinas_hidrolisadas"], s["tipo_formula"]),
                          ("oligomerica", "parcialmente_hidrolisada", "proteína do soro do leite", "fechada"))
+        self.assertEqual((s["fibra_g_100"], s["tipo_fibra"], s["descricao_fibra"], s["fonte_fibra"]),
+                         (8.5, "mista", "inulina + fibra de soja", "Ficha técnica fabricante"))
         self.assertIn("Módulo de fibras", mdb.listar_modulos(self.db))
         mdb.salvar_suplemento(self.db, dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo", emb_un="ml",
             osmolaridade_ref="300", unidade_osmolaridade="mOsm/L", dose_ref="20", unidade_dose_ref="ml",
@@ -386,6 +389,8 @@ class TestBanco(unittest.TestCase):
                           salvo["agua_recomendada_ml"], salvo["agua_ml"]), (300.0, 20.0, 150.0, 130.0, 130.0))
         self.assertEqual((salvo["classificacao_nutricional"], salvo["grau_hidrolise"], salvo["tipo_formula"]),
                          ("oligomerica", "parcialmente_hidrolisada", "fechada"))
+        self.assertEqual((salvo["fibra_g_100"], salvo["tipo_fibra"], salvo["descricao_fibra"], salvo["fonte_fibra"]),
+                         (8.5, "mista", "inulina + fibra de soja", "Ficha técnica fabricante"))
         self.assertEqual(salvo["preparacoes"], [
             {"refeicao": "almoço", "dose": 10, "agua_adicionada_ml": 65, "agua_separada_ml": 100},
             {"refeicao": "jantar", "dose": 10, "agua_adicionada_ml": 65, "agua_separada_ml": 0},
@@ -462,7 +467,8 @@ class TestBanco(unittest.TestCase):
         sid = mdb.salvar_suplemento(self.db, dict(
             nome="Fórmula snapshot", modulo="Fórmula completa", emb_un="g",
             kcal_100=350, ptn_100=20, lip_100=10, carb_100=45, sod_100=120,
-            observacao="Ficha técnica versão A"))
+            observacao="Ficha técnica versão A", fibra_g_100=3,
+            tipo_fibra="soluvel", descricao_fibra="psyllium"))
         reg = registro_base(
             self.db, self.leitos[0]["id_leito"], "2026-10-25",
             suplementos=[dict(id_suplemento=sid, nome="Fórmula snapshot", modulo="Fórmula completa",
@@ -476,10 +482,13 @@ class TestBanco(unittest.TestCase):
         mdb.salvar_suplemento(self.db, dict(
             id_suplemento=sid, nome="Fórmula snapshot", modulo="Fórmula completa", emb_un="g",
             kcal_100=200, ptn_100=5, lip_100=3, carb_100=30, sod_100=80,
-            observacao="Ficha técnica versão B"))
+            observacao="Ficha técnica versão B", fibra_g_100=9,
+            tipo_fibra="insoluvel", descricao_fibra="celulose"))
         depois = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["suplementos"][0]
         self.assertEqual((depois["kcal_100"], depois["ptn_100"], depois["ficha_observacao"]),
                          (350.0, 20.0, "Ficha técnica versão A"))
+        self.assertEqual((depois["fibra_g_100"], depois["tipo_fibra"], depois["descricao_fibra"]),
+                         (3.0, "soluvel", "psyllium"))
 
     def test_config(self):
         self.assertEqual(mdb.obter_config(self.db, "criterio", "lipschitz"), "lipschitz")
