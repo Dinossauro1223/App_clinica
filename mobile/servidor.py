@@ -12,9 +12,13 @@ import hmac
 import ipaddress
 import json
 import mimetypes
+import os
 import re
 import secrets
+import shutil
+import subprocess
 import socket
+import socketserver
 import sqlite3
 import sys
 import threading
@@ -45,8 +49,92 @@ LOCK = threading.Lock()
 SESSOES, FALHAS = {}, {}
 SENHA_ADMIN_INICIAL = "123456789"
 
+
+# O Tailscale atribui IPv4 no intervalo CGNAT 100.64.0.0/10 (RFC 6598).
+# Só aceitamos essa origem quando a conexão chegou ao IP Tailscale local
+# detectado no próprio computador; isso evita liberar toda a faixa CGNAT.
+REDE_TAILSCALE = ipaddress.ip_network("100.64.0.0/10")
+_TAILSCALE_CACHE_LOCK = threading.Lock()
+_TAILSCALE_CACHE = {"instante": 0.0, "ip": None}
+
+
+def _executaveis_tailscale():
+    """Localiza o CLI sem presumir que esteja no PATH (instalação Windows padrão)."""
+    encontrados = []
+    configurado = os.environ.get("TAILSCALE_BINARY")
+    if configurado:
+        encontrados.append(configurado)
+    no_path = shutil.which("tailscale")
+    if no_path:
+        encontrados.append(no_path)
+    if sys.platform == "win32":
+        encontrados.extend([
+            str(Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Tailscale" / "tailscale.exe"),
+            str(Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "Tailscale" / "tailscale.exe"),
+            str(Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "Tailscale IPN" / "tailscale.exe"),
+        ])
+    else:
+        encontrados.extend(["/usr/bin/tailscale", "/usr/local/bin/tailscale"])
+    vistos = set()
+    for caminho in encontrados:
+        if caminho not in vistos and Path(caminho).is_file():
+            vistos.add(caminho)
+            yield caminho
+
+
+def detectar_ip_tailscale(forcar=False):
+    """Retorna o IPv4 Tailscale ativo, ou None; resultado fica em cache por 20 s."""
+    with _TAILSCALE_CACHE_LOCK:
+        agora_cache = time.monotonic()
+        if not forcar and agora_cache - _TAILSCALE_CACHE["instante"] < 20:
+            return _TAILSCALE_CACHE["ip"]
+        endereco = None
+        for executavel in _executaveis_tailscale():
+            try:
+                opcoes = {"capture_output": True, "text": True, "timeout": 2, "check": False}
+                if sys.platform == "win32":
+                    opcoes["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                proc = subprocess.run([executavel, "ip", "-4"], **opcoes)
+                if proc.returncode != 0:
+                    continue
+                for linha in proc.stdout.splitlines():
+                    try:
+                        candidato = ipaddress.ip_address(linha.strip())
+                    except ValueError:
+                        continue
+                    if candidato.version == 4 and candidato in REDE_TAILSCALE:
+                        endereco = str(candidato)
+                        break
+            except (OSError, subprocess.SubprocessError):
+                continue
+            if endereco:
+                break
+        _TAILSCALE_CACHE.update({"instante": agora_cache, "ip": endereco})
+        return endereco
+
+
+def cliente_autorizado(ip_origem, ip_destino, ip_tailscale=None):
+    """Permite LAN privada ou tailnet apenas quando o destino é o IP Tailscale local."""
+    try:
+        origem = ipaddress.ip_address(ip_origem)
+        destino = ipaddress.ip_address(ip_destino)
+    except ValueError:
+        return False
+    if origem.is_private:
+        return True
+    return bool(
+        origem.version == 4 and origem in REDE_TAILSCALE
+        and ip_tailscale and str(destino) == str(ip_tailscale)
+    )
+
+
+
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS sistema_config(chave TEXT PRIMARY KEY, valor TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS operacoes_idempotentes(
+  operation_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, resultado_json TEXT NOT NULL, criado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_operacoes_idempotentes_criado ON operacoes_idempotentes(criado_em);
 CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, login TEXT UNIQUE NOT NULL, nome TEXT NOT NULL,
   perfil TEXT NOT NULL, id_setor INTEGER, salt TEXT NOT NULL, senha TEXT NOT NULL, ativo INTEGER DEFAULT 1, criado_em TEXT);
 CREATE TABLE IF NOT EXISTS setores(id INTEGER PRIMARY KEY, nome TEXT UNIQUE NOT NULL);
@@ -294,6 +382,8 @@ def preparar_banco(db, redefinir=False):
     try:
         c.executescript(ESQUEMA)
         migrar(c)
+        c.execute("INSERT OR IGNORE INTO sistema_config(chave,valor) VALUES('server_identity',?)",
+                  (secrets.token_urlsafe(24),))
         adm = c.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone()
         senha = None
         inicializada = c.execute(
@@ -947,6 +1037,17 @@ def _regra_refeicao(funcao, *args, **kwargs):
 
 
 def _rotear(c, ip, m, p, q, b, auth):
+    if (m, p) == ("GET", "/api/status"):
+        cfg = {r["chave"]: r["valor"] for r in c.execute(
+            "SELECT chave,valor FROM sistema_config WHERE chave IN "
+            "('rede_ip_registrado','rede_ip_registrado_em','server_identity')")}
+        ip_tail = detectar_ip_tailscale()
+        return {"status": "online", "ip_lan": ip_lan(), "porta": 8765,
+                "tailscale_conectado": bool(ip_tail), "ip_tailscale": ip_tail,
+                "url_tailscale": ("http://%s:8765" % ip_tail) if ip_tail else None,
+                "ip_registrado": cfg.get("rede_ip_registrado"),
+                "registrado_em": cfg.get("rede_ip_registrado_em"),
+                "server_id": cfg.get("server_identity")}
     if (m, p) == ("POST", "/api/login"):
         return login(c, ip, b)
     # Reutiliza o mesmo arquivo SQLite para os módulos operacionais compartilhados.
@@ -1107,6 +1208,16 @@ def _rotear(c, ip, m, p, q, b, auth):
                     "porcoes_faltantes": faltantes, "cubas": len(cubas)}
     if (m, p) == ("GET", "/api/eu"):
         return {"usuario": pub(u), "hoje": hoje()}
+    if (m, p) == ("POST", "/api/admin/rede/registrar"):
+        if not adm:
+            raise Erro("Somente o administrador pode registrar o endereço da rede.", 403)
+        endereco = ip_lan()
+        instante = agora()
+        c.execute("INSERT INTO sistema_config(chave,valor) VALUES('rede_ip_registrado',?) "
+                  "ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor", (endereco,))
+        c.execute("INSERT INTO sistema_config(chave,valor) VALUES('rede_ip_registrado_em',?) "
+                  "ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor", (instante,))
+        return {"ok": True, "ip_lan": endereco, "registrado_em": instante}
     if (m, p) == ("GET", "/api/itens"):
         return {"itens": [dict(r) for r in c.execute(
             "SELECT id,nome,unidade,preco_unitario,embalagem_qtd,embalagem_un,categoria,validade FROM itens ORDER BY CASE WHEN validade IS NULL OR validade='' THEN 1 ELSE 0 END,validade,categoria COLLATE NOCASE,nome COLLATE NOCASE")]}
@@ -1537,11 +1648,44 @@ def _rotear(c, ip, m, p, q, b, auth):
     raise Erro("Rota não encontrada.", 404)
 
 
-def rotear(db, ip, m, p, q, b, auth):
+def rotear(db, ip, m, p, q, b, auth, operation_id=None):
+    """Executa uma rota e, quando solicitado, torna POSTs repetidos idempotentes."""
     with LOCK:
         c = conectar(db)
         try:
+            fingerprint = None
+            if operation_id:
+                if len(str(operation_id)) > 128:
+                    raise Erro("Identificador de operação muito longo.", 400)
+                if m != "POST" or p == "/api/login":
+                    raise Erro("Identificador de operação inválido para esta rota.", 400)
+                token = auth[7:] if auth.startswith("Bearer ") else ""
+                sessao = SESSOES.get(token)
+                if not sessao or sessao[1] < time.time():
+                    raise Erro("Sessão expirada. Entre novamente.", 401)
+                ativo = c.execute("SELECT ativo FROM usuarios WHERE id=?", (sessao[0],)).fetchone()
+                if not ativo or not ativo["ativo"]:
+                    raise Erro("Conta desativada. Entre em contato com o administrador.", 401)
+                fingerprint = hashlib.sha256(json.dumps(
+                    {"usuario": sessao[0], "metodo": m, "rota": p, "consulta": q, "dados": b},
+                    ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                ).encode("utf-8")).hexdigest()
+                anterior = c.execute(
+                    "SELECT fingerprint,resultado_json FROM operacoes_idempotentes WHERE operation_id=?",
+                    (str(operation_id),)
+                ).fetchone()
+                if anterior:
+                    if not hmac.compare_digest(anterior["fingerprint"], fingerprint):
+                        raise Erro("Identificador de operação já utilizado com outros dados.", 409)
+                    return json.loads(anterior["resultado_json"])
             r = _rotear(c, ip, m, p, q, b, auth)
+            if operation_id:
+                c.execute(
+                    "INSERT INTO operacoes_idempotentes(operation_id,fingerprint,resultado_json,criado_em) VALUES(?,?,?,?)",
+                    (str(operation_id), fingerprint, json.dumps(r, ensure_ascii=False), agora())
+                )
+                # Mantém os identificadores sem expiração: um aparelho pode ficar meses offline
+                # e ainda precisar repetir com segurança uma operação já confirmada pelo servidor.
             c.commit()
             return r
         except Exception:
@@ -1578,8 +1722,10 @@ class Manipulador(BaseHTTPRequestHandler):
 
     def _tratar(self, m):
         try:
-            if not ipaddress.ip_address(self.client_address[0]).is_private:
-                raise Erro("Acesso permitido somente pela rede local.", 403)
+            destino = self.connection.getsockname()[0]
+            ip_tail = detectar_ip_tailscale()
+            if not cliente_autorizado(self.client_address[0], destino, ip_tail):
+                raise Erro("Acesso permitido somente pela rede local ou pelo Tailscale autenticado.", 403)
             u = urlparse(self.path)
             q = {k: v[0] for k, v in parse_qs(u.query).items()}
             if m == "GET" and u.path == "/download/NutriLab-Mobile.apk":
@@ -1605,7 +1751,8 @@ class Manipulador(BaseHTTPRequestHandler):
                 if n < 0 or n > 900_000:
                     raise Erro("A solicitação excede o limite de 900 KB.", 413)
                 b = json.loads(self.rfile.read(n) or b"{}")
-            self._enviar(200, rotear(self.server.db, self.client_address[0], m, u.path, q, b, self.headers.get("Authorization", "")))
+            self._enviar(200, rotear(self.server.db, self.client_address[0], m, u.path, q, b,
+                self.headers.get("Authorization", ""), self.headers.get("X-Nutrilab-Operation-Id")))
         except Erro as e:
             self._enviar(e.cod, {"erro": e.msg})
         except (ValueError, KeyError, TypeError) as e:
@@ -1621,9 +1768,61 @@ class Manipulador(BaseHTTPRequestHandler):
         self._tratar("POST")
 
 
+class ManipuladorDescoberta(socketserver.BaseRequestHandler):
+    """Responde apenas ao pacote de descoberta local; não concede acesso à API."""
+    def handle(self):
+        dados, sock = self.request
+        try:
+            if not ipaddress.ip_address(self.client_address[0]).is_private:
+                return
+        except ValueError:
+            return
+        if dados.strip() != b"NUTRILAB_DISCOVER_V1":
+            return
+        try:
+            c = conectar(self.server.db)
+            try:
+                identidade = c.execute(
+                    "SELECT valor FROM sistema_config WHERE chave='server_identity'"
+                ).fetchone()
+                if not identidade:
+                    raise RuntimeError("Identidade do servidor não inicializada.")
+                server_id = identidade["valor"]
+            finally:
+                c.close()
+            endereco = ip_lan()
+            resposta = "NUTRILAB_SERVER_V1|http://%s:%s|%s" % (
+                endereco, self.server.http_port, server_id
+            )
+            sock.sendto(resposta.encode("utf-8"), self.client_address)
+        except Exception:
+            # Descoberta é auxiliar: falhas não interrompem o servidor HTTP.
+            return
+
+class ServidorDescoberta(socketserver.ThreadingUDPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
 def criar_servidor(db, porta=0, host="127.0.0.1"):
     srv = ThreadingHTTPServer((host, porta), Manipulador)
     srv.db = str(db)
+    srv.discovery_server = None
+    srv.discovery_thread = None
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        try:
+            descoberta = ServidorDescoberta(("0.0.0.0", 8766), ManipuladorDescoberta)
+            descoberta.db = str(db)
+            descoberta.http_port = srv.server_address[1]
+            thread = threading.Thread(
+                target=descoberta.serve_forever, name="NutriLabDescoberta", daemon=True
+            )
+            thread.start()
+            srv.discovery_server = descoberta
+            srv.discovery_thread = thread
+        except OSError:
+            # A porta UDP pode estar ocupada ou bloqueada; HTTP continua funcional.
+            pass
     return srv
 
 

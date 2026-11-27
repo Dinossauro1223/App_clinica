@@ -53,7 +53,7 @@ call %PY_CMD% -m pip install -r requirements-build.txt >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_DEPENDENCIAS
 
 echo.
-echo [2/8] Gerando identidade visual...
+echo [2/9] Gerando identidade visual...
 call %PY_CMD% tools\gerar_identidade_visual.py >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_IDENTIDADE
 if not exist "assets\identidade\renderizados\folhas.json" goto ERRO_IDENTIDADE
@@ -62,20 +62,20 @@ if not exist "assets\identidade\nutrilab_icone.png" goto ERRO_IDENTIDADE
 if not exist "assets\identidade\nutrilab.ico" goto ERRO_IDENTIDADE
 
 echo.
-echo [3/8] Executando testes prioritarios e contrato de distribuicao...
+echo [3/9] Executando testes prioritarios e contrato de distribuicao...
 call %PY_CMD% -m unittest discover -s tests -p "test_svg_pipeline.py" -v >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_TESTES
 call %PY_CMD% -m unittest discover -s tests -p "test_launcher_bootstrap.py" -v >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_TESTES
 
 echo.
-echo [4/8] Gerando banco inicial limpo...
+echo [4/9] Gerando banco inicial limpo...
 call %PY_CMD% tools\gerar_banco_modelo.py --sobrescrever >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_BANCO
 if not exist "modelo_banco\clinica.db" goto ERRO_BANCO_AUSENTE
 
 echo.
-echo [5/8] Compilando e validando o aplicativo Android...
+echo [5/9] Compilando e validando o aplicativo Android...
 if not exist "%RAIZ%mobile\apk\Gerar_APK.bat" goto ERRO_APK_FONTE
 call "%RAIZ%mobile\apk\Gerar_APK.bat" /integrado
 if errorlevel 1 goto ERRO_APK
@@ -83,7 +83,7 @@ if not exist "%APK%" goto ERRO_APK_AUSENTE
 for %%F in ("%APK%") do if %%~zF LSS 10000 goto ERRO_APK_INVALIDO
 
 echo.
-echo [6/8] Compilando NutriLab.exe...
+echo [6/9] Compilando NutriLab.exe...
 if exist "dist" rmdir /s /q "dist"
 call %PY_CMD% -m PyInstaller --clean --noconfirm app_clinica.spec >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_COMPILACAO
@@ -91,7 +91,7 @@ if not exist "dist\NutriLab\NutriLab.exe" goto ERRO_EXE_AUSENTE
 if not exist "dist\NutriLab\_internal\python312.dll" goto ERRO_DLL_AUSENTE
 
 echo.
-echo [7/8] Instalando o pacote em "Executavel do programa"...
+echo [7/9] Instalando o pacote em "Executavel do programa"...
 if exist "%SAIDA%" rmdir /s /q "%SAIDA%"
 move /Y "dist\NutriLab" "%SAIDA%" >> "%LOG%" 2>&1
 if errorlevel 1 goto ERRO_SAIDA
@@ -99,7 +99,7 @@ if not exist "%EXE%" goto ERRO_SAIDA
 if not exist "%EXE%\..\_internal\python312.dll" goto ERRO_DLL_AUSENTE
 
 echo.
-echo [8/8] Incorporando o APK ao servidor mobile empacotado...
+echo [8/9] Incorporando o APK ao servidor mobile empacotado...
 if not exist "%SAIDA%\_internal\mobile" goto ERRO_APK_DESTINO
 if not exist "%SAIDA%\_internal\mobile\apk\saida" mkdir "%SAIDA%\_internal\mobile\apk\saida"
 copy /y "%APK%" "%SAIDA%\_internal\mobile\apk\saida\NutriLab-Mobile.apk" >> "%LOG%" 2>&1

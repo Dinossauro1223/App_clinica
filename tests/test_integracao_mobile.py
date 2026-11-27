@@ -363,6 +363,19 @@ class TestComServidor(_Base):
         self.assertIsNone(self.reg("A01")["obs_nao"] or None)
 
 
+    def test_sincronizacao_automatica_publica_mapa_e_preserva_propostas_para_revisao(self):
+        primeira = im.sincronizar_automaticamente(self.db, self.mdb, DIA)
+        self.assertEqual(primeira["propostas_mapa"], 0)
+        self.assertGreaterEqual(primeira["leitos_enviados"], 1)
+
+        self.copa_salva({"A01": {"nome": "Maria Teste", "idade_anos": 70,
+                                  "dieta": "Branda", "pref_nao": "peixe"}})
+        segunda = im.sincronizar_automaticamente(self.db, self.mdb, DIA)
+        self.assertEqual(segunda["propostas_mapa"], 1)
+        # A sincronização de fundo não altera o prontuário: a equipe precisa aprovar a proposta.
+        self.assertIsNone(self.reg("A01")["obs_nao"])
+
+
 def _importar_mobile_ui():
     """Importa mobile_ui com tkinter/customtkinter trocados por mocks (sem janela) e restaura o resto do processo."""
     nomes = ("customtkinter", "tkinter", "tkinter.ttk", "tkinter.messagebox", "tkinter.filedialog")
@@ -431,6 +444,7 @@ class TestTela(_Base):
             ui.tree.selection.return_value = tuple(ui.propostas)
             ui._aplicar()
         self.assertEqual(self.reg("A02")["nome_paciente"], "Joao Teste")
+
 
 
 class TestCatalogoPedidosAlmox(unittest.TestCase):

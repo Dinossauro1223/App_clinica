@@ -34,9 +34,9 @@ class TestLauncherBootstrap(unittest.TestCase):
         self.assertIn(gerador, normalizado)
         self.assertIn('if not exist "tools/gerar_identidade_visual.py" goto ERRO_FONTE', normalizado)
         self.assertIn('if not exist "assets/identidade/renderizados/folhas.json" goto ERRO_IDENTIDADE', normalizado)
-        self.assertLess(normalizado.index(gerador), normalizado.index('PyInstaller'))
-        self.assertLess(normalizado.index(gerador), normalizado.index('test_svg_pipeline.py'))
-        self.assertLess(normalizado.index('pip install -r requirements-build.txt'), normalizado.index(gerador))
+        self.assertLess(normalizado.index(gerador), normalizado.index("PyInstaller"))
+        self.assertLess(normalizado.index(gerador), normalizado.index("test_svg_pipeline.py"))
+        self.assertLess(normalizado.index("pip install -r requirements-build.txt"), normalizado.index(gerador))
 
     def test_compilacao_conjunta_gera_apk_antes_do_executavel(self):
         texto = self.launcher
