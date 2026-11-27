@@ -200,10 +200,10 @@ class PainelMonitoramentoGlicemico(ctk.CTkFrame):
         self.tabela.pack(fill="both", expand=True, padx=14, pady=8)
         ctk.CTkLabel(self,text="Ofertas nutricionais registradas no mapa",
                      font=ctk.CTkFont(size=14,weight="bold")).pack(anchor="w",padx=16,pady=(8,2))
-        self.ofertas_tabela=ttk.Treeview(self,columns=("hora","produto","dose","agua","carb","fibra"),
+        self.ofertas_tabela=ttk.Treeview(self,columns=("hora","produto","dose","agua","agua_sep","carb","fibra"),
                                           show="headings",height=5)
         for col,titulo,largura in (("hora","Horário",115),("produto","Suplemento / refeição",230),
-            ("dose","Dose",90),("agua","Água (mL)",100),("carb","Carboidratos (g)",120),("fibra","Fibras (g)",100)):
+            ("dose","Dose",90),("agua","Água misturada (mL)",115),("agua_sep","Água separada (mL)",115),("carb","Carboidratos (g)",120),("fibra","Fibras (g)",110)):
             self.ofertas_tabela.heading(col,text=titulo);self.ofertas_tabela.column(col,width=largura,anchor="w")
         self.ofertas_tabela.pack(fill="x",padx=14,pady=(0,8))
         botoes = ctk.CTkFrame(self, fg_color="transparent")
@@ -227,11 +227,12 @@ class PainelMonitoramentoGlicemico(ctk.CTkFrame):
         for i,evento in enumerate(self.ofertas):
             dose=f'{evento["dose"]:g} {evento["unidade"]}'
             agua="—" if evento["agua_misturada_ml"] is None else f'{evento["agua_misturada_ml"]:g}'
+            agua_sep="—" if evento["agua_separada_ml"] is None else f'{evento["agua_separada_ml"]:g}'
             carb="—" if evento["carboidratos_g"] is None else f'{evento["carboidratos_g"]:.1f}'
             fibra="—" if evento["fibras_g"] is None else f'{evento["fibras_g"]:.1f} ({evento["tipo_fibra"]})'
             self.ofertas_tabela.insert("","end",iid=f"oferta-{i}",values=(
                 evento["instante"].strftime("%d/%m %H:%M"),
-                f'{evento["suplemento"]} / {evento["refeicao"]}',dose,agua,carb,fibra))
+                f'{evento["suplemento"]} / {evento["refeicao"]}',dose,agua,agua_sep,carb,fibra))
         self._desenhar_grafico()
 
     def _desenhar_grafico(self):
