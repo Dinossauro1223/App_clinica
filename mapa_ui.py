@@ -1494,7 +1494,7 @@ class DialogSuplemento(_Janela):
                   ("kcal_100", "kcal por 100", 120), ("ptn_100", "Proteína (g) por 100", 120),
                   ("lip_100", "Lipídio (g) por 100", 120), ("carb_100", "Carboidrato (g) por 100", 120),
                   ("sod_100", "Sódio (mg) por 100", 120),
-                  ("fibra_g_100", "Fibra total (g) por 100", 120),
+                  ("fibra_g_100", "Fibra total (g) por 100 mL/g", 145),
                   ("osmolaridade_ref", "Osmolaridade da ficha", 120),
                   ("dose_ref", "Dose da referência", 120),
                   ("volume_final_ref_ml", "Volume final de preparo (mL)", 140),
