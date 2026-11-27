@@ -6,6 +6,9 @@
 
 ## Referências
 
+BRANDÃO, Andréa Araujo et al. Diretriz Brasileira de Hipertensão Arterial – 2025. *Arquivos Brasileiros de Cardiologia*, v. 122, n. 9, e20250624, 2025. DOI: https://doi.org/10.36660/abc.20250624. Disponível em: https://abccardiol.org/article/diretriz-brasileira-de-hipertensao-arterial-2025/. Acesso em: 27 nov. 2026.  
+**Aplicação no NutriLab:** referência brasileira atual para contextualizar o monitoramento pressórico e a avaliação de pacientes com hipertensão; o registro de PA não substitui diagnóstico ou conduta médica.
+
 CEDERHOLM, Tommy et al. GLIM criteria for the diagnosis of malnutrition: a consensus report from the global clinical nutrition community. *Clinical Nutrition*, v. 38, n. 1, p. 1-9, 2019. DOI: https://doi.org/10.1016/j.clnu.2018.08.002. Disponível em: https://pubmed.ncbi.nlm.nih.gov/30181091/. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** critérios fenotípicos e etiológicos de desnutrição; perda ponderal, IMC e massa muscular; exigência de pelo menos um critério fenotípico e um etiológico.
 
@@ -32,6 +35,9 @@ KONDRUP, Jens et al. Nutritional risk screening (NRS 2002): a new method based o
 
 MIFFLIN, Mark D. et al. A new predictive equation for resting energy expenditure in healthy individuals. *The American Journal of Clinical Nutrition*, v. 51, n. 2, p. 241-247, 1990. DOI: https://doi.org/10.1093/ajcn/51.2.241. Disponível em: https://pubmed.ncbi.nlm.nih.gov/2305711/. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** equação preditiva de gasto energético em repouso; o resultado é estimativa e não substitui calorimetria indireta.
+
+SOCIEDADE BRASILEIRA DE DIABETES. *Diretriz da Sociedade Brasileira de Diabetes: edição 2026*. São Paulo: SBD, 2026. Disponível em: https://diretriz.diabetes.org.br/. Acesso em: 27 nov. 2026.  
+**Aplicação no NutriLab:** referência nacional para contextualizar diabetes mellitus, metas glicêmicas e recomendações nutricionais; a diretriz deve ser consultada por capítulo e data de atualização.
 
 UNIVERSIDADE FEDERAL DO RIO GRANDE DO NORTE. Sistema Integrado de Bibliotecas. *Orientações para normalização de trabalhos acadêmicos*. Natal: UFRN, [s. d.]. Disponível em: https://sisbi.ufrn.br/biblioteca/bczm/orientacoes. Acesso em: 27 nov. 2026.  
 **Aplicação no NutriLab:** orientação institucional para normalização das referências conforme as versões vigentes das normas ABNT, incluindo NBR 6023:2025 e NBR 10520:2023.
