@@ -571,6 +571,8 @@ def salvar_suplemento(db_path, d):
     un = (d.get("emb_un") or "ml").strip().lower()
     if un not in ("ml", "g"):
         raise ValueError("A unidade da embalagem deve ser ml ou g.")
+    if valores["dose_ref"] is not None and unidade_dose != un:
+        raise ValueError("A unidade da dose de referência deve corresponder à unidade do suplemento (g ou ml).")
     garantir_modulo(db_path, modulo)
     with closing(conectar(db_path)) as c:
         base = (nome, modulo, valores["preco"], valores["emb_qtd"], un, valores["kcal_100"],
