@@ -358,6 +358,21 @@ async function atualizarConexao(){
     if(window.Android&&typeof Android.descobrirServidorAutomaticamente==='function')Android.descobrirServidorAutomaticamente();
   }
 }
+async function copiarEnderecoRemoto(endereco){
+  if(!endereco){aviso('O Tailscale não está conectado neste computador.',1);return}
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(endereco);
+    }else{
+      const campo=document.createElement('textarea');campo.value=endereco;
+      campo.setAttribute('readonly','');campo.style.position='fixed';campo.style.opacity='0';
+      document.body.appendChild(campo);campo.select();
+      const ok=document.execCommand('copy');campo.remove();
+      if(!ok)throw new Error('Cópia automática indisponível. Selecione e copie o endereço manualmente.');
+    }
+    aviso('Endereço Tailscale copiado: '+endereco+'. Instale o Tailscale no celular, entre na mesma rede e use este endereço para conectar.',0);
+  }catch(e){aviso(e.message||'Não foi possível copiar. Endereço: '+endereco,1)}
+}
 async function registrarRedeLocal(){
   try{
     const j=await api('/api/admin/rede/registrar',{});
@@ -893,6 +908,9 @@ async function vCad(){
   $('#vista').innerHTML=`<div class=grade><div class=cartao><h2 style="margin-top:0">Rede local e servidor</h2>
   <p class=mini>Endereço detectado automaticamente no computador que está executando o servidor. Após reiniciar o roteador, registre novamente se o IP mudar.</p>
   <p><b>IP atual:</b> ${esc(rede.ip_lan||'Não detectado')}</p><p class=mini><b>Último IP registrado:</b> ${esc(rede.ip_registrado||'Ainda não registrado')}</p>
+  <p><b>Acesso remoto (Tailscale):</b> ${esc(rede.url_tailscale||'Não conectado')}</p>
+  <button class="btn sec" ${rede.url_tailscale?'':'disabled'} onclick="copiarEnderecoRemoto('${esc(rede.url_tailscale||'')}')">Copiar endereço remoto</button>
+  <p class=mini>Para usar fora do Wi-Fi da clínica, instale o Tailscale no celular, entre na mesma rede privada e informe o endereço copiado na opção “Escanear QR code” → endereço manual. Não abra a porta do servidor diretamente na internet.</p>
   <button class=btn onclick="registrarRedeLocal()">Registrar IP atual da rede</button></div>
   <div class=cartao><h2 style="margin-top:0">Novo usuário</h2>
   <label class=f>Login<input type=text id=nl autocapitalize=none></label><label class=f>Nome<input type=text id=nn></label>
