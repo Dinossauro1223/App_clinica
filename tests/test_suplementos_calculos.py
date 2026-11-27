@@ -174,6 +174,19 @@ class TestCalculoOsmolaridadeDiluicao(unittest.TestCase):
         self.assertEqual([p["valor"] for p in r["osmolaridade_atual"]["preparacoes"]], [300, 150])
         self.assertEqual(r["osmolaridade_atual"]["agua_separada_total_ml"], 100)
         self.assertEqual(r["osmolaridade_substituto"]["preparacoes"][0]["valor"], 150)
+        self.assertEqual(r["agua_misturada_ml_dia"]["atual"], 50)
+        self.assertEqual(r["agua_misturada_ml_dia"]["substituto"], 100)
+        self.assertEqual(r["agua_separada_ml_dia"]["atual"], 100)
+
+
+    def test_volume_final_por_preparacao_nao_depende_de_osmolaridade_disponivel(self):
+        ficha = {"id_suplemento": 1, "nome": "Pó", "qtd_dia": 10, "unidade": "g",
+                 "osmolaridade_ref": None, "unidade_osmolaridade": "mOsm/L",
+                 "dose_ref": 10, "unidade_dose_ref": "g", "volume_final_ref_ml": 100,
+                 "preparacoes": [{"dose": 5, "agua_adicionada_ml": 20}]}
+        resumo = sc._resumo_preparacoes_osmolaridade(ficha)
+        self.assertEqual(resumo["status"], "dados_incompletos")
+        self.assertEqual(resumo["volume_final_total_ml"], 70)
 
     def test_comparacao_exige_item_e_dose_substituta(self):
         with self.assertRaises(ValueError):
