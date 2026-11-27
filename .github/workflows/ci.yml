@@ -82,6 +82,18 @@ jobs:
         continue-on-error: true
         run: xvfb-run -a -s "-screen 0 1360x900x24" python tools/capturar_graficos_tk.py capturas ${{ startsWith(github.ref_name, 'feat/scratch') && '--base64' || '' }}
 
+      # Medição do desempenho dos gráficos com Tk de verdade (informativo: nunca falha o CI). Mostra, no Windows e no
+      # Linux, quanto custa um quadro da animação e qual ritmo o modo automático escolheria. Dados inventados.
+      - name: Medir o desempenho dos gráficos (Windows)
+        if: always() && runner.os == 'Windows'
+        continue-on-error: true
+        run: python tools/medir_desempenho_graficos.py --rapido --json capturas/medicao-windows.json
+
+      - name: Medir o desempenho dos gráficos (Linux, tela virtual de 24 bits)
+        if: always() && runner.os == 'Linux'
+        continue-on-error: true
+        run: xvfb-run -a -s "-screen 0 1360x900x24" python tools/medir_desempenho_graficos.py --rapido --json capturas/medicao-linux.json
+
       - name: Guardar as fotos da tela
         if: always()
         continue-on-error: true

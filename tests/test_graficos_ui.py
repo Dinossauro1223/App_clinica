@@ -706,6 +706,8 @@ class TestEscalaDaTela(unittest.TestCase):
 from test_graficos_nativos import SPECS  # noqa: E402
 import graficos_nativos as gn  # noqa: E402
 import graficos_pintor as gp  # noqa: E402
+sys.path.insert(0, os.path.join(RAIZ, "tools"))
+from medir_desempenho_graficos import PintorAntigo  # noqa: E402  (o pintor de antes: referência única)
 
 
 def cena(extensao=-90.0, texto="42", visivel=True, dx=0):
@@ -719,40 +721,6 @@ def cena(extensao=-90.0, texto="42", visivel=True, dx=0):
         {"t": "oval", "c": (dx + 1, 1, dx + 3, 3), "fill": "#333", "visivel": visivel},
         {"t": "arco", "c": (dx, 0, dx + 20, 20), "inicio": 90.0, "extensao": extensao, "fill": "#444", "largura": 6},
     ]
-
-
-class PintorAntigo(gp.PintorCanvas):
-    """O pintor de antes da otimização (comparava coordenadas JÁ deslocadas, forma por forma): é a referência."""
-
-    def desenhar(self, formas, dx=0.0, dy=0.0):
-        tipos = [f["t"] for f in formas]
-        if [t for t, _ in self.itens] != tipos:
-            self.apagar()
-            for f in formas:
-                self.itens.append((f["t"], self._criar(f, dx, dy)))
-                self._ultimo.append(self._estado_antigo(f, dx, dy))
-            return
-        cv = self.canvas
-        for i, (f, (_, item)) in enumerate(zip(formas, self.itens)):
-            novo, antigo = self._estado_antigo(f, dx, dy), self._ultimo[i]
-            if novo == antigo:
-                continue
-            self._ultimo[i] = novo
-            if novo[0] != antigo[0]:
-                cv.coords(item, *novo[0])
-            if novo[1] != antigo[1]:
-                if f["t"] == "texto":
-                    cv.itemconfigure(item, text=f["texto"])
-                else:
-                    cv.itemconfigure(item, start=f["inicio"], extent=f["extensao"])
-            if novo[2] != antigo[2]:
-                cv.itemconfigure(item, state="normal" if novo[2] else "hidden")
-
-    @staticmethod
-    def _estado_antigo(f, dx, dy):
-        t = f["t"]
-        extra = (f["texto"],) if t == "texto" else (f["inicio"], f["extensao"]) if t == "arco" else ()
-        return gp._deslocar(f["c"], dx, dy), extra, f.get("visivel", True)
 
 
 class TestPintor(unittest.TestCase):

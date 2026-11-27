@@ -88,6 +88,7 @@ class MapaUI:
         self._grupos = None
         self._grupos_png = None
         self._painel = None
+        self._ritmo = None
 
     # ------------------------------------------------------------------ configurações
     @property
@@ -106,6 +107,19 @@ class MapaUI:
     def disposicao_graficos(self):
         """Como a tela de gráficos mostra cada grupo: lado a lado (arrastar) ou de cima para baixo."""
         return gl.disposicao_valida(mdb.obter_config(self.db, gl.CHAVE_CONFIG, gl.DISPOSICAO_LADO_A_LADO))
+
+    @property
+    def desempenho_graficos(self):
+        """Quanta animação os gráficos usam: automático (padrão), completo ou econômico (sem animação)."""
+        return gl.desempenho_valido(mdb.obter_config(self.db, gl.CHAVE_DESEMPENHO, gl.DESEMPENHO_AUTOMATICO))
+
+    @property
+    def ritmo_graficos(self):
+        """Um só ritmo enquanto o programa está aberto: o que ele aprende sobre o computador vale para todas as telas
+        de gráficos que forem abertas depois."""
+        if self._ritmo is None:
+            self._ritmo = gl.Ritmo.do_sistema(self.desempenho_graficos)
+        return self._ritmo
 
     def _preparar_area(self):
         self.app.limpar_area_principal()
@@ -775,7 +789,7 @@ class MapaUI:
         for w in self.quadro_graf.winfo_children():
             w.destroy()
         self._painel = graficos_ui.PainelGraficos(
-            self.quadro_graf, self._grupos_para_o_estilo(), self.disposicao_graficos
+            self.quadro_graf, self._grupos_para_o_estilo(), self.disposicao_graficos, ritmo=self.ritmo_graficos
         )
         self._imagens = self._painel.imagens
 
@@ -784,6 +798,7 @@ class MapaUI:
 
         Não gera os gráficos de novo (é a parte demorada): só reorganiza os que já existem.
         """
+        self.ritmo_graficos.modo = self.desempenho_graficos      # vale já, mesmo com a tela de gráficos fechada
         quadro = getattr(self, "quadro_graf", None)
         try:
             aberta = quadro is not None and bool(quadro.winfo_exists()) and self._grupos is not None
@@ -942,7 +957,7 @@ class _Janela(ctk.CTkFrame):
 
 class DialogConfig(_Janela):
     def __init__(self, ui):
-        super().__init__(ui, "Configurações do Mapa", "560x470")
+        super().__init__(ui, "Configurações do Mapa", "560x590")
         ctk.CTkLabel(self, text="Critério de IMC para idosos (60 anos ou mais):").pack(anchor="w", padx=20, pady=(20, 2))
         self.cb_imc = ctk.CTkComboBox(self, values=list(nc.CRITERIOS_IMC_IDOSO.values()), width=500, state="readonly")
         self.cb_imc.pack(padx=20)
@@ -963,7 +978,28 @@ class DialogConfig(_Janela):
         self.cb_estilo = ctk.CTkComboBox(self, values=list(gl.ROTULOS_ESTILO.values()), width=500, state="readonly")
         self.cb_estilo.pack(padx=20)
         self.cb_estilo.set(gl.ROTULOS_ESTILO[ui.estilo_graficos])
+        ctk.CTkLabel(self, text="Animação dos gráficos (para computadores mais lentos):").pack(
+            anchor="w", padx=20, pady=(16, 2))
+        self.cb_desempenho = ctk.CTkComboBox(self, values=list(gl.ROTULOS_DESEMPENHO.values()), width=500,
+                                             state="readonly", command=self._atualizar_texto_ritmo)
+        self.cb_desempenho.pack(padx=20)
+        self.cb_desempenho.set(gl.ROTULOS_DESEMPENHO[ui.desempenho_graficos])
+        self.lb_ritmo = ctk.CTkLabel(self, text="", text_color=tema.SUAVE, wraplength=500, justify="left")
+        self.lb_ritmo.pack(anchor="w", padx=20, pady=(4, 0))
+        self._atualizar_texto_ritmo()
         _btn(self, "Salvar", self._salvar, 120).pack(pady=16)
+
+    def _atualizar_texto_ritmo(self, *_):
+        """Diz, em frase simples, o que o modo escolhido faz. No automático mostra o que o programa está fazendo
+        agora neste computador (ele pode ter reduzido a animação por conta própria)."""
+        modo = gl.rotulo_para_desempenho(self.cb_desempenho.get())
+        ritmo = self.ui.ritmo_graficos
+        if ritmo.modo != modo:            # o modo escolhido ainda não foi salvo: mostra como ele começaria
+            ritmo = gl.Ritmo.do_sistema(modo)
+        texto = ritmo.descricao()
+        if modo == gl.DESEMPENHO_AUTOMATICO and ritmo.nivel != gl.NIVEL_COMPLETO:
+            texto += " Para tentar de novo com a animação completa, escolha Completo."
+        self.lb_ritmo.configure(text=texto)
 
     def _salvar(self):
         for chave, rot in nc.CRITERIOS_IMC_IDOSO.items():
@@ -974,6 +1010,7 @@ class DialogConfig(_Janela):
                 mdb.salvar_config(self.ui.db, "metodo_altura_idoso", chave)
         mdb.salvar_config(self.ui.db, gl.CHAVE_CONFIG, gl.rotulo_para_disposicao(self.cb_graf.get()))
         mdb.salvar_config(self.ui.db, gl.CHAVE_ESTILO, gl.rotulo_para_estilo(self.cb_estilo.get()))
+        mdb.salvar_config(self.ui.db, gl.CHAVE_DESEMPENHO, gl.rotulo_para_desempenho(self.cb_desempenho.get()))
         self.destroy()
         self.ui.aplicar_config_graficos()
 
