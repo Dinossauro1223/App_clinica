@@ -1237,7 +1237,8 @@ class DialogPreparacoesSuplemento(ctk.CTkToplevel):
             linha = ctk.CTkFrame(self, fg_color="transparent")
             linha.pack(fill="x", padx=16, pady=2)
             var = tk.IntVar(value=int(refeicao in existentes))
-            ctk.CTkCheckBox(linha, text=refeicao, variable=var, width=150).pack(side="left", padx=3)
+            ctk.CTkCheckBox(linha, text=refeicao, variable=var, width=150,
+                            command=self._atualizar_total).pack(side="left", padx=3)
             prep = existentes.get(refeicao, {})
             campos = []
             for chave, largura in (("dose", 130), ("agua_adicionada_ml", 150), ("agua_separada_ml", 150)):
@@ -1246,6 +1247,7 @@ class DialogPreparacoesSuplemento(ctk.CTkToplevel):
                 valor = prep.get(chave)
                 if valor not in (None, ""):
                     ent.insert(0, str(valor).replace(".", ","))
+                ent.bind("<KeyRelease>", lambda _e: self._atualizar_total())
                 campos.append(ent)
             self.linhas.append((refeicao, var, *campos))
         self.lbl_total = ctk.CTkLabel(self, text="", text_color=tema.TEXTO)
@@ -1403,9 +1405,14 @@ class DialogSubstituirSuplemento(ctk.CTkToplevel):
             self.novo = {**self.novo, "qtd_dia": qtd, "unidade": self.novo.get("emb_un") or "ml",
                          "agua_ml": agua, "agua_separada_ml": separada}
             if self.novo.get("preparacoes"):
-                soma = sum(p["dose"] for p in self.novo["preparacoes"])
+                preparacoes = self.novo["preparacoes"]
+                soma = sum(p["dose"] for p in preparacoes)
+                agua_soma = sum(p.get("agua_adicionada_ml", 0) for p in preparacoes)
+                separada_soma = sum(p.get("agua_separada_ml", 0) for p in preparacoes)
                 if abs(soma - qtd) > 0.01:
                     raise ValueError("A soma das doses por refeição deve corresponder à quantidade diária.")
+                if abs(agua_soma - agua) > 0.01 or abs(separada_soma - separada) > 0.01:
+                    raise ValueError("As águas diárias devem corresponder à soma das preparações; redistribua as diluições.")
             self.comparacao = sc.comparar_substituicao(
                 self.formulario._suplementos, self.atual.get("id_suplemento"), self.novo,
                 peso_kg=nc.parse_num(self.formulario.e_peso.get()),
