@@ -40,6 +40,45 @@ class TestProgressaoNutricional(unittest.TestCase):
         self.assertIsNotNone(resultado["criterio_bmi_glim"])
         self.assertFalse(resultado["diagnostico_automatico"])
 
+
+    def test_faixa_de_uma_semana_distingue_moderada_de_elevada(self):
+        moderada = pn.analisar_progressao_peso([
+            {"data": "2026-11-20", "peso_kg": 70},
+            {"data": "2026-11-27", "peso_kg": 69},
+        ])
+        elevada = pn.analisar_progressao_peso([
+            {"data": "2026-11-20", "peso_kg": 70},
+            {"data": "2026-11-27", "peso_kg": 68.5},
+        ])
+        self.assertIn("moderada", moderada["comparacoes"][0]["faixa"])
+        self.assertIn("elevada", elevada["comparacoes"][0]["faixa"])
+
+    def test_le_horario_real_salvo_no_mapa(self):
+        import os
+        import sqlite3
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as pasta:
+            db = os.path.join(pasta, "mapa.db")
+            with sqlite3.connect(db) as conn:
+                conn.execute("""CREATE TABLE Mapa_Registros (
+                    id_registro INTEGER PRIMARY KEY, data TEXT, id_paciente INTEGER,
+                    peso_kg REAL, peso_origem TEXT, peso_metodo TEXT, peso_medido_em TEXT,
+                    altura_cm REAL, pp_cm REAL, pb_cm REAL, aj_cm REAL, atualizado_em TEXT
+                )""")
+                conn.executemany(
+                    """INSERT INTO Mapa_Registros
+                    (id_registro,data,id_paciente,peso_kg,peso_origem,peso_medido_em,atualizado_em)
+                    VALUES (?,?,?,?,?,?,?)""",
+                    [
+                        (1,"2026-11-26",7,70,"R","2026-11-26 07:00","2026-11-26 07:05"),
+                        (2,"2026-11-27",7,68.8,"R","2026-11-27 07:00","2026-11-27 07:05"),
+                    ],
+                )
+            historico = pn.listar_pesos_historicos(db, 7)
+            resultado = pn.analisar_progressao_peso(historico)
+            self.assertEqual(resultado["alertas"][0]["tipo"], "variacao_aguda_24h")
+
     def test_sem_historico_nao_cria_valor_zero(self):
         resultado = pn.analisar_progressao_peso([])
         self.assertEqual(resultado["status"], "sem_dados")
