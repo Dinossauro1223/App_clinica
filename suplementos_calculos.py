@@ -75,7 +75,8 @@ def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None, m
             pendencias.append({"nome": nome, "motivos": motivos or ["ficha técnica incompleta"]})
         resultados.append({"nome": nome, "quantidade": qtd, "unidade": unidade or None,
                            "fibra_g": round(fibra_ofertada, 4) if fibra_ofertada is not None else None,
-                           "tipo_fibra": item.get("tipo_fibra") or "nao_informado", **aporte})
+                           "tipo_fibra": item.get("tipo_fibra") or "nao_informado",
+                           "descricao_fibra": item.get("descricao_fibra"), **aporte})
 
     totais_saida = {c: (round(totais[c], 4) if completos[c] else None) for c in campos}
     fibra_saida = round(total_fibra, 4) if fibra_completa else None
