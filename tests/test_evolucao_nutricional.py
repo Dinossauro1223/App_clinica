@@ -181,6 +181,20 @@ class TestEvolucaoNutricional(unittest.TestCase):
         self.assertIsNone(instavel["recomendacao_proteica"]["g_kg_dia"])
         self.assertIsNone(crianca["recomendacao_proteica"]["g_kg_dia"])
 
+
+    def test_lra_nao_usa_recomendacao_numerica_de_drc(self):
+        r = ev.avaliar_contexto_renal({
+            "referencia": "KDOQI 2020", "condicao_renal": "LRA",
+            "drc_confirmada": False, "estagio": "G4",
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=60)
+        self.assertIsNone(r["recomendacao_proteica"]["g_kg_dia"])
+        self.assertIn("Lesão renal aguda", r["recomendacao_proteica"]["texto"])
+
+    def test_tfge_nao_aceita_infinito(self):
+        with self.assertRaises(ValueError):
+            ev.classificar_categoria_tfge(float("inf"))
+
     def test_exames_isolados_nao_alteram_meta_proteica(self):
         a = ev.avaliar_contexto_renal({
             "referencia": "KDIGO 2024", "drc_confirmada": True, "estagio": "G4",
