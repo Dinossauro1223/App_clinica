@@ -588,3 +588,42 @@ class MobileTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_menu_dia_publica_snapshot_versionado_e_producao_autorizada(self):
+        data = sv.hoje()
+        payload = {"data": data, "refeicao": "almoco", "itens": [
+            {"chave": "prep-1", "nome": "Arroz integral", "categoria": "Acompanhamento",
+             "ficha_versao": "3", "porcoes_planejadas": 40, "imagem": "/midias/arroz.webp",
+             "etapas": [{"texto": "Higienizar"}], "ingredientes": [{"nome": "Arroz"}]}]}
+        cod, primeira = self.chamar(self.t["nut"], "POST", "/api/nutri/menu-dia", payload)
+        self.assertEqual(cod, 200, primeira)
+        self.assertEqual(primeira["versao"], 1)
+        cod, segunda = self.chamar(self.adm, "POST", "/api/nutri/menu-dia", payload)
+        self.assertEqual(cod, 200, segunda)
+        self.assertEqual(segunda["versao"], 2)
+        cod, menu = self.chamar(self.t["cop"], "GET", "/api/menu-dia?data=" + data)
+        self.assertEqual(cod, 200, menu)
+        publicado = menu["menus"][0]
+        self.assertEqual(publicado["versao"], 2)
+        self.assertEqual(publicado["itens"][0]["ficha_versao"], "3")
+        registro = {"item_chave": "prep-1", "porcoes_planejadas": 40,
+            "porcoes_produzidas": 38, "porcoes_faltantes": 2,
+            "cubas": [{"identificacao": "Cuba 1", "peso_sobra_kg": 1.2, "peso_desperdicio_kg": 0.3}]}
+        rota = f"/api/menu-dia/{publicado['publicacao_id']}/producao"
+        self.assertEqual(self.chamar(self.t["cop"], "POST", rota, registro)[0], 403)
+        self.assertEqual(self.chamar(self.t["coz"], "POST", rota, registro)[0], 200)
+        atualizado = self.chamar(self.t["cop"], "GET", "/api/menu-dia?data=" + data)[1]["menus"][0]
+        self.assertEqual(atualizado["producao"]["prep-1"]["porcoes_produzidas"], 38)
+        self.assertEqual(atualizado["producao"]["prep-1"]["cubas"][0]["peso_sobra_kg"], 1.2)
+        self.assertEqual(atualizado["versao"], 2)
+
+    def test_menu_dia_rejeita_publicacao_vazia_duplicada_e_sem_permissao(self):
+        data = sv.hoje()
+        self.assertEqual(self.chamar(self.t["nut"], "POST", "/api/nutri/menu-dia",
+            {"data": data, "refeicao": "almoco", "itens": []})[0], 400)
+        payload = {"data": data, "refeicao": "almoco", "itens": [
+            {"chave": "x", "nome": "A"}, {"chave": "x", "nome": "B"}]}
+        self.assertEqual(self.chamar(self.t["nut"], "POST", "/api/nutri/menu-dia", payload)[0], 400)
+        self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/nutri/menu-dia",
+            {"data": data, "refeicao": "almoco", "itens": [{"chave": "x", "nome": "A"}]})[0], 403)
+

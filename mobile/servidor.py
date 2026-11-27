@@ -103,6 +103,19 @@ CREATE TABLE IF NOT EXISTS avisos(id INTEGER PRIMARY KEY, criado_em TEXT, por_us
 CREATE TABLE IF NOT EXISTS avisos_lidos(id_aviso INTEGER, id_usuario INTEGER, lido_em TEXT, PRIMARY KEY(id_aviso, id_usuario));
 CREATE TABLE IF NOT EXISTS orientacoes(id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, titulo TEXT NOT NULL,
   texto TEXT NOT NULL, ordem INTEGER NOT NULL DEFAULT 0, atualizado_por INTEGER, atualizado_em TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS menu_dia_publicacoes (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, refeicao TEXT NOT NULL,
+ versao INTEGER NOT NULL, snapshot_json TEXT NOT NULL, publicado_por INTEGER NOT NULL,
+ publicado_nome TEXT NOT NULL, publicado_em TEXT NOT NULL, UNIQUE(data,refeicao,versao)
+);
+CREATE INDEX IF NOT EXISTS idx_menu_dia_publicado ON menu_dia_publicacoes(data,refeicao,versao);
+CREATE TABLE IF NOT EXISTS menu_dia_producao (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, publicacao_id INTEGER NOT NULL REFERENCES menu_dia_publicacoes(id),
+ item_chave TEXT NOT NULL, dados_json TEXT NOT NULL, registrado_por INTEGER NOT NULL,
+ registrado_nome TEXT NOT NULL, registrado_em TEXT NOT NULL, UNIQUE(publicacao_id,item_chave)
+);
+CREATE INDEX IF NOT EXISTS idx_menu_dia_producao_publicacao ON menu_dia_producao(publicacao_id);
+
 """
 
 
@@ -1174,6 +1187,109 @@ def _rotear(c, ip, m, p, q, b, auth):
         return post_estoque(c, u, est, d, b.get("linhas", []))
     if (m, p) == ("POST", "/api/estoque/reposicao"):
         return post_reposicao(c, u, estoque_alvo(u, b.get("estoque")), b)
+    # Menu do Dia: snapshots imutáveis e produção vinculada à versão publicada.
+    if p == "/api/nutri/menu-dia" and m == "POST":
+        if not staff:
+            raise Erro("Somente a Nutrição e o administrador podem publicar o Menu do Dia.", 403)
+        data = dia_valido(b.get("data") or hoje())
+        refeicao = str(b.get("refeicao") or "").strip().lower()
+        if refeicao not in REFEICOES:
+            raise Erro("Selecione uma refeição válida.")
+        itens = b.get("itens")
+        if not isinstance(itens, list) or not itens or len(itens) > 200:
+            raise Erro("O menu precisa conter de 1 a 200 preparações.")
+        chaves, snapshot_itens = set(), []
+        for item in itens:
+            if not isinstance(item, dict):
+                raise Erro("Cada preparação deve ser um objeto válido.")
+            chave, nome = str(item.get("chave") or "").strip(), str(item.get("nome") or "").strip()
+            if not chave or len(chave) > 100 or not nome or len(nome) > 180:
+                raise Erro("Cada preparação precisa de chave e nome válidos.")
+            if chave in chaves:
+                raise Erro("O menu contém chaves de preparação duplicadas.")
+            chaves.add(chave)
+            etapas = item.get("etapas") if isinstance(item.get("etapas"), list) else []
+            ingredientes = item.get("ingredientes") if isinstance(item.get("ingredientes"), list) else []
+            snapshot_itens.append({"chave": chave, "nome": nome,
+                "categoria": str(item.get("categoria") or "")[:80],
+                "ficha_versao": str(item.get("ficha_versao") or "")[:80],
+                "porcoes_planejadas": num(item.get("porcoes_planejadas", 0), "porções planejadas"),
+                "imagem": str(item.get("imagem") or "")[:1000],
+                "etapas": etapas[:100], "ingredientes": ingredientes[:200]})
+        versao = c.execute("SELECT COALESCE(MAX(versao),0)+1 FROM menu_dia_publicacoes WHERE data=? AND refeicao=?",
+                           (data, refeicao)).fetchone()[0]
+        snapshot = json.dumps({"data": data, "refeicao": refeicao, "itens": snapshot_itens},
+                              ensure_ascii=False, separators=(",", ":"))
+        cur = c.execute("INSERT INTO menu_dia_publicacoes(data,refeicao,versao,snapshot_json,publicado_por,publicado_nome,publicado_em) VALUES(?,?,?,?,?,?,?)",
+                        (data, refeicao, versao, snapshot, u["id"], u["nome"], agora()))
+        return {"ok": True, "id": cur.lastrowid, "data": data, "refeicao": refeicao, "versao": versao}
+    if p == "/api/menu-dia" and m == "GET":
+        if perfil not in ("admin", "nutricionista", "copa", "estoque_cozinha"):
+            raise Erro("Sem permissão para consultar o Menu do Dia.", 403)
+        data = dia_valido(q.get("data") or hoje())
+        refeicao = str(q.get("refeicao") or "").strip().lower()
+        args, filtro = [data], ""
+        if refeicao:
+            if refeicao not in REFEICOES:
+                raise Erro("Refeição inválida.")
+            filtro = " AND refeicao=?"
+            args.append(refeicao)
+        publicacoes = [dict(r) for r in c.execute(
+            "SELECT * FROM menu_dia_publicacoes WHERE data=?" + filtro + " ORDER BY refeicao,versao DESC", args)]
+        recentes = {}
+        for publicacao in publicacoes:
+            recentes.setdefault(publicacao["refeicao"], publicacao)
+        menus = []
+        for publicacao in recentes.values():
+            menu = json.loads(publicacao["snapshot_json"])
+            producoes = [dict(r) for r in c.execute(
+                "SELECT item_chave,dados_json,registrado_nome,registrado_em FROM menu_dia_producao WHERE publicacao_id=?",
+                (publicacao["id"],))]
+            menu["producao"] = {r["item_chave"]: {**json.loads(r["dados_json"]),
+                "responsavel": r["registrado_nome"], "registrado_em": r["registrado_em"]} for r in producoes}
+            menu.update({"publicacao_id": publicacao["id"], "versao": publicacao["versao"],
+                         "publicado_em": publicacao["publicado_em"], "publicado_por": publicacao["publicado_nome"]})
+            menus.append(menu)
+        return {"data": data, "menus": menus}
+    if p.startswith("/api/menu-dia/") and p.endswith("/producao") and m == "POST":
+        if perfil not in ("admin", "nutricionista", "estoque_cozinha"):
+            raise Erro("Somente Nutrição, administração ou cozinha podem registrar a produção.", 403)
+        try:
+            publicacao_id = int(p.split("/")[-2])
+        except (ValueError, IndexError):
+            raise Erro("Publicação inválida.")
+        publicacao = c.execute("SELECT * FROM menu_dia_publicacoes WHERE id=?", (publicacao_id,)).fetchone()
+        if not publicacao:
+            raise Erro("Menu publicado não encontrado.", 404)
+        chave = str(b.get("item_chave") or "").strip()
+        snapshot = json.loads(publicacao["snapshot_json"])
+        item = next((x for x in snapshot["itens"] if x["chave"] == chave), None)
+        if not item:
+            raise Erro("A preparação não pertence a esta versão publicada.", 404)
+        planejadas = num(b.get("porcoes_planejadas", item.get("porcoes_planejadas", 0)), "porções planejadas")
+        produzidas = None if b.get("porcoes_produzidas") in (None, "") else num(b.get("porcoes_produzidas"), "porções produzidas")
+        faltantes = num(b.get("porcoes_faltantes", 0), "porções faltantes")
+        cubas = b.get("cubas") or []
+        if not isinstance(cubas, list) or len(cubas) > 100:
+            raise Erro("Informe no máximo 100 cubas.")
+        cubas_ok = []
+        for cuba in cubas:
+            identificacao = str(cuba.get("identificacao") or "").strip()
+            sobra = num(cuba.get("peso_sobra_kg", 0), "peso de sobra")
+            desperdicio = num(cuba.get("peso_desperdicio_kg", 0), "peso de desperdício")
+            if not identificacao or sobra < 0 or desperdicio < 0:
+                raise Erro("Cada cuba precisa de identificação e pesos não negativos.")
+            cubas_ok.append({"identificacao": identificacao[:100], "peso_sobra_kg": sobra,
+                "peso_desperdicio_kg": desperdicio, "observacao": str(cuba.get("observacao") or "")[:500]})
+        dados = {"porcoes_planejadas": planejadas, "porcoes_produzidas": produzidas,
+            "porcoes_faltantes": faltantes, "faltou_preparacao": bool(b.get("faltou_preparacao")),
+            "cubas": cubas_ok, "observacao": str(b.get("observacao") or "")[:2000]}
+        c.execute("""INSERT INTO menu_dia_producao(publicacao_id,item_chave,dados_json,registrado_por,registrado_nome,registrado_em)
+            VALUES(?,?,?,?,?,?,?) ON CONFLICT(publicacao_id,item_chave) DO UPDATE SET
+            dados_json=excluded.dados_json,registrado_por=excluded.registrado_por,
+            registrado_nome=excluded.registrado_nome,registrado_em=excluded.registrado_em""",
+            (publicacao_id, chave, json.dumps(dados, ensure_ascii=False), u["id"], u["nome"], agora()))
+        return {"ok": True, "publicacao_id": publicacao_id, "item_chave": chave}
     if p.startswith("/api/nutri/"):  # nutricionista e administrador
         if not staff:
             raise Erro("Somente a nutrição e o administrador.", 403)
