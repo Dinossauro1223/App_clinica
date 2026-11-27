@@ -134,6 +134,26 @@ class TestEvolucaoNutricional(unittest.TestCase):
         self.assertIn("aproximadamente 30.0 horas", aviso["texto"])
 
 
+
+    def test_evolucao_registra_avaliacao_renal_sem_substituir_meta_prescrita(self):
+        renal = ev.avaliar_contexto_renal({
+            "referencia": "KDIGO 2024", "drc_confirmada": True, "tfge": 42,
+            "estagio": "G3b", "albuminuria_mg_g": 80,
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=60, idade_anos=65)
+        dados = {
+            "antropometria": {"data": "27/11/2026", "idade_anos": 65, "peso_kg": 60,
+                              "peso_origem": "A", "altura_m": 1.7, "altura_origem": "A"},
+            "via": "Oral", "metas": ev.calcular_metas(60, 30, 1.2),
+            "avaliacao_renal": renal
+        }
+        texto = ev.gerar_evolucao(dados)
+        self.assertIn("Avaliação renal", texto)
+        self.assertIn("KDIGO 2024", texto)
+        self.assertIn("0,8 g/kg/dia", texto)
+        self.assertIn("72 g", texto)
+        self.assertIn("PTN/dia: 72 g", texto)
+
     def test_classificacao_tfge_e_albuminuria_kdigo(self):
         self.assertEqual(ev.classificar_categoria_tfge(52), "G3a")
         self.assertEqual(ev.classificar_categoria_tfge(29), "G4")
