@@ -97,6 +97,38 @@ class TestCalculoOfertaSuplementos(unittest.TestCase):
             self.assertIsNone(r["totais"]["kcal_100"])
             self.assertFalse(r["completo"])
 
+
+    def test_fibras_somam_por_dose_real_e_calculam_adequacao(self):
+        r = sc.calcular_oferta([
+            {"nome": "Fórmula mista", "qtd_dia": 250, "unidade": "ml",
+             "kcal_100": 100, "ptn_100": 4, "lip_100": 3, "carb_100": 12, "sod_100": 50,
+             "fibra_g_100": 2.4, "tipo_fibra": "mista"},
+            {"nome": "Módulo de fibra", "qtd_dia": 10, "unidade": "g",
+             "kcal_100": 200, "ptn_100": 0, "lip_100": 0, "carb_100": 50, "sod_100": 0,
+             "fibra_g_100": 80, "tipo_fibra": "soluvel"},
+        ], meta_fibras_g=25)
+        self.assertEqual(r["fibra_g_dia"], 14)
+        self.assertEqual(r["percentual_meta_fibras"], 56)
+        self.assertEqual(r["itens"][0]["fibra_g"], 6)
+        self.assertEqual(r["itens"][1]["fibra_g"], 8)
+
+    def test_ficha_sem_teor_de_fibras_nao_presume_zero(self):
+        r = sc.calcular_oferta([
+            {"nome": "Produto sem informação", "qtd_dia": 100, "unidade": "ml",
+             "kcal_100": 100, "ptn_100": 4, "lip_100": 3, "carb_100": 12, "sod_100": 50}
+        ], meta_fibras_g=25)
+        self.assertIsNone(r["fibra_g_dia"])
+        self.assertIsNone(r["percentual_meta_fibras"])
+
+    def test_zero_fibra_documentada_e_diferente_de_dado_ausente(self):
+        r = sc.calcular_oferta([
+            {"nome": "Produto sem fibras", "qtd_dia": 100, "unidade": "ml",
+             "kcal_100": 100, "ptn_100": 4, "lip_100": 3, "carb_100": 12, "sod_100": 50,
+             "fibra_g_100": 0, "tipo_fibra": "nao_informado"}
+        ], meta_fibras_g=25)
+        self.assertEqual(r["fibra_g_dia"], 0)
+        self.assertEqual(r["percentual_meta_fibras"], 0)
+
     def test_meta_e_peso_invalidos_nao_geram_divisao_por_zero(self):
         r = sc.calcular_oferta([
             {"nome": "A", "qtd_dia": 100, "unidade": "g", "kcal_100": 100, "ptn_100": 10,
