@@ -40,7 +40,7 @@ def listar_pesos_historicos(db_path, id_paciente):
     with closing(sqlite3.connect(db_path)) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            """SELECT id_registro, data, peso_kg, peso_origem, peso_metodo,
+            """SELECT id_registro, data, peso_kg, peso_origem, peso_metodo, peso_medido_em,
                       altura_cm, pp_cm, pb_cm, aj_cm, atualizado_em
                FROM Mapa_Registros
                WHERE id_paciente=? AND peso_kg IS NOT NULL AND peso_kg>0
