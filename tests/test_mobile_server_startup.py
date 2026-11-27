@@ -83,6 +83,7 @@ class TestRetryInicializacaoMobile(unittest.TestCase):
         from datetime import datetime
 
         # Compila somente o método-alvo: importar main.py carregaria a interface
+        # e suas dependências de desktop, alheias ao contrato do worker.
         # gráfica inteira, que não faz parte do ambiente mínimo destes testes.
         fonte = Path(__file__).resolve().parents[1] / "main.py"
         arvore = ast.parse(fonte.read_text(encoding="utf-8"))
