@@ -11,6 +11,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 import shutil
 import zipfile
 from contextlib import contextmanager
@@ -414,7 +415,7 @@ class TestBanco(unittest.TestCase):
         fd, legado = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         try:
-            with sqlite3.connect(legado) as c:
+            with closing(sqlite3.connect(legado)) as c, c:
                 c.execute("""CREATE TABLE Mapa_Suplementos (
                     id_suplemento INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, modulo TEXT, preco REAL,
                     emb_qtd REAL, emb_un TEXT DEFAULT 'ml', kcal_100 REAL, ptn_100 REAL, lip_100 REAL,
@@ -425,7 +426,7 @@ class TestBanco(unittest.TestCase):
                     unidade TEXT, ml_oferta REAL, agua_ml REAL,
                     refeicoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0)""")
             mdb.inicializar(legado)
-            with sqlite3.connect(legado) as c:
+            with closing(sqlite3.connect(legado)) as c, c:
                 colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
                 colunas_catalogo = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Suplementos)")}
             self.assertTrue({"kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
@@ -900,6 +901,7 @@ class TestEscalasVisita(unittest.TestCase):
         with conexao(self.db) as c:
             colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
         self.assertIn("escalas_visita_json", colunas)
+        self.assertIn("peso_medido_em", colunas)
 
 
 if __name__ == "__main__":
