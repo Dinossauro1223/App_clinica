@@ -235,40 +235,45 @@ class PainelMonitoramentoGlicemico(ctk.CTkFrame):
         self._desenhar_grafico()
 
     def _desenhar_grafico(self):
-        c = self.canvas
-        c.delete("all")
-        w = max(c.winfo_width(), 500)
-        h = 250
-        esquerda, direita, topo, base = 55, w - 20, 22, h - 35
-        if not self.registros:
-            c.create_text(w/2, h/2, text="Nenhuma medição HGT registrada.",
-                          fill="#52645A", font=("Arial", 12))
+        c=self.canvas;c.delete("all")
+        w=max(c.winfo_width(),500);h=250
+        esquerda,direita,topo,base=55,w-20,22,h-35
+        datas_hgt=[datetime.fromisoformat(r[2]) for r in self.registros]
+        datas_oferta=[e["instante"] for e in self.ofertas]
+        todas=datas_hgt+datas_oferta
+        if not todas:
+            c.create_text(w/2,h/2,text="Sem medições ou ofertas com horário registrado.",
+                          fill="#52645A",font=("Arial",12))
             return
-        valores = [float(r[1]) for r in self.registros]
-        minimo = min(0, min(valores) - 20)
-        maximo = max(200, max(valores) + 20)
-        for tick in range(int((minimo + 19)//20*20), int(maximo)+1, 20):
-            y = base - (tick-minimo)/(maximo-minimo)*(base-topo)
-            c.create_line(esquerda, y, direita, y, fill="#E5EAE7")
-            c.create_text(esquerda-8, y, text=str(tick), anchor="e", fill="#52645A")
-        c.create_text(12, 12, text="mg/dL", anchor="nw", fill="#52645A")
-        datas = [datetime.fromisoformat(r[2]) for r in self.registros]
-        t0, t1 = min(datas), max(datas)
-        duracao = max((t1-t0).total_seconds(), 3600)
-        pontos = []
-        for dt, valor in zip(datas, valores):
-            x = esquerda + (dt-t0).total_seconds()/duracao*(direita-esquerda)
-            y = base - (valor-minimo)/(maximo-minimo)*(base-topo)
-            pontos.extend((x, y))
-        if len(pontos) >= 4:
-            c.create_line(*pontos, fill="#267B55", width=2, smooth=False)
-        for idx, (x, y) in enumerate(zip(pontos[::2], pontos[1::2])):
-            c.create_oval(x-4, y-4, x+4, y+4, fill="#D97706", outline="#FFFFFF", width=1)
-            c.create_text(x, y-13, text=f"{valores[idx]:g}", fill="#26352C", font=("Arial", 9))
-        for dt in (t0, t1):
-            x = esquerda + (dt-t0).total_seconds()/duracao*(direita-esquerda)
-            c.create_text(x, base+15, text=dt.strftime("%d/%m %H:%M"),
-                          fill="#52645A", font=("Arial", 8))
+        t0,t1=min(todas),max(todas)
+        duracao=max((t1-t0).total_seconds(),3600)
+        valores=[float(r[1]) for r in self.registros]
+        minimo=min(0,min(valores)-20) if valores else 0
+        maximo=max(200,max(valores)+20) if valores else 200
+        for tick in range(int((minimo+19)//20*20),int(maximo)+1,20):
+            y=base-(tick-minimo)/(maximo-minimo)*(base-topo)
+            c.create_line(esquerda,y,direita,y,fill="#E5EAE7")
+            c.create_text(esquerda-8,y,text=str(tick),anchor="e",fill="#52645A")
+        c.create_text(12,12,text="mg/dL",anchor="nw",fill="#52645A")
+        c.create_text(direita-175,12,text="HGT ●   Oferta ┆",anchor="ne",fill="#52645A")
+        pontos=[]
+        for dt,valor in zip(datas_hgt,valores):
+            x=esquerda+(dt-t0).total_seconds()/duracao*(direita-esquerda)
+            y=base-(valor-minimo)/(maximo-minimo)*(base-topo)
+            pontos.extend((x,y))
+        if len(pontos)>=4:c.create_line(*pontos,fill="#267B55",width=2,smooth=False)
+        for idx,(x,y) in enumerate(zip(pontos[::2],pontos[1::2])):
+            c.create_oval(x-4,y-4,x+4,y+4,fill="#D97706",outline="#FFFFFF",width=1)
+            c.create_text(x,y-13,text=f"{valores[idx]:g}",fill="#26352C",font=("Arial",9))
+        for evento in self.ofertas:
+            dt=evento["instante"]
+            x=esquerda+(dt-t0).total_seconds()/duracao*(direita-esquerda)
+            c.create_line(x,topo+8,x,base,fill="#B45309",dash=(3,3),width=2)
+            c.create_polygon(x-4,topo+4,x+4,topo+4,x,topo+12,fill="#B45309",outline="")
+        for dt in (t0,t1):
+            x=esquerda+(dt-t0).total_seconds()/duracao*(direita-esquerda)
+            c.create_text(x,base+15,text=dt.strftime("%d/%m %H:%M"),
+                          fill="#52645A",font=("Arial",8))
 
     def _dialogo(self, registro=None):
         win = ctk.CTkToplevel(self)
