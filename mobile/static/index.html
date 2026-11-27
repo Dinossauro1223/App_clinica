@@ -126,10 +126,12 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     if(path==='/api/mapa'){
       const url=`/api/mapa?setor=${encodeURIComponent(body.setor||'')}&data=${encodeURIComponent(body.data||'')}`;
       try{
-        const old=JSON.parse(read('GET:'+url)||'{}');base={};
+        const old=JSON.parse(read('GET:'+url)||'{}'),anteriores=old.linhas||[];base={};
+        // Guarda o mapa remoto inteiro, não apenas os leitos presentes no envio.
+        // Assim, inclusões e remoções concorrentes também entram na comparação.
+        for(const prev of anteriores)base[String(prev.id_leito)]=prev;
         for(const l of body.linhas||[]){
-          const prev=(old.linhas||[]).find(x=>String(x.id_leito)===String(l.id_leito));
-          if(prev)base[l.id_leito]=prev;
+          const prev=anteriores.find(x=>String(x.id_leito)===String(l.id_leito));
           if(l.nome){
             const mesma=prev&&String(prev.nome||'').trim().toLowerCase()===String(l.nome).trim().toLowerCase();
             const idDiferente=prev&&String(prev.id_paciente||'')!==String(l.id_paciente||'');
@@ -138,12 +140,15 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
             else{l.id_paciente=null;l.id_ocupacao='offline:'+Date.now()+'-'+Math.random().toString(36).slice(2)}
           }else{l.id_ocupacao=null;l.id_paciente=null}
         }
-      }catch(e){}
+      }catch(e){base=null;}
     }
     const user=read('user');
     let userId=null;try{userId=JSON.parse(user||'{}').usuario?.id||null}catch(e){}
     const operationId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('nl-'+Date.now()+'-'+Math.random().toString(36).slice(2));
-    const baseCompleta=path==='/api/mapa'&&(body.linhas||[]).length>0&&(body.linhas||[]).every(l=>base&&base[l.id_leito]);
+    const idsEnvio=(body.linhas||[]).map(l=>String(l.id_leito)).sort();
+    const idsBase=base&&Object.keys(base).sort();
+    const baseCompleta=path==='/api/mapa'&&idsEnvio.length>0&&idsBase&&
+      idsEnvio.length===idsBase.length&&idsEnvio.every((id,i)=>id===idsBase[i]);
     const entry={path,body,base,baseCompleta,userId,operationId,criado_em:new Date().toISOString()};
     const ix=path==='/api/mapa'?q.findIndex(x=>x.path===path&&x.body.setor===body.setor&&x.body.data===body.data):-1;
     if(ix>=0){entry.base=q[ix].base;entry.baseCompleta=q[ix].baseCompleta;entry.userId=q[ix].userId;q[ix]=entry}else q.push(entry);
@@ -224,8 +229,12 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
           if(!r.ok)return null;cache[key]=await r.json();
         }catch(e){return null}
       }
-      const linhas=cache[key].linhas||[];
-      for(const id of Object.keys(item.base)){
+      const linhas=cache[key].linhas||[],idsAtuais=linhas.map(l=>String(l.id_leito)).sort();
+      const idsBase=Object.keys(item.base).sort();
+      if(idsAtuais.length!==idsBase.length||idsAtuais.some((id,i)=>id!==idsBase[i])){
+        total+=Math.max(1,Math.abs(idsAtuais.length-idsBase.length));
+      }
+      for(const id of idsBase){
         const atual=linhas.find(l=>String(l.id_leito)===String(id));
         if(!atual||snapshot(atual)!==snapshot(item.base[id]))total++;
       }
