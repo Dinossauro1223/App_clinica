@@ -110,8 +110,8 @@ def resumir_osmolaridade_preparacoes(item):
             agua_num = float(agua_misturada or 0)
             if isfinite(agua_num) and agua_num >= 0:
                 volume_final = round(volume_ref * (dose_num / dose_ref) + agua_num, 1)
-        resultados.append({"numero": indice, "dose": dose,
-                           "agua_adicionada_ml": agua_misturada,
+        resultados.append({"numero": indice, "refeicao": preparacao.get("refeicao"),
+                           "dose": dose, "agua_adicionada_ml": agua_misturada,
                            "agua_separada_ml": preparacao.get("agua_separada_ml"),
                            "volume_final_ml": volume_final, **calculo})
     completo = all(x.get("valor") is not None for x in resultados)
