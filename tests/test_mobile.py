@@ -96,6 +96,54 @@ class MobileTest(unittest.TestCase):
             c.close()
 
     # ------------------------------------------------------------------ testes
+    def test_cozinha_registra_producao_por_preparacao_e_cuba_sem_alterar_estoque(self):
+        dia = "2026-11-27"
+        snapshot = {"esquema": 1, "data": dia, "refeicao": "almoco",
+                    "preparacoes": [{"id_preparacao_dia": 440, "nome": "Arroz",
+                                     "categoria": "acompanhamento", "porcoes_previstas": 80}]}
+        c = sv.conectar(self.db)
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_publicacoes (
+                data TEXT NOT NULL, refeicao TEXT NOT NULL, snapshot_json TEXT NOT NULL,
+                publicado_em TEXT NOT NULL, PRIMARY KEY(data,refeicao))""")
+            c.execute("INSERT OR REPLACE INTO menu_dia_publicacoes VALUES(?,?,?,?)",
+                      (dia, "almoco", json.dumps(snapshot), "2026-11-27T08:00:00-03:00"))
+            c.commit()
+        finally:
+            c.close()
+        antes = self.qtd("cozinha", dia)
+        corpo = {"data": dia, "refeicao": "almoco", "id_preparacao_dia": 440,
+                 "porcoes_produzidas": 76, "porcoes_faltantes": 4,
+                 "peso_por_porcao_g": 150, "observacao": "Reposição parcial",
+                 "cubas": [{"identificacao": "Cuba 1", "peso_sobra_kg": 0.4,
+                            "peso_desperdicio_kg": 0.1}]}
+        cod, salvo = self.chamar(self.t["coz"], "POST", "/api/menu-dia/producao", corpo)
+        self.assertEqual(cod, 200, salvo)
+        cod, consulta = self.chamar(self.t["coz"], "GET", "/api/menu-dia/producao?data=" + dia)
+        self.assertEqual(cod, 200, consulta)
+        self.assertEqual(len(consulta["registros"]), 1)
+        self.assertEqual(consulta["registros"][0]["porcoes_faltantes"], 4)
+        self.assertEqual(consulta["registros"][0]["cubas"][0]["identificacao"], "Cuba 1")
+        atualizado = {**corpo, "porcoes_produzidas": 78, "porcoes_faltantes": 2,
+                      "cubas": [{"identificacao": "Cuba 2", "peso_sobra_kg": 0.2,
+                                 "peso_desperdicio_kg": 0.05}]}
+        cod, resposta = self.chamar(self.t["coz"], "POST", "/api/menu-dia/producao", atualizado)
+        self.assertEqual(cod, 200, resposta)
+        self.assertTrue(resposta["atualizado"])
+        consulta = self.chamar(self.t["coz"], "GET", "/api/menu-dia/producao?data=" + dia)[1]
+        self.assertEqual(len(consulta["registros"]), 1)
+        self.assertEqual(consulta["registros"][0]["porcoes_produzidas"], 78)
+        self.assertEqual(consulta["registros"][0]["cubas"][0]["identificacao"], "Cuba 2")
+        self.assertEqual(self.qtd("cozinha", dia), antes)
+        self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/menu-dia/producao", corpo)[0], 403)
+        self.assertEqual(self.chamar(self.t["alm"], "GET", "/api/menu-dia/producao?data=" + dia)[0], 403)
+
+    def test_registro_mobile_rejeita_preparacao_que_nao_esta_publicada(self):
+        dia = "2026-11-27"
+        corpo = {"data": dia, "refeicao": "almoco", "id_preparacao_dia": 999,
+                 "porcoes_produzidas": 1, "porcoes_faltantes": 0}
+        self.assertEqual(self.chamar(self.t["coz"], "POST", "/api/menu-dia/producao", corpo)[0], 404)
+
     def test_menu_dia_publicado_disponivel_aos_perfis_operacionais_e_bloqueado_ao_almox(self):
         dia = "2026-11-26"
         snapshot = {"esquema": 1, "data": dia, "refeicao": "almoco",

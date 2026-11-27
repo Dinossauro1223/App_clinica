@@ -552,6 +552,9 @@ const coleta=()=>[...document.querySelectorAll('details.leito[data-id]')].map(e=
 });
 async function vMenuDia(){
   const j=await api('/api/menu-dia?data='+encodeURIComponent(S.data));
+  const prod=await api('/api/menu-dia/producao?data='+encodeURIComponent(S.data));
+  const registros=prod.registros||[];
+  const podeRegistrar=['admin','nutricionista','estoque_cozinha'].includes(S.u.perfil);
   const nomes={desjejum:'Desjejum',colacao:'Lanche da manhã',almoco:'Almoço',lanche:'Lanche da tarde',jantar:'Jantar',ceia:'Ceia'};
   if(!j.publicado){
     $('#vista').innerHTML='<div class=cartao><h2>Menu do Dia</h2><p>Não há cardápio publicado para '+br(S.data)+'. O último menu recebido continuará disponível apenas nas datas em que foi publicado.</p></div>';
@@ -564,10 +567,22 @@ async function vMenuDia(){
       const foto=(tipo,titulo)=>imgs[tipo]?.data_url?'<figure style="margin:8px 0"><img loading=lazy src="'+imgs[tipo].data_url+'" alt="'+titulo+'" style="width:100%;max-height:240px;object-fit:contain;border-radius:8px"><figcaption class=mini>'+titulo+'</figcaption></figure>':'';
       const ing=ingredientes.length?'<h4>Ingredientes por porção</h4><ul>'+ingredientes.map(i=>'<li>'+esc(i.nome)+': '+esc(i.qtd_per_capita)+' '+esc(i.unidade)+'</li>').join('')+'</ul>':'';
       const prep=etapas.length?'<h4>Modo de preparo</h4><ol>'+etapas.map(e=>'<li>'+esc(e.instrucao)+'</li>').join('')+'</ol>':'';
+      const registro=registros.find(x=>String(x.id_preparacao_dia)===String(p.id_preparacao_dia));
+      const cubas=registro?.cubas?.length?registro.cubas:[{}];
+      const formProducao=podeRegistrar?'<section class="cartao prod-mob"><h4>Registro de produção</h4>'+
+        '<form onsubmit="salvarProducaoMobile(event,'+Number(p.id_preparacao_dia)+',\''+esc(r.refeicao)+'\')">'+
+        '<div class="filtros"><label class=f>Porções produzidas<input name=produzidas type=number min=0 step=0.1 value="'+esc(registro?.porcoes_produzidas??'')+'"></label>'+
+        '<label class=f>Porções faltantes<input name=faltantes type=number min=0 step=0.1 value="'+esc(registro?.porcoes_faltantes??0)+'"></label></div>'+
+        '<label class=f><input name=nao_produzida type=checkbox '+(registro?.faltou_preparacao?'checked':'')+' onchange="alternarNaoProduzidaMobile(this)"> Não foi produzida/disponibilizada</label>'+
+        '<label class=f>Peso por porção (g), opcional<input name=peso type=number min=0.01 step=0.1 value="'+esc(registro?.peso_por_porcao_g??'')+'"></label>'+
+        '<label class=f>Observação<textarea name=observacao rows=2>'+esc(registro?.observacao||'')+'</textarea></label>'+
+        '<h4>Sobras e desperdício por cuba (kg)</h4><div class=lista-cubas>'+cubas.map(cubaMobileHtml).join('')+'</div>'+
+        '<button type=button class="btn sec" onclick="adicionarCubaMobile(this)">＋ Adicionar cuba</button>'+
+        '<button type=submit class=btn>Salvar registro de produção</button></form></section>':'';
       return '<details class=cartao style="margin:8px 0"><summary><b>'+esc(p.nome)+'</b> <span class=mini>· '+esc(p.categoria||'Geral')+'</span></summary>'+
         '<p class=mini>Porções previstas: '+esc(p.porcoes_previstas??'não informadas')+'</p>'+
         (f.modo_preparo?'<p>'+esc(f.modo_preparo).replace(/\\n/g,'<br>')+'</p>':'')+
-        foto('porcao_individual','Porção individual')+foto('recipiente_cheio','Recipiente cheio')+ing+prep+'</details>';
+        foto('porcao_individual','Porção individual')+foto('recipiente_cheio','Recipiente cheio')+ing+prep+formProducao+'</details>';
     }).join('');
     return '<section class=cartao><h3>'+esc(nomes[r.refeicao]||r.refeicao)+'</h3>'+
       '<p class=mini>Publicado em '+esc(r.publicado_em||'—')+'</p>'+
@@ -576,6 +591,27 @@ async function vMenuDia(){
   $('#vista').innerHTML='<div class=cartao><div class=filtros><label class=f>Data<input type=date value="'+esc(S.data)+'" onchange="S.data=this.value||S.hoje;ir(\'menu\')"></label></div>'+
     '<h2>Menu do Dia</h2><p class=mini>Versão publicada pelo desktop. O conteúdo consultado fica no cache local para acesso sem conexão.</p></div>'+
     (secoes||'<div class=cartao>Nenhuma refeição publicada para esta data.</div>');
+}
+function cubaMobileHtml(c={}){return '<div class="cuba-mob filtros">'+
+  '<label class=f>Identificação<input name=identificacao value="'+esc(c.identificacao||'')+'" placeholder="Cuba/panela"></label>'+
+  '<label class=f>Sobra (kg)<input name=sobra type=number min=0 step=0.001 value="'+esc(c.peso_sobra_kg??0)+'"></label>'+
+  '<label class=f>Desperdício (kg)<input name=desperdicio type=number min=0 step=0.001 value="'+esc(c.peso_desperdicio_kg??0)+'"></label>'+
+  '<label class=f>Observação<input name=obs value="'+esc(c.observacao||'')+'"></label>'+
+  '<button type=button class="btn sec" onclick="this.closest(\\'.cuba-mob\\').remove()">Remover</button></div>'}
+function adicionarCubaMobile(btn){const lista=btn.parentElement.querySelector('.lista-cubas');lista.insertAdjacentHTML('beforeend',cubaMobileHtml({}));}
+function alternarNaoProduzidaMobile(check){const form=check.form;if(check.checked){form.produzidas.value=0;const planejadas=form.closest('details').querySelector('p.mini')?.textContent.match(/[0-9]+(?:[.,][0-9]+)?/)?.[0];form.faltantes.value=planejadas?planejadas.replace(',','.'):0;}}
+async function salvarProducaoMobile(ev,id,ref){
+  ev.preventDefault();const form=ev.currentTarget;
+  const cubas=[...form.querySelectorAll('.cuba-mob')].map(x=>({identificacao:x.querySelector('[name=identificacao]').value.trim(),
+    peso_sobra_kg:x.querySelector('[name=sobra]').value||0,peso_desperdicio_kg:x.querySelector('[name=desperdicio]').value||0,
+    observacao:x.querySelector('[name=obs]').value.trim()})).filter(x=>x.identificacao||Number(x.peso_sobra_kg)||Number(x.peso_desperdicio_kg)||x.observacao);
+  try{
+    await api('/api/menu-dia/producao',{data:S.data,refeicao:ref,id_preparacao_dia:id,
+      porcoes_produzidas:form.produzidas.value||null,porcoes_faltantes:form.faltantes.value||0,
+      faltou_preparacao:form.nao_produzida.checked,peso_por_porcao_g:form.peso.value||null,
+      observacao:form.observacao.value,cubas});
+    await vMenuDia();aviso('Registro de produção salvo. Nenhuma movimentação de estoque foi criada.',0);
+  }catch(e){aviso(e.message,1);}
 }
 async function vMapa(){
   if(!S.setor){$('#vista').innerHTML=filtros('setor')+semSetor;return}

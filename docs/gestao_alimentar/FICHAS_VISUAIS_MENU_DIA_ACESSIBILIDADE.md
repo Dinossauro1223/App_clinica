@@ -46,7 +46,7 @@ Cada preparação do menu terá seu próprio fechamento diário, independente da
 - peso de sobra e peso de desperdício de cada cuba, separadamente, em kg;
 - observação operacional e responsável pelo registro.
 
-O modelo de dados foi iniciado nesta branch com as tabelas `GA_Producao_Preparacao` e `GA_Producao_Cubas`, e funções transacionais para salvar, consultar e listar os registros. O registro é único por preparação do menu e data; uma correção atualiza o registro e substitui o conjunto de cubas, evitando duplicação acidental. A implementação atual é a camada de persistência; ainda faltam os formulários desktop/mobile e os endpoints com controle de permissões.
+O modelo desktop usa as tabelas `GA_Producao_Preparacao` e `GA_Producao_Cubas`; no mobile, os registros ficam em tabelas próprias do banco compartilhado, vinculados ao snapshot publicado do Menu do Dia. O desktop oferece formulário e histórico. A cozinha pode registrar e corrigir os dados no mobile por preparação e refeição, com permissões específicas; as cubas são substituídas na correção para evitar duplicação. Esses registros não geram movimentações nem alteram saldos de estoque.
 
 ### Como o histórico deve orientar o planejamento
 

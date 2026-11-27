@@ -968,6 +968,122 @@ def _rotear(c, ip, m, p, q, b, auth):
         return {"data": d, "publicado": bool(rows), "refeicoes": [
             {"refeicao": r["refeicao"], "publicado_em": r["publicado_em"],
              "snapshot": json.loads(r["snapshot_json"])} for r in rows]}
+    if p == "/api/menu-dia/producao":
+        perfis_leitura = ("admin", "nutricionista", "copa", "estoque_cozinha")
+        perfis_escrita = ("admin", "nutricionista", "estoque_cozinha")
+        if m == "GET":
+            if perfil not in perfis_leitura:
+                raise Erro("Sem permissão para consultar os registros de produção.", 403)
+            d = dia_valido(q.get("data") or hoje())
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_producao (
+                id_registro INTEGER PRIMARY KEY AUTOINCREMENT,
+                data TEXT NOT NULL, refeicao TEXT NOT NULL, id_preparacao_dia INTEGER NOT NULL,
+                nome_preparacao_snapshot TEXT NOT NULL, categoria_snapshot TEXT,
+                porcoes_planejadas REAL, porcoes_produzidas REAL,
+                porcoes_faltantes REAL NOT NULL DEFAULT 0,
+                faltou_preparacao INTEGER NOT NULL DEFAULT 0 CHECK(faltou_preparacao IN (0,1)),
+                peso_por_porcao_g REAL, observacao TEXT, usuario TEXT NOT NULL,
+                criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL,
+                UNIQUE(data,refeicao,id_preparacao_dia)
+            )""")
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_producao_cubas (
+                id_cuba INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_registro INTEGER NOT NULL REFERENCES menu_dia_producao(id_registro) ON DELETE CASCADE,
+                identificacao TEXT NOT NULL, peso_sobra_kg REAL NOT NULL DEFAULT 0,
+                peso_desperdicio_kg REAL NOT NULL DEFAULT 0, observacao TEXT, ordem INTEGER NOT NULL DEFAULT 0
+            )""")
+            registros = [dict(r) for r in c.execute(
+                "SELECT * FROM menu_dia_producao WHERE data=? ORDER BY refeicao,nome_preparacao_snapshot", (d,)
+            ).fetchall()]
+            for registro in registros:
+                registro["cubas"] = [dict(x) for x in c.execute(
+                    "SELECT identificacao,peso_sobra_kg,peso_desperdicio_kg,observacao,ordem "
+                    "FROM menu_dia_producao_cubas WHERE id_registro=? ORDER BY ordem,id_cuba",
+                    (registro["id_registro"],)
+                ).fetchall()]
+            return {"data": d, "registros": registros}
+        if m == "POST":
+            if perfil not in perfis_escrita:
+                raise Erro("Somente a cozinha, a nutrição e a administração podem registrar produção.", 403)
+            d = dia_valido(b.get("data") or hoje())
+            ref = str(b.get("refeicao") or "").strip().lower()
+            if ref not in ("desjejum", "colacao", "almoco", "lanche", "jantar", "ceia"):
+                raise Erro("Selecione uma refeição válida.")
+            try:
+                pid = int(b.get("id_preparacao_dia"))
+            except (TypeError, ValueError):
+                raise Erro("Preparação do Menu do Dia inválida.")
+            publicado = c.execute(
+                "SELECT snapshot_json FROM menu_dia_publicacoes WHERE data=? AND refeicao=?", (d, ref)
+            ).fetchone()
+            if not publicado:
+                raise Erro("Não existe Menu do Dia publicado para esta refeição e data.", 404)
+            snapshot = json.loads(publicado["snapshot_json"])
+            preparacao = next((x for x in snapshot.get("preparacoes", [])
+                               if str(x.get("id_preparacao_dia")) == str(pid)), None)
+            if not preparacao:
+                raise Erro("A preparação não pertence ao Menu do Dia publicado.", 404)
+            planejadas = preparacao.get("porcoes_previstas")
+            planejadas = num(planejadas, "porções planejadas") if planejadas is not None else None
+            produzidas = b.get("porcoes_produzidas")
+            produzidas = num(produzidas, "porções produzidas") if produzidas not in (None, "") else None
+            faltantes = num(b.get("porcoes_faltantes", 0), "porções faltantes")
+            nao_produzida = bool(b.get("faltou_preparacao"))
+            if nao_produzida:
+                produzidas = 0
+                faltantes = planejadas or 0
+            if planejadas is not None and faltantes > planejadas:
+                raise Erro("As porções faltantes não podem superar as porções planejadas.")
+            peso = b.get("peso_por_porcao_g")
+            peso = num(peso, "peso por porção") if peso not in (None, "") else None
+            if peso == 0:
+                raise Erro("O peso por porção deve ser maior que zero.")
+            cubas_recebidas = b.get("cubas") or []
+            if not isinstance(cubas_recebidas, list) or len(cubas_recebidas) > 50:
+                raise Erro("Informe até 50 cubas por preparação.")
+            cubas = []
+            for ordem, item in enumerate(cubas_recebidas, 1):
+                if not isinstance(item, dict):
+                    raise Erro("Dados de cuba inválidos.")
+                identificacao = str(item.get("identificacao") or "").strip()
+                sobra = num(item.get("peso_sobra_kg", 0), "peso de sobra")
+                desperdicio = num(item.get("peso_desperdicio_kg", 0), "peso de desperdício")
+                observacao = str(item.get("observacao") or "").strip()
+                if not identificacao:
+                    raise Erro("Cada cuba precisa de identificação.")
+                if len(identificacao) > 80 or len(observacao) > 500:
+                    raise Erro("A identificação da cuba ou a observação excede o limite permitido.")
+                cubas.append((identificacao, sobra, desperdicio, observacao, ordem))
+            nome = str(preparacao.get("nome") or "Preparação")[:200]
+            categoria = str(preparacao.get("categoria") or "")[:80] or None
+            agora_registro = agora()
+            existente = c.execute(
+                "SELECT id_registro FROM menu_dia_producao WHERE data=? AND refeicao=? AND id_preparacao_dia=?",
+                (d, ref, pid)
+            ).fetchone()
+            if existente:
+                rid = existente["id_registro"]
+                c.execute("""UPDATE menu_dia_producao SET nome_preparacao_snapshot=?,categoria_snapshot=?,
+                    porcoes_planejadas=?,porcoes_produzidas=?,porcoes_faltantes=?,faltou_preparacao=?,
+                    peso_por_porcao_g=?,observacao=?,usuario=?,atualizado_em=? WHERE id_registro=?""",
+                    (nome, categoria, planejadas, produzidas, faltantes, int(nao_produzida), peso,
+                     str(b.get("observacao") or "")[:2000], u["nome"], agora_registro, rid))
+                c.execute("DELETE FROM menu_dia_producao_cubas WHERE id_registro=?", (rid,))
+            else:
+                rid = c.execute("""INSERT INTO menu_dia_producao(
+                    data,refeicao,id_preparacao_dia,nome_preparacao_snapshot,categoria_snapshot,
+                    porcoes_planejadas,porcoes_produzidas,porcoes_faltantes,faltou_preparacao,
+                    peso_por_porcao_g,observacao,usuario,criado_em,atualizado_em
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (d, ref, pid, nome, categoria, planejadas, produzidas, faltantes,
+                     int(nao_produzida), peso, str(b.get("observacao") or "")[:2000],
+                     u["nome"], agora_registro, agora_registro)).lastrowid
+            c.executemany("""INSERT INTO menu_dia_producao_cubas(
+                id_registro,identificacao,peso_sobra_kg,peso_desperdicio_kg,observacao,ordem
+            ) VALUES(?,?,?,?,?,?)""", [(rid, *x) for x in cubas])
+            return {"ok": True, "id_registro": rid, "atualizado": bool(existente),
+                    "porcoes_planejadas": planejadas, "porcoes_produzidas": produzidas,
+                    "porcoes_faltantes": faltantes, "cubas": len(cubas)}
     if (m, p) == ("GET", "/api/eu"):
         return {"usuario": pub(u), "hoje": hoje()}
     if (m, p) == ("GET", "/api/itens"):
