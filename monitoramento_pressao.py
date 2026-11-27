@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 from datetime import datetime, timedelta
 
 
@@ -31,6 +32,10 @@ def criar_tabelas(conn):
         suplemento_novo TEXT NOT NULL,
         motivo TEXT,
         autor TEXT,
+        id_suplemento_anterior INTEGER,
+        id_suplemento_novo INTEGER,
+        snapshot_anterior_json TEXT,
+        snapshot_novo_json TEXT,
         criado_em TEXT NOT NULL,
         ativo INTEGER NOT NULL DEFAULT 1 CHECK(ativo IN (0,1))
     )""")
@@ -90,7 +95,8 @@ def inativar_pressao(caminho, id_paciente, id_pa, agora=None):
 
 
 def registrar_substituicao(caminho,id_paciente,substituido_em,suplemento_anterior,suplemento_novo,
-                           motivo="",autor=None,agora=None):
+                           motivo="",autor=None,agora=None,id_suplemento_anterior=None,
+                           id_suplemento_novo=None,snapshot_anterior=None,snapshot_novo=None):
     dt=datetime.strptime(substituido_em,"%Y-%m-%d %H:%M")
     novo=(suplemento_novo or "").strip()
     if not novo:
@@ -99,11 +105,23 @@ def registrar_substituicao(caminho,id_paciente,substituido_em,suplemento_anterio
     with sqlite3.connect(caminho) as conn:
         criar_tabelas(conn)
         cur=conn.execute("""INSERT INTO Suplemento_Substituicoes
-            (id_paciente,substituido_em,suplemento_anterior,suplemento_novo,motivo,autor,criado_em)
-            VALUES (?,?,?,?,?,?,?)""",
+            (id_paciente,substituido_em,suplemento_anterior,suplemento_novo,motivo,autor,
+             id_suplemento_anterior,id_suplemento_novo,snapshot_anterior_json,snapshot_novo_json,criado_em)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (int(id_paciente),dt.strftime("%Y-%m-%d %H:%M:00"),(suplemento_anterior or "").strip() or None,
-             novo,(motivo or "").strip() or None,autor,carimbo))
+             novo,(motivo or "").strip() or None,autor,id_suplemento_anterior,id_suplemento_novo,
+             json.dumps(snapshot_anterior,ensure_ascii=False,default=str) if snapshot_anterior is not None else None,
+             json.dumps(snapshot_novo,ensure_ascii=False,default=str) if snapshot_novo is not None else None,carimbo))
         return cur.lastrowid
+
+
+def listar_substituicoes(caminho,id_paciente):
+    with sqlite3.connect(caminho) as conn:
+        criar_tabelas(conn)
+        return conn.execute("""SELECT id_substituicao,substituido_em,suplemento_anterior,suplemento_novo,
+            id_suplemento_anterior,id_suplemento_novo,snapshot_anterior_json,snapshot_novo_json
+            FROM Suplemento_Substituicoes WHERE id_paciente=? AND ativo=1
+            ORDER BY substituido_em DESC,id_substituicao DESC""",(int(id_paciente),)).fetchall()
 
 
 def _resumo(valores, chave):
