@@ -143,8 +143,10 @@ root.destroy()
                      "gestao_alimentar_ui.py", "condutas_alta_ui.py"):
             fonte = (raiz / nome).read_text(encoding="utf-8")
             if nome == "mapa_ui.py":
-                # A única janela modal permitida é o visualizador de curvas OMS.
-                self.assertEqual(fonte.count("ctk.CTkToplevel"), 1)
+                # Janelas modais previstas: preparação, substituição e curvas OMS.
+                self.assertEqual(fonte.count("ctk.CTkToplevel"), 3)
+                self.assertIn("class DialogPreparacoesSuplemento(ctk.CTkToplevel)", fonte)
+                self.assertIn("class DialogSubstituirSuplemento(ctk.CTkToplevel)", fonte)
                 self.assertIn("class DialogCurvasOMS(ctk.CTkToplevel)", fonte)
             else:
                 self.assertNotIn("CTkToplevel", fonte, f"{nome} ainda abre janela secundária")
