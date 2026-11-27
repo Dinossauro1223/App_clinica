@@ -6,6 +6,7 @@ evitar dependências adicionais e manter compatibilidade com o executável Windo
 from __future__ import annotations
 
 import sqlite3
+import json
 from datetime import datetime, timedelta
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -102,6 +103,66 @@ def intervalo_relativo_hora(medido_em, oferta_em):
     return int((a - b).total_seconds() // 60)
 
 
+def listar_ofertas_nutricionais(caminho, id_paciente, inicio=None, fim=None):
+    """Lê ofertas reais do mapa; só cria evento temporal quando HH:MM foi registrado."""
+    sql = """SELECT m.data,s.nome,s.preparacoes_json,s.carb_100,s.fibra_g_100,
+                    s.tipo_fibra,s.unidade
+             FROM Mapa_Registros m
+             JOIN Mapa_Registro_Suplementos s ON s.id_registro=m.id_registro
+             WHERE m.id_paciente=?"""
+    args = [int(id_paciente)]
+    if inicio:
+        sql += " AND m.data>=?"; args.append(inicio[:10])
+    if fim:
+        sql += " AND m.data<=?"; args.append(fim[:10])
+    sql += " ORDER BY m.data,s.nome"
+    eventos = []
+    try:
+        with sqlite3.connect(caminho) as conn:
+            rows = conn.execute(sql,args).fetchall()
+    except sqlite3.Error:
+        return eventos
+    for data, nome, preparacoes_json, carb_100, fibra_100, tipo_fibra, unidade in rows:
+        try:
+            preparacoes = json.loads(preparacoes_json or "[]")
+        except (TypeError, ValueError):
+            continue
+        for prep in preparacoes:
+            horario = str(prep.get("horario") or "").strip()
+            if not horario:
+                continue
+            try:
+                instante = datetime.strptime(f"{data} {horario}","%Y-%m-%d %H:%M")
+                dose = float(prep.get("dose"))
+            except (TypeError, ValueError):
+                continue
+            agua = prep.get("agua_adicionada_ml")
+            agua_separada = prep.get("agua_separada_ml")
+            try:
+                agua = float(agua) if agua not in (None,"") else None
+            except (TypeError,ValueError):
+                agua = None
+            try:
+                agua_separada = float(agua_separada) if agua_separada not in (None,"") else None
+            except (TypeError,ValueError):
+                agua_separada = None
+            try:
+                carboidratos = dose * float(carb_100) / 100 if carb_100 is not None else None
+            except (TypeError,ValueError):
+                carboidratos = None
+            try:
+                fibras = dose * float(fibra_100) / 100 if fibra_100 is not None else None
+            except (TypeError,ValueError):
+                fibras = None
+            eventos.append({
+                "instante": instante, "suplemento": nome, "refeicao": prep.get("refeicao") or "",
+                "dose": dose, "unidade": unidade or "", "agua_misturada_ml": agua,
+                "agua_separada_ml": agua_separada, "carboidratos_g": carboidratos,
+                "fibras_g": fibras, "tipo_fibra": tipo_fibra or "não informado"
+            })
+    return sorted(eventos,key=lambda x:x["instante"])
+
+
 class PainelMonitoramentoGlicemico(ctk.CTkFrame):
     """Painel do perfil do paciente; eventos nutricionais reais podem ser acoplados por integração."""
 
@@ -125,8 +186,8 @@ class PainelMonitoramentoGlicemico(ctk.CTkFrame):
                                 highlightthickness=1, highlightbackground="#D9E2DC")
         self.canvas.pack(fill="x", padx=14, pady=(4, 10))
         ctk.CTkLabel(self, text=(
-            "O gráfico apresenta exclusivamente medições reais. Os horários das ofertas nutricionais "
-            "serão sobrepostos quando a integração com os registros de distribuição estiver disponível."
+            "O gráfico apresenta medições reais de HGT e marcações das ofertas com horário efetivamente "
+            "registrado no mapa. Oferta sem horário permanece fora do eixo temporal."
         ), text_color=tema.SUAVE, wraplength=900, justify="left").pack(anchor="w", padx=16)
 
         self.tabela = ttk.Treeview(self, columns=("data", "valor", "contexto", "obs"),
@@ -137,6 +198,14 @@ class PainelMonitoramentoGlicemico(ctk.CTkFrame):
             self.tabela.heading(col, text=titulo)
             self.tabela.column(col, width=largura, anchor="w")
         self.tabela.pack(fill="both", expand=True, padx=14, pady=8)
+        ctk.CTkLabel(self,text="Ofertas nutricionais registradas no mapa",
+                     font=ctk.CTkFont(size=14,weight="bold")).pack(anchor="w",padx=16,pady=(8,2))
+        self.ofertas_tabela=ttk.Treeview(self,columns=("hora","produto","dose","agua","carb","fibra"),
+                                          show="headings",height=5)
+        for col,titulo,largura in (("hora","Horário",115),("produto","Suplemento / refeição",230),
+            ("dose","Dose",90),("agua","Água (mL)",100),("carb","Carboidratos (g)",120),("fibra","Fibras (g)",100)):
+            self.ofertas_tabela.heading(col,text=titulo);self.ofertas_tabela.column(col,width=largura,anchor="w")
+        self.ofertas_tabela.pack(fill="x",padx=14,pady=(0,8))
         botoes = ctk.CTkFrame(self, fg_color="transparent")
         botoes.pack(fill="x", padx=14, pady=(0, 12))
         ctk.CTkButton(botoes, text="Editar selecionado", command=self._editar,
@@ -146,12 +215,23 @@ class PainelMonitoramentoGlicemico(ctk.CTkFrame):
 
     def atualizar(self):
         self.registros = listar_hgt(self.caminho_banco, self.id_paciente)
+        self.ofertas = listar_ofertas_nutricionais(self.caminho_banco,self.id_paciente)
         for item in self.tabela.get_children():
             self.tabela.delete(item)
         for r in self.registros:
             dt = datetime.fromisoformat(r[2]).strftime("%d/%m/%Y %H:%M")
             self.tabela.insert("", "end", iid=str(r[0]),
                                values=(dt, f"{r[1]:g}", r[3], r[4] or "—"))
+        for item in self.ofertas_tabela.get_children():
+            self.ofertas_tabela.delete(item)
+        for i,evento in enumerate(self.ofertas):
+            dose=f'{evento["dose"]:g} {evento["unidade"]}'
+            agua="—" if evento["agua_misturada_ml"] is None else f'{evento["agua_misturada_ml"]:g}'
+            carb="—" if evento["carboidratos_g"] is None else f'{evento["carboidratos_g"]:.1f}'
+            fibra="—" if evento["fibras_g"] is None else f'{evento["fibras_g"]:.1f} ({evento["tipo_fibra"]})'
+            self.ofertas_tabela.insert("","end",iid=f"oferta-{i}",values=(
+                evento["instante"].strftime("%d/%m %H:%M"),
+                f'{evento["suplemento"]} / {evento["refeicao"]}',dose,agua,carb,fibra))
         self._desenhar_grafico()
 
     def _desenhar_grafico(self):
