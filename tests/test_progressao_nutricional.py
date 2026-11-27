@@ -22,8 +22,22 @@ class TestProgressaoNutricional(unittest.TestCase):
             {"medido_em": "2026-11-27 07:00", "peso_kg": 68.9, "peso_origem": "R"},
         ], idade_anos=69)
         self.assertEqual(resultado["alertas"][0]["tipo"], "variacao_aguda_24h")
-        self.assertEqual(resultado["alertas"][0]["intervalo_horas"], 24.0)
-        self.assertIn("balanço hídrico", resultado["alertas"][0]["texto"])
+        alerta = resultado["alertas"][0]
+        self.assertEqual(alerta["intervalo_horas"], 24.0)
+        self.assertAlmostEqual(alerta["perda_percentual"], 1.57, places=2)
+        self.assertTrue(alerta["sinal_risco_nutricional"])
+        self.assertIn("deterioração clínica/nutricional", alerta["texto"])
+        self.assertIn("balanço hídrico", alerta["texto"])
+        self.assertIn("Não confirma desnutrição", alerta["texto"])
+
+    def test_aumento_agudo_nao_e_marcado_como_risco_nutricional(self):
+        resultado = pn.analisar_progressao_peso([
+            {"medido_em": "2026-11-26 07:00", "peso_kg": 68.9, "peso_origem": "R"},
+            {"medido_em": "2026-11-27 07:00", "peso_kg": 70, "peso_origem": "R"},
+        ], idade_anos=69)
+        alerta = resultado["alertas"][0]
+        self.assertFalse(alerta["sinal_risco_nutricional"])
+        self.assertLess(alerta["perda_percentual"], 0)
 
     def test_perda_ponderal_em_seis_meses_marca_criterio_fenotipico_glim(self):
         resultado = pn.analisar_progressao_peso([
