@@ -6,6 +6,7 @@ from datetime import datetime
 
 import monitoramento_pressao as mp
 import monitoramento_glicemico as mg
+import db_migracoes as mig
 
 
 class TestMonitoramentoPressao(unittest.TestCase):
@@ -21,6 +22,20 @@ class TestMonitoramentoPressao(unittest.TestCase):
 
     def tearDown(self):
         os.unlink(self.db)
+
+    def test_migracoes_hgt_e_pressao_criam_esquema_integrado(self):
+        with sqlite3.connect(":memory:") as conn:
+            mig.MIGRACOES[9].up[0](conn)
+            mig.MIGRACOES[10].up[0](conn)
+            tabelas={r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+            self.assertIn("HGT_Registros",tabelas)
+            self.assertIn("PA_Registros",tabelas)
+            self.assertIn("Suplemento_Substituicoes",tabelas)
+            colunas={r[1] for r in conn.execute("PRAGMA table_info(Suplemento_Substituicoes)")}
+            self.assertIn("snapshot_anterior_json",colunas)
+            self.assertIn("snapshot_novo_json",colunas)
+            self.assertIn("autor",{r[1] for r in conn.execute("PRAGMA table_info(HGT_Registros)")})
 
     def test_salvar_listar_e_inativar_pressao(self):
         rid=mp.salvar_pressao(self.db,7,130,80,"2026-11-20 08:00",posicao="Sentado",braco="Esquerdo")
