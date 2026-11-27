@@ -588,6 +588,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             "altura_origem": self.reg.get("altura_origem") or "R",
             "peso_kg": peso,
             "peso_origem": self.reg.get("peso_origem") or "R",
+            "peso_medido_em": self.reg.get("peso_medido_em"),
             "peso_corrigido": bool(resultado.get("ajustou") or av.get("ajustou") or (
                 peso not in (None, "") and self.reg.get("peso_kg") not in (None, "") and
                 abs(float(peso) - float(self.reg["peso_kg"])) > 0.0001)),
