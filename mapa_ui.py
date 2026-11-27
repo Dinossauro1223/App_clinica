@@ -2138,7 +2138,7 @@ class FormRegistro(_Janela):
         for campo, rot in ((self.e_aj, "AJ"), (self.e_pp, "PP"), (self.e_pb, "PB"), (self.e_altura, "Altura"),
                            (self.e_peso, "Peso"), (self.e_idade, "Idade"), (self.e_fi_freq, "Frequência"),
                            (self.e_fi_dias, "Dias"), (self.e_meta_kcal, "Meta energética"),
-                           (self.e_meta_ptn, "Meta proteica")):
+                           (self.e_meta_ptn, "Meta proteica"), (self.e_meta_fibras, "Meta de fibras")):
             if g(campo) and nc.parse_num(g(campo)) is None:
                 raise ValueError(f"Valor inválido em {rot}.")
         origem_a = {"Estimada": "E", "Real": "R"}.get(self.seg_alt.get())
@@ -2509,6 +2509,12 @@ class FormRegistro(_Janela):
                 partes.append(f"{resultado['proteina_g_kg']:.2f} g/kg")
         else:
             partes.append("proteína: ficha/dose pendente")
+        if resultado["fibra_g_dia"] is not None:
+            partes.append(f"{resultado['fibra_g_dia']:.1f} g fibras/dia")
+            if resultado["percentual_meta_fibras"] is not None:
+                partes.append(f"{resultado['percentual_meta_fibras']:.1f}% da meta de fibras")
+        else:
+            partes.append("fibras: ficha técnica/dose pendente")
         pend = len(resultado["pendencias"])
         if pend:
             partes.append(f"{pend} item(ns) com dados incompletos")
