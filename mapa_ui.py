@@ -1209,6 +1209,260 @@ class DialogOrdemSetores(_Janela):
         self.ui.mostrar_mapa()
 
 
+
+class DialogPreparacoesSuplemento(ctk.CTkToplevel):
+    REFEICOES = ("Desjejum", "Lanche da manhã", "Almoço", "Lanche da tarde", "Jantar", "Ceia")
+
+    def __init__(self, formulario, indice, item, ao_salvar=None):
+        super().__init__(formulario.winfo_toplevel())
+        self.formulario, self.indice, self.item = formulario, indice, dict(item)
+        self.ao_salvar = ao_salvar
+        self.title("Preparações e diluições")
+        self.geometry("760x560")
+        self.minsize(680, 480)
+        self.transient(formulario.winfo_toplevel())
+        self.grab_set()
+        ctk.CTkLabel(self, text=f"Distribuição de {item.get('nome', 'suplemento')} por preparação",
+                     font=tema.fonte(16, "bold"), text_color=tema.VERDE).pack(anchor="w", padx=16, pady=(14, 4))
+        ctk.CTkLabel(self, text="Informe somente as refeições em que o produto será preparado. Água misturada altera a diluição; água separada não altera a osmolaridade da fórmula.",
+                     wraplength=710, justify="left", text_color=tema.SUAVE).pack(anchor="w", padx=16, pady=(0, 10))
+        cab = ctk.CTkFrame(self, fg_color="transparent")
+        cab.pack(fill="x", padx=16)
+        for texto, largura in (("Refeição", 150), ("Dose (" + str(item.get("unidade") or "un.") + ")", 130),
+                               ("Água misturada (mL)", 150), ("Água separada (mL)", 150)):
+            ctk.CTkLabel(cab, text=texto, width=largura, anchor="w").pack(side="left", padx=3)
+        existentes = {str(p.get("refeicao")): p for p in item.get("preparacoes", [])}
+        self.linhas = []
+        for refeicao in self.REFEICOES:
+            linha = ctk.CTkFrame(self, fg_color="transparent")
+            linha.pack(fill="x", padx=16, pady=2)
+            var = tk.IntVar(value=int(refeicao in existentes))
+            ctk.CTkCheckBox(linha, text=refeicao, variable=var, width=150).pack(side="left", padx=3)
+            prep = existentes.get(refeicao, {})
+            campos = []
+            for chave, largura in (("dose", 130), ("agua_adicionada_ml", 150), ("agua_separada_ml", 150)):
+                ent = ctk.CTkEntry(linha, width=largura)
+                ent.pack(side="left", padx=3)
+                valor = prep.get(chave)
+                if valor not in (None, ""):
+                    ent.insert(0, str(valor).replace(".", ","))
+                campos.append(ent)
+            self.linhas.append((refeicao, var, *campos))
+        self.lbl_total = ctk.CTkLabel(self, text="", text_color=tema.TEXTO)
+        self.lbl_total.pack(anchor="w", padx=18, pady=10)
+        botoes = ctk.CTkFrame(self, fg_color="transparent")
+        botoes.pack(fill="x", padx=16, pady=(0, 14))
+        ctk.CTkButton(botoes, text="Salvar preparações", command=self._salvar).pack(side="left")
+        ctk.CTkButton(botoes, text="Cancelar", fg_color="gray", command=self.destroy).pack(side="left", padx=8)
+        self._atualizar_total()
+
+    def _coletar(self):
+        preparacoes = []
+        for refeicao, var, dose_e, agua_e, separada_e in self.linhas:
+            if not var.get():
+                continue
+            dose_txt = dose_e.get().strip()
+            dose = nc.parse_num(dose_txt)
+            agua = nc.parse_num(agua_e.get()) if agua_e.get().strip() else 0.0
+            separada = nc.parse_num(separada_e.get()) if separada_e.get().strip() else 0.0
+            if dose is None or dose <= 0:
+                raise ValueError(f"Informe uma dose positiva para {refeicao}.")
+            if agua is None or agua < 0 or separada is None or separada < 0:
+                raise ValueError(f"Água inválida em {refeicao}.")
+            preparacoes.append({"refeicao": refeicao, "dose": dose,
+                                "agua_adicionada_ml": agua, "agua_separada_ml": separada})
+        if not preparacoes:
+            raise ValueError("Marque ao menos uma refeição e informe sua dose.")
+        return preparacoes
+
+    def _atualizar_total(self):
+        try:
+            preparacoes = self._coletar()
+            total = sum(p["dose"] for p in preparacoes)
+            agua = sum(p["agua_adicionada_ml"] for p in preparacoes)
+            separada = sum(p["agua_separada_ml"] for p in preparacoes)
+            self.lbl_total.configure(text=f"Total: {_fmt(total)} {self.item.get('unidade') or ''} · "
+                                          f"água misturada: {_fmt(agua)} mL · água separada: {_fmt(separada)} mL")
+        except ValueError:
+            self.lbl_total.configure(text="Preencha as doses das refeições marcadas.")
+
+    def _salvar(self):
+        try:
+            preparacoes = self._coletar()
+        except ValueError as exc:
+            messagebox.showwarning("Preparações", str(exc), parent=self)
+            return
+        novo = dict(self.item)
+        novo["preparacoes"] = preparacoes
+        novo["refeicoes"] = [p["refeicao"] for p in preparacoes]
+        novo["qtd_dia"] = round(sum(p["dose"] for p in preparacoes), 4)
+        novo["agua_ml"] = round(sum(p["agua_adicionada_ml"] for p in preparacoes), 4)
+        novo["agua_separada_ml"] = round(sum(p["agua_separada_ml"] for p in preparacoes), 4)
+        if self.ao_salvar:
+            self.ao_salvar(novo)
+        else:
+            self.formulario._suplementos[self.indice] = novo
+            self.formulario._atualizar_sup()
+            self.formulario._recalcular_oferta()
+        self.destroy()
+
+
+class DialogSubstituirSuplemento(ctk.CTkToplevel):
+    def __init__(self, formulario, indice, atual):
+        super().__init__(formulario.winfo_toplevel())
+        self.formulario, self.indice, self.atual = formulario, indice, dict(atual)
+        self.novo = None
+        self.comparacao = None
+        self.title("Substituir suplemento — comparação prévia")
+        self.geometry("820x720")
+        self.minsize(720, 620)
+        self.transient(formulario.winfo_toplevel())
+        self.grab_set()
+        ctk.CTkLabel(self, text="Comparar antes de substituir",
+                     font=tema.fonte(17, "bold"), text_color=tema.VERDE).pack(anchor="w", padx=16, pady=(14, 4))
+        ctk.CTkLabel(self, text=f"Atual: {atual.get('nome')} · {atual.get('qtd_dia')} {atual.get('unidade')}",
+                     text_color=tema.TEXTO).pack(anchor="w", padx=16, pady=(0, 8))
+        catalogo = [s for s in formulario._catalogo if s.get("id_suplemento") != atual.get("id_suplemento")]
+        self.por_nome = {s["nome"]: s for s in catalogo}
+        self.cb = ctk.CTkComboBox(self, values=list(self.por_nome), width=420, state="readonly",
+                                  command=lambda _v: self._selecionado())
+        self.cb.pack(anchor="w", padx=16, pady=4)
+        if catalogo:
+            self.cb.set(catalogo[0]["nome"])
+        linha = ctk.CTkFrame(self, fg_color="transparent")
+        linha.pack(fill="x", padx=16, pady=6)
+        self.e_qtd = ctk.CTkEntry(linha, width=150, placeholder_text="Quantidade diária")
+        self.e_qtd.pack(side="left", padx=(0, 8))
+        self.e_agua = ctk.CTkEntry(linha, width=150, placeholder_text="Água misturada (mL)")
+        self.e_agua.pack(side="left", padx=(0, 8))
+        self.e_agua_separada = ctk.CTkEntry(linha, width=150, placeholder_text="Água separada (mL)")
+        self.e_agua_separada.pack(side="left")
+        self.btn_preps = ctk.CTkButton(self, text="Distribuir por refeições / diluições",
+                                      command=self._preparacoes, fg_color="gray")
+        self.btn_preps.pack(anchor="w", padx=16, pady=4)
+        self.btn_comparar = ctk.CTkButton(self, text="Calcular comparação", command=self._comparar)
+        self.btn_comparar.pack(anchor="w", padx=16, pady=4)
+        self.resultado = ctk.CTkTextbox(self, width=780, height=390, wrap="word")
+        self.resultado.pack(fill="both", expand=True, padx=16, pady=8)
+        self.btn_confirmar = ctk.CTkButton(self, text="Confirmar substituição", command=self._confirmar,
+                                           state="disabled")
+        self.btn_confirmar.pack(anchor="e", padx=16, pady=(0, 8))
+        self.btn_cancelar = ctk.CTkButton(self, text="Cancelar", command=self.destroy, fg_color="gray")
+        self.btn_cancelar.pack(anchor="e", padx=16, pady=(0, 14))
+        self._selecionado()
+
+    def _selecionado(self):
+        produto = self.por_nome.get(self.cb.get())
+        if not produto:
+            return
+        self.novo = {k: v for k, v in produto.items()}
+        mesma_unidade = str(produto.get("emb_un") or "").lower() == str(self.atual.get("unidade") or "").lower()
+        quantidade = self.atual.get("qtd_dia") if mesma_unidade else None
+        for ent, valor in ((self.e_qtd, quantidade), (self.e_agua, 0), (self.e_agua_separada, 0)):
+            ent.delete(0, "end")
+            if valor is not None:
+                ent.insert(0, str(valor).replace(".", ","))
+        self.novo["preparacoes"] = []
+        self.btn_confirmar.configure(state="disabled")
+        self.resultado.delete("1.0", "end")
+        self.resultado.insert("end", "Informe a dose e a diluição do substituto para comparar.")
+
+    def _preparacoes(self):
+        if not self.novo:
+            return
+        try:
+            qtd = nc.parse_num(self.e_qtd.get())
+            if qtd is None or qtd <= 0:
+                raise ValueError("Informe primeiro a quantidade diária do substituto.")
+            self.novo["qtd_dia"] = qtd
+            self.novo["unidade"] = self.novo.get("emb_un") or "ml"
+            self.novo["agua_ml"] = nc.parse_num(self.e_agua.get()) or 0
+            self.novo["agua_separada_ml"] = nc.parse_num(self.e_agua_separada.get()) or 0
+            DialogPreparacoesSuplemento(self.formulario, self.indice, self.novo,
+                                        ao_salvar=self._preparacoes_salvas)
+        except ValueError as exc:
+            messagebox.showwarning("Substituição", str(exc), parent=self)
+
+    def _preparacoes_salvas(self, novo):
+        self.novo = novo
+        self.e_qtd.delete(0, "end")
+        self.e_qtd.insert(0, str(novo["qtd_dia"]).replace(".", ","))
+        self.e_agua.delete(0, "end")
+        self.e_agua.insert(0, str(novo["agua_ml"]).replace(".", ","))
+        self.e_agua_separada.delete(0, "end")
+        self.e_agua_separada.insert(0, str(novo["agua_separada_ml"]).replace(".", ","))
+        self._comparar()
+
+    def _comparar(self):
+        try:
+            qtd = nc.parse_num(self.e_qtd.get())
+            agua = nc.parse_num(self.e_agua.get()) if self.e_agua.get().strip() else 0
+            separada = nc.parse_num(self.e_agua_separada.get()) if self.e_agua_separada.get().strip() else 0
+            if qtd is None or qtd <= 0 or agua is None or agua < 0 or separada is None or separada < 0:
+                raise ValueError("Informe quantidade diária positiva e volumes de água válidos.")
+            self.novo = {**self.novo, "qtd_dia": qtd, "unidade": self.novo.get("emb_un") or "ml",
+                         "agua_ml": agua, "agua_separada_ml": separada}
+            if self.novo.get("preparacoes"):
+                soma = sum(p["dose"] for p in self.novo["preparacoes"])
+                if abs(soma - qtd) > 0.01:
+                    raise ValueError("A soma das doses por refeição deve corresponder à quantidade diária.")
+            self.comparacao = sc.comparar_substituicao(
+                self.formulario._suplementos, self.atual.get("id_suplemento"), self.novo,
+                peso_kg=nc.parse_num(self.formulario.e_peso.get()),
+                meta_kcal=nc.parse_num(self.formulario.e_meta_kcal.get()),
+                meta_proteina_g=nc.parse_num(self.formulario.e_meta_ptn.get()))
+            linhas = []
+            for chave, rotulo, unidade in (
+                ("energia_kcal_dia", "Energia total", "kcal/dia"),
+                ("energia_kcal_kg_dia", "Energia por peso", "kcal/kg/dia"),
+                ("proteina_g_dia", "Proteína total", "g/dia"),
+                ("proteina_g_kg_dia", "Proteína por peso", "g/kg/dia"),
+                ("percentual_meta_energetica", "Adequação energética", "%"),
+                ("percentual_meta_proteica", "Adequação proteica", "%"),
+                ("volume_produto_ml_dia", "Volume de produto", "mL/dia"),
+                ("volume_preparacao_final_ml_dia", "Volume final preparado", "mL/dia"),
+                ("sodio_mg_dia", "Sódio", "mg/dia"),
+            ):
+                comp = self.comparacao["comparacoes"][chave]
+                atual_v, novo_v, delta = comp["atual"], comp["substituto"], comp["diferenca"]
+                if atual_v is None or novo_v is None:
+                    linhas.append(f"{rotulo}: não calculável com os dados disponíveis.")
+                else:
+                    sinal = "+" if delta > 0 else ""
+                    linhas.append(f"{rotulo}: {atual_v:g} → {novo_v:g} {unidade} ({sinal}{delta:g}; "
+                                  f"{comp['diferenca_percentual'] if comp['diferenca_percentual'] is not None else '—'}%).")
+            for rotulo, chave in (("Água misturada", "agua_misturada_ml_dia"),
+                                  ("Água separada", "agua_separada_ml_dia")):
+                comp = self.comparacao[chave]
+                linhas.append(f"{rotulo}: {comp['atual']:g} → {comp['substituto']:g} mL/dia "
+                              f"(diferença {comp['diferenca']:+g} mL).")
+            for rotulo, chave in (("Osmolaridade atual", "osmolaridade_atual"),
+                                  ("Osmolaridade substituta", "osmolaridade_substituto")):
+                resumo = self.comparacao[chave]
+                if resumo["status"] == "calculada":
+                    valores = ", ".join(f"{p['valor']:g} mOsm/L" for p in resumo["preparacoes"])
+                    linhas.append(f"{rotulo}: {valores} (por preparação).")
+                else:
+                    linhas.append(f"{rotulo}: não calculável — {resumo.get('mensagem') or 'dados de cada preparação incompletos'}.")
+            linhas.extend(self.comparacao["alertas"])
+            if not self.comparacao["aporte_completo"]:
+                linhas.append("Atenção: existem dados de composição incompletos; confira as pendências da ficha técnica.")
+            self.resultado.delete("1.0", "end")
+            self.resultado.insert("end", "\n".join(linhas))
+            self.btn_confirmar.configure(state="normal")
+        except (ValueError, TypeError, KeyError) as exc:
+            self.btn_confirmar.configure(state="disabled")
+            messagebox.showwarning("Comparação", str(exc), parent=self)
+
+    def _confirmar(self):
+        if not self.comparacao or not self.novo:
+            return
+        self.formulario._suplementos[self.indice] = self.novo
+        self.formulario._atualizar_sup()
+        self.formulario._recalcular_oferta()
+        self.destroy()
+
+
 class DialogSuplemento(_Janela):
     def __init__(self, ui, sup):
         super().__init__(ui, "Suplemento", "760x900")
@@ -1599,8 +1853,14 @@ class FormRegistro(_Janela):
             self.tree_sup.heading(c, text=t)
             self.tree_sup.column(c, width=w, anchor="w")
         self.tree_sup.pack(fill="x", padx=10, pady=(2, 2))
-        self._reg(_btn(q, "Remover selecionado", self._rem_sup, 160, VERMELHO, VERMELHO_HOVER, 26)).pack(
-            anchor="w", padx=10, pady=(0, 4))
+        linha_acoes_sup = ctk.CTkFrame(q, fg_color="transparent")
+        linha_acoes_sup.pack(anchor="w", padx=10, pady=(0, 4))
+        self._reg(_btn(linha_acoes_sup, "Editar preparações", self._editar_preparacoes_sup,
+                       150, CINZA_BTN, CINZA_HOVER, 26)).pack(side="left", padx=(0, 6))
+        self._reg(_btn(linha_acoes_sup, "Substituir suplemento", self._substituir_sup,
+                       165, CINZA_BTN, CINZA_HOVER, 26)).pack(side="left", padx=(0, 6))
+        self._reg(_btn(linha_acoes_sup, "Remover selecionado", self._rem_sup,
+                       160, VERMELHO, VERMELHO_HOVER, 26)).pack(side="left")
         self.lbl_oferta = ctk.CTkLabel(q, text="Aporte calculado: informe dose e metas.",
                                        text_color=tema.TEXTO, wraplength=760, justify="left")
         self.lbl_oferta.pack(anchor="w", padx=12, pady=(0, 8))
@@ -2169,6 +2429,26 @@ class FormRegistro(_Janela):
             del self._suplementos[int(sel[0])]
             self._atualizar_sup()
             self._recalcular_oferta()
+
+    def _indice_sup_selecionado(self):
+        sel = self.tree_sup.selection()
+        if not sel:
+            messagebox.showinfo("Suplementos", "Selecione um suplemento na lista.", parent=self)
+            return None
+        return int(sel[0])
+
+    def _editar_preparacoes_sup(self):
+        indice = self._indice_sup_selecionado()
+        if indice is None:
+            return
+        DialogPreparacoesSuplemento(self, indice, self._suplementos[indice])
+
+    def _substituir_sup(self):
+        indice = self._indice_sup_selecionado()
+        if indice is None:
+            return
+        DialogSubstituirSuplemento(self, indice, self._suplementos[indice])
+
 
     def _atualizar_sup(self):
         self.tree_sup.delete(*self.tree_sup.get_children())
