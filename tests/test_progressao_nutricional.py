@@ -81,6 +81,31 @@ class TestProgressaoNutricional(unittest.TestCase):
             resultado = pn.analisar_progressao_peso(historico, idade_anos=69)
             self.assertEqual(resultado["alertas"][0]["tipo"], "variacao_aguda_24h")
 
+
+    def test_glim_considera_perda_acima_de_dez_por_cento_em_periodo_maior_que_seis_meses(self):
+        resultado = pn.analisar_progressao_peso([
+            {"data": "2026-04-01", "peso_kg": 70, "peso_origem": "R"},
+            {"data": "2026-11-01", "peso_kg": 62, "peso_origem": "R"},
+        ], idade_anos=69)
+        self.assertTrue(any("limiar quantitativo GLIM" in x for x in resultado["criterios_fenotipicos"]))
+
+    def test_faixas_adultas_nao_sao_aplicadas_a_menores(self):
+        resultado = pn.analisar_progressao_peso([
+            {"data": "2026-11-20", "peso_kg": 40, "peso_origem": "R"},
+            {"data": "2026-11-27", "peso_kg": 38, "peso_origem": "R"},
+        ], idade_anos=12)
+        self.assertEqual(resultado["comparacoes"], [])
+        self.assertEqual(resultado["criterios_fenotipicos"], [])
+        self.assertIn("menores de 18 anos", resultado["nota"])
+
+    def test_peso_estimado_nao_recebe_classificacao_aspen(self):
+        resultado = pn.analisar_progressao_peso([
+            {"data": "2026-11-20", "peso_kg": 70, "peso_origem": "E"},
+            {"data": "2026-11-27", "peso_kg": 68, "peso_origem": "E"},
+        ], idade_anos=69)
+        self.assertIn("estimado", resultado["comparacoes"][0]["faixa"])
+        self.assertEqual(resultado["criterios_fenotipicos"], [])
+
     def test_sem_historico_nao_cria_valor_zero(self):
         resultado = pn.analisar_progressao_peso([])
         self.assertEqual(resultado["status"], "sem_dados")
