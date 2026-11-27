@@ -310,7 +310,7 @@ def gerar_evolucao(dados):
                 f"{formatar_numero_pt(administracao['volume_total_ml'])} mL em {formatar_numero_pt(administracao['duracao_horas'], 1)} h; " +
                 f"{taxa_txt}; {formatar_numero_pt(administracao['energia_total_kcal'])} kcal no período " +
                 f"({formatar_numero_pt(administracao['energia_kcal_h'], 1)} kcal/h). Cálculo matemático; validar velocidade e tolerância clinicamente.")
-        if bomba.get("usa_bomba") and oferta and oferta.get("volume_total_ml") is not None and oferta.get("volume_meta_ml") is not None:
+        if bomba.get("usa_bomba") and not administracao and oferta and oferta.get("volume_total_ml") is not None and oferta.get("volume_meta_ml") is not None:
             aviso = aviso_bomba(oferta["volume_total_ml"], oferta["volume_meta_ml"], True,
                                 bomba.get("taxa_estimativa_ml_h", 10))
             if aviso:
