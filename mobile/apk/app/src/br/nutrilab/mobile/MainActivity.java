@@ -455,7 +455,12 @@ public class MainActivity extends Activity {
                 String url = prefs.getString("servidor", "");
                 if (url.isEmpty()) return;
                 String identidade = obterIdentidade(url);
-                if (!identidade.isEmpty()) prefs.edit().putString("server_identity", identidade).apply();
+                // O endereço salvo pode ter sido reutilizado por outro computador.
+                // Nunca substitua silenciosamente uma identidade já vinculada:
+                // a troca de servidor exige uma nova associação explícita no aparelho.
+                if (!identidade.isEmpty() && prefs.getString("server_identity", "").isEmpty()) {
+                    prefs.edit().putString("server_identity", identidade).apply();
+                }
             }
         }, "nutrilab-server-identity").start();
     }
