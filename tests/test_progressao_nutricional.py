@@ -46,11 +46,11 @@ class TestProgressaoNutricional(unittest.TestCase):
         moderada = pn.analisar_progressao_peso([
             {"data": "2026-11-20", "peso_kg": 70, "peso_origem": "R"},
             {"data": "2026-11-27", "peso_kg": 69, "peso_origem": "R"},
-        ])
+        ], idade_anos=69)
         elevada = pn.analisar_progressao_peso([
             {"data": "2026-11-20", "peso_kg": 70, "peso_origem": "R"},
             {"data": "2026-11-27", "peso_kg": 68.5, "peso_origem": "R"},
-        ])
+        ], idade_anos=69)
         self.assertIn("moderada", moderada["comparacoes"][0]["faixa"])
         self.assertIn("elevada", elevada["comparacoes"][0]["faixa"])
 
