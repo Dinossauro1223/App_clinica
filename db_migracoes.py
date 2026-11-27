@@ -575,7 +575,8 @@ MIGRACOES = (
     Migracao(versao=7, nome="pep_rascunhos_equipe_e_revisao", up=_PEP_EVOLUCAO_UP, down=_PEP_EVOLUCAO_DOWN),
     Migracao(versao=8, nome="pep_colaboradores_e_integracao_mapa", up=_PEP_MAPA_UP, down=_PEP_MAPA_DOWN),
     Migracao(versao=9, nome="almox_validade_produtos", up=_ALMOX_VALIDADE_UP, down=None),
-    Migracao(versao=10, nome="monitoramento_glicemico_hgt", up=_MONITORAMENTO_HGT_UP, down=_MONITORAMENTO_HGT_DOWN),\n    Migracao(versao=11, nome="monitoramento_pressao_e_troca_suplemento", up=_MONITORAMENTO_PRESSAO_UP, down=_MONITORAMENTO_PRESSAO_DOWN),
+    Migracao(versao=10, nome="monitoramento_glicemico_hgt", up=_MONITORAMENTO_HGT_UP, down=_MONITORAMENTO_HGT_DOWN),
+    Migracao(versao=11, nome="monitoramento_pressao_e_troca_suplemento", up=_MONITORAMENTO_PRESSAO_UP, down=_MONITORAMENTO_PRESSAO_DOWN),
 )
 
 
