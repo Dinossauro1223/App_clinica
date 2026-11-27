@@ -474,9 +474,13 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     if not horas_txt:
                         raise ValueError("Informe em quantas horas a dieta fechada será administrada.")
                     fator_txt = self.e_fator_gotas.get().strip() or "20"
+                    # Dimensiona a administração pelo volume necessário para atingir a meta
+                    # energética, não apenas pelo volume parcial atualmente selecionado.
                     administracao = regras.planejar_administracao_enteral(
-                        oferta["volume_total_ml"], ficha["kcal_100"], horas_txt,
+                        volume_meta, ficha["kcal_100"], horas_txt,
                         usa_bomba=bool(self.var_bomba.get()), fator_gotas_ml=fator_txt)
+                    administracao["volume_etapas_atual_ml"] = oferta["volume_total_ml"]
+                    administracao["meta_kcal_dia"] = metas["kcal_dia"]
                     dados["bomba"].update({"duracao_horas": float(horas_txt.replace(",", ".")),
                                            "fator_gotas_ml": float(fator_txt.replace(",", "."))})
                     dados["administracao_enteral"] = administracao
