@@ -35,6 +35,7 @@ import ui_motion
 from backup_manager import BackupManager
 from ambulatorial_ui import PainelConsultaEstruturada, DialogoAssociacoesExames
 from monitoramento_glicemico import PainelMonitoramentoGlicemico
+from monitoramento_pressao import PainelMonitoramentoPressao
 
 
 def get_base_path():
@@ -899,6 +900,7 @@ class AppClinica(ctk.CTk):
         aba_hist = tabview_perfil.add("Histórico de Consultas")
         aba_exm = tabview_perfil.add("Exames e Arquivos")
         aba_hgt = tabview_perfil.add("Monitoramento Glicêmico")
+        aba_pa = tabview_perfil.add("Pressão Arterial / HAS")
         
         ctk.CTkButton(aba_hist, text="Iniciar Nova Consulta", command=lambda: self.abrir_painel_lateral("Nova consulta", self.tela_consultas), fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
 
