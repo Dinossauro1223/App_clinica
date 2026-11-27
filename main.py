@@ -328,8 +328,11 @@ class AppClinica(ctk.CTk):
                         "NutriLab Mobile: tentativa %d/3 falhou; nova tentativa em %.1f s: %s"
                         % (tentativa, atraso, erro)
                     )
-                    if not self._mobile_encerrando.wait(atraso):
-                        return self._iniciar_servidor_mobile_worker(tentativa + 1)
+                    # Event.wait() retorna True quando o fechamento cancela a espera.
+                    # Nesse caso, não deve haver nova tentativa nem mensagem de erro na UI.
+                    if self._mobile_encerrando.wait(atraso):
+                        return
+                    return self._iniciar_servidor_mobile_worker(tentativa + 1)
                 self._mobile_resultados.put(("erro", str(erro), None))
 
     def _processar_resultado_servidor_mobile(self):
