@@ -109,8 +109,8 @@ def _resumo_preparacoes_osmolaridade(item):
             "preparacoes": resultados,
             "volume_final_total_ml": (round(sum(x.get("volume_final_ml", 0) for x in resultados), 1)
                                       if completo else None),
-            "agua_separada_total_ml": round(sum(float(p.get("agua_separada_ml") or 0)
-                                                  for p in preparacoes), 1)}
+            "agua_separada_total_ml": round(sum(
+                float(p.get("agua_separada_ml") or 0) for p in preparacoes), 1)}
 
 
 def comparar_substituicao(itens_atuais, id_substituido, substituto, *,
@@ -165,7 +165,15 @@ def comparar_substituicao(itens_atuais, id_substituido, substituto, *,
     m_depois["volume_preparacao_final_ml_dia"] = osm_novo.get("volume_final_total_ml")
     comparacoes = {k: _comparar_valor(m_antes[k], m_depois[k]) for k in m_antes}
     def agua_total(lista, campo):
-        return round(sum(float(x.get(campo) or 0) for x in lista), 1)
+        total = 0.0
+        chave_prep = "agua_adicionada_ml" if campo == "agua_ml" else "agua_separada_ml"
+        for item in lista:
+            preparacoes = item.get("preparacoes")
+            if isinstance(preparacoes, list) and preparacoes:
+                total += sum(float(p.get(chave_prep) or 0) for p in preparacoes)
+            else:
+                total += float(item.get(campo) or 0)
+        return round(total, 1)
     return {
         "suplemento_atual": {"id_suplemento": atual.get("id_suplemento"), "nome": atual.get("nome")},
         "suplemento_substituto": {"id_suplemento": novo_item.get("id_suplemento"), "nome": novo_item.get("nome")},
