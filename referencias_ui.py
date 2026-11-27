@@ -112,7 +112,8 @@ class JanelaReferencias(ctk.CTkToplevel):
             self,
             text=("Lista em ordem alfabética, alinhada à esquerda e com referências formatadas "
                   "conforme ABNT NBR 6023:2025 e orientações da UFRN. Selecione “Consultar fonte” "
-                  "para abrir o documento original."),
+                  "para abrir o documento original. Composição, osmolaridade e fibras de cada produto "
+                  "mantêm também a fonte específica registrada em sua ficha técnica."),
             justify="left", wraplength=840, text_color=tema.SUAVE,
         ).pack(fill="x", padx=20, pady=(0, 10))
 
