@@ -41,6 +41,16 @@ class TestProgressaoNutricional(unittest.TestCase):
         self.assertLess(alerta["perda_percentual"], 0)
         self.assertIn("1.6% de ganho", pn.formatar_progressao(resultado))
 
+    def test_peso_estimado_em_datas_consecutivas_nao_gera_sinal_de_risco(self):
+        resultado = pn.analisar_progressao_peso([
+            {"data": "2026-11-26", "peso_kg": 70, "peso_origem": "E"},
+            {"data": "2026-11-27", "peso_kg": 68.8, "peso_origem": "E"},
+        ], idade_anos=69)
+        alerta = resultado["alertas"][0]
+        self.assertFalse(alerta["sinal_risco_nutricional"])
+        self.assertFalse(alerta["origem_peso_confirmada"])
+        self.assertIn("peso estimado", alerta["texto"])
+
     def test_perda_ponderal_em_seis_meses_marca_criterio_fenotipico_glim(self):
         resultado = pn.analisar_progressao_peso([
             {"data": "2026-05-05", "peso_kg": 70, "peso_origem": "R"},
