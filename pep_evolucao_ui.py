@@ -19,6 +19,7 @@ import mapa_db as mdb
 import pep_db
 import pep_evolucao_db as evdb
 import tema
+import progressao_nutricional as progressao
 
 
 class FormEvolucaoUI(ctk.CTkFrame):
@@ -45,6 +46,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self._montar()
         self._preencher()
         self._atualizar_correcao()
+        self._atualizar_progressao_antropometrica()
 
     def _secao(self, pai, titulo):
         card = ctk.CTkFrame(pai, fg_color=tema.BRANCO, border_width=1,
@@ -75,6 +77,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.lbl_antropometria = ctk.CTkLabel(q, text="", justify="left", anchor="w",
                                                font=tema.fonte(12), text_color=tema.TEXTO)
         self.lbl_antropometria.pack(fill="x", padx=12, pady=(0, 4))
+        self.lbl_progressao = ctk.CTkLabel(
+            q, text="", justify="left", anchor="w", font=tema.fonte(11),
+            text_color=tema.TEXTO, wraplength=780)
+        self.lbl_progressao.pack(fill="x", padx=12, pady=(0, 8))
         self.lbl_correcao = ctk.CTkLabel(q, text="", justify="left", anchor="w",
                                          font=tema.fonte(11), text_color=tema.LARANJA_TEXTO,
                                          wraplength=760)
@@ -525,6 +531,26 @@ class FormEvolucaoUI(ctk.CTkFrame):
         if peso in (None, ""):
             peso = self.reg.get("peso_kg")
         return float(peso) if peso not in (None, "") else None
+
+    def _atualizar_progressao_antropometrica(self):
+        """Exibe tendência do peso e faixas documentadas, sem fechar diagnóstico."""
+        id_paciente = self.reg.get("id_paciente")
+        if not id_paciente:
+            self.lbl_progressao.configure(
+                text="Progressão antropométrica: vincule o paciente para consultar o histórico.")
+            return
+        try:
+            historico = progressao.listar_pesos_historicos(self.db, id_paciente)
+            idade = self.reg.get("idade_anos")
+            if idade is None:
+                nascimento = self.paciente.get("data_nascimento") or self.reg.get("data_nascimento")
+                if nascimento:
+                    idade = regras.idade_em_anos(nascimento, self.reg.get("data"))
+            resultado = progressao.analisar_progressao_peso(historico, idade)
+            self.lbl_progressao.configure(text=progressao.formatar_progressao(resultado))
+        except (sqlite3.Error, ValueError, TypeError) as erro:
+            self.lbl_progressao.configure(
+                text=f"Progressão antropométrica indisponível: {erro}")
 
     def _antropometria(self):
         try:
