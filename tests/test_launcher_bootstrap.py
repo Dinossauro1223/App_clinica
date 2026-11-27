@@ -27,6 +27,17 @@ class TestLauncherBootstrap(unittest.TestCase):
         self.assertIn('move /Y "dist\\NutriLab" "%SAIDA%"', self.launcher)
 
 
+    def test_identidade_visual_e_gerada_antes_dos_testes_e_do_pyinstaller(self):
+        texto = self.launcher
+        normalizado = texto.replace(chr(92), "/")
+        gerador = 'call %PY_CMD% tools/gerar_identidade_visual.py'
+        self.assertIn(gerador, normalizado)
+        self.assertIn('if not exist "tools/gerar_identidade_visual.py" goto ERRO_FONTE', normalizado)
+        self.assertIn('if not exist "assets/identidade/renderizados/folhas.json" goto ERRO_IDENTIDADE', normalizado)
+        self.assertLess(normalizado.index(gerador), normalizado.index("PyInstaller"))
+        self.assertLess(normalizado.index(gerador), normalizado.index("test_svg_pipeline.py"))
+        self.assertLess(normalizado.index("pip install -r requirements-build.txt"), normalizado.index(gerador))
+
     def test_compilacao_conjunta_gera_apk_antes_do_executavel(self):
         texto = self.launcher
         normalizado = texto.replace(chr(92), "/")
