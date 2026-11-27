@@ -53,7 +53,7 @@ WORLD HEALTH ORGANIZATION. *Growth reference data for 5-19 years*. Geneva: WHO, 
 
 ## Observação sobre a progressão do peso
 
-As faixas ASPEN de 1 semana, 1 mês, 3 meses, 6 meses e 1 ano são exibidas para adultos, quando as pesagens comparadas são aferidas, documentando a magnitude e a velocidade da perda ponderal. O GLIM requer combinação de critérios fenotípicos e etiológicos para diagnóstico. Uma alteração de peso de pelo menos 1 kg em até 24 horas é tratada como alerta para revisão de balanço hídrico, edema, diurese e técnica de pesagem; não é, por si só, critério diagnóstico de desnutrição. O horário da pesagem real pode ser registrado no Mapa. Quando houver apenas a data, o sistema identifica datas consecutivas e não afirma que o intervalo foi exatamente de 24 horas. Variações de estatura, AJ, PP e PB são exibidas para acompanhamento, sem limiares diagnósticos automáticos não validados.
+As faixas ASPEN de 1 semana, 1 mês, 3 meses, 6 meses e 1 ano são exibidas para adultos, quando as pesagens comparadas são aferidas, documentando a magnitude e a velocidade da perda ponderal. O GLIM requer combinação de critérios fenotípicos e etiológicos para diagnóstico; a perda ponderal usada como critério deve ser não intencional. Uma alteração de peso de pelo menos 1 kg em até 24 horas é tratada como alerta para revisão de balanço hídrico, edema, diurese e técnica de pesagem; não é, por si só, critério diagnóstico de desnutrição. O horário da pesagem real pode ser registrado no Mapa. Quando houver apenas a data, o sistema identifica datas consecutivas e não afirma que o intervalo foi exatamente de 24 horas. Variações de estatura, AJ, PP e PB são exibidas para acompanhamento, sem limiares diagnósticos automáticos não validados.
 
 ## Limites e atualização
 
