@@ -77,3 +77,27 @@ def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None):
         "completo": not pendencias,
         "pendencias": pendencias,
     }
+
+
+def calcular_osmolaridade_diluicao(item, dose, agua_adicionada_ml=0):
+    """Estima mOsm/L com base em osmolaridade, dose e volume final de referência."""
+    unidade = str(item.get("unidade_osmolaridade") or "mOsm/L").strip()
+    if unidade != "mOsm/L":
+        return {"valor": None, "status": "unidade_incompativel", "mensagem": "A ficha informa mOsm/kg; não é possível converter para mOsm/L sem dados de densidade."}
+    osm, dose_ref, vol_ref, dose_atual = (_positivo(item.get("osmolaridade_ref")), _positivo(item.get("dose_ref")), _positivo(item.get("volume_final_ref_ml")), _positivo(dose))
+    agua = 0.0 if agua_adicionada_ml in (None, "") else _positivo(agua_adicionada_ml)
+    if agua is None: agua = 0.0
+    if osm is None or dose_ref is None or vol_ref is None:
+        return {"valor": None, "status": "referencia_incompleta", "mensagem": "Informe osmolaridade, dose de referência e volume final de preparo da ficha técnica."}
+    if dose_atual is None:
+        return {"valor": None, "status": "dose_ausente", "mensagem": "Informe a quantidade do produto nesta preparação."}
+    if agua_adicionada_ml not in (None, "") and _positivo(agua_adicionada_ml) is None:
+        return {"valor": None, "status": "agua_invalida", "mensagem": "Quantidade de água inválida."}
+    if str(item.get("unidade_dose_ref") or "").strip().lower() != str(item.get("unidade") or "").strip().lower():
+        return {"valor": None, "status": "unidade_dose_incompativel", "mensagem": "A unidade da dose atual difere da unidade de referência da ficha."}
+    fator = dose_atual / dose_ref
+    osmoles = osm * (vol_ref / 1000.0) * fator
+    volume_final_ml = vol_ref * fator + agua
+    if volume_final_ml <= 0:
+        return {"valor": None, "status": "volume_invalido", "mensagem": "Volume final inválido."}
+    return {"valor": round(osmoles / (volume_final_ml / 1000.0), 1), "status": "estimada", "mensagem": "Estimativa matemática baseada na ficha de referência; não equivale a análise laboratorial.", "volume_final_ml": round(volume_final_ml, 1)}

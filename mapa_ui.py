@@ -1211,7 +1211,7 @@ class DialogOrdemSetores(_Janela):
 
 class DialogSuplemento(_Janela):
     def __init__(self, ui, sup):
-        super().__init__(ui, "Suplemento", "520x560")
+        super().__init__(ui, "Suplemento", "720x760")
         self.sup = sup or {}
         self.e = {}
         quadro = ctk.CTkFrame(self, fg_color="transparent")
@@ -1219,7 +1219,11 @@ class DialogSuplemento(_Janela):
         campos = [("nome", "Nome", 330), ("preco", "Preço da embalagem (R$)", 120), ("emb_qtd", "Conteúdo da embalagem", 120),
                   ("kcal_100", "kcal por 100", 120), ("ptn_100", "Proteína (g) por 100", 120),
                   ("lip_100", "Lipídio (g) por 100", 120), ("carb_100", "Carboidrato (g) por 100", 120),
-                  ("sod_100", "Sódio (mg) por 100", 120)]
+                  ("sod_100", "Sódio (mg) por 100", 120),
+                  ("osmolaridade_ref", "Osmolaridade da ficha", 120),
+                  ("dose_ref", "Dose da referência", 120),
+                  ("volume_final_ref_ml", "Volume final de preparo (mL)", 140),
+                  ("agua_recomendada_ml", "Água recomendada (mL)", 140)]
         linha = 0
         ctk.CTkLabel(quadro, text="Módulo").grid(row=linha, column=0, sticky="w", pady=4)
         self.cb_mod = ctk.CTkComboBox(quadro, values=mdb.listar_modulos(ui.db), width=330)
@@ -1236,6 +1240,21 @@ class DialogSuplemento(_Janela):
                 self.cb_un.grid(row=linha, column=2, padx=6)
                 self.cb_un.set(self.sup.get("emb_un") or "ml")
             linha += 1
+        ctk.CTkLabel(quadro, text="Unidade da osmolaridade").grid(row=linha, column=0, sticky="w", pady=4)
+        self.cb_un_osm = ctk.CTkComboBox(quadro, values=["mOsm/L", "mOsm/kg"], width=140, state="readonly")
+        self.cb_un_osm.grid(row=linha, column=1, sticky="w", pady=4)
+        self.cb_un_osm.set(self.sup.get("unidade_osmolaridade") or "mOsm/L")
+        linha += 1
+        ctk.CTkLabel(quadro, text="Unidade da dose de referência").grid(row=linha, column=0, sticky="w", pady=4)
+        self.cb_un_dose = ctk.CTkComboBox(quadro, values=["g", "ml"], width=140, state="readonly")
+        self.cb_un_dose.grid(row=linha, column=1, sticky="w", pady=4)
+        self.cb_un_dose.set(self.sup.get("unidade_dose_ref") or (self.sup.get("emb_un") or "ml"))
+        linha += 1
+        ctk.CTkLabel(quadro, text="Fonte da osmolaridade (fabricante/ficha)").grid(row=linha, column=0, sticky="w", pady=4)
+        self.e_fonte_osm = ctk.CTkEntry(quadro, width=330)
+        self.e_fonte_osm.grid(row=linha, column=1, sticky="w", pady=4)
+        _set_entry(self.e_fonte_osm, self.sup.get("fonte_osmolaridade") or "")
+        linha += 1
         ctk.CTkLabel(quadro, text="Observações").grid(row=linha, column=0, sticky="nw", pady=4)
         self.t_obs = ctk.CTkTextbox(quadro, width=330, height=70)
         self.t_obs.grid(row=linha, column=1, sticky="w", pady=4)
@@ -1245,6 +1264,8 @@ class DialogSuplemento(_Janela):
     def _salvar(self):
         d = {k: e.get().strip() for k, e in self.e.items()}
         d.update(modulo=self.cb_mod.get().strip(), emb_un=self.cb_un.get(),
+                 unidade_osmolaridade=self.cb_un_osm.get(), unidade_dose_ref=self.cb_un_dose.get(),
+                 fonte_osmolaridade=self.e_fonte_osm.get().strip(),
                  observacao=self.t_obs.get("1.0", "end-1c").strip(), id_suplemento=self.sup.get("id_suplemento"))
         try:
             mdb.salvar_suplemento(self.ui.db, d)
@@ -1537,6 +1558,8 @@ class FormRegistro(_Janela):
         self.cb_sup.set("")
         self.e_qtd = self._reg(ctk.CTkEntry(l, width=70, placeholder_text="qtd/dia"))
         self.e_qtd.pack(side="left", padx=(0, 6))
+        self.e_agua_sup = self._reg(ctk.CTkEntry(l, width=90, placeholder_text="água mL/dia"))
+        self.e_agua_sup.pack(side="left", padx=(0, 6))
         self._reg(_btn(l, "Adicionar", self._add_sup, 90, VERDE, VERDE_HOVER, 28)).pack(side="left")
         self.tree_sup = ttk.Treeview(q, columns=("mod", "nome", "qtd"), show="headings", style=ESTILO_TREE, height=3,
                                      selectmode="browse")
@@ -2092,10 +2115,14 @@ class FormRegistro(_Janela):
         self._suplementos.append({
             "id_suplemento": s["id_suplemento"], "nome": s["nome"], "modulo": s["modulo"],
             "qtd_dia": qtd, "unidade": s["emb_un"],
-            **{campo: s.get(campo) for campo in ("kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100")},
+            "agua_ml": nc.parse_num(self.e_agua_sup.get()),
+            **{campo: s.get(campo) for campo in ("kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
+                "osmolaridade_ref", "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
+                "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade")},
             "ficha_observacao": s.get("observacao"),
         })
         _set_entry(self.e_qtd, "")
+        _set_entry(self.e_agua_sup, "")
         self._atualizar_sup()
         self._recalcular_oferta()
 
@@ -2142,6 +2169,17 @@ class FormRegistro(_Janela):
             partes.append(f"{pend} item(ns) com dados incompletos")
         elif not itens:
             partes = ["Adicione itens com dose diária e informe as metas para calcular a participação."]
+        diluicoes = []
+        for item in itens:
+            dil = sc.calcular_osmolaridade_diluicao(item, item.get("qtd_dia"), item.get("agua_ml"))
+            if dil.get("valor") is not None:
+                diluicoes.append(f"{item['nome']}: {dil['valor']:.1f} mOsm/L estimados")
+            elif item.get("osmolaridade_ref") is not None:
+                diluicoes.append(f"{item['nome']}: osmolaridade final não calculável ({dil['mensagem']})")
+            if item.get("agua_recomendada_ml") is not None:
+                diluicoes.append(f"{item['nome']}: água recomendada pela ficha {item['agua_recomendada_ml']:g} mL")
+        if diluicoes:
+            partes.append("Diluição: " + "; ".join(diluicoes))
         self.lbl_oferta.configure(text="Aporte calculado: " + " · ".join(partes))
 
     # ----------------------------------------------------------------- paciente

@@ -109,3 +109,35 @@ class TestCalculoOfertaSuplementos(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestCalculoOsmolaridadeDiluicao(unittest.TestCase):
+    def setUp(self):
+        self.ficha = {"osmolaridade_ref": 300, "unidade_osmolaridade": "mOsm/L", "dose_ref": 100,
+                      "unidade_dose_ref": "ml", "volume_final_ref_ml": 100, "unidade": "ml"}
+
+    def test_calcula_osmolaridade_com_agua_adicionada(self):
+        r = sc.calcular_osmolaridade_diluicao(self.ficha, 100, 100)
+        self.assertEqual(r["status"], "estimada")
+        self.assertEqual(r["valor"], 150)
+        self.assertEqual(r["volume_final_ml"], 200)
+
+    def test_escalona_dose_e_volume_de_referencia(self):
+        r = sc.calcular_osmolaridade_diluicao(self.ficha, 50, 0)
+        self.assertEqual(r["valor"], 300)
+        self.assertEqual(r["volume_final_ml"], 50)
+
+    def test_nao_calcula_sem_referencia_completa(self):
+        r = sc.calcular_osmolaridade_diluicao(dict(self.ficha, dose_ref=None), 100, 50)
+        self.assertIsNone(r["valor"])
+        self.assertEqual(r["status"], "referencia_incompleta")
+
+    def test_nao_converte_osmolalidade(self):
+        r = sc.calcular_osmolaridade_diluicao(dict(self.ficha, unidade_osmolaridade="mOsm/kg"), 100, 50)
+        self.assertIsNone(r["valor"])
+        self.assertEqual(r["status"], "unidade_incompativel")
+
+    def test_unidade_da_dose_deve_corresponder(self):
+        r = sc.calcular_osmolaridade_diluicao(dict(self.ficha, unidade_dose_ref="g"), 100, 50)
+        self.assertIsNone(r["valor"])
+        self.assertEqual(r["status"], "unidade_dose_incompativel")
