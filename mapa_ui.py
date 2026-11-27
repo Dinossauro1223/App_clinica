@@ -1273,7 +1273,7 @@ class DialogPreparacoesSuplemento(ctk.CTkToplevel):
             if agua is None or agua < 0 or separada is None or separada < 0:
                 raise ValueError(f"Água inválida em {refeicao}.")
             horario = horario_e.get().strip()
-            if horario and not re.fullmatch(r"(?:[01]\\d|2[0-3]):[0-5]\\d", horario):
+            if horario and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", horario):
                 raise ValueError(f"Horário inválido em {refeicao}; use HH:MM.")
             preparacoes.append({"refeicao": refeicao, "dose": dose,
                                 "agua_adicionada_ml": agua, "agua_separada_ml": separada,
