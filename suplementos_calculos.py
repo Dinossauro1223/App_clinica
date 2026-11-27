@@ -80,7 +80,7 @@ def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None):
 
 
 def calcular_osmolaridade_diluicao(item, dose, agua_adicionada_ml=0):
-    """Estima mOsm/L com base em osmolaridade, dose e volume final de referência."""
+    """Estima mOsm/L com base em osmolaridade, dose e volume final de referência.\n\n    Dose e água representam os totais diários do item. A estimativa pressupõe que\n    todas as ofertas mantenham a mesma proporção de produto/água. Se as preparações\n    tiverem diluições diferentes, cada uma deve ser avaliada separadamente; este\n    resumo diário não substitui o cálculo individual.\n    """
     unidade = str(item.get("unidade_osmolaridade") or "mOsm/L").strip()
     if unidade != "mOsm/L":
         return {"valor": None, "status": "unidade_incompativel", "mensagem": "A ficha informa mOsm/kg; não é possível converter para mOsm/L sem dados de densidade."}
