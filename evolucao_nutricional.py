@@ -158,6 +158,13 @@ def avaliar_contexto_renal(dados, peso_kg=None, idade_anos=None, diabetes=False)
                                 texto="KDOQI 2020: 0,55–0,60 g/kg/dia em DRC G3–G5 sem diabetes, metabolicamente estável e sob supervisão próxima.")
     if isinstance(recomendacao.get("g_kg_dia"), (int, float)) and peso:
         recomendacao["g_dia"] = round(recomendacao["g_kg_dia"] * peso, 1)
+    elif isinstance(recomendacao.get("g_kg_dia"), str) and peso:
+        partes = recomendacao["g_kg_dia"].replace(",", ".").split("–")
+        if len(partes) == 2:
+            minimo, maximo = (float(x) for x in partes)
+            recomendacao["g_dia"] = (
+                f"{formatar_numero_pt(minimo * peso, 1)}–{formatar_numero_pt(maximo * peso, 1)}"
+            )
     if dados.get("creatinina") not in (None, ""):
         avisos.append("Creatinina registrada como dado de apoio; não define isoladamente estágio ou meta proteica.")
     if dados.get("ureia") not in (None, "") or dados.get("albumina_serica") not in (None, ""):
