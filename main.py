@@ -13,6 +13,7 @@ import shutil
 import sys
 import platform
 import re
+import mobile_server_health
 from datetime import datetime
 from fpdf import FPDF
 from PIL import Image
@@ -211,12 +212,26 @@ class AppClinica(ctk.CTk):
 
 
     def _iniciar_servidor_mobile(self):
-        """Inicia o servidor local uma única vez; não assume propriedade de processo preexistente."""
+        """Inicializa o DB e o servidor Mobile, confirmando a API antes de considerar pronto."""
         self._servidor_mobile = None
+        self._thread_servidor_mobile = None
+        caminho_db = im.caminho_mobile_db(caminho_do_banco(), get_base_path())
+        url_health = "http://127.0.0.1:8765/health"
+
+        # Se a porta já estiver ocupada, só reutilizamos um servidor NutriLab saudável.
         try:
             with socket.create_connection(("127.0.0.1", 8765), timeout=0.35):
-                # O BAT/manual ou outra instância já atende a porta: não iniciar nem encerrar esse processo.
-                return
+                if mobile_server_health.check_server_health(url_health, timeout=0.6):
+                    print("NutriLab Mobile: servidor já ativo e respondendo ao health-check.")
+                    return
+                raise RuntimeError(
+                    "A porta 8765 já está ocupada, mas o serviço não passou no health-check do NutriLab. "
+                    "Não será encerrado nem substituído um processo desconhecido."
+                )
+        except ConnectionRefusedError:
+            pass
+        except TimeoutError:
+            pass
         except OSError:
             pass
 
@@ -230,16 +245,19 @@ class AppClinica(ctk.CTk):
             modulo = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(modulo)
 
-            # O servidor, o painel desktop e a integração devem apontar para o mesmo banco.
-            caminho_db = im.caminho_mobile_db(caminho_do_banco(), get_base_path())
+            # O banco é preparado antes de abrir o socket, evitando API sem esquema inicializado.
             senha_inicial = modulo.preparar_banco(caminho_db, False)
-            # Suba a API antes de exibir o aviso modal da primeira senha: a janela não deve
-            # atrasar o servidor nem impedir que o celular alcance a tela de login.
             servidor = modulo.criar_servidor(caminho_db, 8765, "0.0.0.0")
             thread = threading.Thread(target=servidor.serve_forever, name="NutriLabMobile", daemon=True)
             thread.start()
             self._servidor_mobile = servidor
             self._thread_servidor_mobile = thread
+
+            if not mobile_server_health.wait_for_server_health(url_health, timeout=3.0, interval=0.15):
+                self._encerrar_servidor_mobile()
+                raise RuntimeError("O servidor foi iniciado, mas não respondeu ao health-check em até 3 segundos.")
+
+            print("NutriLab Mobile: banco preparado e API pronta para receber conexões.")
             if senha_inicial:
                 messagebox.showinfo(
                     "Acesso inicial ao NutriLab Mobile",
@@ -247,17 +265,19 @@ class AppClinica(ctk.CTk):
                     f"Usuário: admin\nSenha inicial: {senha_inicial}\n\n"
                     "Altere a senha após o primeiro acesso e guarde-a em local seguro."
                 )
-        except OSError as erro:
-            messagebox.showwarning(
-                "Servidor mobile indisponível",
-                "Não foi possível iniciar o servidor mobile na porta 8765. "
-                "Os módulos que não dependem dele continuarão disponíveis.\n\n"
-                f"Detalhe: {erro}"
-            )
         except Exception as erro:
+            self._encerrar_servidor_mobile()
+            try:
+                pasta_logs = os.path.join(os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__)), "logs")
+                os.makedirs(pasta_logs, exist_ok=True)
+                with open(os.path.join(pasta_logs, "servidor_mobile.log"), "a", encoding="utf-8") as registro:
+                    registro.write(f"\\n[{datetime.now().isoformat(timespec='seconds')}] Inicialização mobile falhou: {type(erro).__name__}: {erro}\\n")
+            except OSError:
+                pass
             messagebox.showwarning(
                 "Servidor mobile indisponível",
-                "O NutriLab continuará funcionando, mas a integração mobile não foi iniciada.\n\n"
+                "A Clínica continuará aberta, mas a sincronização mobile não está disponível. "
+                "O erro foi registrado em logs/servidor_mobile.log quando possível.\n\n"
                 f"Detalhe: {erro}"
             )
 
