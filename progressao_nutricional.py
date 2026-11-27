@@ -155,17 +155,25 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
                 "data_atual": atual["_data"].strftime("%d/%m/%Y"),
             })
             if adulto and abs(diferenca) >= 1.0:
-                perda_confirmada = diferenca < 0
+                pesos_aferidos = (
+                    anterior.get("peso_origem") == "R" and atual.get("peso_origem") == "R"
+                )
+                perda_confirmada = diferenca < 0 and pesos_aferidos
                 texto_alerta = (
-                    ("Redução" if perda_confirmada else "Aumento") +
+                    ("Redução" if diferenca < 0 else "Aumento") +
                     f" de {abs(diferenca):.1f} kg ({perda_pct:.1f}% do peso anterior) entre datas consecutivas do mapa. "
                     "O horário da aferição não está registrado; confirmar se o intervalo foi de até 24 h. "
                 )
                 if perda_confirmada:
                     texto_alerta += (
-                        "A redução pode sinalizar deterioração clínica/nutricional e exige avaliação nutricional, "
+                        "A redução aferida pode sinalizar deterioração clínica/nutricional e exige avaliação nutricional, "
                         "confirmação da tendência e revisão da ingestão. Investigar também balanço hídrico, edema, "
                         "diurese e técnica de pesagem. Não confirma desnutrição nem substitui critérios GLIM/ASPEN."
+                    )
+                elif diferenca < 0 and not pesos_aferidos:
+                    texto_alerta += (
+                        "Há peso estimado ou origem não confirmada; tratar como tendência a verificar e repetir a "
+                        "aferição antes de classificar risco nutricional. Não confirma desnutrição."
                     )
                 else:
                     texto_alerta += (
@@ -174,6 +182,7 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
                 alertas.append({
                     "tipo": "variacao_em_dias_consecutivos", "diferenca_kg": round(diferenca, 2),
                     "perda_percentual": round(perda_pct, 2),
+                    "origem_peso_confirmada": pesos_aferidos,
                     "sinal_risco_nutricional": perda_confirmada,
                     "intervalo_horas": None,
                     "texto": texto_alerta,
