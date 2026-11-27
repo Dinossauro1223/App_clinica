@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS Mapa_Registros (
 CREATE TABLE IF NOT EXISTS Mapa_Registro_Suplementos (
     id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL, id_suplemento INTEGER,
     nome TEXT NOT NULL, modulo TEXT, qtd_dia REAL, unidade TEXT,
-    ml_oferta REAL, agua_ml REAL, refeicoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0,
+    ml_oferta REAL, agua_ml REAL, refeicoes_json TEXT DEFAULT '[]', preparacoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0,
     kcal_100 REAL, ptn_100 REAL, lip_100 REAL, carb_100 REAL, sod_100 REAL,
     ficha_observacao TEXT, ficha_snapshot_em TEXT,
     osmolaridade_ref REAL, unidade_osmolaridade TEXT, dose_ref REAL, unidade_dose_ref TEXT,
@@ -247,7 +247,7 @@ def inicializar(db_path):
                 c.execute(f"ALTER TABLE Mapa_Suplementos ADD COLUMN {nome} {tipo}")
         colunas_sup = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
         for nome, tipo in (("ml_oferta", "REAL"), ("agua_ml", "REAL"),
-                           ("refeicoes_json", "TEXT DEFAULT '[]'"), ("batido_fruta", "INTEGER DEFAULT 0"),
+                           ("refeicoes_json", "TEXT DEFAULT '[]'"), ("preparacoes_json", "TEXT DEFAULT '[]'"), ("batido_fruta", "INTEGER DEFAULT 0"),
                            ("kcal_100", "REAL"), ("ptn_100", "REAL"), ("lip_100", "REAL"),
                            ("carb_100", "REAL"), ("sod_100", "REAL"), ("ficha_observacao", "TEXT"),
                            ("ficha_snapshot_em", "TEXT"), ("osmolaridade_ref", "REAL"),
@@ -808,14 +808,15 @@ def salvar_registro(db_path, reg, criterio_idoso="lipschitz", lms=None):
             snapshot_em = s.get("ficha_snapshot_em") or (_agora() if any(v is not None for v in valores_ficha + valores_osm) else None)
             c.execute("""INSERT INTO Mapa_Registro_Suplementos
                          (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade, ml_oferta, agua_ml,
-                          refeicoes_json, batido_fruta, kcal_100, ptn_100, lip_100, carb_100, sod_100,
+                          refeicoes_json, preparacoes_json, batido_fruta, kcal_100, ptn_100, lip_100, carb_100, sod_100,
                           ficha_observacao, ficha_snapshot_em, osmolaridade_ref, unidade_osmolaridade,
                           dose_ref, unidade_dose_ref, volume_final_ref_ml, agua_recomendada_ml, fonte_osmolaridade, classificacao_nutricional,
                           grau_hidrolise, proteinas_hidrolisadas, fonte_classificacao, tipo_formula)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                       (id_reg, s.get("id_suplemento"), s["nome"], s.get("modulo"), s.get("qtd_dia"),
                        s.get("unidade"), s.get("ml_oferta"), s.get("agua_ml"),
-                       json.dumps(s.get("refeicoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta"))),
+                       json.dumps(s.get("refeicoes") or [], ensure_ascii=False),
+                       json.dumps(s.get("preparacoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta"))),
                        *valores_ficha, observacao_ficha, snapshot_em, *valores_osm))
         dados_evolucao = reg.get("evolucao_json")
         if dados_evolucao not in (None, ""):
@@ -847,8 +848,10 @@ def _anexar_suplementos(c, registros):
         item = dict(s)
         try:
             item["refeicoes"] = json.loads(item.get("refeicoes_json") or "[]")
+            item["preparacoes"] = json.loads(item.get("preparacoes_json") or "[]")
         except (TypeError, ValueError):
             item["refeicoes"] = []
+            item["preparacoes"] = []
         por_reg[s["id_registro"]].append(item)
     for r in registros:
         r["suplementos"] = por_reg[r["id_registro"]]
@@ -1099,15 +1102,16 @@ def copiar_mapa(db_path, origem_iso, destino_iso, id_setor=None):
             for s in r["suplementos"]:
                 c.execute("""INSERT INTO Mapa_Registro_Suplementos
                              (id_registro, id_suplemento, nome, modulo, qtd_dia, unidade, ml_oferta, agua_ml,
-                              refeicoes_json, batido_fruta, kcal_100, ptn_100, lip_100, carb_100, sod_100,
+                              refeicoes_json, preparacoes_json, batido_fruta, kcal_100, ptn_100, lip_100, carb_100, sod_100,
                               ficha_observacao, ficha_snapshot_em, osmolaridade_ref, unidade_osmolaridade, dose_ref,
                               unidade_dose_ref, volume_final_ref_ml, agua_recomendada_ml, fonte_osmolaridade,
                               classificacao_nutricional, grau_hidrolise, proteinas_hidrolisadas,
                               fonte_classificacao, tipo_formula)
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                           (cur.lastrowid, s.get("id_suplemento"), s["nome"], s.get("modulo"), s["qtd_dia"],
                            s["unidade"], s.get("ml_oferta"), s.get("agua_ml"),
-                           json.dumps(s.get("refeicoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta"))),
+                           json.dumps(s.get("refeicoes") or [], ensure_ascii=False),
+                           json.dumps(s.get("preparacoes") or [], ensure_ascii=False), int(bool(s.get("batido_fruta"))),
                            s.get("kcal_100"), s.get("ptn_100"), s.get("lip_100"), s.get("carb_100"), s.get("sod_100"),
                            s.get("ficha_observacao"), s.get("ficha_snapshot_em"), s.get("osmolaridade_ref"),
                            s.get("unidade_osmolaridade"), s.get("dose_ref"), s.get("unidade_dose_ref"),
