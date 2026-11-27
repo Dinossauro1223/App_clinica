@@ -129,7 +129,7 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
             "janela": rotulo, "dias_reais": round(intervalo, 1),
             "peso_anterior_kg": anterior["_peso"], "peso_atual_kg": atual["_peso"],
             "diferenca_kg": round(atual["_peso"] - anterior["_peso"], 2),
-            "perda_percentual": round(perda, 2), "limiar_percentual": limiar,
+            "perda_percentual": round(perda, 2), "limiar_percentual": limiar_moderado,
             "faixa": faixa, "data_anterior": anterior["_data"].strftime("%d/%m/%Y"),
             "data_atual": data_atual.strftime("%d/%m/%Y"),
             "origem_anterior": anterior.get("peso_origem"),
