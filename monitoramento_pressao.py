@@ -160,6 +160,9 @@ class PainelMonitoramentoPressao(ctk.CTkFrame):
                           ("posicao","Posição",100),("braco","Braço",100),("contexto","Contexto",150)):
             self.tabela.heading(col,text=tit); self.tabela.column(col,width=w,anchor="w")
         self.tabela.pack(fill="both",expand=True,padx=14,pady=8)
+        self.canvas=tk.Canvas(self,height=220,background="#FFFFFF",highlightthickness=1,
+                              highlightbackground="#D9E2DC")
+        self.canvas.pack(fill="x",padx=14,pady=(0,8))
         botoes=ctk.CTkFrame(self,fg_color="transparent");botoes.pack(fill="x",padx=14,pady=(0,8))
         ctk.CTkButton(botoes,text="Editar",command=self._editar,fg_color=tema.VERDE).pack(side="left",padx=(0,8))
         ctk.CTkButton(botoes,text="Inativar",command=self._inativar,fg_color=tema.ERRO,
@@ -174,6 +177,35 @@ class PainelMonitoramentoPressao(ctk.CTkFrame):
         for r in self.registros:
             dt=datetime.fromisoformat(r[3]).strftime("%d/%m/%Y %H:%M")
             self.tabela.insert("","end",iid=str(r[0]),values=(dt,f"{r[1]}/{r[2]}",r[4] or "—",r[5] or "—",r[6] or "—"))
+        self._desenhar_grafico()
+
+    def _desenhar_grafico(self):
+        c=self.canvas;c.delete("all")
+        w=max(c.winfo_width(),520);h=220
+        esq,dir_,topo,base=48,w-18,18,h-34
+        if not self.registros:
+            c.create_text(w/2,h/2,text="Nenhuma aferição de pressão registrada.",fill="#52645A")
+            return
+        valores=[float(r[1]) for r in self.registros]+[float(r[2]) for r in self.registros]
+        minimo=max(0,min(20,min(valores)-10));maximo=max(180,max(valores)+10)
+        for tick in range(int((minimo+9)//10*10),int(maximo)+1,20):
+            y=base-(tick-minimo)/(maximo-minimo)*(base-topo)
+            c.create_line(esq,y,dir_,y,fill="#E5EAE7")
+            c.create_text(esq-7,y,text=str(tick),anchor="e",fill="#52645A")
+        datas=[datetime.fromisoformat(r[3]) for r in self.registros]
+        t0,t1=min(datas),max(datas);dur=max((t1-t0).total_seconds(),3600)
+        for indice,cor,nome in ((1,"#B45309","Sistólica"),(2,"#2563EB","Diastólica")):
+            pontos=[]
+            for r,dt in zip(self.registros,datas):
+                x=esq+(dt-t0).total_seconds()/dur*(dir_-esq)
+                y=base-(float(r[indice])-minimo)/(maximo-minimo)*(base-topo)
+                pontos.extend((x,y))
+            if len(pontos)>=4:c.create_line(*pontos,fill=cor,width=2)
+            for x,y in zip(pontos[::2],pontos[1::2]):
+                c.create_oval(x-3,y-3,x+3,y+3,fill=cor,outline="#FFFFFF")
+            c.create_text(dir_-105+(indice-1)*95,10,text=nome,fill=cor,anchor="nw")
+        c.create_text(esq,base+15,text=t0.strftime("%d/%m %H:%M"),anchor="w",fill="#52645A")
+        c.create_text(dir_,base+15,text=t1.strftime("%d/%m %H:%M"),anchor="e",fill="#52645A")
 
     def _dialogo(self,registro=None):
         win=ctk.CTkToplevel(self);win.title("Editar pressão" if registro else "Registrar pressão")
