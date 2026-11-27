@@ -15,6 +15,15 @@ class TestPreferenciasConfiguracoes(unittest.TestCase):
         })
 
 
+    def test_configuracoes_admin_tem_grupos_e_blocos_recolhiveis(self):
+        codigo = Path(cfg.__file__).read_text(encoding="utf-8")
+        self.assertIn("def _grupo", codigo)
+        self.assertIn("def _recolher_cards_config", codigo)
+        for grupo in ("Contas e permissões", "Configurações clínicas", "Equipe de atendimento",
+                      "Refeições e custos", "Dados e recuperação"):
+            self.assertIn(grupo, codigo)
+        self.assertIn("card_aberto=None", codigo)
+
     def test_perfis_de_contas_compartilhadas_sao_copa_e_almoxarifado(self):
         self.assertEqual(cfg.PERFIS_COMPARTILHADOS, {
             "Copa": "copa", "Almoxarifado": "estoque_almox"

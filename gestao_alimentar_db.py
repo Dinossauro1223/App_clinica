@@ -61,11 +61,26 @@ CREATE TABLE IF NOT EXISTS {TABELA_FICHAS} (
     categoria TEXT,
     porcoes REAL NOT NULL DEFAULT 1 CHECK(porcoes > 0),
     descricao TEXT,
+    modo_preparo TEXT,
     ativa INTEGER NOT NULL DEFAULT 1,
     criado_em TEXT NOT NULL,
     atualizado_em TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ga_ficha_nome ON {TABELA_FICHAS}(nome);
+CREATE TABLE IF NOT EXISTS GA_Ficha_Etapas (
+ id_etapa INTEGER PRIMARY KEY AUTOINCREMENT,
+ id_ficha INTEGER NOT NULL REFERENCES {TABELA_FICHAS}(id_ficha) ON DELETE CASCADE,
+ ordem INTEGER NOT NULL, instrucao TEXT NOT NULL, UNIQUE(id_ficha,ordem)
+);
+CREATE TABLE IF NOT EXISTS GA_Ficha_Imagens (
+ id_imagem INTEGER PRIMARY KEY AUTOINCREMENT,
+ id_ficha INTEGER NOT NULL REFERENCES {TABELA_FICHAS}(id_ficha) ON DELETE CASCADE,
+ tipo TEXT NOT NULL CHECK(tipo IN ('porcao_individual','recipiente_cheio')),
+ mime_type TEXT NOT NULL CHECK(mime_type IN ('image/jpeg','image/png','image/webp')),
+ conteudo BLOB NOT NULL,
+ tamanho_bytes INTEGER NOT NULL CHECK(tamanho_bytes>0 AND tamanho_bytes<=5242880),
+ sha256 TEXT NOT NULL, atualizado_em TEXT NOT NULL, UNIQUE(id_ficha,tipo)
+);
 CREATE TABLE IF NOT EXISTS {TABELA_INGREDIENTES} (
     id_ingrediente INTEGER PRIMARY KEY AUTOINCREMENT,
     id_ficha INTEGER NOT NULL REFERENCES {TABELA_FICHAS}(id_ficha) ON DELETE CASCADE,
@@ -88,6 +103,7 @@ CREATE TABLE IF NOT EXISTS GA_Preparacoes_Dia (
  data TEXT NOT NULL,
  refeicao TEXT NOT NULL,
  nome TEXT NOT NULL,
+ categoria TEXT,
  porcoes_previstas REAL,
  id_ficha INTEGER REFERENCES GA_Fichas(id_ficha),
  ativa INTEGER NOT NULL DEFAULT 1,
@@ -120,6 +136,37 @@ CREATE TABLE IF NOT EXISTS GA_Consumo_Alocacoes (
 );
 CREATE INDEX IF NOT EXISTS idx_ga_alocacoes_movimento ON GA_Consumo_Alocacoes(data_movimento, id_movimento_mobile, ativa);
 CREATE INDEX IF NOT EXISTS idx_ga_alocacoes_preparacao ON GA_Consumo_Alocacoes(data_preparacao, refeicao_snapshot, preparacao_nome_snapshot, ativa);
+CREATE TABLE IF NOT EXISTS GA_Producao_Preparacao (
+ id_registro INTEGER PRIMARY KEY AUTOINCREMENT,
+ id_preparacao_dia INTEGER NOT NULL REFERENCES GA_Preparacoes_Dia(id_preparacao_dia),
+ data TEXT NOT NULL,
+ refeicao TEXT NOT NULL,
+ id_ficha INTEGER,
+ nome_preparacao_snapshot TEXT NOT NULL,
+ categoria_snapshot TEXT,
+ porcoes_planejadas REAL NOT NULL CHECK(porcoes_planejadas >= 0),
+ porcoes_produzidas REAL CHECK(porcoes_produzidas >= 0),
+ porcoes_faltantes REAL NOT NULL DEFAULT 0 CHECK(porcoes_faltantes >= 0),
+ faltou_preparacao INTEGER NOT NULL DEFAULT 0 CHECK(faltou_preparacao IN (0,1)),
+ peso_por_porcao_g REAL CHECK(peso_por_porcao_g > 0),
+ observacao TEXT,
+ usuario TEXT,
+ criado_em TEXT NOT NULL,
+ atualizado_em TEXT NOT NULL,
+ UNIQUE(id_preparacao_dia, data)
+);
+CREATE TABLE IF NOT EXISTS GA_Producao_Cubas (
+ id_cuba INTEGER PRIMARY KEY AUTOINCREMENT,
+ id_registro INTEGER NOT NULL REFERENCES GA_Producao_Preparacao(id_registro) ON DELETE CASCADE,
+ identificacao TEXT NOT NULL,
+ peso_desperdicio_kg REAL NOT NULL DEFAULT 0 CHECK(peso_desperdicio_kg >= 0),
+ peso_sobra_kg REAL NOT NULL DEFAULT 0 CHECK(peso_sobra_kg >= 0),
+ observacao TEXT,
+ ordem INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_ga_producao_data ON GA_Producao_Preparacao(data, refeicao);
+CREATE INDEX IF NOT EXISTS idx_ga_producao_cubas_registro ON GA_Producao_Cubas(id_registro, ordem);
+
 """
 
 
@@ -151,12 +198,21 @@ def inicializar(db_path):
     os.makedirs(os.path.dirname(os.path.abspath(str(db_path))), exist_ok=True)
     with _conexao(db_path) as conn:
         conn.executescript(_SCHEMA)
+        colunas_fichas = {r[1] for r in conn.execute(f"PRAGMA table_info({TABELA_FICHAS})")}
+        if "modo_preparo" not in colunas_fichas:
+            conn.execute(f"ALTER TABLE {TABELA_FICHAS} ADD COLUMN modo_preparo TEXT")
         colunas_ingredientes = {r[1] for r in conn.execute(f"PRAGMA table_info({TABELA_INGREDIENTES})")}
         if "preco_unitario_manual" not in colunas_ingredientes:
             conn.execute(f"ALTER TABLE {TABELA_INGREDIENTES} ADD COLUMN preco_unitario_manual REAL")
         colunas_produtos = {r[1] for r in conn.execute(f"PRAGMA table_info({TABELA_PRODUTOS})")}
         if "tbca_id" not in colunas_produtos:
             conn.execute(f"ALTER TABLE {TABELA_PRODUTOS} ADD COLUMN tbca_id TEXT")
+        colunas_preparacoes = {r[1] for r in conn.execute("PRAGMA table_info(GA_Preparacoes_Dia)")}
+        if "categoria" not in colunas_preparacoes:
+            conn.execute("ALTER TABLE GA_Preparacoes_Dia ADD COLUMN categoria TEXT")
+        colunas_producao = {r[1] for r in conn.execute("PRAGMA table_info(GA_Producao_Preparacao)")}
+        if "categoria_snapshot" not in colunas_producao:
+            conn.execute("ALTER TABLE GA_Producao_Preparacao ADD COLUMN categoria_snapshot TEXT")
 
 
 def _normalizar_cabecalho(valor):
@@ -351,7 +407,120 @@ def obter_ficha(db_path, id_ficha):
             f"LEFT JOIN {TABELA_PRODUTOS} p ON p.id_mobile=i.id_produto_mobile "
             "WHERE i.id_ficha=? ORDER BY i.ordem,i.id_ingrediente", (int(id_ficha),)
         ).fetchall()
-        return {**dict(ficha), "ingredientes": [dict(r) for r in itens]}
+        etapas = conn.execute(
+            "SELECT ordem,instrucao FROM GA_Ficha_Etapas WHERE id_ficha=? ORDER BY ordem", (int(id_ficha),)
+        ).fetchall()
+        imagens = conn.execute(
+            "SELECT tipo,mime_type,tamanho_bytes,sha256,atualizado_em FROM GA_Ficha_Imagens "
+            "WHERE id_ficha=? ORDER BY tipo", (int(id_ficha),)
+        ).fetchall()
+        return {**dict(ficha), "ingredientes": [dict(r) for r in itens],
+                "etapas_preparo": [dict(r) for r in etapas],
+                "imagens": [dict(r) for r in imagens]}
+
+
+def _validar_imagem_ficha(conteudo):
+    if not isinstance(conteudo, (bytes, bytearray, memoryview)):
+        raise ValueError("A imagem precisa ser enviada como bytes.")
+    dados = bytes(conteudo)
+    if not dados:
+        raise ValueError("O arquivo de imagem está vazio.")
+    if len(dados) > 5 * 1024 * 1024:
+        raise ValueError("Cada imagem deve ter no máximo 5 MB.")
+    if dados.startswith(b"\x89PNG\r\n\x1a\n"):
+        mime, formato = "image/png", "PNG"
+    elif dados.startswith(b"\xff\xd8\xff"):
+        mime, formato = "image/jpeg", "JPEG"
+    elif len(dados) >= 12 and dados[:4] == b"RIFF" and dados[8:12] == b"WEBP":
+        mime, formato = "image/webp", "WEBP"
+    else:
+        raise ValueError("Formato de imagem não permitido. Use JPEG, PNG ou WebP.")
+
+    # A assinatura identifica o formato, mas não garante que o arquivo esteja íntegro.
+    import hashlib
+    import io
+    import warnings
+    try:
+        from PIL import Image
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(dados)) as imagem:
+                if imagem.format != formato:
+                    raise ValueError("A assinatura e o formato interno da imagem não correspondem.")
+                largura, altura = imagem.size
+                if (largura < 1 or altura < 1 or largura > 12000 or altura > 12000
+                        or largura * altura > 40000000):
+                    raise ValueError("As dimensões da imagem excedem o limite permitido.")
+                imagem.verify()
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError("Arquivo de imagem inválido ou corrompido.") from exc
+    return dados, mime, hashlib.sha256(dados).hexdigest()
+
+
+def salvar_conteudo_visual_ficha(db_path, id_ficha, modo_preparo="", etapas=None, imagens=None):
+    """Salva instruções e fotos sem caminhos locais; chave omitida preserva foto."""
+    id_ficha = int(id_ficha)
+    modo = str(modo_preparo or "").strip()
+    if len(modo) > 20000:
+        raise ValueError("O modo de preparo deve ter no máximo 20.000 caracteres.")
+    etapas_ok = []
+    for item in (etapas or []):
+        texto = str(item.get("instrucao", "") if isinstance(item, dict) else item).strip()
+        if not texto:
+            continue
+        if len(texto) > 2000:
+            raise ValueError("Cada etapa deve ter no máximo 2.000 caracteres.")
+        etapas_ok.append(texto)
+    if len(etapas_ok) > 100:
+        raise ValueError("A ficha pode ter no máximo 100 etapas de preparo.")
+    permitidos = {"porcao_individual", "recipiente_cheio"}
+    fotos = {}
+    for tipo, conteudo in (imagens or {}).items():
+        if tipo not in permitidos:
+            raise ValueError("Tipo de imagem inválido: %s" % tipo)
+        fotos[tipo] = None if conteudo is None else _validar_imagem_ficha(conteudo)
+    agora = _agora()
+    with _conexao(db_path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            cur = conn.execute(
+                f"UPDATE {TABELA_FICHAS} SET modo_preparo=?,atualizado_em=? WHERE id_ficha=? AND ativa=1",
+                (modo or None, agora, id_ficha))
+            if cur.rowcount != 1:
+                raise ValueError("Ficha não encontrada ou inativa.")
+            conn.execute("DELETE FROM GA_Ficha_Etapas WHERE id_ficha=?", (id_ficha,))
+            conn.executemany(
+                "INSERT INTO GA_Ficha_Etapas(id_ficha,ordem,instrucao) VALUES(?,?,?)",
+                [(id_ficha,n,texto) for n,texto in enumerate(etapas_ok,1)])
+            for tipo, foto in fotos.items():
+                if foto is None:
+                    conn.execute("DELETE FROM GA_Ficha_Imagens WHERE id_ficha=? AND tipo=?", (id_ficha,tipo))
+                    continue
+                dados,mime,sha = foto
+                conn.execute(
+                    "INSERT INTO GA_Ficha_Imagens(id_ficha,tipo,mime_type,conteudo,tamanho_bytes,sha256,atualizado_em) "
+                    "VALUES(?,?,?,?,?,?,?) ON CONFLICT(id_ficha,tipo) DO UPDATE SET "
+                    "mime_type=excluded.mime_type,conteudo=excluded.conteudo,tamanho_bytes=excluded.tamanho_bytes,"
+                    "sha256=excluded.sha256,atualizado_em=excluded.atualizado_em",
+                    (id_ficha,tipo,mime,sqlite3.Binary(dados),len(dados),sha,agora))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+    return obter_ficha(db_path,id_ficha)
+
+
+def obter_imagem_ficha(db_path, id_ficha, tipo):
+    """Retorna os bytes da imagem; obter_ficha retorna somente metadados."""
+    if tipo not in {"porcao_individual","recipiente_cheio"}:
+        raise ValueError("Tipo de imagem inválido.")
+    with _conexao(db_path) as conn:
+        row=conn.execute(
+            "SELECT mime_type,conteudo,tamanho_bytes,sha256 FROM GA_Ficha_Imagens WHERE id_ficha=? AND tipo=?",
+            (int(id_ficha),tipo)).fetchone()
+        return dict(row) if row else None
 
 
 def salvar_ficha(db_path, nome, categoria, porcoes, ingredientes, descricao="", id_ficha=None):
@@ -549,6 +718,13 @@ def calcular_ficha(db_path, id_ficha):
 
 # --------------------------------------------------------- consumo observado
 _REFEICOES_CONSUMO = {"desjejum", "colacao", "almoco", "lanche", "jantar", "ceia"}
+_CATEGORIAS_REFEICOES_PRINCIPAIS = {"salada", "entrada", "prato_principal", "acompanhamento", "sobremesa", "suco_fruta"}
+_CATEGORIAS_REFEICOES_MENORES = {"geral"}
+_CATEGORIAS_POR_REFEICAO = {
+    "almoco": _CATEGORIAS_REFEICOES_PRINCIPAIS, "jantar": _CATEGORIAS_REFEICOES_PRINCIPAIS,
+    "desjejum": _CATEGORIAS_REFEICOES_MENORES, "colacao": _CATEGORIAS_REFEICOES_MENORES,
+    "lanche": _CATEGORIAS_REFEICOES_MENORES, "ceia": _CATEGORIAS_REFEICOES_MENORES,
+}
 _TIPOS_ALOCACAO = {"preparacao", "uso_geral", "perda"}
 
 
@@ -558,6 +734,19 @@ def _data_iso(valor, campo="data"):
         return date.fromisoformat(str(valor)).isoformat()
     except (TypeError, ValueError):
         raise ValueError("Informe %s no formato AAAA-MM-DD." % campo)
+
+
+def _normalizar_categoria_refeicao(refeicao, categoria):
+    """Valida a categoria de apresentação permitida para o tipo de refeição."""
+    if categoria in (None, ""):
+        return None  # compatibilidade com cardápios antigos ainda sem classificação
+    categoria = str(categoria).strip().lower().replace(" ", "_").replace("/", "_")
+    aliases = {"saladas": "salada", "acompanhamentos": "acompanhamento", "sobremesas": "sobremesa",
+               "suco": "suco_fruta", "fruta": "suco_fruta", "sucos_frutas": "suco_fruta"}
+    categoria = aliases.get(categoria, categoria)
+    if categoria not in _CATEGORIAS_POR_REFEICAO[refeicao]:
+        raise ValueError("Categoria não permitida para esta refeição.")
+    return categoria
 
 
 def salvar_preparacoes_dia(db_path, data, refeicao, preparacoes):
@@ -581,12 +770,13 @@ def salvar_preparacoes_dia(db_path, data, refeicao, preparacoes):
         porcoes = _numero(item.get("porcoes_previstas"))
         if porcoes is not None and porcoes <= 0:
             raise ValueError("As porções previstas precisam ser maiores que zero.")
+        categoria = _normalizar_categoria_refeicao(refeicao, item.get("categoria"))
         ficha_id = item.get("id_ficha")
         if ficha_id not in (None, ""):
             ficha_id = int(ficha_id)
         else:
             ficha_id = None
-        preparados.append((nome, porcoes, ficha_id))
+        preparados.append((nome, porcoes, ficha_id, categoria))
 
     agora = _agora()
     with _conexao(db_path) as conn:
@@ -600,14 +790,14 @@ def salvar_preparacoes_dia(db_path, data, refeicao, preparacoes):
                 "UPDATE GA_Preparacoes_Dia SET ativa=0, atualizado_em=? WHERE data=? AND refeicao=?",
                 (agora, data, refeicao)
             )
-            for nome, porcoes, ficha_id in preparados:
+            for nome, porcoes, ficha_id, categoria in preparados:
                 conn.execute("""INSERT INTO GA_Preparacoes_Dia
-                    (data,refeicao,nome,porcoes_previstas,id_ficha,ativa,criado_em,atualizado_em)
-                    VALUES(?,?,?,?,?,1,?,?)
+                    (data,refeicao,nome,categoria,porcoes_previstas,id_ficha,ativa,criado_em,atualizado_em)
+                    VALUES(?,?,?,?,?,?,1,?,?)
                     ON CONFLICT(data,refeicao,nome) DO UPDATE SET
-                    porcoes_previstas=excluded.porcoes_previstas,id_ficha=excluded.id_ficha,
-                    ativa=1,atualizado_em=excluded.atualizado_em""",
-                    (data, refeicao, nome, porcoes, ficha_id, agora, agora))
+                    categoria=excluded.categoria,porcoes_previstas=excluded.porcoes_previstas,
+                    id_ficha=excluded.id_ficha,ativa=1,atualizado_em=excluded.atualizado_em""",
+                    (data, refeicao, nome, categoria, porcoes, ficha_id, agora, agora))
         except Exception:
             conn.rollback()
             raise
@@ -631,6 +821,98 @@ def listar_preparacoes_dia(db_path, data, refeicao=None):
         p.nome COLLATE NOCASE"""
     with _conexao(db_path) as conn:
         return [dict(r) for r in conn.execute(sql, args)]
+
+
+
+def salvar_registro_producao(db_path, id_preparacao_dia, data, refeicao, porcoes_planejadas,
+                             porcoes_produzidas=None, porcoes_faltantes=0, faltou_preparacao=False,
+                             peso_por_porcao_g=None, cubas=None, observacao="", usuario=""):
+    """Registra resultado real da preparação e perdas/sobras por cuba, sem alterar estoque."""
+    data = _data_iso(data)
+    refeicao = str(refeicao or "").strip().lower()
+    if refeicao not in _REFEICOES_CONSUMO:
+        raise ValueError("Selecione uma refeição válida.")
+    planejadas = _numero(porcoes_planejadas)
+    produzidas = _numero(porcoes_produzidas) if porcoes_produzidas not in (None, "") else None
+    faltantes = _numero(porcoes_faltantes)
+    peso_porcao = _numero(peso_por_porcao_g) if peso_por_porcao_g not in (None, "") else None
+    if planejadas is None or planejadas < 0 or (produzidas is not None and produzidas < 0):
+        raise ValueError("Porções planejadas e produzidas não podem ser negativas.")
+    if faltantes is None or faltantes < 0:
+        raise ValueError("Porções faltantes não podem ser negativas.")
+    if peso_porcao is not None and peso_porcao <= 0:
+        raise ValueError("O peso por porção deve ser maior que zero.")
+    itens = []
+    for ordem, cuba in enumerate(cubas or [], 1):
+        identificacao = str(cuba.get("identificacao") or "").strip()
+        desperdicio = _numero(cuba.get("peso_desperdicio_kg", 0))
+        sobra = _numero(cuba.get("peso_sobra_kg", 0))
+        if not identificacao or desperdicio is None or sobra is None or desperdicio < 0 or sobra < 0:
+            raise ValueError("Cada cuba precisa de identificação e pesos válidos, iguais ou maiores que zero.")
+        itens.append((identificacao, desperdicio, sobra, str(cuba.get("observacao") or ""), ordem))
+    agora = _agora()
+    with _conexao(db_path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        prep = conn.execute(
+            "SELECT p.*, f.nome AS nome_ficha FROM GA_Preparacoes_Dia p "
+            "LEFT JOIN GA_Fichas f ON f.id_ficha=p.id_ficha "
+            "WHERE p.id_preparacao_dia=? AND p.data=? AND p.refeicao=? AND p.ativa=1",
+            (int(id_preparacao_dia), data, refeicao)
+        ).fetchone()
+        if not prep:
+            raise ValueError("Preparação não encontrada no menu ativo dessa data e refeição.")
+        nome = prep["nome_ficha"] or prep["nome"]
+        existente = conn.execute(
+            "SELECT id_registro FROM GA_Producao_Preparacao WHERE id_preparacao_dia=? AND data=?",
+            (int(id_preparacao_dia), data)
+        ).fetchone()
+        if existente:
+            rid = existente["id_registro"]
+            conn.execute("""UPDATE GA_Producao_Preparacao SET refeicao=?,id_ficha=?,nome_preparacao_snapshot=?,categoria_snapshot=?,
+                porcoes_planejadas=?,porcoes_produzidas=?,porcoes_faltantes=?,faltou_preparacao=?,
+                peso_por_porcao_g=?,observacao=?,usuario=?,atualizado_em=? WHERE id_registro=?""",
+                (refeicao, prep["id_ficha"], nome, prep["categoria"], planejadas, produzidas, faltantes,
+                 int(bool(faltou_preparacao)), peso_porcao, str(observacao or ""), str(usuario or ""), agora, rid))
+            conn.execute("DELETE FROM GA_Producao_Cubas WHERE id_registro=?", (rid,))
+        else:
+            cur = conn.execute("""INSERT INTO GA_Producao_Preparacao(
+                id_preparacao_dia,data,refeicao,id_ficha,nome_preparacao_snapshot,categoria_snapshot,porcoes_planejadas,
+                porcoes_produzidas,porcoes_faltantes,faltou_preparacao,peso_por_porcao_g,observacao,usuario,
+                criado_em,atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (int(id_preparacao_dia), data, refeicao, prep["id_ficha"], nome, prep["categoria"], planejadas, produzidas,
+                 faltantes, int(bool(faltou_preparacao)), peso_porcao, str(observacao or ""),
+                 str(usuario or ""), agora, agora))
+            rid = cur.lastrowid
+        conn.executemany("""INSERT INTO GA_Producao_Cubas(
+            id_registro,identificacao,peso_desperdicio_kg,peso_sobra_kg,observacao,ordem)
+            VALUES(?,?,?,?,?,?)""", [(rid, *item) for item in itens])
+    return obter_registro_producao(db_path, rid)
+
+
+def obter_registro_producao(db_path, id_registro):
+    with _conexao(db_path) as conn:
+        row = conn.execute("SELECT * FROM GA_Producao_Preparacao WHERE id_registro=?",
+                           (int(id_registro),)).fetchone()
+        if not row:
+            return None
+        cubas = conn.execute("SELECT * FROM GA_Producao_Cubas WHERE id_registro=? ORDER BY ordem,id_cuba",
+                             (int(id_registro),)).fetchall()
+        return {**dict(row), "cubas": [dict(c) for c in cubas]}
+
+
+def listar_registros_producao(db_path, inicio, fim, id_ficha=None):
+    inicio, fim = _data_iso(inicio, "data inicial"), _data_iso(fim, "data final")
+    if fim < inicio:
+        raise ValueError("A data final deve ser igual ou posterior à inicial.")
+    sql = "SELECT * FROM GA_Producao_Preparacao WHERE data BETWEEN ? AND ?"
+    args = [inicio, fim]
+    if id_ficha is not None:
+        sql += " AND id_ficha=?"
+        args.append(int(id_ficha))
+    sql += " ORDER BY data,refeicao,nome_preparacao_snapshot"
+    with _conexao(db_path) as conn:
+        return [dict(r) for r in conn.execute(sql, args)]
+
 
 
 def _colunas_mobile_movimentos(conn):
