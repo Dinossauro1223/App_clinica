@@ -2513,6 +2513,11 @@ class FormRegistro(_Janela):
             partes.append(f"{resultado['fibra_g_dia']:.1f} g fibras/dia")
             if resultado["percentual_meta_fibras"] is not None:
                 partes.append(f"{resultado['percentual_meta_fibras']:.1f}% da meta de fibras")
+            fibras_itens = [f"{x['nome']}: {x['fibra_g']:.1f} g ({x.get('tipo_fibra') or 'tipo não informado'}"
+                            + (f" — {x['descricao_fibra']}" if x.get("descricao_fibra") else "") + ")"
+                            for x in resultado["itens"] if x.get("fibra_g") is not None and x["fibra_g"] > 0]
+            if fibras_itens:
+                partes.append("por produto: " + "; ".join(fibras_itens))
         else:
             partes.append("fibras: ficha técnica/dose pendente")
         pend = len(resultado["pendencias"])
