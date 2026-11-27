@@ -36,6 +36,18 @@ class TestEvolucaoNutricional(unittest.TestCase):
         self.assertEqual(plano["passos"][-1]["volume_total_ml"], 1200)
         self.assertTrue(plano["atinge_meta_no_prazo"])
 
+    def test_planejamento_administracao_enteral_calcula_bomba_e_gravidade(self):
+        bomba = ev.planejar_administracao_enteral(1200, 150, 12, usa_bomba=True)
+        self.assertEqual(bomba["velocidade_bomba_ml_h"], 100)
+        self.assertEqual(bomba["energia_total_kcal"], 1800)
+        self.assertEqual(bomba["energia_kcal_h"], 150)
+        self.assertNotIn("gotejamento_gotas_min", bomba)
+        gravidade = ev.planejar_administracao_enteral(1200, 150, 12, fator_gotas_ml=20)
+        self.assertEqual(gravidade["taxa_ml_h"], 100)
+        self.assertEqual(gravidade["gotejamento_gotas_min"], 33.3)
+        with self.assertRaises(ValueError):
+            ev.planejar_administracao_enteral(1200, 150, 0)
+
     def test_estimativa_bomba_nao_e_prescricao(self):
         self.assertEqual(ev.estimar_tempo_bomba(300), 30)
 
