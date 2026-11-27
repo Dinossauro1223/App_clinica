@@ -155,6 +155,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
         linha.pack(fill="x", padx=12, pady=(0, 6))
         self.var_bomba = tk.IntVar(value=0)
         ctk.CTkCheckBox(linha, text="Utiliza bomba de infusão", variable=self.var_bomba).pack(side="left", padx=(0, 16))
+        self.e_horas_adm = self._entry(linha, "tempo de administração (h)", "", largura=175)
+        self.e_fator_gotas = self._entry(linha, "fator do equipo (gotas/mL)", "20", largura=190)
         self.var_progressao = tk.IntVar(value=0)
         ctk.CTkCheckBox(linha, text="Solicitar progressão enteral automática", variable=self.var_progressao).pack(side="left")
         linha = ctk.CTkFrame(self.q_enteral, fg_color="transparent")
@@ -275,7 +277,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.var_progressao.set(int(bool(progressao.get("solicitada"))))
         _set(self.e_incremento, progressao.get("incremento_por_etapa_ml", 10))
         _set(self.e_dias, progressao.get("dias_alvo", 4))
-        self.var_bomba.set(int(bool((dados.get("bomba") or {}).get("usa_bomba"))))
+        bomba_salva = dados.get("bomba") or {}
+        self.var_bomba.set(int(bool(bomba_salva.get("usa_bomba"))))
+        _set(self.e_horas_adm, bomba_salva.get("duracao_horas"))
+        _set(self.e_fator_gotas, bomba_salva.get("fator_gotas_ml", 20))
         self.var_tolerancia.set(int(bool(progressao.get("tolerancia", True))))
         self.var_restricao.set(int(bool(progressao.get("restricao", False))))
         metas = dados.get("metas") or {}
@@ -462,6 +467,19 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     "kcal_100": ficha["kcal_100"], "ptn_100": ficha["ptn_100"],
                 }
                 dados["bomba"] = {"usa_bomba": bool(self.var_bomba.get()), "taxa_estimativa_ml_h": 10}
+                tipo_formula = str(ficha.get("tipo_formula") or "").strip().casefold()
+                dados["dieta_enteral"]["tipo_formula"] = tipo_formula or "nao_informado"
+                if tipo_formula == "fechada":
+                    horas_txt = self.e_horas_adm.get().strip()
+                    if not horas_txt:
+                        raise ValueError("Informe em quantas horas a dieta fechada será administrada.")
+                    fator_txt = self.e_fator_gotas.get().strip() or "20"
+                    administracao = regras.planejar_administracao_enteral(
+                        oferta["volume_total_ml"], ficha["kcal_100"], horas_txt,
+                        usa_bomba=bool(self.var_bomba.get()), fator_gotas_ml=fator_txt)
+                    dados["bomba"].update({"duracao_horas": float(horas_txt.replace(",", ".")),
+                                           "fator_gotas_ml": float(fator_txt.replace(",", "."))})
+                    dados["administracao_enteral"] = administracao
                 dados["progressao_enteral"] = {
                     "solicitada": bool(self.var_progressao.get()), "autorizada": False,
                     "volume_atual_ml": oferta["volume_total_ml"], "volume_meta_ml": volume_meta,
