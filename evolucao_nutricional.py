@@ -452,7 +452,7 @@ def gerar_evolucao(dados):
                     f" Oferta atualmente cadastrada: {formatar_numero_pt(volume_atual)} mL/dia; "
                     f"diferença até o volume-meta: {formatar_numero_pt(diferenca_volume)} mL/dia."
                 )
-            linhas.append("**Planejamento de administração da dieta fechada (volume-meta):** " +
+            linhas.append("**Administração da dieta fechada — planejamento do volume-meta:** " +
                 f"{formatar_numero_pt(administracao['volume_total_ml'])} mL em {formatar_numero_pt(administracao['duracao_horas'], 1)} h; " +
                 f"{taxa_txt}; {formatar_numero_pt(administracao['energia_total_kcal'])} kcal no período " +
                 f"({formatar_numero_pt(administracao['energia_kcal_h'], 1)} kcal/h)." +
