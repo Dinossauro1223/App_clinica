@@ -541,8 +541,14 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
             "progressao_enteral": {"autorizada": True, "incremento_por_etapa_ml": 10},
             "tne_motivos": []
         }
+        preparacoes = [
+            {"refeicao": "desjejum", "dose": 40, "agua_adicionada_ml": 20, "agua_separada_ml": 50},
+            {"refeicao": "ceia", "dose": 60, "agua_adicionada_ml": 30, "agua_separada_ml": 0},
+        ]
         reg = registro_base(self.db, self.leitos[0]["id_leito"], "2026-10-25",
-                            evolucao_json=json.dumps(dados, ensure_ascii=False))
+                            evolucao_json=json.dumps(dados, ensure_ascii=False),
+                            suplementos=[dict(nome="Fórmula teste", qtd_dia=100, unidade="ml",
+                                               agua_ml=50, preparacoes=preparacoes)])
         id_reg = mdb.salvar_registro(self.db, reg)
         obtido = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])
         self.assertEqual(obtido["evolucao"], dados)
@@ -554,6 +560,7 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
         self.assertEqual(mdb.copiar_mapa(self.db, "2026-10-25", "2026-10-26"), 1)
         copia = mdb.obter_registro(self.db, "2026-10-26", self.leitos[0]["id_leito"])
         self.assertEqual(copia["evolucao"], dados)
+        self.assertEqual(copia["suplementos"][0]["preparacoes"], preparacoes)
         mdb.remover_registro(self.db, copia["id_registro"])
         with conexao(self.db) as c:
             self.assertEqual(c.execute("SELECT COUNT(*) FROM Mapa_Evolucao_Dados WHERE id_registro=?",
