@@ -7,6 +7,7 @@ não critério isolado de desnutrição.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 from contextlib import closing
 from datetime import date, datetime, timedelta
@@ -41,7 +42,7 @@ def listar_pesos_historicos(db_path, id_paciente):
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             """SELECT id_registro, data, peso_kg, peso_origem, peso_metodo, peso_medido_em,
-                      altura_cm, pp_cm, pb_cm, aj_cm, atualizado_em
+                      altura_cm, altura_origem, pp_cm, pb_cm, aj_cm, imc, avaliacao_json, atualizado_em
                FROM Mapa_Registros
                WHERE id_paciente=? AND peso_kg IS NOT NULL AND peso_kg>0
                ORDER BY data, atualizado_em, id_registro""",
@@ -50,6 +51,21 @@ def listar_pesos_historicos(db_path, id_paciente):
     por_data = {}
     for row in rows:
         item = dict(row)
+        try:
+            avaliacao = json.loads(item.get("avaliacao_json") or "{}")
+        except (TypeError, ValueError):
+            avaliacao = {}
+        resultado = avaliacao.get("resultado") or avaliacao
+        ajustado = resultado.get("ajustado", avaliacao.get("peso_ajustado"))
+        if ajustado not in (None, "") and resultado.get("ajustou", True):
+            try:
+                item["peso_original_kg"] = item["peso_kg"]
+                item["peso_kg"] = float(str(ajustado).replace(",", "."))
+                item["peso_corrigido"] = True
+            except (TypeError, ValueError):
+                item["peso_corrigido"] = False
+        else:
+            item["peso_corrigido"] = False
         # Se houver mais de um registro do mesmo paciente no mesmo dia,
         # prevalece o último registro atualizado, sem somar ou fazer média.
         por_data[item["data"]] = item
@@ -94,7 +110,7 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
                 "data_anterior": anterior["_data"].strftime("%d/%m/%Y"),
                 "data_atual": atual["_data"].strftime("%d/%m/%Y"),
             })
-            if adulto and abs(diferenca) >= 1.0:
+            if adulto and anterior.get("peso_origem") == "R" and atual.get("peso_origem") == "R" and abs(diferenca) >= 1.0:
                 alertas.append({
                     "tipo": "variacao_aguda_24h", "diferenca_kg": round(diferenca, 2),
                     "intervalo_horas": round(intervalo_h, 1),
@@ -164,11 +180,14 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
         if intervalo <= 0:
             continue
         perda = (anterior["_peso"] - atual["_peso"]) / anterior["_peso"] * 100
-        faixa = "sem limiar ASPEN atingido"
-        if perda >= limiar_moderado:
-            faixa = "faixa moderada de perda ponderal (ASPEN)"
-        if perda > limiar_elevado:
-            faixa = "faixa elevada de perda ponderal (ASPEN)"
+        pesos_aferidos = anterior.get("peso_origem") == "R" and atual.get("peso_origem") == "R"
+        faixa = "variação observada; peso estimado/origem não confirmada"
+        if pesos_aferidos:
+            faixa = "sem limiar ASPEN atingido"
+            if perda >= limiar_moderado:
+                faixa = "faixa moderada de perda ponderal (ASPEN)"
+            if perda > limiar_elevado:
+                faixa = "faixa elevada de perda ponderal (ASPEN)"
         comparacoes.append({
             "janela": rotulo, "dias_reais": round(intervalo, 1),
             "peso_anterior_kg": anterior["_peso"], "peso_atual_kg": atual["_peso"],
@@ -188,15 +207,18 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
     except (TypeError, ValueError, ZeroDivisionError):
         pass
     criterio_bmi = None
-    if bmi is not None and adulto:
+    imc_com_pesagem_aferida = atual.get("peso_origem") == "R" and atual.get("altura_origem") == "R"
+    if bmi is not None and adulto and imc_com_pesagem_aferida:
         limite = 22 if float(idade_anos) >= 70 else 20
         if bmi < limite:
             criterio_bmi = {"imc": round(bmi, 2), "limite": limite,
                             "texto": f"IMC abaixo do ponto de corte GLIM para idade (IMC {bmi:.1f}; corte <{limite})."}
 
     glim_peso = adulto and any(
-        (c["janela"] == "6 meses" and c["perda_percentual"] > 5) or
-        (c["dias_reais"] > 180 and c["perda_percentual"] > 10)
+        c.get("origem_anterior") == "R" and c.get("origem_atual") == "R" and (
+            (c["janela"] == "6 meses" and c["perda_percentual"] > 5) or
+            (c["dias_reais"] > 180 and c["perda_percentual"] > 10)
+        )
         for c in comparacoes
     )
     fenotipicos = []
@@ -224,6 +246,12 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
         "nota": (
             "As faixas ASPEN e os critérios GLIM apresentados são para adultos; não foram aplicados a menores de 18 anos. "
             if not adulto else ""
+        ) + (
+            "Os critérios de perda ponderal foram aplicados somente quando as duas pesagens são aferidas; "
+            if adulto else ""
+        ) + (
+            "O IMC GLIM foi avaliado somente com peso e estatura aferidos. "
+            if adulto and not imc_com_pesagem_aferida else ""
         ) + "As faixas ASPEN apoiam a documentação clínica e não fecham diagnóstico isoladamente. "
             "GLIM requer ≥1 critério fenotípico e ≥1 etiológico. Mudanças agudas de peso podem refletir líquidos.",
     }
