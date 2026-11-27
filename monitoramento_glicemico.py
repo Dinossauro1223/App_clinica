@@ -14,6 +14,7 @@ from tkinter import ttk, messagebox
 
 import customtkinter as ctk
 import tema
+import monitoramento_enteral as me
 
 
 CONTEXTOS = ("Jejum", "Pré-prandial", "Pós-prandial", "Aleatória")
@@ -161,6 +162,26 @@ def listar_ofertas_nutricionais(caminho, id_paciente, inicio=None, fim=None):
                 "agua_separada_ml": agua_separada, "carboidratos_g": carboidratos,
                 "fibras_g": fibras, "tipo_fibra": tipo_fibra or "não informado"
             })
+    try:
+        administracoes = me.listar_administracoes(caminho, id_paciente, inicio, fim)
+    except (sqlite3.Error, ValueError):
+        administracoes = []
+    for adm in administracoes:
+        try:
+            instante = datetime.fromisoformat(adm["inicio_em"])
+        except (TypeError, ValueError):
+            continue
+        eventos.append({
+            "instante": instante, "suplemento": "Dieta enteral",
+            "refeicao": "administração",
+            "dose": adm.get("volume_administrado_ml"), "unidade": "mL",
+            "agua_misturada_ml": None, "agua_separada_ml": None,
+            "carboidratos_g": None, "fibras_g": None,
+            "tipo_fibra": "não informado", "tipo_evento": "enteral",
+            "fim_em": adm.get("fim_em"), "taxa_ml_h": adm.get("taxa_ml_h"),
+            "pausado_min": adm.get("pausado_min"),
+            "via_administracao": adm.get("via_administracao"),
+        })
     return sorted(eventos,key=lambda x:x["instante"])
 
 
