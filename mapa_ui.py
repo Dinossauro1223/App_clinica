@@ -1558,8 +1558,10 @@ class FormRegistro(_Janela):
         self.cb_sup.set("")
         self.e_qtd = self._reg(ctk.CTkEntry(l, width=70, placeholder_text="qtd/dia"))
         self.e_qtd.pack(side="left", padx=(0, 6))
-        self.e_agua_sup = self._reg(ctk.CTkEntry(l, width=90, placeholder_text="água mL/dia"))
+        self.e_agua_sup = self._reg(ctk.CTkEntry(l, width=105, placeholder_text="água total/dia"))
         self.e_agua_sup.pack(side="left", padx=(0, 6))
+        ctk.CTkLabel(q, text="Informe a água total diária somente quando as ofertas mantiverem a mesma diluição.",
+                     text_color=tema.SUAVE, wraplength=760, justify="left").pack(anchor="w", padx=12, pady=(0, 4))
         self._reg(_btn(l, "Adicionar", self._add_sup, 90, VERDE, VERDE_HOVER, 28)).pack(side="left")
         self.tree_sup = ttk.Treeview(q, columns=("mod", "nome", "qtd"), show="headings", style=ESTILO_TREE, height=3,
                                      selectmode="browse")
@@ -2109,13 +2111,18 @@ class FormRegistro(_Janela):
             return
         txt = self.e_qtd.get().strip()
         qtd = nc.parse_num(txt)
+        agua_txt = self.e_agua_sup.get().strip()
+        agua = nc.parse_num(agua_txt)
         if txt and qtd is None:
             messagebox.showwarning("Suplementos", "Quantidade inválida.", parent=self)
+            return
+        if agua_txt and (agua is None or agua < 0):
+            messagebox.showwarning("Suplementos", "Quantidade de água inválida.", parent=self)
             return
         self._suplementos.append({
             "id_suplemento": s["id_suplemento"], "nome": s["nome"], "modulo": s["modulo"],
             "qtd_dia": qtd, "unidade": s["emb_un"],
-            "agua_ml": nc.parse_num(self.e_agua_sup.get()),
+            "agua_ml": agua,
             **{campo: s.get(campo) for campo in ("kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
                 "osmolaridade_ref", "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
                 "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade")},
