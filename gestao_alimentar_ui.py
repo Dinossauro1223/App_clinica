@@ -665,6 +665,7 @@ class GestaoAlimentarUI:
         _btn(topo, "Atualizar relatório", self.carregar_consumo, 135, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
         _btn(topo, "Preparações esperadas", self.abrir_preparacoes, 165, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
         _btn(topo, "Registrar produção", self.abrir_registro_producao, 145, cor=VERDE).pack(side="left", padx=4)
+        _btn(topo, "Histórico da produção", self.abrir_historico_producao, 165, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
         _btn(topo, "Gerar rascunhos por horário", self.gerar_rascunhos_por_horario, 205, cor=AZUL).pack(side="left", padx=4)
         self.lbl_consumo_status = ctk.CTkLabel(self.tab_consumo,
             text="Importe o histórico de retiradas Almoxarifado → Cozinha. Movimentos Cozinha → Copa não entram como novo consumo.",
@@ -846,6 +847,13 @@ class GestaoAlimentarUI:
             RegistroProducaoDialog(self.app, self.db, data, self.carregar_consumo)
         except Exception as exc:
             messagebox.showerror("Registro de produção", str(exc), parent=self.tab_consumo)
+
+    def abrir_historico_producao(self):
+        try:
+            inicio, fim = self._periodo_consumo()
+            RegistroProducaoHistoricoDialog(self.app, self.db, inicio, fim)
+        except Exception as exc:
+            messagebox.showerror("Histórico da produção", str(exc), parent=self.tab_consumo)
 
     def alocar_retirada(self):
         sel = self.tree_movimentos.selection() if self.tree_movimentos else ()
@@ -1850,3 +1858,116 @@ class RegistroProducaoDialog:
             self.ao_salvar()
         except Exception as exc:
             messagebox.showerror("Registro de produção", str(exc), parent=self.janela)
+
+class RegistroProducaoHistoricoDialog:
+    """Consulta os registros de produção e detalha perdas por cuba."""
+
+    def __init__(self, app, db_path, inicio, fim):
+        self.app, self.db = app, db_path
+        self.janela = _PainelJanela(app, "Histórico da produção")
+        self.janela.title("Histórico da produção")
+        self.janela.geometry("980x620")
+        self.janela.transient(app)
+        filtros = ctk.CTkFrame(self.janela, fg_color="transparent")
+        filtros.pack(fill="x", padx=14, pady=(14, 6))
+        ctk.CTkLabel(filtros, text="De").pack(side="left")
+        self.e_inicio = ctk.CTkEntry(filtros, width=120)
+        self.e_inicio.pack(side="left", padx=4)
+        self.e_inicio.insert(0, inicio)
+        ctk.CTkLabel(filtros, text="Até").pack(side="left", padx=(8, 0))
+        self.e_fim = ctk.CTkEntry(filtros, width=120)
+        self.e_fim.pack(side="left", padx=4)
+        self.e_fim.insert(0, fim)
+        _btn(filtros, "Consultar", self.carregar, 110).pack(side="left", padx=6)
+        self.lbl_resumo = ctk.CTkLabel(self.janela, text="", anchor="w",
+                                       text_color=tema.SUAVE)
+        self.lbl_resumo.pack(fill="x", padx=16, pady=(0, 5))
+        frame, self.tree = _tree(self.janela, [
+            ("data", "Data", 95, "center"), ("refeicao", "Refeição", 95, "center"),
+            ("preparacao", "Preparação", 220, "w"), ("categoria", "Categoria", 120, "w"),
+            ("planejadas", "Planejadas", 85, "e"), ("produzidas", "Produzidas", 85, "e"),
+            ("faltantes", "Faltantes", 85, "e"), ("status", "Situação", 130, "center"),
+            ("responsavel", "Responsável", 130, "w")
+        ], altura=18)
+        frame.pack(fill="both", expand=True, padx=12, pady=6)
+        self.tree.bind("<Double-1>", lambda _e: self.detalhar())
+        rodape = ctk.CTkFrame(self.janela, fg_color="transparent")
+        rodape.pack(fill="x", padx=14, pady=(4, 12))
+        _btn(rodape, "Ver detalhes e cubas", self.detalhar, 180).pack(side="left")
+        _btn(rodape, "Fechar", self.janela.destroy, 100, cor=CINZA, hover=tema.SUAVE).pack(side="right")
+        self.carregar()
+
+    def carregar(self):
+        try:
+            registros = ga.listar_registros_producao(
+                self.db, self.e_inicio.get().strip(), self.e_fim.get().strip())
+            self.tree.delete(*self.tree.get_children())
+            for indice, r in enumerate(registros):
+                situacao = "Não produzida" if r.get("faltou_preparacao") else (
+                    "Com falta" if float(r.get("porcoes_faltantes") or 0) > 0 else "Registrada")
+                self.tree.insert("", "end", iid=str(r["id_registro"]), values=(
+                    r["data"], r["refeicao"], r["nome_preparacao_snapshot"],
+                    r.get("categoria_snapshot") or "Geral",
+                    _fmt_num(r.get("porcoes_planejadas"), 0),
+                    _fmt_num(r.get("porcoes_produzidas"), 0),
+                    _fmt_num(r.get("porcoes_faltantes"), 0), situacao,
+                    r.get("usuario") or "—"),
+                    tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
+            total = len(registros)
+            faltas = sum(float(r.get("porcoes_faltantes") or 0) for r in registros)
+            nao_produzidas = sum(bool(r.get("faltou_preparacao")) for r in registros)
+            self.lbl_resumo.configure(
+                text=f"{total} registro(s) · {nao_produzidas} preparação(ões) não produzida(s) · "
+                     f"{_fmt_num(faltas, 0)} porção(ões) faltante(s)")
+        except Exception as exc:
+            messagebox.showerror("Histórico da produção", str(exc), parent=self.janela)
+
+    def detalhar(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showinfo("Detalhes da produção", "Selecione um registro.", parent=self.janela)
+            return
+        try:
+            registro = ga.obter_registro_producao(self.db, int(selecionado[0]))
+            if not registro:
+                raise ValueError("O registro selecionado não existe mais.")
+            janela = _PainelJanela(self.janela, "Detalhes da produção")
+            janela.title("Detalhes da produção")
+            janela.geometry("700x540")
+            ctk.CTkLabel(janela, text=registro["nome_preparacao_snapshot"],
+                         font=ctk.CTkFont(size=17, weight="bold"),
+                         text_color=VERDE_ESC).pack(anchor="w", padx=16, pady=(14, 4))
+            texto = (
+                f"Data: {registro['data']} · Refeição: {registro['refeicao']}\n"
+                f"Categoria: {registro.get('categoria_snapshot') or 'Geral'}\n"
+                f"Porções planejadas: {_fmt_num(registro.get('porcoes_planejadas'), 0)}\n"
+                f"Porções produzidas: {_fmt_num(registro.get('porcoes_produzidas'), 0)}\n"
+                f"Porções faltantes: {_fmt_num(registro.get('porcoes_faltantes'), 0)}\n"
+                f"Peso por porção: {_fmt_num(registro.get('peso_por_porcao_g'))} g\n"
+                f"Responsável: {registro.get('usuario') or '—'}\n"
+                f"Observação: {registro.get('observacao') or '—'}"
+            )
+            ctk.CTkLabel(janela, text=texto, justify="left", anchor="w",
+                         wraplength=650).pack(fill="x", padx=16, pady=8)
+            frame, tree = _tree(janela, [
+                ("cuba", "Cuba/panela", 170, "w"), ("sobra", "Sobra (kg)", 110, "e"),
+                ("desperdicio", "Desperdício (kg)", 130, "e"),
+                ("observacao", "Observação", 230, "w")
+            ], altura=9)
+            frame.pack(fill="both", expand=True, padx=12, pady=8)
+            total_sobra = total_desperdicio = 0.0
+            for indice, cuba in enumerate(registro.get("cubas") or []):
+                sobra = float(cuba.get("peso_sobra_kg") or 0)
+                desperdicio = float(cuba.get("peso_desperdicio_kg") or 0)
+                total_sobra += sobra
+                total_desperdicio += desperdicio
+                tree.insert("", "end", values=(cuba["identificacao"], _fmt_num(sobra),
+                    _fmt_num(desperdicio), cuba.get("observacao") or "—"),
+                    tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
+            ctk.CTkLabel(janela, text=f"Total de sobras: {_fmt_num(total_sobra)} kg · "
+                         f"Total de desperdício: {_fmt_num(total_desperdicio)} kg",
+                         font=ctk.CTkFont(size=12, weight="bold"),
+                         text_color=VERDE_ESC).pack(anchor="w", padx=16, pady=(2, 12))
+        except Exception as exc:
+            messagebox.showerror("Detalhes da produção", str(exc), parent=self.janela)
+

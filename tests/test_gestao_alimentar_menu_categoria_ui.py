@@ -40,6 +40,15 @@ class TestCategoriaMenuUI(unittest.TestCase):
         self.assertIn("ga.salvar_registro_producao(", self.fonte)
         self.assertIn("ga.listar_preparacoes_dia(", self.fonte)
 
+
+    def test_historico_de_producao_consulta_registros_e_detalha_cubas(self):
+        self.assertIn('"Histórico da produção", self.abrir_historico_producao', self.fonte)
+        self.assertIn("class RegistroProducaoHistoricoDialog:", self.fonte)
+        self.assertIn("ga.listar_registros_producao(", self.fonte)
+        self.assertIn("ga.obter_registro_producao(", self.fonte)
+        self.assertIn("peso_sobra_kg", self.fonte)
+        self.assertIn("peso_desperdicio_kg", self.fonte)
+
     def test_refeicoes_menores_continuam_em_lista_unica(self):
         inicio = self.fonte.index('# Desjejum, colação, lanche e ceia permanecem em lista única')
         fim = self.fonte.index('self._render_iniciado=True', inicio)
