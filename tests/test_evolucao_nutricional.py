@@ -172,11 +172,11 @@ class TestEvolucaoNutricional(unittest.TestCase):
 
     def test_kdoqi_2020_separa_drc_sem_dialise_e_dialise(self):
         sem_dm = ev.avaliar_contexto_renal({
-            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G4",
+            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G4", "tfge": 25,
             "dialise": "nao", "estabilidade_metabolica": "estavel"
         }, peso_kg=70, diabetes=False)
         com_dm = ev.avaliar_contexto_renal({
-            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G3a",
+            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G3a", "tfge": 50,
             "dialise": "nao", "estabilidade_metabolica": "estavel"
         }, peso_kg=70, diabetes=True)
         hd = ev.avaliar_contexto_renal({
@@ -206,6 +206,15 @@ class TestEvolucaoNutricional(unittest.TestCase):
         self.assertIsNone(crianca["recomendacao_proteica"]["g_kg_dia"])
 
 
+    def test_estagio_manual_sem_tfge_nao_define_categoria_ou_meta(self):
+        r = ev.avaliar_contexto_renal({
+            "referencia": "KDIGO 2024", "drc_confirmada": True, "estagio": "G4",
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=60)
+        self.assertIsNone(r["estagio"])
+        self.assertIsNone(r["recomendacao_proteica"]["g_kg_dia"])
+        self.assertTrue(any("TFGe do laudo" in aviso for aviso in r["avisos"]))
+
     def test_lra_nao_usa_recomendacao_numerica_de_drc(self):
         r = ev.avaliar_contexto_renal({
             "referencia": "KDOQI 2020", "condicao_renal": "LRA",
@@ -221,12 +230,12 @@ class TestEvolucaoNutricional(unittest.TestCase):
 
     def test_exames_isolados_nao_alteram_meta_proteica(self):
         a = ev.avaliar_contexto_renal({
-            "referencia": "KDIGO 2024", "drc_confirmada": True, "estagio": "G4",
+            "referencia": "KDIGO 2024", "drc_confirmada": True, "estagio": "G4", "tfge": 25,
             "dialise": "nao", "estabilidade_metabolica": "estavel",
             "creatinina": 3.2, "ureia": 110, "albumina_serica": 2.8
         }, peso_kg=60)
         self.assertEqual(a["recomendacao_proteica"]["g_kg_dia"], 0.8)
-        self.assertEqual(len(a["avisos"]), 2)
+        self.assertEqual(len(a["avisos"]), 3)
 
     def test_antropometria_decimal_ptbr_e_peso_corrigido(self):
         texto = ev.formatar_antropometria({
