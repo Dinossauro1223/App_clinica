@@ -55,9 +55,9 @@ REFERENCIAS = [
         "https://doi.org/10.1093/ajcn/51.2.241",
     ),
     (
-        "SOCIEDADE BRASILEIRA DE DIABETES. Diretriz da Sociedade Brasileira de Diabetes: edição 2026. São Paulo: SBD, 2026.",
+        "VALENTE, Fernando et al. Manejo do Diabetes Mellitus Tipo 2. In: SOCIEDADE BRASILEIRA DE DIABETES. Diretriz Oficial da Sociedade Brasileira de Diabetes: edição 2026. São Paulo: SBD, 2026. DOI: 10.29327/5881296.2026-2.",
         "Referência nacional para contextualizar diabetes mellitus, metas glicêmicas e recomendações nutricionais.",
-        "https://diretriz.diabetes.org.br/",
+        "https://diretriz.diabetes.org.br/manejo-do-diabetes-mellitus-tipo-2/",
     ),
     (
         "UNIVERSIDADE FEDERAL DO RIO GRANDE DO NORTE. Sistema Integrado de Bibliotecas. Orientações para normalização de trabalhos acadêmicos. Natal: UFRN, [s. d.].",
