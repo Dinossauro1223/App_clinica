@@ -126,6 +126,7 @@ class TestCalculoOsmolaridadeDiluicao(unittest.TestCase):
         r = sc.calcular_osmolaridade_diluicao(self.ficha, 50, 0)
         self.assertEqual(r["valor"], 300)
         self.assertEqual(r["volume_final_ml"], 50)
+        self.assertEqual(r["status"], "estimada")
 
     def test_nao_calcula_sem_referencia_completa(self):
         r = sc.calcular_osmolaridade_diluicao(dict(self.ficha, dose_ref=None), 100, 50)
