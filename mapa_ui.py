@@ -2495,11 +2495,17 @@ class FormRegistro(_Janela):
             partes = ["Adicione itens com dose diária e informe as metas para calcular a participação."]
         diluicoes = []
         for item in itens:
-            dil = sc.calcular_osmolaridade_diluicao(item, item.get("qtd_dia"), item.get("agua_ml"))
-            if dil.get("valor") is not None:
-                diluicoes.append(f"{item['nome']}: {dil['valor']:.1f} mOsm/L estimados")
+            preparacoes = item.get("preparacoes") or []
+            if preparacoes:
+                resumo_diluicao = sc.resumir_osmolaridade_preparacoes(item)
+                for prep in resumo_diluicao["preparacoes"]:
+                    refeicao = prep.get("refeicao") or f"preparação {prep['numero']}"
+                    if prep.get("valor") is not None:
+                        diluicoes.append(f"{item['nome']} — {refeicao}: {prep['valor']:.1f} mOsm/L estimados")
+                    else:
+                        diluicoes.append(f"{item['nome']} — {refeicao}: osmolaridade não calculável ({prep['mensagem']})")
             elif item.get("osmolaridade_ref") is not None:
-                diluicoes.append(f"{item['nome']}: osmolaridade final não calculável ({dil['mensagem']})")
+                diluicoes.append(f"{item['nome']}: osmolaridade final não calculável; distribua dose e água em cada refeição.")
             if item.get("agua_recomendada_ml") is not None:
                 diluicoes.append(f"{item['nome']}: água recomendada pela ficha {item['agua_recomendada_ml']:g} mL")
         if diluicoes:
