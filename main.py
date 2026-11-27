@@ -224,14 +224,12 @@ class AppClinica(ctk.CTk):
                 if mobile_server_health.check_server_health(url_health, timeout=0.6):
                     print("NutriLab Mobile: servidor já ativo e respondendo ao health-check.")
                     return
-                raise RuntimeError(
+                erro_porta = (
                     "A porta 8765 já está ocupada, mas o serviço não passou no health-check do NutriLab. "
-                    "Não será encerrado nem substituído um processo desconhecido."
+                    "Nenhum processo desconhecido será encerrado."
                 )
-        except ConnectionRefusedError:
-            pass
-        except TimeoutError:
-            pass
+                messagebox.showwarning("Servidor mobile indisponível", erro_porta)
+                return
         except OSError:
             pass
 

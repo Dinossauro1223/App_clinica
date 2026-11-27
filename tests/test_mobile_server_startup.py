@@ -40,11 +40,14 @@ class TestHealthCheckMobile(unittest.TestCase):
         self.assertFalse(mobile_server_health.check_server_health(self.url + "/not-health"))
 
     def test_database_unavailable_reports_not_ready(self):
+        from urllib.error import HTTPError
         self.http.db = str(Path(self.tmp.name) / "missing.db")
         # A missing SQLite file is not a valid initialized server database.
-        with urlopen(self.url, timeout=1) as response:
-            data = json.loads(response.read().decode("utf-8"))
-        self.assertEqual(response.status, 503)
+        with self.assertRaises(HTTPError) as raised:
+            urlopen(self.url, timeout=1)
+        response = raised.exception
+        data = json.loads(response.read().decode("utf-8"))
+        self.assertEqual(response.code, 503)
         self.assertEqual(data, {"status": "error", "database": "unavailable"})
 
 
