@@ -2,6 +2,7 @@
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from datetime import datetime
 
@@ -34,7 +35,7 @@ class TestMonitoramentoGlicemico(unittest.TestCase):
         rid = mg.salvar_hgt(self.db, 7, 126, "2026-11-27 08:15", "Jejum")
         self.assertTrue(mg.inativar_hgt(self.db, 7, rid))
         self.assertEqual(mg.listar_hgt(self.db, 7), [])
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn, conn:
             self.assertEqual(conn.execute(
                 "SELECT ativo FROM HGT_Registros WHERE id_hgt=?", (rid,)
             ).fetchone()[0], 0)
@@ -53,7 +54,7 @@ class TestMonitoramentoGlicemico(unittest.TestCase):
 
     def test_relaciona_hgt_a_oferta_real_com_composicao_e_horario(self):
         import json
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn, conn:
             conn.execute("CREATE TABLE Mapa_Registros (id_registro INTEGER PRIMARY KEY, data TEXT, id_paciente INTEGER)")
             conn.execute("""CREATE TABLE Mapa_Registro_Suplementos (
                 id_registro INTEGER, nome TEXT, preparacoes_json TEXT, carb_100 REAL,
