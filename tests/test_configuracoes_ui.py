@@ -1,4 +1,5 @@
 """Testes das preferências locais exibidas pela tela de Configurações."""
+import ast
 import json
 import tempfile
 import unittest
@@ -14,6 +15,15 @@ class TestPreferenciasConfiguracoes(unittest.TestCase):
             "Claro": "Light", "Escuro": "Dark", "Sistema": "System"
         })
 
+
+    def test_configuracoes_admin_tem_grupos_e_blocos_recolhiveis(self):
+        codigo = Path(cfg.__file__).read_text(encoding="utf-8")
+        self.assertIn("def _grupo", codigo)
+        self.assertIn("def _recolher_cards_config", codigo)
+        for grupo in ("Contas e permissões", "Configurações clínicas", "Equipe de atendimento",
+                      "Refeições e custos", "Dados e recuperação"):
+            self.assertIn(grupo, codigo)
+        self.assertIn("card_aberto=None", codigo)
 
     def test_perfis_de_contas_compartilhadas_sao_copa_e_almoxarifado(self):
         self.assertEqual(cfg.PERFIS_COMPARTILHADOS, {
@@ -58,6 +68,29 @@ class TestPreferenciasConfiguracoes(unittest.TestCase):
     def test_falha_de_escrita_retorna_false(self):
         with mock.patch.object(cfg.os, "makedirs", side_effect=OSError("sem permissão")):
             self.assertFalse(cfg._salvar({"aparencia": "Light"}))
+
+
+    def test_painel_de_midias_personalizadas_e_exibido_uma_unica_vez(self):
+        codigo = Path(cfg.__file__).read_text(encoding="utf-8")
+        arvore = ast.parse(codigo)
+        classe = next(
+            no for no in arvore.body
+            if isinstance(no, ast.ClassDef) and no.name == "ConfiguracoesUI"
+        )
+        metodo = next(
+            no for no in classe.body
+            if isinstance(no, ast.FunctionDef) and no.name == "mostrar"
+        )
+        chamadas = [
+            no for no in ast.walk(metodo)
+            if isinstance(no, ast.Call)
+            and isinstance(no.func, ast.Attribute)
+            and no.func.attr == "_midias_personalizadas"
+        ]
+        self.assertEqual(
+            len(chamadas), 1,
+            "O painel de mídias personalizadas deve aparecer uma única vez nas configurações."
+        )
 
 
 if __name__ == "__main__":

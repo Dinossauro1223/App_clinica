@@ -55,7 +55,7 @@ global.window=global;global.addEventListener=()=>{};
 global.location={href:'http://127.0.0.1:8765/'};
 const store=new Map();
 global.localStorage={getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
-global.document={addEventListener(){},body:{appendChild(){}},createElement(){return {style:{},className:'',innerHTML:'',querySelector(){return {onclick:null,textContent:''}},remove(){}}}};
+global.document={addEventListener(){},documentElement:{dataset:{},style:{setProperty(){}}},body:{appendChild(){},style:{}},querySelectorAll(){return []},createElement(){return {style:{},className:'',innerHTML:'',querySelector(){return {onclick:null,textContent:''}},remove(){}}}};
 let online=true;
 global.fetch=async (input,init={})=>{
  if(!online)throw new TypeError('offline');
@@ -92,6 +92,17 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
             r = subprocess.run([node, str(js)], capture_output=True, text=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("OK", r.stdout)
+
+    def test_menu_do_dia_nao_depende_do_cache_de_producao_para_abrir_offline(self):
+        self.assertIn("resposta.queued", self.html)
+        self.assertIn("let registros=[];", self.html)
+        self.assertIn("catch(_e){registros=[];}", self.html)
+
+    def test_menu_do_dia_so_aparece_quando_ha_preparacoes_publicadas(self):
+        self.assertIn("let abasAtivas=[...(ABAS[u.perfil]||[])]", self.html)
+        self.assertIn("const menuHoje=await api('/api/menu-dia?data='+encodeURIComponent(S.data))", self.html)
+        self.assertIn("if(!possuiPreparacoes)abasAtivas=abasAtivas.filter(a=>a[0]!=='menu')", self.html)
+        self.assertIn("abasAtivas[0]?.[0]||'painel'", self.html)
 
     def test_interface_oferece_as_tres_acoes_de_sincronizacao(self):
         for texto in ("Enviar atualizações", "Adiar até o próximo acesso ao servidor",

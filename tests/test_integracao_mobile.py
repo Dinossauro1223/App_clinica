@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Testes da integração desktop <-> mobile (criado em 12/11/2026). Dados sintéticos; sem interface gráfica real."""
 import os
+import sqlite3
+import threading
 import json
 import shutil
 import sys
@@ -9,6 +11,7 @@ import types
 import unittest
 from contextlib import closing
 from datetime import date, datetime
+from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -565,4 +568,132 @@ class TestCatalogoAlmoxDesktopMobile(unittest.TestCase):
         im.sincronizar_catalogo_almox_desktop(self.db, self.mdb)
         rows = self.mobile("SELECT ativo FROM itens")
         self.assertEqual(rows[0]["ativo"], 0)
+
+
+
+class TestPublicarMenuDia(unittest.TestCase):
+    def test_publica_snapshot_com_ficha_e_repeticao_nao_cria_nova_versao(self):
+        import gestao_alimentar_db as ga
+
+        fd, caminho = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        self.addCleanup(_remover, caminho)
+        def abrir_mobile(*_args):
+            conn = sqlite3.connect(caminho)
+            conn.row_factory = sqlite3.Row
+            return servidor, conn
+        servidor = types.SimpleNamespace(LOCK=threading.Lock())
+        preparacoes = [{
+            "id_preparacao_dia": 7, "refeicao": "almoco", "nome": "Arroz",
+            "categoria": "acompanhamento", "porcoes_previstas": 80, "id_ficha": 3,
+        }]
+        ficha = {
+            "id_ficha": 3, "nome": "Arroz branco", "modo_preparo": "Lavar e cozinhar",
+            "ingredientes": [{"nome": "Arroz", "qtd_per_capita": 50, "unidade": "g"}],
+            "etapas_preparo": [{"ordem": 1, "instrucao": "Lavar"}],
+            "imagens": [],
+        }
+        with mock.patch.object(im, "_abrir_mobile", side_effect=abrir_mobile), \
+             mock.patch.object(ga, "listar_preparacoes_dia", return_value=preparacoes), \
+             mock.patch.object(ga, "obter_ficha", return_value=ficha), \
+             mock.patch.object(ga, "obter_imagem_ficha", return_value=None):
+            primeira = im.publicar_menu_dia("desktop.db", "mobile.db", DIA)
+            segunda = im.publicar_menu_dia("desktop.db", "mobile.db", DIA)
+
+        self.assertEqual(primeira["total"], 6)
+        self.assertTrue(any(x.get("alterado") for x in primeira["publicacoes"]))
+        self.assertTrue(all(not x.get("alterado") for x in segunda["publicacoes"]))
+        conn = sqlite3.connect(caminho)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT snapshot_json FROM menu_dia_publicacoes WHERE data=? AND refeicao='almoco'",
+            (DIA,)).fetchone()
+        snapshot = json.loads(row["snapshot_json"])
+        item = snapshot["preparacoes"][0]
+        self.assertEqual(item["ficha"]["ingredientes"][0]["nome"], "Arroz")
+        self.assertEqual(item["ficha"]["etapas_preparo"][0]["instrucao"], "Lavar")
+        conn.close()
+
+    def test_refeicao_invalida_e_rejeitada_antes_de_abrir_mobile(self):
+        with mock.patch.object(im, "_abrir_mobile") as abrir:
+            with self.assertRaises(im.ErroMobile):
+                im.publicar_menu_dia("desktop.db", "mobile.db", DIA, "cafe")
+        abrir.assert_not_called()
+
+
+class TestImportarProducaoMobile(unittest.TestCase):
+    def test_importa_e_atualiza_registro_mobile_no_historico_desktop_sem_duplicar(self):
+        import gestao_alimentar_db as ga
+
+        with tempfile.TemporaryDirectory() as pasta:
+            desktop = str(Path(pasta) / "desktop.db")
+            mobile = str(Path(pasta) / "mobile.db")
+            ga.inicializar(desktop)
+            with ga._conexao(desktop) as conn:
+                cur = conn.execute("""INSERT INTO GA_Preparacoes_Dia(
+                    data,refeicao,nome,porcoes_previstas,id_ficha,ativa,criado_em,atualizado_em
+                ) VALUES(?,?,?,?,NULL,1,?,?)""",
+                    ("2026-11-26", "almoco", "Arroz", 80,
+                     "2026-11-26T09:00:00-03:00", "2026-11-26T09:00:00-03:00"))
+                id_preparacao = cur.lastrowid
+
+            conn = sqlite3.connect(mobile)
+            try:
+                conn.executescript("""CREATE TABLE menu_dia_producao(
+                    id_registro INTEGER PRIMARY KEY, data TEXT, refeicao TEXT, id_preparacao_dia INTEGER,
+                    nome_preparacao_snapshot TEXT, categoria_snapshot TEXT, porcoes_planejadas REAL,
+                    porcoes_produzidas REAL, porcoes_faltantes REAL, faltou_preparacao INTEGER,
+                    peso_por_porcao_g REAL, observacao TEXT, usuario TEXT, criado_em TEXT, atualizado_em TEXT
+                );
+                CREATE TABLE menu_dia_producao_cubas(
+                    id_cuba INTEGER PRIMARY KEY, id_registro INTEGER, identificacao TEXT,
+                    peso_desperdicio_kg REAL, peso_sobra_kg REAL, observacao TEXT, ordem INTEGER
+                );""")
+                conn.execute("""INSERT INTO menu_dia_producao VALUES(
+                    1,'2026-11-26','almoco',?,'Arroz branco','acompanhamento',80,76,4,0,
+                    150,'Reposição parcial','cozinha','2026-11-26T10:00:00-03:00','2026-11-26T11:00:00-03:00'
+                )""", (id_preparacao,))
+                conn.execute("""INSERT INTO menu_dia_producao_cubas VALUES(
+                    1,1,'Cuba 1',0.1,0.4,'',1
+                )""")
+                conn.commit()
+            finally:
+                conn.close()
+
+            primeira = im.importar_registros_producao_mobile(
+                desktop, mobile, "2026-11-26", "2026-11-26")
+            self.assertEqual(primeira["importados"], 1)
+            registros = ga.listar_registros_producao(
+                desktop, "2026-11-26", "2026-11-26")
+            self.assertEqual(len(registros), 1)
+            self.assertEqual(registros[0]["nome_preparacao_snapshot"], "Arroz branco")
+            detalhe = ga.obter_registro_producao(desktop, registros[0]["id_registro"])
+            self.assertEqual(detalhe["cubas"][0]["identificacao"], "Cuba 1")
+
+            repetida = im.importar_registros_producao_mobile(
+                desktop, mobile, "2026-11-26", "2026-11-26")
+            self.assertEqual(repetida["importados"], 0)
+
+            conn = sqlite3.connect(mobile)
+            try:
+                conn.execute("""UPDATE menu_dia_producao SET porcoes_produzidas=78,
+                    porcoes_faltantes=2,atualizado_em='2026-11-26T12:00:00-03:00'
+                    WHERE id_registro=1""")
+                conn.execute("DELETE FROM menu_dia_producao_cubas WHERE id_registro=1")
+                conn.execute("""INSERT INTO menu_dia_producao_cubas VALUES(
+                    2,1,'Cuba 2',0.05,0.2,'Atualizada',1
+                )""")
+                conn.commit()
+            finally:
+                conn.close()
+
+            atualizada = im.importar_registros_producao_mobile(
+                desktop, mobile, "2026-11-26", "2026-11-26")
+            self.assertEqual(atualizada["importados"], 1)
+            registros = ga.listar_registros_producao(
+                desktop, "2026-11-26", "2026-11-26")
+            self.assertEqual(len(registros), 1)
+            self.assertEqual(registros[0]["porcoes_produzidas"], 78)
+            detalhe = ga.obter_registro_producao(desktop, registros[0]["id_registro"])
+            self.assertEqual(detalhe["cubas"][0]["identificacao"], "Cuba 2")
 

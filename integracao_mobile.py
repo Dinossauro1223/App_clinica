@@ -14,6 +14,7 @@ ENVIAR (desktop -> mobile)
   enviar_mapa()      grava o mapa do dia no mobile e PUBLICA para a copa (a copa recebe o aviso com os leitos alterados).
 Descrição completa: docs/mobile/INTEGRACAO_DESKTOP.md
 """
+import base64
 import hashlib
 import json
 import os
@@ -904,3 +905,182 @@ def enviar_mapa(db, mobile_db, data_iso, id_setor=None, texto=None):
         raise ErroMobile(e.msg) from e
     finally:
         c.close()
+
+
+def publicar_menu_dia(db, mobile_db, data_iso, refeicao=None):
+    """Publica snapshots do Menu do Dia no banco mobile; ficha, etapas e fotos ficam congeladas."""
+    import gestao_alimentar_db as ga
+    from datetime import date
+    try:
+        data_iso = date.fromisoformat(str(data_iso)).isoformat()
+    except (TypeError, ValueError):
+        raise ErroMobile("Informe a data no formato AAAA-MM-DD.")
+    refeicao = str(refeicao or "").strip().lower() or None
+    validas = {"desjejum", "colacao", "almoco", "lanche", "jantar", "ceia"}
+    if refeicao and refeicao not in validas:
+        raise ErroMobile("Selecione uma refeição válida.")
+    agrupadas = {}
+    for prep in ga.listar_preparacoes_dia(db, data_iso, refeicao):
+        ficha = ga.obter_ficha(db, prep["id_ficha"]) if prep.get("id_ficha") else None
+        if ficha:
+            fotos = {}
+            for tipo in ("porcao_individual", "recipiente_cheio"):
+                foto = ga.obter_imagem_ficha(db, ficha["id_ficha"], tipo)
+                if foto and foto.get("conteudo"):
+                    fotos[tipo] = {
+                        "mime_type": foto["mime_type"], "sha256": foto["sha256"],
+                        "data_url": "data:%s;base64,%s" % (
+                            foto["mime_type"], base64.b64encode(bytes(foto["conteudo"])).decode("ascii"))
+                    }
+            ficha["imagens"] = fotos
+        agrupadas.setdefault(prep["refeicao"], []).append({
+            "id_preparacao_dia": prep["id_preparacao_dia"], "nome": prep["nome"],
+            "categoria": prep.get("categoria"), "porcoes_previstas": prep.get("porcoes_previstas"),
+            "ficha": ficha
+        })
+    sv, c = _abrir_mobile(mobile_db)
+    publicados = []
+    try:
+        with sv.LOCK:
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_publicacoes (
+                data TEXT NOT NULL, refeicao TEXT NOT NULL, snapshot_json TEXT NOT NULL,
+                publicado_em TEXT NOT NULL, PRIMARY KEY(data,refeicao))""")
+            alvos = {refeicao} if refeicao else validas
+            for ref in sorted(alvos):
+                snapshot = {"esquema": 1, "data": data_iso, "refeicao": ref,
+                            "publicado_em": _agora(), "preparacoes": agrupadas.get(ref, [])}
+                bruto = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
+                anterior = c.execute(
+                    "SELECT snapshot_json FROM menu_dia_publicacoes WHERE data=? AND refeicao=?",
+                    (data_iso, ref)).fetchone()
+                # Ignora o timestamp ao comparar para não criar nova versão sem mudança real.
+                if anterior:
+                    antigo = json.loads(anterior["snapshot_json"])
+                    if antigo.get("preparacoes") == snapshot["preparacoes"]:
+                        publicados.append({"data": data_iso, "refeicao": ref, "alterado": False})
+                        continue
+                c.execute("""INSERT INTO menu_dia_publicacoes(data,refeicao,snapshot_json,publicado_em)
+                    VALUES(?,?,?,?) ON CONFLICT(data,refeicao) DO UPDATE SET
+                    snapshot_json=excluded.snapshot_json,publicado_em=excluded.publicado_em""",
+                    (data_iso, ref, bruto, snapshot["publicado_em"]))
+                publicados.append({"data": data_iso, "refeicao": ref, "alterado": True,
+                                   "preparacoes": len(snapshot["preparacoes"])})
+            c.commit()
+    except Exception:
+        c.rollback()
+        raise
+    finally:
+        c.close()
+    return {"publicacoes": publicados, "total": len(publicados)}
+
+
+def importar_registros_producao_mobile(db, mobile_db, inicio, fim):
+    """Importa no histórico desktop os registros de produção gravados no banco mobile.
+
+    O snapshot de produção é preservado. Registros móveis mais antigos não sobrescrevem
+    alterações posteriores já feitas no desktop; o estoque nunca é movimentado.
+    """
+    import gestao_alimentar_db as ga
+    from datetime import date
+
+    try:
+        inicio = date.fromisoformat(str(inicio)).isoformat()
+        fim = date.fromisoformat(str(fim)).isoformat()
+    except (TypeError, ValueError):
+        raise ErroMobile("Informe um período válido no formato AAAA-MM-DD.")
+    if fim < inicio:
+        raise ErroMobile("A data final deve ser igual ou posterior à inicial.")
+    if not os.path.isfile(mobile_db):
+        return {"importados": 0, "ignorados": 0}
+
+    ga.inicializar(db)
+    mobile = sqlite3.connect(str(mobile_db), timeout=15)
+    mobile.row_factory = sqlite3.Row
+    try:
+        mobile.execute("PRAGMA busy_timeout=15000")
+        tabelas = {r[0] for r in mobile.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        if "menu_dia_producao" not in tabelas:
+            return {"importados": 0, "ignorados": 0}
+        registros = [dict(r) for r in mobile.execute(
+            "SELECT * FROM menu_dia_producao WHERE data BETWEEN ? AND ? ORDER BY data,refeicao,id_registro",
+            (inicio, fim)).fetchall()]
+        cubas_por_registro = {}
+        if "menu_dia_producao_cubas" in tabelas:
+            for registro in registros:
+                cubas_por_registro[registro["id_registro"]] = [
+                    dict(c) for c in mobile.execute(
+                        "SELECT identificacao,peso_desperdicio_kg,peso_sobra_kg,observacao,ordem "
+                        "FROM menu_dia_producao_cubas WHERE id_registro=? ORDER BY ordem,id_cuba",
+                        (registro["id_registro"],)).fetchall()
+                ]
+    finally:
+        mobile.close()
+
+    importados = ignorados = 0
+    local = ga.conectar(db)
+    try:
+        local.execute("BEGIN IMMEDIATE")
+        for registro in registros:
+            preparacao = local.execute(
+                "SELECT id_ficha FROM GA_Preparacoes_Dia "
+                "WHERE id_preparacao_dia=? AND data=? AND refeicao=?",
+                (int(registro["id_preparacao_dia"]), registro["data"], registro["refeicao"])
+            ).fetchone()
+            if not preparacao:
+                ignorados += 1
+                continue
+
+            atualizado = str(registro.get("atualizado_em") or registro.get("criado_em") or "")
+            existente = local.execute(
+                "SELECT id_registro,atualizado_em FROM GA_Producao_Preparacao "
+                "WHERE id_preparacao_dia=? AND data=?",
+                (int(registro["id_preparacao_dia"]), registro["data"])
+            ).fetchone()
+            if existente and str(existente["atualizado_em"] or "") >= atualizado:
+                ignorados += 1
+                continue
+
+            valores = (
+                registro["refeicao"], preparacao["id_ficha"],
+                registro["nome_preparacao_snapshot"], registro.get("categoria_snapshot"),
+                registro.get("porcoes_planejadas"), registro.get("porcoes_produzidas"),
+                registro.get("porcoes_faltantes") or 0, int(registro.get("faltou_preparacao") or 0),
+                registro.get("peso_por_porcao_g"), registro.get("observacao") or "",
+                registro.get("usuario") or "mobile", atualizado or ga._agora()
+            )
+            if existente:
+                id_local = existente["id_registro"]
+                local.execute("""UPDATE GA_Producao_Preparacao SET
+                    refeicao=?,id_ficha=?,nome_preparacao_snapshot=?,categoria_snapshot=?,
+                    porcoes_planejadas=?,porcoes_produzidas=?,porcoes_faltantes=?,faltou_preparacao=?,
+                    peso_por_porcao_g=?,observacao=?,usuario=?,atualizado_em=?
+                    WHERE id_registro=?""", (*valores, id_local))
+                local.execute("DELETE FROM GA_Producao_Cubas WHERE id_registro=?", (id_local,))
+            else:
+                criado = registro.get("criado_em") or atualizado or ga._agora()
+                cur = local.execute("""INSERT INTO GA_Producao_Preparacao(
+                    id_preparacao_dia,data,refeicao,id_ficha,nome_preparacao_snapshot,categoria_snapshot,
+                    porcoes_planejadas,porcoes_produzidas,porcoes_faltantes,faltou_preparacao,
+                    peso_por_porcao_g,observacao,usuario,criado_em,atualizado_em
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (int(registro["id_preparacao_dia"]), registro["data"], *valores[:10],
+                     valores[10], criado, valores[11]))
+                id_local = cur.lastrowid
+
+            cubas = cubas_por_registro.get(registro["id_registro"], [])
+            local.executemany("""INSERT INTO GA_Producao_Cubas(
+                id_registro,identificacao,peso_desperdicio_kg,peso_sobra_kg,observacao,ordem
+            ) VALUES(?,?,?,?,?,?)""", [
+                (id_local, c["identificacao"], c.get("peso_desperdicio_kg") or 0,
+                 c.get("peso_sobra_kg") or 0, c.get("observacao") or "", c.get("ordem") or n)
+                for n, c in enumerate(cubas, 1)
+            ])
+            importados += 1
+        local.commit()
+    except Exception:
+        local.rollback()
+        raise
+    finally:
+        local.close()
+    return {"importados": importados, "ignorados": ignorados}

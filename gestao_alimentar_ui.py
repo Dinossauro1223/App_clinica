@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import io
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -21,6 +22,24 @@ LARANJA = tema.LARANJA
 CINZA = tema.SUAVE
 UNIDADES = ["g", "kg", "mg", "ml", "L", "un"]
 CATEGORIAS = ["Salada", "Acompanhamento", "Prato principal", "Guarnição", "Sobremesa", "Suco", "Preparação", "Outra"]
+
+CATEGORIAS_MENU_PRINCIPAIS = [
+    ("Saladas", "salada"), ("Entradas", "entrada"),
+    ("Prato principal", "prato_principal"), ("Acompanhamentos", "acompanhamento"),
+    ("Sobremesas", "sobremesa"), ("Suco/fruta", "suco_fruta"),
+]
+
+
+def _categorias_menu(refeicao):
+    if refeicao in ("almoco", "jantar"):
+        return CATEGORIAS_MENU_PRINCIPAIS
+    return [("Geral", "geral")]
+
+
+def _rotulo_categoria_menu(refeicao, categoria):
+    return next((rotulo for rotulo, valor in _categorias_menu(refeicao) if valor == categoria),
+                "Sem categoria" if not categoria else str(categoria))
+
 
 
 def _fmt_num(valor, casas=2):
@@ -645,6 +664,9 @@ class GestaoAlimentarUI:
         _btn(topo, "Importar retiradas mobile", self.importar_retiradas, 170, cor=VERDE).pack(side="left", padx=4)
         _btn(topo, "Atualizar relatório", self.carregar_consumo, 135, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
         _btn(topo, "Preparações esperadas", self.abrir_preparacoes, 165, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
+        _btn(topo, "Publicar Menu do Dia para mobile", self.publicar_menu_mobile, 220, cor=AZUL).pack(side="left", padx=4)
+        _btn(topo, "Registrar produção", self.abrir_registro_producao, 145, cor=VERDE).pack(side="left", padx=4)
+        _btn(topo, "Histórico da produção", self.abrir_historico_producao, 165, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
         _btn(topo, "Gerar rascunhos por horário", self.gerar_rascunhos_por_horario, 205, cor=AZUL).pack(side="left", padx=4)
         self.lbl_consumo_status = ctk.CTkLabel(self.tab_consumo,
             text="Importe o histórico de retiradas Almoxarifado → Cozinha. Movimentos Cozinha → Copa não entram como novo consumo.",
@@ -819,6 +841,45 @@ class GestaoAlimentarUI:
             PreparacoesDiaDialog(self.app,self.db,data,self.carregar_consumo)
         except Exception as exc:
             messagebox.showerror("Preparações esperadas",str(exc),parent=self.tab_consumo)
+
+    def publicar_menu_mobile(self):
+        try:
+            _inicio, data = self._periodo_consumo()
+            resultado = im.publicar_menu_dia(self.db, self.mobile_db, data)
+            alteradas = sum(1 for x in resultado["publicacoes"] if x.get("alterado"))
+            messagebox.showinfo(
+                "Menu do Dia publicado",
+                f"Publicação concluída para {data}.\n"
+                f"Refeições verificadas: {resultado['total']}.\n"
+                f"Snapshots novos/atualizados: {alteradas}.\n"
+                "O aplicativo mobile receberá a versão publicada quando consultar o Menu do Dia.",
+                parent=self.tab_consumo)
+        except Exception as exc:
+            messagebox.showerror("Publicar Menu do Dia", str(exc), parent=self.tab_consumo)
+
+    def abrir_registro_producao(self):
+        try:
+            _, data = self._periodo_consumo()
+            RegistroProducaoDialog(self.app, self.db, data, self.carregar_consumo)
+        except Exception as exc:
+            messagebox.showerror("Registro de produção", str(exc), parent=self.tab_consumo)
+
+    def abrir_historico_producao(self):
+        try:
+            inicio, fim = self._periodo_consumo()
+            try:
+                mobile_db = self._mobile_db_path()
+                if os.path.isfile(mobile_db):
+                    im.importar_registros_producao_mobile(self.db, mobile_db, inicio, fim)
+            except Exception as exc:
+                messagebox.showwarning(
+                    "Sincronização da produção mobile",
+                    "Não foi possível importar todos os registros da cozinha. "
+                    "O histórico desktop será aberto com os dados já disponíveis.\n\n%s" % exc,
+                    parent=self.tab_consumo)
+            RegistroProducaoHistoricoDialog(self.app, self.db, inicio, fim)
+        except Exception as exc:
+            messagebox.showerror("Histórico da produção", str(exc), parent=self.tab_consumo)
 
     def alocar_retirada(self):
         sel = self.tree_movimentos.selection() if self.tree_movimentos else ()
@@ -1032,6 +1093,9 @@ class FichaDialog:
         self.janela.transient(tela.app)
         self.janela.grab_set()
         self.rows = []
+        self._imagens_pendentes = {}
+        self._imagens_removidas = set()
+        self._preview_refs = {}
         self.produtos = ga.listar_produtos_almox(tela.db)
         self.tbca = ga.listar_alimentos(tela.db, limite=10000)
         self._tbca_por_rotulo = {
@@ -1060,9 +1124,10 @@ class FichaDialog:
         ctk.CTkLabel(cab, text="Porções *").grid(row=0, column=4, sticky="w", padx=3, pady=4)
         self.porcoes = ctk.CTkEntry(cab, width=75)
         self.porcoes.grid(row=0, column=5, sticky="w", padx=3, pady=4)
-        ctk.CTkLabel(area, text="Descrição / modo de preparo (opcional)", font=ctk.CTkFont(size=11)).pack(anchor="w", padx=17, pady=(5, 0))
-        self.descricao = ctk.CTkTextbox(area, height=52)
-        self.descricao.pack(fill="x", padx=16, pady=(2, 5))
+        ctk.CTkLabel(area, text="Descrição da preparação (opcional)", font=ctk.CTkFont(size=11)).pack(anchor="w", padx=17, pady=(5, 0))
+        self.descricao = ctk.CTkTextbox(area, height=42)
+        self.descricao.pack(fill="x", padx=16, pady=(2, 3))
+        self._montar_conteudo_visual(area)
         barra = ctk.CTkFrame(area, fg_color="transparent")
         barra.pack(fill="x", padx=16, pady=(4, 2))
         ctk.CTkLabel(barra, text="Ingredientes", font=ctk.CTkFont(size=15, weight="bold"), text_color=VERDE_ESC).pack(side="left")
@@ -1088,12 +1153,102 @@ class FichaDialog:
             self.categoria.set(self.ficha.get("categoria") or "")
             self.porcoes.insert(0, str(self.ficha["porcoes"]))
             self.descricao.insert("1.0", self.ficha.get("descricao") or "")
+            self.modo_preparo.insert("1.0", self.ficha.get("modo_preparo") or "")
+            self.etapas_preparo.insert("1.0", "\n".join(e.get("instrucao", "") for e in self.ficha.get("etapas_preparo", [])))
+            self._carregar_previews_existentes()
             for item in self.ficha["ingredientes"]:
                 self.adicionar_linha(item)
         else:
             self.categoria.set(CATEGORIAS[0])
             self.porcoes.insert(0, "1")
             self.adicionar_linha()
+
+    def _montar_conteudo_visual(self, area):
+        """Editor de instruções, etapas ordenadas e duas imagens independentes."""
+        bloco = ctk.CTkFrame(area, fg_color=tema.BRANCO, corner_radius=8)
+        bloco.pack(fill="x", padx=16, pady=(2, 5))
+        ctk.CTkLabel(bloco, text="Modo de preparo", font=ctk.CTkFont(size=12, weight="bold"),
+                     text_color=VERDE_ESC).pack(anchor="w", padx=9, pady=(6, 0))
+        self.modo_preparo = ctk.CTkTextbox(bloco, height=48)
+        self.modo_preparo.pack(fill="x", padx=8, pady=(2, 5))
+        ctk.CTkLabel(bloco, text="Etapas (uma por linha; a ordem será preservada)",
+                     font=ctk.CTkFont(size=11, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=9, pady=(2, 0))
+        self.etapas_preparo = ctk.CTkTextbox(bloco, height=66)
+        self.etapas_preparo.pack(fill="x", padx=8, pady=(2, 5))
+        linha_fotos = ctk.CTkFrame(bloco, fg_color="transparent")
+        linha_fotos.pack(fill="x", padx=8, pady=(2, 7))
+        self._labels_imagens = {}
+        for tipo, titulo in (("porcao_individual", "Porção individual / prato"),
+                             ("recipiente_cheio", "Recipiente cheio / cuba")):
+            cartao = ctk.CTkFrame(linha_fotos, fg_color=tema.FUNDO, corner_radius=6)
+            cartao.pack(side="left", fill="both", expand=True, padx=3)
+            ctk.CTkLabel(cartao, text=titulo, font=ctk.CTkFont(size=11, weight="bold")).pack(
+                anchor="w", padx=7, pady=(5, 1))
+            preview = ctk.CTkLabel(cartao, text="Nenhuma imagem cadastrada", height=72)
+            preview.pack(fill="x", padx=6, pady=2)
+            self._labels_imagens[tipo] = preview
+            acoes = ctk.CTkFrame(cartao, fg_color="transparent")
+            acoes.pack(fill="x", padx=5, pady=(1, 5))
+            ctk.CTkButton(acoes, text="Selecionar / substituir", width=145, height=27,
+                          command=lambda t=tipo: self._selecionar_imagem_ficha(t)).pack(
+                              side="left", padx=2)
+            ctk.CTkButton(acoes, text="Remover", width=70, height=27,
+                          fg_color=CINZA, hover_color=tema.SUAVE,
+                          command=lambda t=tipo: self._remover_imagem_ficha(t)).pack(
+                              side="left", padx=2)
+
+    def _exibir_preview_ficha(self, tipo, dados, texto=None):
+        """Cria preview limitado e mantém referência da imagem para o CustomTkinter."""
+        label = self._labels_imagens[tipo]
+        if not dados:
+            label.configure(text=texto or "Nenhuma imagem cadastrada", image=None)
+            self._preview_refs.pop(tipo, None)
+            return
+        try:
+            from PIL import Image
+            with Image.open(io.BytesIO(dados)) as original:
+                imagem = original.convert("RGB")
+                imagem.thumbnail((280, 150), Image.Resampling.LANCZOS)
+            foto = ctk.CTkImage(light_image=imagem, dark_image=imagem, size=imagem.size)
+            self._preview_refs[tipo] = foto
+            label.configure(text="", image=foto)
+        except Exception:
+            label.configure(text="Imagem cadastrada, mas não foi possível gerar o preview.", image=None)
+            self._preview_refs.pop(tipo, None)
+
+    def _carregar_previews_existentes(self):
+        if not self.ficha:
+            return
+        metadados = {i.get("tipo"): i for i in self.ficha.get("imagens", [])}
+        for tipo in ("porcao_individual", "recipiente_cheio"):
+            if tipo not in metadados:
+                continue
+            registro = ga.obter_imagem_ficha(self.tela.db, self.ficha["id_ficha"], tipo)
+            if registro:
+                self._exibir_preview_ficha(tipo, registro.get("conteudo"))
+
+    def _selecionar_imagem_ficha(self, tipo):
+        caminho = filedialog.askopenfilename(
+            parent=self.janela, title="Selecionar imagem da ficha",
+            filetypes=[("Imagens", "*.png *.jpg *.jpeg *.webp")])
+        if not caminho:
+            return
+        try:
+            with open(caminho, "rb") as arquivo:
+                dados = arquivo.read()
+            dados, _, _ = ga._validar_imagem_ficha(dados)
+        except Exception as exc:
+            messagebox.showerror("Imagem da ficha", str(exc), parent=self.janela)
+            return
+        self._imagens_pendentes[tipo] = dados
+        self._imagens_removidas.discard(tipo)
+        self._exibir_preview_ficha(tipo, dados)
+
+    def _remover_imagem_ficha(self, tipo):
+        self._imagens_pendentes.pop(tipo, None)
+        self._imagens_removidas.add(tipo)
+        self._exibir_preview_ficha(tipo, None, "Imagem será removida ao salvar")
 
     def adicionar_linha(self, item=None):
         # Cada ingrediente ocupa um cartão com linhas próprias para identificação,
@@ -1240,9 +1395,19 @@ class FichaDialog:
                 "id_produto_mobile": id_produto,
             })
         try:
-            ga.salvar_ficha(self.tela.db, self.nome.get(), self.categoria.get(), self.porcoes.get(), ingredientes,
-                            descricao=self.descricao.get("1.0", "end").strip(),
-                            id_ficha=self.ficha["id_ficha"] if self.ficha else None)
+            id_ficha = ga.salvar_ficha(
+                self.tela.db, self.nome.get(), self.categoria.get(), self.porcoes.get(), ingredientes,
+                descricao=self.descricao.get("1.0", "end").strip(),
+                id_ficha=self.ficha["id_ficha"] if self.ficha else None)
+            etapas = [linha.strip() for linha in self.etapas_preparo.get("1.0", "end").splitlines()
+                      if linha.strip()]
+            imagens = dict(self._imagens_pendentes)
+            for tipo in self._imagens_removidas:
+                imagens[tipo] = None
+            ga.salvar_conteudo_visual_ficha(
+                self.tela.db, id_ficha,
+                modo_preparo=self.modo_preparo.get("1.0", "end").strip(),
+                etapas=etapas, imagens=imagens)
         except Exception as exc:
             messagebox.showerror("Ficha técnica", str(exc), parent=self.janela)
             return
@@ -1270,33 +1435,63 @@ class PreparacoesDiaDialog:
         ctk.CTkLabel(topo,text="Data").pack(side="left")
         self.e_data=ctk.CTkEntry(topo,width=115);self.e_data.pack(side="left",padx=5);self.e_data.insert(0,self.data)
         ctk.CTkLabel(topo,text="Refeição").pack(side="left",padx=(12,3))
-        self.cb_ref=ctk.CTkComboBox(topo,width=150,values=["desjejum","colacao","almoco","lanche","jantar","ceia"])
+        self.cb_ref=ctk.CTkComboBox(topo,width=150,values=["desjejum","colacao","almoco","lanche","jantar","ceia"],
+                                      command=self._mudar_refeicao)
         self.cb_ref.set("almoco");self.cb_ref.pack(side="left")
+        self._refeicao_atual="almoco"
         _btn(topo,"Carregar",self._carregar,100,cor=CINZA,hover=tema.SUAVE).pack(side="left",padx=6)
         bloco=ctk.CTkFrame(area);bloco.pack(fill="x",padx=14,pady=5)
-        self.e_nome=ctk.CTkEntry(bloco,width=230,placeholder_text="Nome da preparação esperada")
+        self.e_nome=ctk.CTkEntry(bloco,width=210,placeholder_text="Nome da preparação")
         self.e_nome.pack(side="left",padx=6,pady=8)
-        self.e_porcoes=ctk.CTkEntry(bloco,width=95,placeholder_text="Porções")
+        self.e_porcoes=ctk.CTkEntry(bloco,width=85,placeholder_text="Porções")
         self.e_porcoes.pack(side="left",padx=4,pady=8)
         op=["— sem ficha —"]+[f"{x['id_ficha']} | {x['nome']}" for x in self.fichas]
-        self.cb_ficha=ctk.CTkComboBox(bloco,width=235,values=op)
+        self.cb_ficha=ctk.CTkComboBox(bloco,width=205,values=op)
         self.cb_ficha.set(op[0]);self.cb_ficha.pack(side="left",padx=4,pady=8)
+        self.cb_categoria=ctk.CTkComboBox(bloco,width=150,values=[])
+        self.cb_categoria.pack(side="left",padx=4,pady=8)
         _btn(bloco,"Adicionar",self._adicionar,100).pack(side="left",padx=4)
-        frame,self.tree=_tree(area,[("nome","Preparação",260,"w"),("porcoes","Porções previstas",115,"e"),("ficha","Ficha vinculada",250,"w")],altura=12)
+        self._atualizar_categorias()
+        frame,self.tree=_tree(area,[("categoria","Grupo",125,"w"),("nome","Preparação",235,"w"),
+                                    ("porcoes","Porções previstas",115,"e"),("ficha","Ficha vinculada",220,"w")],altura=12)
+        # A coluna hierárquica nativa do Treeview fornece o controle de expandir/recolher.
+        self.tree.configure(show="tree headings")
+        self.tree.heading("#0",text="")
+        self.tree.column("#0",width=22,minwidth=22,stretch=False)
+        self.tree.tag_configure("grupo_menu",font=("TkDefaultFont",10,"bold"),
+                                background=tema.cor_atual(tema.FUNDO),
+                                foreground=tema.cor_atual(tema.TEXTO))
         frame.pack(fill="both",expand=True,padx=14,pady=5)
         rod=ctk.CTkFrame(area,fg_color="transparent");rod.pack(fill="x",padx=14,pady=(4,12))
         _btn(rod,"Remover selecionada",self._remover,155,cor=LARANJA,hover=tema.LARANJA).pack(side="left")
         _btn(rod,"Salvar cardápio esperado",self._salvar,190).pack(side="right")
 
+    def _mudar_refeicao(self, nova_refeicao):
+        if nova_refeicao == self._refeicao_atual:
+            return
+        if self.rows and not messagebox.askyesno(
+                "Trocar refeição",
+                "A lista será carregada novamente. Alterações ainda não salvas serão descartadas. Continuar?",
+                parent=self.janela):
+            self.cb_ref.set(self._refeicao_atual)
+            self._atualizar_categorias()
+            return
+        self._refeicao_atual=nova_refeicao
+        self._atualizar_categorias()
+        self._carregar()
+
+    def _atualizar_categorias(self):
+        opcoes=_categorias_menu(self.cb_ref.get())
+        rotulos=[rotulo for rotulo,_valor in opcoes]
+        self.cb_categoria.configure(values=rotulos)
+        atual=self.cb_categoria.get() if hasattr(self,"cb_categoria") else ""
+        self.cb_categoria.set(atual if atual in rotulos else rotulos[0])
+
     def _carregar(self):
         try:
             self.data=self.e_data.get().strip()
             self.rows=ga.listar_preparacoes_dia(self.db,self.data,self.cb_ref.get())
-            for iid in self.tree.get_children():self.tree.delete(iid)
-            for i,r in enumerate(self.rows):
-                nome_ficha=r.get("nome_ficha") or "—"
-                self.tree.insert("", "end", iid=str(i), values=(r["nome"],_fmt_num(r.get("porcoes_previstas")),nome_ficha),
-                                 tags=("linha_par" if i % 2 == 0 else "linha_impar",))
+            self._render()
         except Exception as exc:
             messagebox.showerror("Preparações esperadas",str(exc),parent=self.janela)
 
@@ -1312,26 +1507,88 @@ class PreparacoesDiaDialog:
         if txt!="— sem ficha —" and " | " in txt:
             try:ficha=int(txt.split(" | ",1)[0])
             except ValueError:ficha=None
-        novo={"nome":nome,"porcoes_previstas":porcoes,"id_ficha":ficha}
+        categoria=next((valor for rotulo,valor in _categorias_menu(self.cb_ref.get())
+                        if rotulo==self.cb_categoria.get()),None)
+        if not categoria:
+            messagebox.showwarning("Preparações esperadas","Selecione a categoria da preparação.",parent=self.janela);return
+        novo={"nome":nome,"porcoes_previstas":porcoes,"id_ficha":ficha,"categoria":categoria}
         self.rows=[x for x in self.rows if x["nome"].casefold()!=nome.casefold()]
         self.rows.append(novo)
         self._render()
         self.e_nome.delete(0,"end");self.e_porcoes.delete(0,"end");self.cb_ficha.set("— sem ficha —")
 
     def _render(self):
-        for iid in self.tree.get_children():self.tree.delete(iid)
-        for i,r in enumerate(self.rows):
-            ficha_nome=next((x["nome"] for x in self.fichas if x["id_ficha"]==r.get("id_ficha")),"—")
-            self.tree.insert(
-                "", "end", iid=str(i),
-                values=(r["nome"], _fmt_num(r.get("porcoes_previstas")), ficha_nome),
-                tags=("linha_par" if i % 2 == 0 else "linha_impar",)
-            )
+        # Mantém o estado de expansão das categorias enquanto a lista é atualizada.
+        primeira_renderizacao=not getattr(self,"_render_iniciado",False)
+        grupos_existentes=set(self.tree.get_children(""))
+        grupos_abertos={iid for iid in grupos_existentes
+                        if self.tree.item(iid,"open")}
+        for iid in self.tree.get_children():
+            self.tree.delete(iid)
+
+        def inserir_preparacao(parent, indice, r, categoria_visivel=True):
+            ficha_nome=next((x["nome"] for x in self.fichas
+                             if x["id_ficha"]==r.get("id_ficha")),"—")
+            categoria=("Geral" if self.cb_ref.get() not in ("almoco","jantar") else
+                       _rotulo_categoria_menu(self.cb_ref.get(),r.get("categoria")))
+            self.tree.insert(parent,"end",iid=f"prep:{indice}",
+                values=(categoria if categoria_visivel else "",r["nome"],
+                        _fmt_num(r.get("porcoes_previstas")),ficha_nome),
+                tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
+
+        if self.cb_ref.get() in ("almoco","jantar"):
+            ordem=list(CATEGORIAS_MENU_PRINCIPAIS)
+            agrupadas={valor:[] for _rotulo,valor in ordem}
+            sem_categoria=[]
+            outras={}
+            for indice,r in enumerate(self.rows):
+                categoria=r.get("categoria")
+                if categoria in agrupadas:
+                    agrupadas[categoria].append((indice,r))
+                elif not categoria:
+                    sem_categoria.append((indice,r))
+                else:
+                    outras.setdefault(categoria,[]).append((indice,r))
+            for rotulo,valor in ordem:
+                itens=agrupadas[valor]
+                if not itens:
+                    continue
+                gid=f"grupo:{valor}"
+                self.tree.insert("","end",iid=gid,values=(rotulo,"","",""),
+                                 open=(primeira_renderizacao or gid in grupos_abertos or gid not in grupos_existentes),
+                                 tags=("grupo_menu",))
+                for indice,r in itens:
+                    inserir_preparacao(gid,indice,r,False)
+            for categoria,itens in outras.items():
+                gid=f"grupo:{categoria}"
+                self.tree.insert("","end",iid=gid,
+                    values=(_rotulo_categoria_menu(self.cb_ref.get(),categoria),"","",""),
+                    open=(primeira_renderizacao or gid in grupos_abertos or gid not in grupos_existentes),tags=("grupo_menu",))
+                for indice,r in itens:
+                    inserir_preparacao(gid,indice,r,False)
+            if sem_categoria:
+                gid="grupo:sem_categoria"
+                self.tree.insert("","end",iid=gid,values=("Sem categoria","","",""),
+                                 open=(gid in grupos_abertos or not grupos_abertos),
+                                 tags=("grupo_menu",))
+                for indice,r in sem_categoria:
+                    inserir_preparacao(gid,indice,r,False)
+        else:
+            # Desjejum, colação, lanche e ceia permanecem em lista única (categoria Geral).
+            for indice,r in enumerate(self.rows):
+                inserir_preparacao("",indice,r,True)
+        self._render_iniciado=True
 
     def _remover(self):
         sel=self.tree.selection()
         if not sel:return
-        idx=int(sel[0])
+        iid=sel[0]
+        if not iid.startswith("prep:"):
+            messagebox.showinfo("Preparações esperadas",
+                                "Selecione uma preparação dentro de uma categoria para removê-la.",
+                                parent=self.janela)
+            return
+        idx=int(iid.split(":",1)[1])
         if 0<=idx<len(self.rows):
             self.rows.pop(idx);self._render()
 
@@ -1465,3 +1722,278 @@ class AlocarRetiradaDialog:
             self.ao_salvar()
         except Exception as exc:
             messagebox.showerror("Destinação da retirada",str(exc),parent=self.janela)
+
+class RegistroProducaoDialog:
+    """Formulário para registrar porções, faltas e perdas por cuba."""
+
+    REFEICOES = ["desjejum", "colacao", "almoco", "lanche", "jantar", "ceia"]
+
+    def __init__(self, app, db_path, data, ao_salvar):
+        self.app, self.db, self.data, self.ao_salvar = app, db_path, data, ao_salvar
+        self.janela = _PainelJanela(app, "Registro diário de produção")
+        self.janela.title("Registro diário de produção")
+        self.janela.geometry("900x740")
+        self.janela.transient(app)
+        self.janela.grab_set()
+        self.preparacoes, self.linhas_cubas = {}, []
+        self._montar()
+        self._carregar_preparacoes()
+
+    def _montar(self):
+        area = self.janela
+        ctk.CTkLabel(area, text="Fechamento da preparação",
+                     font=ctk.CTkFont(size=19, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=16, pady=(14, 3))
+        ctk.CTkLabel(area, text="Registre o resultado real. Informe sobras e desperdícios separadamente para cada cuba.",
+                     font=ctk.CTkFont(size=11), text_color=tema.SUAVE, wraplength=850,
+                     justify="left").pack(anchor="w", padx=16, pady=(0, 10))
+        filtros = ctk.CTkFrame(area, fg_color="transparent")
+        filtros.pack(fill="x", padx=14, pady=4)
+        ctk.CTkLabel(filtros, text="Data").pack(side="left")
+        self.e_data = ctk.CTkEntry(filtros, width=120)
+        self.e_data.pack(side="left", padx=5)
+        self.e_data.insert(0, self.data)
+        ctk.CTkLabel(filtros, text="Refeição").pack(side="left", padx=(12, 3))
+        self.cb_ref = ctk.CTkComboBox(filtros, width=145, values=self.REFEICOES,
+                                      command=lambda _v: self._carregar_preparacoes())
+        self.cb_ref.set("almoco")
+        self.cb_ref.pack(side="left")
+        _btn(filtros, "Carregar", self._carregar_preparacoes, 100,
+             cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=6)
+        selecao = ctk.CTkFrame(area)
+        selecao.pack(fill="x", padx=14, pady=5)
+        ctk.CTkLabel(selecao, text="Preparação do cardápio").pack(anchor="w", padx=10, pady=(8, 2))
+        self.cb_preparacao = ctk.CTkComboBox(selecao, values=[], command=self._selecionar_preparacao)
+        self.cb_preparacao.pack(fill="x", padx=10, pady=(0, 8))
+        self.lbl_ficha = ctk.CTkLabel(selecao, text="Selecione uma preparação do cardápio.",
+                                      text_color=tema.SUAVE, anchor="w")
+        self.lbl_ficha.pack(fill="x", padx=10, pady=(0, 8))
+        dados = ctk.CTkFrame(area)
+        dados.pack(fill="x", padx=14, pady=5)
+        self.e_planejadas = self._campo(dados, "Porções planejadas", "0", 0, 0)
+        self.e_produzidas = self._campo(dados, "Porções produzidas", "", 0, 1)
+        self.e_faltantes = self._campo(dados, "Porções faltantes", "0", 0, 2)
+        self.e_peso = self._campo(dados, "Peso por porção (g), opcional", "", 1, 0)
+        self.e_usuario = self._campo(dados, "Responsável", getpass.getuser(), 1, 1)
+        self.var_faltou = tk.BooleanVar(value=False)
+        ctk.CTkCheckBox(dados, text="Não foi produzida/disponibilizada",
+                        variable=self.var_faltou).grid(row=1, column=2, sticky="w", padx=8, pady=10)
+        for coluna in range(3):
+            dados.grid_columnconfigure(coluna, weight=1)
+        bloco = ctk.CTkFrame(area)
+        bloco.pack(fill="both", expand=True, padx=14, pady=5)
+        cab = ctk.CTkFrame(bloco, fg_color="transparent")
+        cab.pack(fill="x", padx=8, pady=(8, 3))
+        ctk.CTkLabel(cab, text="Sobras e desperdícios por cuba (kg)",
+                     font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        _btn(cab, "＋ Adicionar cuba", self._adicionar_cuba, 135,
+             cor=CINZA, hover=tema.SUAVE).pack(side="right")
+        self.cubas_frame = ctk.CTkScrollableFrame(bloco, height=180)
+        self.cubas_frame.pack(fill="both", expand=True, padx=7, pady=(2, 8))
+        self._adicionar_cuba()
+        ctk.CTkLabel(area, text="Observação operacional").pack(anchor="w", padx=16, pady=(5, 1))
+        self.txt_observacao = ctk.CTkTextbox(area, height=50)
+        self.txt_observacao.pack(fill="x", padx=14, pady=(0, 8))
+        rodape = ctk.CTkFrame(area, fg_color="transparent")
+        rodape.pack(fill="x", padx=14, pady=(0, 14))
+        _btn(rodape, "Cancelar", self.janela.destroy, 110, cor=CINZA, hover=tema.SUAVE).pack(side="left")
+        _btn(rodape, "Salvar produção", self._salvar, 155).pack(side="right")
+
+    def _campo(self, raiz, rotulo, valor, linha, coluna):
+        bloco = ctk.CTkFrame(raiz, fg_color="transparent")
+        bloco.grid(row=linha, column=coluna, sticky="ew", padx=6, pady=5)
+        ctk.CTkLabel(bloco, text=rotulo, anchor="w", font=ctk.CTkFont(size=10)).pack(anchor="w")
+        entrada = ctk.CTkEntry(bloco)
+        entrada.pack(fill="x", pady=(2, 0))
+        if valor:
+            entrada.insert(0, str(valor))
+        return entrada
+
+    def _carregar_preparacoes(self):
+        try:
+            data, refeicao = self.e_data.get().strip(), self.cb_ref.get().strip().lower()
+            self.preparacoes = {
+                f"{p['id_preparacao_dia']} | {p.get('nome_ficha') or p['nome']}": p
+                for p in ga.listar_preparacoes_dia(self.db, data, refeicao)
+            }
+            opcoes = list(self.preparacoes)
+            self.cb_preparacao.configure(values=opcoes)
+            self.cb_preparacao.set(opcoes[0] if opcoes else "")
+            if opcoes:
+                self._selecionar_preparacao(opcoes[0])
+            else:
+                self.e_planejadas.delete(0, "end")
+                self.e_planejadas.insert(0, "0")
+                self.lbl_ficha.configure(text="Não há preparações esperadas para esta data e refeição.")
+        except Exception as exc:
+            messagebox.showerror("Preparações do dia", str(exc), parent=self.janela)
+
+    def _selecionar_preparacao(self, valor):
+        p = self.preparacoes.get(valor)
+        if p:
+            self.e_planejadas.delete(0, "end")
+            self.e_planejadas.insert(0, str(p.get("porcoes_previstas") or 0))
+            self.lbl_ficha.configure(text=f"Ficha: {p.get('nome_ficha') or 'Sem ficha vinculada'} · Categoria: {p.get('categoria') or 'Geral'}")
+
+    def _adicionar_cuba(self):
+        linha = ctk.CTkFrame(self.cubas_frame, fg_color="transparent")
+        linha.pack(fill="x", pady=3)
+        nome = ctk.CTkEntry(linha, width=135, placeholder_text="Cuba/panela")
+        nome.pack(side="left", padx=3)
+        sobra = ctk.CTkEntry(linha, width=100, placeholder_text="Sobra kg")
+        sobra.pack(side="left", padx=3)
+        desperdicio = ctk.CTkEntry(linha, width=110, placeholder_text="Desperdício kg")
+        desperdicio.pack(side="left", padx=3)
+        obs = ctk.CTkEntry(linha, placeholder_text="Observação")
+        obs.pack(side="left", fill="x", expand=True, padx=3)
+        _btn(linha, "Remover", lambda: self._remover_cuba(linha), 75,
+             cor=LARANJA, hover=tema.LARANJA).pack(side="right", padx=3)
+        self.linhas_cubas.append((linha, nome, sobra, desperdicio, obs))
+
+    def _remover_cuba(self, linha):
+        self.linhas_cubas = [r for r in self.linhas_cubas if r[0] is not linha]
+        linha.destroy()
+
+    def _salvar(self):
+        try:
+            p = self.preparacoes.get(self.cb_preparacao.get())
+            if not p:
+                raise ValueError("Selecione uma preparação do cardápio esperado.")
+            cubas = []
+            for _linha, nome, sobra, desperdicio, obs in self.linhas_cubas:
+                if not any(x.get().strip() for x in (nome, sobra, desperdicio, obs)):
+                    continue
+                cubas.append({"identificacao": nome.get().strip(),
+                              "peso_sobra_kg": sobra.get().strip() or 0,
+                              "peso_desperdicio_kg": desperdicio.get().strip() or 0,
+                              "observacao": obs.get().strip()})
+            registro = ga.salvar_registro_producao(
+                self.db, p["id_preparacao_dia"], self.e_data.get().strip(),
+                self.cb_ref.get().strip().lower(), self.e_planejadas.get().strip(),
+                porcoes_produzidas=self.e_produzidas.get().strip() or None,
+                porcoes_faltantes=self.e_faltantes.get().strip() or 0,
+                faltou_preparacao=self.var_faltou.get(),
+                peso_por_porcao_g=self.e_peso.get().strip() or None,
+                cubas=cubas, observacao=self.txt_observacao.get("1.0", "end").strip(),
+                usuario=self.e_usuario.get().strip())
+            self.janela.destroy()
+            messagebox.showinfo("Produção registrada",
+                f"{registro['nome_preparacao_snapshot']}: {_fmt_num(registro['porcoes_produzidas'])} produzida(s), "
+                f"{_fmt_num(registro['porcoes_faltantes'])} faltante(s), {len(registro['cubas'])} cuba(s).",
+                parent=self.app)
+            self.ao_salvar()
+        except Exception as exc:
+            messagebox.showerror("Registro de produção", str(exc), parent=self.janela)
+
+class RegistroProducaoHistoricoDialog:
+    """Consulta os registros de produção e detalha perdas por cuba."""
+
+    def __init__(self, app, db_path, inicio, fim):
+        self.app, self.db = app, db_path
+        self.janela = _PainelJanela(app, "Histórico da produção")
+        self.janela.title("Histórico da produção")
+        self.janela.geometry("980x620")
+        self.janela.transient(app)
+        filtros = ctk.CTkFrame(self.janela, fg_color="transparent")
+        filtros.pack(fill="x", padx=14, pady=(14, 6))
+        ctk.CTkLabel(filtros, text="De").pack(side="left")
+        self.e_inicio = ctk.CTkEntry(filtros, width=120)
+        self.e_inicio.pack(side="left", padx=4)
+        self.e_inicio.insert(0, inicio)
+        ctk.CTkLabel(filtros, text="Até").pack(side="left", padx=(8, 0))
+        self.e_fim = ctk.CTkEntry(filtros, width=120)
+        self.e_fim.pack(side="left", padx=4)
+        self.e_fim.insert(0, fim)
+        _btn(filtros, "Consultar", self.carregar, 110).pack(side="left", padx=6)
+        self.lbl_resumo = ctk.CTkLabel(self.janela, text="", anchor="w",
+                                       text_color=tema.SUAVE)
+        self.lbl_resumo.pack(fill="x", padx=16, pady=(0, 5))
+        frame, self.tree = _tree(self.janela, [
+            ("data", "Data", 95, "center"), ("refeicao", "Refeição", 95, "center"),
+            ("preparacao", "Preparação", 220, "w"), ("categoria", "Categoria", 120, "w"),
+            ("planejadas", "Planejadas", 85, "e"), ("produzidas", "Produzidas", 85, "e"),
+            ("faltantes", "Faltantes", 85, "e"), ("status", "Situação", 130, "center"),
+            ("responsavel", "Responsável", 130, "w")
+        ], altura=18)
+        frame.pack(fill="both", expand=True, padx=12, pady=6)
+        self.tree.bind("<Double-1>", lambda _e: self.detalhar())
+        rodape = ctk.CTkFrame(self.janela, fg_color="transparent")
+        rodape.pack(fill="x", padx=14, pady=(4, 12))
+        _btn(rodape, "Ver detalhes e cubas", self.detalhar, 180).pack(side="left")
+        _btn(rodape, "Fechar", self.janela.destroy, 100, cor=CINZA, hover=tema.SUAVE).pack(side="right")
+        self.carregar()
+
+    def carregar(self):
+        try:
+            registros = ga.listar_registros_producao(
+                self.db, self.e_inicio.get().strip(), self.e_fim.get().strip())
+            self.tree.delete(*self.tree.get_children())
+            for indice, r in enumerate(registros):
+                situacao = "Não produzida" if r.get("faltou_preparacao") else (
+                    "Com falta" if float(r.get("porcoes_faltantes") or 0) > 0 else "Registrada")
+                self.tree.insert("", "end", iid=str(r["id_registro"]), values=(
+                    r["data"], r["refeicao"], r["nome_preparacao_snapshot"],
+                    r.get("categoria_snapshot") or "Geral",
+                    _fmt_num(r.get("porcoes_planejadas"), 0),
+                    _fmt_num(r.get("porcoes_produzidas"), 0),
+                    _fmt_num(r.get("porcoes_faltantes"), 0), situacao,
+                    r.get("usuario") or "—"),
+                    tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
+            total = len(registros)
+            faltas = sum(float(r.get("porcoes_faltantes") or 0) for r in registros)
+            nao_produzidas = sum(bool(r.get("faltou_preparacao")) for r in registros)
+            self.lbl_resumo.configure(
+                text=f"{total} registro(s) · {nao_produzidas} preparação(ões) não produzida(s) · "
+                     f"{_fmt_num(faltas, 0)} porção(ões) faltante(s)")
+        except Exception as exc:
+            messagebox.showerror("Histórico da produção", str(exc), parent=self.janela)
+
+    def detalhar(self):
+        selecionado = self.tree.selection()
+        if not selecionado:
+            messagebox.showinfo("Detalhes da produção", "Selecione um registro.", parent=self.janela)
+            return
+        try:
+            registro = ga.obter_registro_producao(self.db, int(selecionado[0]))
+            if not registro:
+                raise ValueError("O registro selecionado não existe mais.")
+            janela = _PainelJanela(self.janela, "Detalhes da produção")
+            janela.title("Detalhes da produção")
+            janela.geometry("700x540")
+            ctk.CTkLabel(janela, text=registro["nome_preparacao_snapshot"],
+                         font=ctk.CTkFont(size=17, weight="bold"),
+                         text_color=VERDE_ESC).pack(anchor="w", padx=16, pady=(14, 4))
+            texto = (
+                f"Data: {registro['data']} · Refeição: {registro['refeicao']}\n"
+                f"Categoria: {registro.get('categoria_snapshot') or 'Geral'}\n"
+                f"Porções planejadas: {_fmt_num(registro.get('porcoes_planejadas'), 0)}\n"
+                f"Porções produzidas: {_fmt_num(registro.get('porcoes_produzidas'), 0)}\n"
+                f"Porções faltantes: {_fmt_num(registro.get('porcoes_faltantes'), 0)}\n"
+                f"Peso por porção: {_fmt_num(registro.get('peso_por_porcao_g'))} g\n"
+                f"Responsável: {registro.get('usuario') or '—'}\n"
+                f"Observação: {registro.get('observacao') or '—'}"
+            )
+            ctk.CTkLabel(janela, text=texto, justify="left", anchor="w",
+                         wraplength=650).pack(fill="x", padx=16, pady=8)
+            frame, tree = _tree(janela, [
+                ("cuba", "Cuba/panela", 170, "w"), ("sobra", "Sobra (kg)", 110, "e"),
+                ("desperdicio", "Desperdício (kg)", 130, "e"),
+                ("observacao", "Observação", 230, "w")
+            ], altura=9)
+            frame.pack(fill="both", expand=True, padx=12, pady=8)
+            total_sobra = total_desperdicio = 0.0
+            for indice, cuba in enumerate(registro.get("cubas") or []):
+                sobra = float(cuba.get("peso_sobra_kg") or 0)
+                desperdicio = float(cuba.get("peso_desperdicio_kg") or 0)
+                total_sobra += sobra
+                total_desperdicio += desperdicio
+                tree.insert("", "end", values=(cuba["identificacao"], _fmt_num(sobra),
+                    _fmt_num(desperdicio), cuba.get("observacao") or "—"),
+                    tags=("linha_par" if indice % 2 == 0 else "linha_impar",))
+            ctk.CTkLabel(janela, text=f"Total de sobras: {_fmt_num(total_sobra)} kg · "
+                         f"Total de desperdício: {_fmt_num(total_desperdicio)} kg",
+                         font=ctk.CTkFont(size=12, weight="bold"),
+                         text_color=VERDE_ESC).pack(anchor="w", padx=16, pady=(2, 12))
+        except Exception as exc:
+            messagebox.showerror("Detalhes da produção", str(exc), parent=self.janela)
+

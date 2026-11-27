@@ -1,4 +1,10 @@
-<!doctype html>
+.passos-imagem{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0}
+.passo-imagem{min-width:0;border:1px solid var(--borda,#dce3e8);border-radius:12px;padding:10px;background:var(--cartao,#fff)}
+.passo-imagem img{display:block;width:100%;height:auto;max-height:230px;object-fit:contain;margin:0 auto 8px}
+.passo-imagem b{display:block;margin-bottom:5px}
+.passo-imagem p{margin:0;font-size:.92em}
+@media(max-width:620px){.passos-imagem{grid-template-columns:1fr}.passo-imagem{display:grid;grid-template-columns:minmax(110px,38%) 1fr;align-items:center;gap:10px}.passo-imagem img{max-height:150px;margin:0}.passo-imagem b{margin-bottom:4px}}
+:root{--tinta:#1d2a2a;--papel:#f3f6f2;--cartao:#fff;--linha:#cfd8d3;--suave:#5d6b66;--cor:#0f4c5c;--alerta:#b3261e;--alerta-bg:#fde8e6;--campo:#fff;--campo-texto:#1d2a2a;--sec-bg:#fff;--sec-texto:#0f4c5c;--sombra:0 1px 2px #00000008;--aviso-bg:#e6ece8;--chip-bg:#e6ece8;--nota-bg:#edf3ef}
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
@@ -44,6 +50,18 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .nums{font-variant-numeric:tabular-nums;font-size:1.5rem;font-weight:800}
 .mini{font-size:.85rem;color:var(--suave)}
 .scan-qr{display:none}@media(max-width:640px){.scan-qr{display:block;width:100%;margin-top:10px}}
+.preferencias{position:relative;display:inline-block;vertical-align:middle;margin:5px 0}
+.preferencias summary{cursor:pointer;list-style:none;border:1px solid var(--linha);border-radius:8px;padding:7px 10px;min-height:40px;font-weight:700;background:var(--cartao);color:var(--tinta)}
+.preferencias summary::-webkit-details-marker{display:none}
+.preferencias[open] summary{border-color:var(--cor)}
+.preferencias-conteudo{position:absolute;z-index:8;top:calc(100% + 6px);right:0;width:min(310px,calc(100vw - 24px));padding:12px;background:var(--cartao);color:var(--tinta);border:1px solid var(--linha);border-radius:10px;box-shadow:0 4px 18px #0002}
+.preferencias-conteudo label{margin-bottom:10px}
+.preferencias-conteudo select{background:var(--campo);color:var(--campo-texto)}
+.texto-controle{width:100%;min-height:28px;accent-color:var(--cor)}
+.texto-valor{float:right;font-weight:800;color:var(--cor)}
+body.zoom-texto{zoom:1}
+@media(max-width:420px){.preferencias-conteudo{right:auto;left:0}.preferencias{max-width:100%}.sub{flex-wrap:wrap}}
+
 .passo{display:flex;gap:6px}.passo .btn{padding:0 14px}
 .seg label{display:block;padding:10px;border:1px solid var(--linha);border-radius:6px;margin-bottom:6px}
 .seg input{margin-right:8px;accent-color:var(--cor)}.seg .off{opacity:.45}
@@ -57,12 +75,6 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .orientacao-texto br{display:block;margin-bottom:5px;content:""}
 .orientacao-nota{background:#edf3ef;border-left:4px solid var(--cor);border-radius:6px;padding:10px 12px;margin:8px 0}
 .img-diluicao{display:block;width:100%;max-height:230px;object-fit:contain;margin:4px auto 10px}
-.passos-imagem{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0}
-.passo-imagem{min-width:0;border:1px solid var(--borda,#dce3e8);border-radius:12px;padding:10px;background:var(--cartao,#fff)}
-.passo-imagem img{display:block;width:100%;height:auto;max-height:230px;object-fit:contain;margin:0 auto 8px}
-.passo-imagem b{display:block;margin-bottom:5px}
-.passo-imagem p{margin:0;font-size:.92em}
-@media(max-width:620px){.passos-imagem{grid-template-columns:1fr}.passo-imagem{display:grid;grid-template-columns:minmax(110px,38%) 1fr;align-items:center;gap:10px}.passo-imagem img{max-height:150px;margin:0}.passo-imagem b{margin-bottom:4px}}
 .potassio-grafico{display:grid;gap:9px;margin:12px 0}
 .potassio-linha{display:grid;grid-template-columns:minmax(105px,1fr) minmax(90px,2fr) 58px;align-items:center;gap:8px;font-size:.84rem}
 .potassio-barra{height:13px;background:#e8eeea;border-radius:20px;overflow:hidden}
@@ -85,6 +97,22 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .escala{display:grid;gap:7px;margin:8px 0 16px}
 .escala-linha{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;padding:7px 0;border-bottom:1px solid #e7ece8}
 .escala-fruta{display:flex;align-items:center;gap:7px;min-width:0;font-size:.88rem}
+ html[data-tema=escuro]{--tinta:#e6eeeb;--papel:#141c1b;--cartao:#202a28;--linha:#394744;--suave:#aab8b3;--campo:#18211f;--campo-texto:#e6eeeb;--sec-bg:#202a28;--sec-texto:#85c9b6;--alerta-bg:#482a29;--alerta:#f28d87;--aviso-bg:#263532;--chip-bg:#303b38;--nota-bg:#273734;color-scheme:dark}
+ @media(prefers-color-scheme:dark){html[data-tema=sistema]{--tinta:#e6eeeb;--papel:#141c1b;--cartao:#202a28;--linha:#394744;--suave:#aab8b3;--campo:#18211f;--campo-texto:#e6eeeb;--sec-bg:#202a28;--sec-texto:#85c9b6;--alerta-bg:#482a29;--alerta:#f28d87;--aviso-bg:#263532;--chip-bg:#303b38;--nota-bg:#273734;color-scheme:dark}}
+ html[data-tema=claro]{color-scheme:light}
+ input[type=text],input[type=number],input[type=password],input[type=date],input[type=time],input[type=datetime-local],input[type=search],select,textarea{background:var(--campo);color:var(--campo-texto);border-color:var(--linha)}
+ .cartao,.passo-preparo,.fruta-card{background:var(--cartao);color:var(--tinta);box-shadow:var(--sombra)}
+.aviso{background:var(--aviso-bg);color:var(--tinta)}.chip{background:var(--chip-bg);color:var(--suave)}.orientacao-nota{background:var(--nota-bg);color:var(--tinta)}
+.modal .caixa{background:var(--papel)!important;color:var(--tinta)}.sup-linha{background:var(--cartao)!important}
+header .sub span{min-width:0;overflow-wrap:anywhere}
+ .btn.sec{background:var(--sec-bg);color:var(--sec-texto)}.barra{background:var(--papel)}
+ .admin-secao h2{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;outline-offset:3px}
+.admin-secao[data-aberto=false] > :not(h2){display:none}
+.admin-grupo{grid-column:1/-1;margin:12px 0 0;font-size:1rem;color:var(--tinta);border-bottom:1px solid var(--linha);padding-bottom:6px}
+ .admin-secao h2::before{content:'▸';display:inline-block;width:1em;color:var(--cor);transition:transform .15s ease}
+ .admin-secao[data-aberto=true] h2::before{transform:rotate(90deg)}
+ .tema-controle{min-height:38px;width:auto;max-width:130px;padding:4px 8px;border:1px solid #ffffff55;border-radius:7px;background:#ffffff12;color:inherit;font-size:.82rem}
+ #entrada .tema-controle{background:var(--cartao);color:var(--tinta);border-color:var(--linha);margin:8px 0 14px;width:100%;max-width:none}
 .escala-fruta .fruta-fig{width:38px;height:38px;flex-basis:38px}
 .escala-valor{font-weight:750;font-variant-numeric:tabular-nums;font-size:.86rem;white-space:nowrap}
 .escala-trilho{grid-column:1/3;height:8px;background:#e9eeea;border-radius:20px;overflow:hidden}
@@ -272,6 +300,13 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
     const n=await conflitos(q);mostrar(q,n);
   }
   window.NLOffline={get:read,set:write,remove,clearData,ready,pendentes:()=>queue().length};
+const lerTemaMobile=()=>{try{return (window.NLOffline&&NLOffline.get('aparencia'))||localStorage.getItem('nl:aparencia')||'sistema'}catch(e){return 'sistema'}};
+function aplicaTemaMobile(valor,salvar=true){const tema=['sistema','claro','escuro'].includes(valor)?valor:'sistema';document.documentElement.dataset.tema=tema;if(salvar){try{if(window.NLOffline&&NLOffline.set)NLOffline.set('aparencia',tema);else localStorage.setItem('nl:aparencia',tema)}catch(e){}}document.querySelectorAll('.tema-controle').forEach(sel=>{if(sel.value!==tema)sel.value=tema});}
+function lerEscalaTextoMobile(){try{return Math.max(50,Math.min(200,Math.round((Number((window.NLOffline&&NLOffline.get('escalaTexto'))||localStorage.getItem('nl:escalaTexto')||100)||100)/10)*10))}catch(e){return 100}}
+function aplicaEscalaTextoMobile(valor,salvar=true){const escala=Math.max(50,Math.min(200,Math.round((Number(valor)||100)/10)*10));document.documentElement.style.setProperty('--escala-texto',escala/100);document.body.style.zoom=String(escala/100);document.querySelectorAll('.texto-controle').forEach(sl=>{if(Number(sl.value)!==escala)sl.value=escala});document.querySelectorAll('.texto-valor').forEach(o=>o.textContent=escala+'%');if(salvar){try{if(window.NLOffline&&NLOffline.set)NLOffline.set('escalaTexto',escala);else localStorage.setItem('nl:escalaTexto',String(escala))}catch(e){}}}
+function temaSelectHtml(){const escala=lerEscalaTextoMobile();return '<details class=preferencias><summary>Configurações</summary><div class=preferencias-conteudo><label class=f>Aparência<select class=tema-controle aria-label=Aparência onchange="aplicaTemaMobile(this.value)"><option value=sistema>Auto (sistema)</option><option value=claro>Claro</option><option value=escuro>Escuro</option></select></label><label class=f>Acessibilidade do texto <span class=texto-valor>'+escala+'%</span><input class=texto-controle aria-label=Tamanho do texto type=range min=50 max=200 step=10 value='+escala+' oninput="aplicaEscalaTextoMobile(this.value)"></label><p class=mini>50% a 200%, em intervalos de 10%. Os elementos acompanham a escala para facilitar o uso.</p></div></details>'}
+aplicaTemaMobile(lerTemaMobile(),false);
+aplicaEscalaTextoMobile(lerEscalaTextoMobile(),false);
   window.addEventListener('online',()=>{adiado=false;setTimeout(ready,500)});
   document.addEventListener('DOMContentLoaded',()=>setTimeout(ready,800));
 })();
@@ -285,10 +320,10 @@ const COR={admin:'#0f4c5c',nutricionista:'#2f7d4f',copa:'#a85f00',estoque_cozinh
 const REF={desjejum:'Desjejum',colacao:'Lanche da manhã',almoco:'Almoço',lanche:'Lanche da tarde',jantar:'Jantar',ceia:'Ceia'};
 const ORI={externo:'Entrada de fornecedor/compra',almox:'Almoxarifado',cozinha:'Cozinha'};
 const LB={nome:'paciente',idade_anos:'idade (anos)',idade_meses:'meses',dieta:'dieta',diagnostico:'diagnóstico',pref_sim:'gosta',pref_nao:'não aceita',acompanhante:'acompanhante'};
-const ABAS={admin:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoques'],['avisos','Avisos'],['cadastros','Cadastros'],['orientacoes','Orientações']],
- nutricionista:[['painel','Painel'],['mapa','Mapa'],['refeicoes','Refeições'],['avisos','Avisos'],['orientacoes','Orientações']],
- copa:[['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoque'],['orientacoes','Orientações']],
- estoque_cozinha:[['estoque','Estoque'],['orientacoes','Orientações']],estoque_almox:[['estoque','Estoque'],['orientacoes','Orientações']]};
+const ABAS={admin:[['painel','Painel'],['menu','Menu do Dia'],['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoques'],['avisos','Avisos'],['cadastros','Cadastros'],['orientacoes','Orientações']],
+ nutricionista:[['painel','Painel'],['menu','Menu do Dia'],['mapa','Mapa'],['refeicoes','Refeições'],['avisos','Avisos'],['orientacoes','Orientações']],
+ copa:[['menu','Menu do Dia'],['mapa','Mapa'],['refeicoes','Refeições'],['estoque','Estoque'],['orientacoes','Orientações']],
+ estoque_cozinha:[['menu','Menu do Dia'],['estoque','Estoque'],['orientacoes','Orientações']],estoque_almox:[['estoque','Estoque'],['orientacoes','Orientações']]};
 const ehStaff=()=>S.u.perfil==='admin'||S.u.perfil==='nutricionista';
 const escolheSetor=()=>S.u.perfil==='admin'||((S.u.perfil==='nutricionista'||S.u.perfil==='copa')&&!S.u.id_setor);
 const br=i=>i?i.slice(8,10)+'/'+i.slice(5,7):'';
@@ -297,7 +332,7 @@ async function api(p,b){
   const j=await r.json().catch(()=>({erro:'Resposta inválida do servidor.'}));
   if(r.status===401&&S.tok){sair();throw new Error(j.erro)}
   if(!r.ok)throw new Error(j.erro||'Erro');
-  return j;
+  $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${temaSelectHtml()}${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
 }
 function aviso(t,erro){const a=$('#aviso');if(a){a.innerHTML=t?`<div class="aviso ${erro?'erro':''}">${esc(t)}</div>`:'';if(t)scrollTo(0,0)}}
 const tenta=f=>async(...a)=>{try{await f(...a)}catch(e){aviso(e.message,1)}};
@@ -311,6 +346,7 @@ function telaLogin(msg){
   <button class="btn sec scan-qr" onclick="abrirLeitorQR()">Escanear QR code</button>
   <section id=qrLeitor class=cartao hidden style="margin-top:12px">
    <b>Vincular a outro servidor</b><p id=qrAviso class=mini>Aponte a câmera para o QR code de conexão exibido nas configurações do NutriLab.</p>
+ aplicaTemaMobile(lerTemaMobile(),false);
    <video id=qrVideo playsinline muted style="display:none;width:100%;max-height:260px;border-radius:8px;background:#111"></video>
    <label class=f>Fotografar ou escolher uma imagem do QR code<input id=qrArquivo type=file accept="image/*" capture="environment" onchange="lerImagemQR(this)"></label>
    <label class=f>Ou digitar o endereço do servidor<input id=qrManual type=text inputmode=url placeholder="http://192.168.0.10:8765"></label>
@@ -409,28 +445,40 @@ async function entrar(){
         await abrir(local.usuario,local.hoje||new Date().toISOString().slice(0,10));
         aviso('Modo offline: alterações ficarão salvas neste aparelho e serão sincronizadas quando a conexão voltar.',0);
         return;
-      }
+  document.documentElement.style.setProperty('--cor',COR[u.perfil]);aplicaTemaMobile(lerTemaMobile(),false);document.body.className=ehStaff()?'adm':'';
     }catch(_offline){}
     telaLogin(e.message)
   }
 }
-async function abrir(u,hoje){
+  $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span>${temaSelectHtml()}<button onclick="sair()">Sair</button></div></header>
   S.u=u;S.hoje=hoje;S.data=hoje;try{if(window.NLOffline)NLOffline.set('user',JSON.stringify({usuario:u,hoje}))}catch(e){}
   document.documentElement.style.setProperty('--cor',COR[u.perfil]);document.body.className=ehStaff()?'adm':'';
+  aplicaTemaMobile(lerTemaMobile(),false);aplicaEscalaTextoMobile(lerEscalaTextoMobile(),false);
   S.setores=(await api('/api/setores')).setores;S.setor=(S.setores[0]||{}).id||'';
   S.itens=(await api('/api/itens')).itens;S.suplementos=(await api('/api/suplementos')).suplementos||[];
   if(u.estoque)S.est=u.estoque;
   const sub=!escolheSetor()&&S.setores[0]?' · '+S.setores[0].nome:'';
+  let abasAtivas=[...(ABAS[u.perfil]||[])];
+  // O Menu do Dia só aparece quando há preparações publicadas para a data atual.
+  // A consulta usa o cache GET existente quando o aparelho está sem conexão.
+  if(abasAtivas.some(a=>a[0]==='menu')){
+    try{
+      const menuHoje=await api('/api/menu-dia?data='+encodeURIComponent(S.data));
+      const possuiPreparacoes=!!menuHoje.publicado&&(menuHoje.refeicoes||[])
+        .some(r=>(r.snapshot?.preparacoes||[]).length>0);
+      if(!possuiPreparacoes)abasAtivas=abasAtivas.filter(a=>a[0]!=='menu');
+    }catch(e){abasAtivas=abasAtivas.filter(a=>a[0]!=='menu')}
+  }
   $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span><button onclick="sair()">Sair</button></div></header>
-  <nav>${ABAS[u.perfil].map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
+  <nav>${abasAtivas.map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
   <footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
-  ir(ABAS[u.perfil][0][0]);
+  ir(abasAtivas[0]?.[0]||'painel');
   verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
 }
 const ir=tenta(async aba=>{
   S.aba=aba;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.a===aba));aviso('');
   $('#vista').innerHTML='<p class=mini>Carregando…</p>';
-  await({painel:vPainel,mapa:vMapa,refeicoes:vRef,estoque:vEstoque,avisos:vAvisos,cadastros:vCad,orientacoes:vOrientacoes})[aba]();
+  await({painel:vPainel,menu:vMenuDia,mapa:vMapa,refeicoes:vRef,estoque:vEstoque,avisos:vAvisos,cadastros:vCad,orientacoes:vOrientacoes})[aba]();
 });
 function filtros(tipo){
   if(!ehStaff())return '';
@@ -502,6 +550,72 @@ const coleta=()=>[...document.querySelectorAll('details.leito[data-id]')].map(e=
   pref_sim:e.querySelector('.ps').value,pref_nao:e.querySelector('.pn').value,
   acompanhante:e.querySelector('.ac').checked,suplementos};
 });
+async function vMenuDia(){
+  const j=await api('/api/menu-dia?data='+encodeURIComponent(S.data));
+  let registros=[];
+  try{const prod=await api('/api/menu-dia/producao?data='+encodeURIComponent(S.data));registros=prod.registros||[]}
+  catch(_e){registros=[];} // A falta do cache de produção não pode ocultar o Menu do Dia offline.
+  const podeRegistrar=['admin','nutricionista','estoque_cozinha'].includes(S.u.perfil);
+  const nomes={desjejum:'Desjejum',colacao:'Lanche da manhã',almoco:'Almoço',lanche:'Lanche da tarde',jantar:'Jantar',ceia:'Ceia'};
+  if(!j.publicado){
+    $('#vista').innerHTML='<div class=cartao><h2>Menu do Dia</h2><p>Não há cardápio publicado para '+br(S.data)+'. O último menu recebido continuará disponível apenas nas datas em que foi publicado.</p></div>';
+    return;
+  }
+  const secoes=(j.refeicoes||[]).map(r=>{
+    const itens=r.snapshot?.preparacoes||[];
+    const conteudo=itens.map(p=>{
+      const f=p.ficha||{}, imgs=f.imagens||{}, ingredientes=f.ingredientes||[], etapas=f.etapas_preparo||[];
+      const foto=(tipo,titulo)=>imgs[tipo]?.data_url?'<figure style="margin:8px 0"><img loading=lazy src="'+imgs[tipo].data_url+'" alt="'+titulo+'" style="width:100%;max-height:240px;object-fit:contain;border-radius:8px"><figcaption class=mini>'+titulo+'</figcaption></figure>':'';
+      const ing=ingredientes.length?'<h4>Ingredientes por porção</h4><ul>'+ingredientes.map(i=>'<li>'+esc(i.nome)+': '+esc(i.qtd_per_capita)+' '+esc(i.unidade)+'</li>').join('')+'</ul>':'';
+      const prep=etapas.length?'<h4>Modo de preparo</h4><ol>'+etapas.map(e=>'<li>'+esc(e.instrucao)+'</li>').join('')+'</ol>':'';
+      const registro=registros.find(x=>String(x.id_preparacao_dia)===String(p.id_preparacao_dia));
+      const cubas=registro?.cubas?.length?registro.cubas:[{}];
+      const resumoRegistro=registro?'<p class=mini>Produção registrada: '+esc(registro.porcoes_produzidas??'não informada')+' produzida(s) · '+esc(registro.porcoes_faltantes??0)+' faltante(s) · '+esc(registro.cubas?.length??0)+' cuba(s) · responsável: '+esc(registro.usuario||'—')+'</p>':'';
+      const formProducao=podeRegistrar?'<section class="cartao prod-mob"><h4>Registro de produção</h4>'+
+        '<form onsubmit="salvarProducaoMobile(event,'+Number(p.id_preparacao_dia)+',\''+esc(r.refeicao)+'\')">'+
+        '<div class="filtros"><label class=f>Porções produzidas<input name=produzidas type=number min=0 step=0.1 value="'+esc(registro?.porcoes_produzidas??'')+'"></label>'+
+        '<label class=f>Porções faltantes<input name=faltantes type=number min=0 step=0.1 value="'+esc(registro?.porcoes_faltantes??0)+'"></label></div>'+
+        '<label class=f><input name=nao_produzida type=checkbox '+(registro?.faltou_preparacao?'checked':'')+' onchange="alternarNaoProduzidaMobile(this)"> Não foi produzida/disponibilizada</label>'+
+        '<label class=f>Peso por porção (g), opcional<input name=peso type=number min=0.01 step=0.1 value="'+esc(registro?.peso_por_porcao_g??'')+'"></label>'+
+        '<label class=f>Observação<textarea name=observacao rows=2>'+esc(registro?.observacao||'')+'</textarea></label>'+
+        '<h4>Sobras e desperdício por cuba (kg)</h4><div class=lista-cubas>'+cubas.map(cubaMobileHtml).join('')+'</div>'+
+        '<button type=button class="btn sec" onclick="adicionarCubaMobile(this)">＋ Adicionar cuba</button>'+
+        '<button type=submit class=btn>Salvar registro de produção</button></form></section>':'';
+      return '<details class=cartao style="margin:8px 0"><summary><b>'+esc(p.nome)+'</b> <span class=mini>· '+esc(p.categoria||'Geral')+'</span></summary>'+
+        '<p class=mini>Porções previstas: '+esc(p.porcoes_previstas??'não informadas')+'</p>'+
+        (f.modo_preparo?'<p>'+esc(f.modo_preparo).replace(/\\n/g,'<br>')+'</p>':'')+
+        foto('porcao_individual','Porção individual')+foto('recipiente_cheio','Recipiente cheio')+ing+prep+resumoRegistro+formProducao+'</details>';
+    }).join('');
+    return '<section class=cartao><h3>'+esc(nomes[r.refeicao]||r.refeicao)+'</h3>'+
+      '<p class=mini>Publicado em '+esc(r.publicado_em||'—')+'</p>'+
+      (conteudo||'<p class=mini>Nenhuma preparação cadastrada.</p>')+'</section>';
+  }).join('');
+  $('#vista').innerHTML='<div class=cartao><div class=filtros><label class=f>Data<input type=date value="'+esc(S.data)+'" onchange="S.data=this.value||S.hoje;ir(\'menu\')"></label></div>'+
+    '<h2>Menu do Dia</h2><p class=mini>Versão publicada pelo desktop. O conteúdo consultado fica no cache local para acesso sem conexão.</p></div>'+
+    (secoes||'<div class=cartao>Nenhuma refeição publicada para esta data.</div>');
+}
+function cubaMobileHtml(c={}){return '<div class="cuba-mob filtros">'+
+  '<label class=f>Identificação<input name=identificacao value="'+esc(c.identificacao||'')+'" placeholder="Cuba/panela"></label>'+
+  '<label class=f>Sobra (kg)<input name=sobra type=number min=0 step=0.001 value="'+esc(c.peso_sobra_kg??0)+'"></label>'+
+  '<label class=f>Desperdício (kg)<input name=desperdicio type=number min=0 step=0.001 value="'+esc(c.peso_desperdicio_kg??0)+'"></label>'+
+  '<label class=f>Observação<input name=obs value="'+esc(c.observacao||'')+'"></label>'+
+  '<button type=button class="btn sec" onclick="this.closest(\\'.cuba-mob\\').remove()">Remover</button></div>'}
+function adicionarCubaMobile(btn){const lista=btn.parentElement.querySelector('.lista-cubas');lista.insertAdjacentHTML('beforeend',cubaMobileHtml({}));}
+function alternarNaoProduzidaMobile(check){const form=check.form;if(check.checked){form.produzidas.value=0;const planejadas=form.closest('details').querySelector('p.mini')?.textContent.match(/[0-9]+(?:[.,][0-9]+)?/)?.[0];form.faltantes.value=planejadas?planejadas.replace(',','.'):0;}}
+async function salvarProducaoMobile(ev,id,ref){
+  ev.preventDefault();const form=ev.currentTarget;
+  const cubas=[...form.querySelectorAll('.cuba-mob')].map(x=>({identificacao:x.querySelector('[name=identificacao]').value.trim(),
+    peso_sobra_kg:x.querySelector('[name=sobra]').value||0,peso_desperdicio_kg:x.querySelector('[name=desperdicio]').value||0,
+    observacao:x.querySelector('[name=obs]').value.trim()})).filter(x=>x.identificacao||Number(x.peso_sobra_kg)||Number(x.peso_desperdicio_kg)||x.observacao);
+  try{
+    const resposta=await api('/api/menu-dia/producao',{data:S.data,refeicao:ref,id_preparacao_dia:id,
+      porcoes_produzidas:form.produzidas.value||null,porcoes_faltantes:form.faltantes.value||0,
+      faltou_preparacao:form.nao_produzida.checked,peso_por_porcao_g:form.peso.value||null,
+      observacao:form.observacao.value,cubas});
+    if(resposta.queued){aviso('Sem conexão com o servidor. Registro guardado no aparelho e será enviado quando a conexão voltar.',0);return;}
+    await vMenuDia();aviso('Registro de produção salvo. Nenhuma movimentação de estoque foi criada.',0);
+  }catch(e){aviso(e.message,1);}
+}
 async function vMapa(){
   if(!S.setor){$('#vista').innerHTML=filtros('setor')+semSetor;return}
   const j=await api(`/api/mapa?setor=${S.setor}&data=${S.data}`),st=ehStaff(),n=j.linhas.filter(l=>l.rascunho).length;
@@ -682,13 +796,15 @@ async function vEstoque(){
   const j=EST=await api(`/api/estoque?estoque=${S.est}&data=${S.data}`);
   if(!j.linhas.length){$('#vista').innerHTML=filtros('estoque')+'<div class=cartao>Nenhum item cadastrado. Peça ao administrador.</div>';return}
   const dia=!ehStaff()||S.data===S.hoje;
+  const estoqueNome=S.est==='cozinha'?'Estoque da cozinha':S.est==='copa'?'Estoque da copa':'Estoque do almoxarifado';
+  const estoqueOrientacao=S.est==='cozinha'?'Confira o saldo da cozinha antes do preparo. Registre entradas recebidas do almoxarifado e salve a contagem do dia.':S.est==='copa'?'Confira o saldo da copa. Quando precisar repor, verifique primeiro a disponibilidade na cozinha.':'Confira os saldos do almoxarifado e registre recebimentos e devoluções com a origem correta.';
   const cats=[...new Set(j.linhas.map(l=>l.categoria||'Outros'))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  $('#vista').innerHTML=filtros('estoque')+'<h2>Estoque do almoxarifado</h2><p class=mini>Os produtos com validade mais próxima aparecem primeiro. Use a busca ou a categoria para localizar um item rapidamente.</p>'+
-  `<div class="cartao filtros"><label class=f>Buscar produto<input id=buscaEstoque type=search placeholder="Digite o nome do produto" oninput="filtrarEstoque()"></label><label class=f>Categoria<select id=categoriaEstoque onchange="filtrarEstoque()"><option value="">Todas as categorias</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select></label></div>`+
+  $('#vista').innerHTML=filtros('estoque')+`<h2>${estoqueNome}</h2><p class=mini>${esc(estoqueOrientacao)} Os produtos com validade mais próxima aparecem primeiro. Use a busca ou a categoria para localizar um item rapidamente.</p>`+
+  `<h3>1. Conferir e atualizar saldo</h3><div class="cartao filtros"><label class=f>Buscar produto<input id=buscaEstoque type=search placeholder="Digite o nome do produto" oninput="filtrarEstoque()"></label><label class=f>Categoria<select id=categoriaEstoque onchange="filtrarEstoque()"><option value="">Todas as categorias</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select></label></div>`+
   j.linhas.map(l=>`<div class=cartao data-i=${l.id_item} data-nome="${esc(l.nome.toLocaleLowerCase('pt-BR'))}" data-cat="${esc(l.categoria||'Outros')}"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(l.nome)}</b><span class=mini>${esc(l.unidade)}</span></div><div class=mini>${esc(l.categoria||'Outros')} · Validade: ${l.validade?br(l.validade):'não informada'}</div>
    ${(S.u.perfil==='estoque_almox'||S.u.perfil==='admin')?`<details style="margin-top:6px"><summary>Editar categoria e validade</summary><label class=f>Categoria<select id="cat-${l.id_item}">${cats.map(c=>`<option value="${esc(c)}" ${c===(l.categoria||'Gêneros alimentícios')?'selected':''}>${esc(c)}</option>`).join('')}</select></label><label class=f>Validade<input type=date id="val-${l.id_item}" value="${l.validade||''}"></label><button class="btn sec peq" onclick="salvarClassificacao(${l.id_item})">Salvar categoria/validade</button></details>`:''}
    <input type=number inputmode=decimal min=0 step=any value="${l.qtd}" style="margin:6px 0">${chips(l,j.estoque+'|'+l.id_item,j.pendentes)}</div>`).join('')+
-  (dia?`<h2>Registrar recebimento, retirada ou devolução</h2><div class=cartao><label class=f>Item<select id=ri onchange="origens()">${j.linhas.map(l=>`<option value=${l.id_item}>${esc(l.nome)} (${esc(l.unidade)})</option>`).join('')}</select></label>
+  (dia?`<h3>2. Registrar movimentação</h3><h2>Registrar recebimento, retirada ou devolução</h2><div class=cartao><label class=f>Item<select id=ri onchange="origens()">${j.linhas.map(l=>`<option value=${l.id_item}>${esc(l.nome)} (${esc(l.unidade)})</option>`).join('')}</select></label>
    <label class=f>Quantidade movimentada<input type=number inputmode=decimal min=0 step=any id=rq></label><label class=f>Observação (opcional)<textarea id=robs rows=2 placeholder="Ex.: devolução de 20 g não utilizados"></textarea></label><div class=seg id=ro></div>
    <button class="btn sec" style="width:100%;margin-top:6px" onclick="repor()">Registrar movimentação</button></div>`:'')+barra('salvaEst','Salvar contagem de '+br(j.data));
   if(dia)origens();
@@ -701,7 +817,9 @@ function filtrarEstoque(){
 }
 async function salvarClassificacao(id){
  await api('/api/almox/itens/'+id,{categoria:$('#cat-'+id).value,validade:$('#val-'+id).value});
- await vEstoque();aviso('Categoria e validade atualizadas.',0);
+  '<button class="btn sec peq" onclick="salvaOrientacao(' + o.id + ',this)">Salvar texto</button>' +
+  '<label class=f>Imagem da orientação (JPEG, PNG ou WebP)<input type=file accept="image/jpeg,image/png,image/webp" onchange="enviarImagemOrientacao(' + o.id + ',this)"></label>' +
+  (o.imagem_data ? '<img class=img-diluicao style="max-width:100%;max-height:260px;object-fit:contain" src="data:' + o.imagem_tipo + ';base64,' + o.imagem_data + '" alt="Imagem atual da orientação">' : '<p class=mini>Sem imagem personalizada. A ilustração padrão será mantida quando aplicável.</p>') + '</div>').join('') +
 }
 function origens(){
   const iid=$('#ri').value;let primeiro=true;
@@ -709,6 +827,29 @@ function origens(){
     const s=o==='externo'?null:(EST.saldos_origem[o]||{})[iid];
     const bloq=EST.estoque==='copa'&&o==='almox'&&((EST.saldos_origem.cozinha||{})[iid]||0)>0;
     const ck=!bloq&&primeiro;if(ck)primeiro=false;
+async function enviarImagemOrientacao(id,input){
+ const arquivo=input.files&&input.files[0];
+ if(!arquivo)return;
+ if(!['image/jpeg','image/png','image/webp'].includes(arquivo.type)){aviso('Use uma imagem JPEG, PNG ou WebP.',1);input.value='';return;}
+ try{
+  const imagem=await new Promise((resolve,reject)=>{
+   const url=URL.createObjectURL(arquivo),img=new Image();
+   img.onload=()=>{URL.revokeObjectURL(url);resolve(img);};
+   img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Não foi possível abrir a imagem.'));};
+   img.src=url;
+  });
+  const escala=Math.min(1,900/imagem.width,700/imagem.height);
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(imagem.width*escala));canvas.height=Math.max(1,Math.round(imagem.height*escala));
+  canvas.getContext('2d').drawImage(imagem,0,0,canvas.width,canvas.height);
+  let dataUrl=canvas.toDataURL('image/jpeg',.78);
+  if(dataUrl.length>640000)dataUrl=canvas.toDataURL('image/jpeg',.62);
+  if(dataUrl.length>650000)throw new Error('A imagem continua muito grande. Escolha uma imagem menor.');
+  await api('/api/admin/orientacoes/imagem',{id,tipo:'image/jpeg',imagem_data:dataUrl.split(',')[1]});
+  await vOrientacoes();aviso('Imagem da orientação atualizada para todos os celulares.',0);
+ }catch(e){aviso(e.message||'Não foi possível salvar a imagem.',1);}
+ finally{input.value='';}
+}
     return `<label class="${bloq?'off':''}"><input type=radio name=or value=${o} ${bloq?'disabled':''} ${ck?'checked':''}>${ORI[o]}${s!=null?` <span class=mini>— disponível lá: ${s}</span>`:''}${bloq?' <span class=mini>(a cozinha ainda tem; pegue lá primeiro)</span>':''}</label>`}).join('');
 }
 const salvaEst=tenta(async()=>{
@@ -741,12 +882,12 @@ function textoOrientacao(o){
 }
 async function vOrientacoes(){
  const j=await api('/api/orientacoes'),os=j.orientacoes||[],by=Object.fromEntries(os.map(o=>[o.slug,o]));
- const dil='<div class=cartao><h2 style="margin-top:0">Como preparar o suplemento</h2><p class=mini>Siga a sequência visual. Confira sempre a quantidade e o volume indicados na prescrição ou na ficha técnica.</p>' +
-  '<div class=passos-imagem>' +
-  '<article class=passo-imagem><img src="/static/orientacoes/etapa-1-agua.png" alt="Etapa 1: copo com a quantidade inicial de água"><div><b>1. Coloque a água</b><p>Coloque primeiro a quantidade inicial de água indicada para o preparo.</p></div></article>' +
-  '<article class=passo-imagem><img src="/static/orientacoes/etapa-2-adicionar-suplemento.png" alt="Etapa 2: suplemento em pó sendo adicionado à água, aumentando o volume da preparação"><div><b>2. Adicione o suplemento</b><p>Acrescente a quantidade indicada de suplemento em pó. A adição do pó aumenta o volume da preparação.</p></div></article>' +
-  '<article class=passo-imagem><img src="/static/orientacoes/etapa-3-misturar.png" alt="Etapa 3: misture a preparação até ficar homogênea"><div><b>3. Misture bem</b><p>Misture até o suplemento ficar distribuído de maneira homogênea.</p></div></article>' +
-  '</div><div class=orientacao-nota><b>Atenção:</b> não complete o copo até o volume final antes de adicionar o suplemento. Se a prescrição indicar volume final, ajuste somente depois de misturar. Se indicar volume de líquido inicial, não acrescente água além do previsto. Nunca estime a quantidade de pó.</div></div>' + textoOrientacao(by.diluicao);
+ const dil='<div class=cartao><h2 style="margin-top:0">Como preparar: medir, pesar e misturar</h2><p class=mini>Veja a ordem das etapas. Os números de mL e g devem ser os da prescrição ou da ficha técnica.</p>' +
+  '<img class=img-diluicao src="/static/diluicao.svg" alt="Três etapas: medir o líquido em copo dosador graduado, pesar o pó em balança e misturar até dissolver; o volume final fica maior">' +
+  '<div class=passos-preparo><div class=passo-preparo><b>1. Meça o líquido</b>Use o copo dosador e confira os mL na escala.</div>' +
+  '<div class=passo-preparo><b>2. Pese o pó</b>Coloque o recipiente na balança, zere (tara) e confira os gramas (g).</div>' +
+  '<div class=passo-preparo><b>3. Misture</b>Acrescente o pó ao líquido e mexa. O volume pode aumentar.</div></div>' +
+  '<div class=orientacao-nota><b>Atenção:</b> se a prescrição pedir volume final, ajuste até a marca somente depois de misturar. Se indicar volume de líquido inicial, não complete por conta própria. Nunca estime a quantidade de pó.</div></div>' + textoOrientacao(by.diluicao);
  const cards='<div class=cartao><h2 style="margin-top:0">Reconheça as frutas</h2>' +
   '<p class=mini>As ilustrações são referências visuais. A aparência real pode variar conforme a variedade e o amadurecimento.</p>' +
   '<div class=frutas-grade>' + FRUTAS.map(f=>'<article class=fruta-card><div class=fruta-topo>' + frutaFig(f) + '<b>' + esc(f.nome) + '</b></div></article>').join('') + '</div>' +
@@ -760,38 +901,13 @@ async function vOrientacoes(){
  const editor=S.u.perfil==='admin'&&os.length ? '<div class=cartao><h2 style="margin-top:0">Editor de orientações</h2><p class=mini>Edite os textos abaixo ou acrescente um tópico. As alterações ficam salvas para todos os celulares.</p>' +
   os.map(o=>'<div class=editor-orientacao data-oid=' + o.id + '><label class=f>Título<input type=text class=otitulo maxlength=120 value="' + esc(o.titulo) + '"></label>' +
   '<label class=f>Texto<textarea class=otexto maxlength=8000 rows=5>' + esc(o.texto) + '</textarea></label>' +
-  '<button class="btn sec peq" onclick="salvaOrientacao(' + o.id + ',this)">Salvar texto</button>' +
-  '<label class=f>Imagem da orientação (JPEG, PNG ou WebP)<input type=file accept="image/jpeg,image/png,image/webp" onchange="enviarImagemOrientacao(' + o.id + ',this)"></label>' +
-  (o.imagem_data ? '<img class=img-diluicao style="max-width:100%;max-height:260px;object-fit:contain" src="data:' + o.imagem_tipo + ';base64,' + o.imagem_data + '" alt="Imagem atual da orientação">' : '<p class=mini>Sem imagem personalizada. A ilustração padrão será mantida quando aplicável.</p>') + '</div>').join('') +
+  '<button class="btn sec peq" onclick="salvaOrientacao(' + o.id + ',this)">Salvar texto</button></div>').join('') +
   '<div class=editor-orientacao><h3>Novo tópico</h3><label class=f>Título<input id=novoOtitulo type=text maxlength=120></label>' +
   '<label class=f>Texto<textarea id=novoOtexto rows=5 maxlength=8000 placeholder="Digite a orientação adicional"></textarea></label>' +
   '<button class=btn onclick="novaOrientacao()">Adicionar tópico</button></div></div>' : '';
  $('#vista').innerHTML=editor+dil+'<h2>Frutas: intestino, potássio e diabetes</h2>' + textoOrientacao(by.intestino) +
   '<div class=orientacao-nota><b>Importante:</b> não existe uma classificação universal de frutas constipantes. A resposta depende da porção, variedade, maturação, preparo, hidratação, tolerância e condição clínica. Em dietas com restrição de fibras, potássio ou carboidratos, siga a prescrição e consulte a ficha exata do alimento na TBCA/USP; não faça substituições por iniciativa própria.</div>' +
   cards + textoOrientacao(by.potassio) + textoOrientacao(by.diabetes) + os.filter(o=>o.slug.startsWith('extra-')).map(textoOrientacao).join('');
-}
-async function enviarImagemOrientacao(id,input){
- const arquivo=input.files&&input.files[0];
- if(!arquivo)return;
- if(!['image/jpeg','image/png','image/webp'].includes(arquivo.type)){aviso('Use uma imagem JPEG, PNG ou WebP.',1);input.value='';return;}
- try{
-  const imagem=await new Promise((resolve,reject)=>{
-   const url=URL.createObjectURL(arquivo),img=new Image();
-   img.onload=()=>{URL.revokeObjectURL(url);resolve(img);};
-   img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Não foi possível abrir a imagem.'));};
-   img.src=url;
-  });
-  const escala=Math.min(1,900/imagem.width,700/imagem.height);
-  const canvas=document.createElement('canvas');
-  canvas.width=Math.max(1,Math.round(imagem.width*escala));canvas.height=Math.max(1,Math.round(imagem.height*escala));
-  canvas.getContext('2d').drawImage(imagem,0,0,canvas.width,canvas.height);
-  let dataUrl=canvas.toDataURL('image/jpeg',.78);
-  if(dataUrl.length>640000)dataUrl=canvas.toDataURL('image/jpeg',.62);
-  if(dataUrl.length>650000)throw new Error('A imagem continua muito grande. Escolha uma imagem menor.');
-  await api('/api/admin/orientacoes/imagem',{id,tipo:'image/jpeg',imagem_data:dataUrl.split(',')[1]});
-  await vOrientacoes();aviso('Imagem da orientação atualizada para todos os celulares.',0);
- }catch(e){aviso(e.message||'Não foi possível salvar a imagem.',1);}
- finally{input.value='';}
 }
 const salvaOrientacao=tenta(async(id,b)=>{
  const e=b.closest('[data-oid]');
@@ -840,7 +956,7 @@ function popup(avs){
 }
 async function verAvisos(){
   if(!S.u||S.u.perfil!=='copa'||document.hidden||$('.modal'))return;
-  try{const j=await api('/api/avisos');if(j.avisos.length)popup(j.avisos)}catch(e){}
+  $('#vista').innerHTML=`<div class=grade><h2 class=admin-grupo>Contas e permissões</h2><div class=cartao><h2 style="margin-top:0">Novo usuário</h2>
 }
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)verAvisos()});
 /* ---------- Cadastros (admin) ---------- */
@@ -848,13 +964,13 @@ async function vCad(){
   const [u,r]=await Promise.all([api('/api/admin/usuarios'),api('/api/admin/refeicoes')]);
   const opSet=(sel,vazio)=>`<option value="">${vazio}</option>`+S.setores.map(s=>`<option value=${s.id} ${s.id===sel?'selected':''}>${esc(s.nome)}</option>`).join('');
   $('#vista').innerHTML=`<div class=grade><div class=cartao><h2 style="margin-top:0">Novo usuário</h2>
-  <label class=f>Login<input type=text id=nl autocapitalize=none></label><label class=f>Nome<input type=text id=nn></label>
+  <h2 class=admin-grupo>Monitoramento e auditoria</h2><div class=cartao><h2 style="margin-top:0">Atividade de atualização dos mapas</h2>
   <label class=f>Perfil<select id=np onchange="$('#ns').parentNode.style.display=(this.value==='nutricionista')?'block':'none'">${Object.keys(NOME).map(k=>`<option value=${k}>${NOME[k]}${k==='copa'?' (copeira: mapa compartilhado, refeições e estoque da copa)':k==='nutricionista'?' (publica mapa, avisos, horários)':''}</option>`).join('')}</select></label>
   <label class=f style="display:none">Setor da nutrição (vazio = todos os setores)<select id=ns>${opSet(null,'— todos os setores —')}</select></label>
   <label class=f>Senha inicial (mín. 6)<input type=text id=nx></label><button class=btn onclick="novoUsuario()">Criar usuário</button></div>
   <div class=cartao><h2 style="margin-top:0">Usuários</h2>${u.usuarios.map(x=>`<div style="padding:6px 0;border-bottom:1px solid var(--linha)"><b>${esc(x.nome)}</b> <span class=mini>${esc(x.login)} · ${NOME[x.perfil]}${x.ativo?'':' · desativado'}</span><br>
    ${x.perfil==='copa'?'<span class=mini>Todos os setores · mapa compartilhado</span>':x.perfil==='nutricionista'?`<select onchange="trocaSetor(${x.id},this.value)" style="width:auto;min-height:36px">${opSet(x.id_setor,'todos os setores')}</select> `:''}
-   <button class="btn sec peq" onclick="ativa(${x.id},${x.ativo?0:1})">${x.ativo?'Desativar':'Reativar'}</button> <button class="btn sec peq" onclick="senha(${x.id})">Nova senha</button></div>`).join('')}</div>
+  <h2 class=admin-grupo>Abastecimento e almoxarifado</h2><div class=cartao><h2 style="margin-top:0">Prazo médio de reposição dos insumos</h2>
   <div class=cartao><h2 style="margin-top:0">Atividade de atualização dos mapas</h2>
    <p class=mini>Conta alterações efetivamente aplicadas no mapa, por copeira. Salvamentos sem mudança e propostas pendentes não entram no ranking.</p>
    <label class=f>Período<select id=periodoAtividade><option value=mes>Mês atual</option><option value=ano>Ano atual</option></select></label>
@@ -865,14 +981,14 @@ async function vCad(){
    <p class=mini>Tempo em dias corridos entre o registro do pedido e a confirmação do recebimento. A média considera apenas pedidos recebidos.</p>
    <button class="btn sec" onclick="carregaPrazos()">Atualizar prazos</button>
    <div id=graficoPrazos class=mini style="margin-top:10px">Carregando prazos…</div>
-   <h3>Pedidos aguardando recebimento</h3><div id=pedidosPendentes class=mini>Carregando pedidos…</div>
+  <h2 class=admin-grupo>Distribuição de refeições</h2><div class=cartao><h2 style="margin-top:0">Refeições contadas</h2><p class=mini>Habilite outras refeições quando quiser. O horário vale para todos os setores; a nutrição de cada setor pode ajustar o do seu.</p>
    <h3>Registrar novo pedido</h3>
    <label class=f>Insumo<select id=pedidoItem></select></label>
    <div class=filtros><label class=f>Quantidade de embalagens<input type=number id=pedidoQtd min=0.001 step=any></label>
-   <label class=f>Fornecedor<input type=text id=pedidoFornecedor></label></div>
+  <h2 class=admin-grupo>Organização dos setores</h2><div class=cartao><h2 style="margin-top:0">Setor e leitos</h2><label class=f>Setor<select id=ss>${opSet(null,'— novo setor —')}</select></label>
    <button class=btn onclick="novoPedidoMobile()">Registrar pedido</button>
   </div>
-  <div class=cartao><h2 style="margin-top:0">Refeições contadas</h2><p class=mini>Habilite outras refeições quando quiser. O horário vale para todos os setores; a nutrição de cada setor pode ajustar o do seu.</p>
+  <h2 class=admin-grupo>Catálogo de insumos</h2><div class=cartao><h2 style="margin-top:0">Itens do almoxarifado</h2>
   ${r.refeicoes.map(x=>`<div data-cf=${x.refeicao} style="margin-bottom:8px"><label class=tg><input type=checkbox class=ca ${x.ativa?'checked':''}><b>${REF[x.refeicao]}</b></label>
    <div class=filtros><label class=f>Abre<input type=time class=cb value="${v(x.abre)}"></label><label class=f>Fecha<input type=time class=cc value="${v(x.fecha)}"></label></div></div>`).join('')}
   <button class=btn onclick="salvaCfg()">Salvar refeições</button></div>
@@ -892,9 +1008,20 @@ async function vCad(){
    <label><input type=radio name=ieu value="un"> Unidade (un)</label>
   </div></div>
   <p class=mini>Informe o conteúdo de cada pacote/frasco e, separadamente, quantas embalagens existem no estoque, na tela Estoque. Para massa use g; para volume use mL. O programa converte automaticamente kg para g e L para mL em cadastros antigos ou importados.</p>
+  colapsarCadastrosAdmin();
+  aplicaTemaMobile(lerTemaMobile(),false);
   <button class=btn id=btnSalvarItem onclick="novoItem()">Adicionar item</button>
   <h3>Itens cadastrados (${S.itens.length})</h3>
   ${S.itens.map(i=>`<div style="padding:7px 0;border-bottom:1px solid var(--linha)"><b>${esc(i.nome)}</b>
+function colapsarCadastrosAdmin(){
+  document.querySelectorAll('#vista .cartao').forEach(card=>{
+    const titulo=card.querySelector('h2');if(!titulo||card.dataset.recolhivel==='1')return;
+    card.classList.add('admin-secao');card.dataset.recolhivel='1';card.dataset.aberto='false';
+    titulo.setAttribute('role','button');titulo.setAttribute('tabindex','0');titulo.setAttribute('aria-expanded','false');
+    const alternar=()=>{const aberto=card.dataset.aberto!=='true';card.dataset.aberto=String(aberto);titulo.setAttribute('aria-expanded',String(aberto));};
+    titulo.addEventListener('click',alternar);titulo.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();alternar()}});
+  });
+}
    <span class=mini>${esc(i.categoria||'Outros')} · Validade: ${i.validade?br(i.validade):'não informada'} · ${esc(i.unidade)} · ${i.preco_unitario==null?'preço pendente':'R$ '+Number(i.preco_unitario).toFixed(2)} · ${i.embalagem_qtd==null?'conteúdo pendente':esc(i.embalagem_qtd+' '+i.embalagem_un)}</span>
    <button class="btn sec peq" onclick="editarItem(${i.id})">Editar preço/embalagem</button></div>`).join('')}
   </div></div>`;
