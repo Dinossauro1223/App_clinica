@@ -156,7 +156,7 @@ class TestEvolucaoNutricional(unittest.TestCase):
             "tne_motivos": [], "bomba": {"usa_bomba": False}}
         texto = ev.gerar_evolucao(dados)
         self.assertIn("Administração da dieta fechada", texto)
-        self.assertIn("100 gotas/min", texto)
+        self.assertIn("33,3 gotas/min", texto)
         self.assertIn("1.500 kcal no período", texto)
         self.assertIn("150 kcal/h", texto)
 
