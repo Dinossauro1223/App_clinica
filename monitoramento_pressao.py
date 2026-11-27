@@ -110,7 +110,8 @@ def _resumo(valores, chave):
     dias=sorted({v[0][:10] for v in valores})
     nums=[float(v[1]) for v in valores if v[1] is not None]
     return {"media": sum(nums)/len(nums) if nums else None,
-            "afericoes":len(nums),"dias_com_dados":len(dias),"dias_cobertos":dias}
+            "afericoes":len(nums),"dias_com_dados":len(dias),"dias_cobertos":dias,
+            "amostra_insuficiente":len(dias) < 3}
 
 
 def comparar_tres_dias(caminho,id_paciente,substituido_em):
