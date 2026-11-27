@@ -55,14 +55,14 @@ REFERENCIAS = [
         "https://doi.org/10.1093/ajcn/51.2.241",
     ),
     (
-        "VALENTE, Fernando et al. Manejo do Diabetes Mellitus Tipo 2. In: SOCIEDADE BRASILEIRA DE DIABETES. Diretriz Oficial da Sociedade Brasileira de Diabetes: edição 2026. São Paulo: SBD, 2026. DOI: 10.29327/5881296.2026-2.",
-        "Referência nacional para contextualizar diabetes mellitus, metas glicêmicas e recomendações nutricionais.",
-        "https://diretriz.diabetes.org.br/manejo-do-diabetes-mellitus-tipo-2/",
-    ),
-    (
         "UNIVERSIDADE FEDERAL DO RIO GRANDE DO NORTE. Sistema Integrado de Bibliotecas. Orientações para normalização de trabalhos acadêmicos. Natal: UFRN, [s. d.].",
         "Orientação institucional de normalização, incluindo ABNT NBR 6023:2025 e NBR 10520:2023.",
         "https://sisbi.ufrn.br/biblioteca/bczm/orientacoes",
+    ),
+    (
+        "VALENTE, Fernando et al. Manejo do Diabetes Mellitus Tipo 2. In: SOCIEDADE BRASILEIRA DE DIABETES. Diretriz Oficial da Sociedade Brasileira de Diabetes: edição 2026. São Paulo: SBD, 2026. DOI: 10.29327/5881296.2026-2.",
+        "Referência nacional para contextualizar diabetes mellitus, metas glicêmicas e recomendações nutricionais.",
+        "https://diretriz.diabetes.org.br/manejo-do-diabetes-mellitus-tipo-2/",
     ),
     (
         "WHITE, Jane V. et al. Consensus statement: Academy of Nutrition and Dietetics and American Society for Parenteral and Enteral Nutrition: characteristics recommended for the identification and documentation of adult malnutrition (undernutrition). JPEN Journal of Parenteral and Enteral Nutrition, v. 36, n. 3, p. 275-283, 2012. DOI: 10.1177/0148607112440285.",
