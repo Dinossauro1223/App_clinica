@@ -1285,7 +1285,7 @@ def _rotear(c, ip, m, p, q, b, auth):
             "porcoes_faltantes": faltantes, "faltou_preparacao": bool(b.get("faltou_preparacao")),
             "cubas": cubas_ok, "observacao": str(b.get("observacao") or "")[:2000]}
         c.execute("""INSERT INTO menu_dia_producao(publicacao_id,item_chave,dados_json,registrado_por,registrado_nome,registrado_em)
-            VALUES(?,?,?,?,?,?,?) ON CONFLICT(publicacao_id,item_chave) DO UPDATE SET
+            VALUES(?,?,?,?,?,?) ON CONFLICT(publicacao_id,item_chave) DO UPDATE SET
             dados_json=excluded.dados_json,registrado_por=excluded.registrado_por,
             registrado_nome=excluded.registrado_nome,registrado_em=excluded.registrado_em""",
             (publicacao_id, chave, json.dumps(dados, ensure_ascii=False), u["id"], u["nome"], agora()))
