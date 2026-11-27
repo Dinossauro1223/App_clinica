@@ -1118,8 +1118,8 @@ def copiar_mapa(db_path, origem_iso, destino_iso, id_setor=None):
                               ficha_observacao, ficha_snapshot_em, osmolaridade_ref, unidade_osmolaridade, dose_ref,
                               unidade_dose_ref, volume_final_ref_ml, agua_recomendada_ml, fonte_osmolaridade,
                               classificacao_nutricional, grau_hidrolise, proteinas_hidrolisadas,
-                              fonte_classificacao, tipo_formula)
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                              fonte_classificacao, tipo_formula, fibra_g_100, tipo_fibra, descricao_fibra, fonte_fibra)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                           (cur.lastrowid, s.get("id_suplemento"), s["nome"], s.get("modulo"), s["qtd_dia"],
                            s["unidade"], s.get("ml_oferta"), s.get("agua_ml"),
                            json.dumps(s.get("refeicoes") or [], ensure_ascii=False),
@@ -1129,7 +1129,8 @@ def copiar_mapa(db_path, origem_iso, destino_iso, id_setor=None):
                            s.get("unidade_osmolaridade"), s.get("dose_ref"), s.get("unidade_dose_ref"),
                            s.get("volume_final_ref_ml"), s.get("agua_recomendada_ml"), s.get("fonte_osmolaridade"),
                            s.get("classificacao_nutricional"), s.get("grau_hidrolise"),
-                           s.get("proteinas_hidrolisadas"), s.get("fonte_classificacao"), s.get("tipo_formula")))
+                           s.get("proteinas_hidrolisadas"), s.get("fonte_classificacao"), s.get("tipo_formula"),
+                           s.get("fibra_g_100"), s.get("tipo_fibra"), s.get("descricao_fibra"), s.get("fonte_fibra")))
             copiados += 1
         c.commit()
     return copiados
