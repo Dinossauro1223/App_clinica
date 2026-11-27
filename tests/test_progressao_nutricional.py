@@ -18,17 +18,17 @@ class TestProgressaoNutricional(unittest.TestCase):
 
     def test_variacao_com_horarios_reais_em_24h_sinaliza_balanco_hidrico(self):
         resultado = pn.analisar_progressao_peso([
-            {"medido_em": "2026-11-26 07:00", "peso_kg": 70},
-            {"medido_em": "2026-11-27 07:00", "peso_kg": 68.9},
-        ])
+            {"medido_em": "2026-11-26 07:00", "peso_kg": 70, "peso_origem": "R"},
+            {"medido_em": "2026-11-27 07:00", "peso_kg": 68.9, "peso_origem": "R"},
+        ], idade_anos=69)
         self.assertEqual(resultado["alertas"][0]["tipo"], "variacao_aguda_24h")
         self.assertEqual(resultado["alertas"][0]["intervalo_horas"], 24.0)
         self.assertIn("balanço hídrico", resultado["alertas"][0]["texto"])
 
     def test_perda_ponderal_em_seis_meses_marca_criterio_fenotipico_glim(self):
         resultado = pn.analisar_progressao_peso([
-            {"data": "2026-05-01", "peso_kg": 70},
-            {"data": "2026-11-01", "peso_kg": 66},
+            {"data": "2026-05-05", "peso_kg": 70, "peso_origem": "R"},
+            {"data": "2026-11-01", "peso_kg": 66, "peso_origem": "R"},
         ], idade_anos=69)
         self.assertTrue(any("GLIM" in x for x in resultado["criterios_fenotipicos"]))
         self.assertFalse(resultado["diagnostico_automatico"])
@@ -36,7 +36,7 @@ class TestProgressaoNutricional(unittest.TestCase):
 
     def test_imc_baixo_para_idade_e_criterio_fenotipico_sem_diagnostico(self):
         resultado = pn.analisar_progressao_peso([
-            {"data": "2026-11-27", "peso_kg": 50, "altura_cm": 167}
+            {"data": "2026-11-27", "peso_kg": 50, "peso_origem": "R", "altura_cm": 167, "altura_origem": "R"}
         ], idade_anos=69)
         self.assertIsNotNone(resultado["criterio_bmi_glim"])
         self.assertFalse(resultado["diagnostico_automatico"])
@@ -44,12 +44,12 @@ class TestProgressaoNutricional(unittest.TestCase):
 
     def test_faixa_de_uma_semana_distingue_moderada_de_elevada(self):
         moderada = pn.analisar_progressao_peso([
-            {"data": "2026-11-20", "peso_kg": 70},
-            {"data": "2026-11-27", "peso_kg": 69},
+            {"data": "2026-11-20", "peso_kg": 70, "peso_origem": "R"},
+            {"data": "2026-11-27", "peso_kg": 69, "peso_origem": "R"},
         ])
         elevada = pn.analisar_progressao_peso([
-            {"data": "2026-11-20", "peso_kg": 70},
-            {"data": "2026-11-27", "peso_kg": 68.5},
+            {"data": "2026-11-20", "peso_kg": 70, "peso_origem": "R"},
+            {"data": "2026-11-27", "peso_kg": 68.5, "peso_origem": "R"},
         ])
         self.assertIn("moderada", moderada["comparacoes"][0]["faixa"])
         self.assertIn("elevada", elevada["comparacoes"][0]["faixa"])
@@ -65,7 +65,8 @@ class TestProgressaoNutricional(unittest.TestCase):
                 conn.execute("""CREATE TABLE Mapa_Registros (
                     id_registro INTEGER PRIMARY KEY, data TEXT, id_paciente INTEGER,
                     peso_kg REAL, peso_origem TEXT, peso_metodo TEXT, peso_medido_em TEXT,
-                    altura_cm REAL, pp_cm REAL, pb_cm REAL, aj_cm REAL, atualizado_em TEXT
+                    altura_cm REAL, altura_origem TEXT, pp_cm REAL, pb_cm REAL, aj_cm REAL,
+                    imc REAL, avaliacao_json TEXT, atualizado_em TEXT
                 )""")
                 conn.executemany(
                     """INSERT INTO Mapa_Registros
@@ -77,7 +78,7 @@ class TestProgressaoNutricional(unittest.TestCase):
                     ],
                 )
             historico = pn.listar_pesos_historicos(db, 7)
-            resultado = pn.analisar_progressao_peso(historico)
+            resultado = pn.analisar_progressao_peso(historico, idade_anos=69)
             self.assertEqual(resultado["alertas"][0]["tipo"], "variacao_aguda_24h")
 
     def test_sem_historico_nao_cria_valor_zero(self):
