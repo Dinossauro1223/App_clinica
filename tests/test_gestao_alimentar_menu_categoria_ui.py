@@ -30,6 +30,16 @@ class TestCategoriaMenuUI(unittest.TestCase):
         self.assertIn('self.tree.insert(parent,"end",iid=f"prep:{indice}"', self.fonte)
         self.assertIn('if not itens:', self.fonte)
 
+
+    def test_fluxo_de_registro_de_producao_tem_formulario_e_campos_por_cuba(self):
+        self.assertIn('"Registrar produção", self.abrir_registro_producao', self.fonte)
+        self.assertIn("class RegistroProducaoDialog:", self.fonte)
+        for campo in ("Porções planejadas", "Porções produzidas", "Porções faltantes",
+                      "Peso por porção (g), opcional", "peso_sobra_kg", "peso_desperdicio_kg"):
+            self.assertIn(campo, self.fonte)
+        self.assertIn("ga.salvar_registro_producao(", self.fonte)
+        self.assertIn("ga.listar_preparacoes_dia(", self.fonte)
+
     def test_refeicoes_menores_continuam_em_lista_unica(self):
         inicio = self.fonte.index('# Desjejum, colação, lanche e ceia permanecem em lista única')
         fim = self.fonte.index('self._render_iniciado=True', inicio)

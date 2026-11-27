@@ -664,6 +664,7 @@ class GestaoAlimentarUI:
         _btn(topo, "Importar retiradas mobile", self.importar_retiradas, 170, cor=VERDE).pack(side="left", padx=4)
         _btn(topo, "Atualizar relatório", self.carregar_consumo, 135, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
         _btn(topo, "Preparações esperadas", self.abrir_preparacoes, 165, cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=4)
+        _btn(topo, "Registrar produção", self.abrir_registro_producao, 145, cor=VERDE).pack(side="left", padx=4)
         _btn(topo, "Gerar rascunhos por horário", self.gerar_rascunhos_por_horario, 205, cor=AZUL).pack(side="left", padx=4)
         self.lbl_consumo_status = ctk.CTkLabel(self.tab_consumo,
             text="Importe o histórico de retiradas Almoxarifado → Cozinha. Movimentos Cozinha → Copa não entram como novo consumo.",
@@ -838,6 +839,13 @@ class GestaoAlimentarUI:
             PreparacoesDiaDialog(self.app,self.db,data,self.carregar_consumo)
         except Exception as exc:
             messagebox.showerror("Preparações esperadas",str(exc),parent=self.tab_consumo)
+
+    def abrir_registro_producao(self):
+        try:
+            _, data = self._periodo_consumo()
+            RegistroProducaoDialog(self.app, self.db, data, self.carregar_consumo)
+        except Exception as exc:
+            messagebox.showerror("Registro de produção", str(exc), parent=self.tab_consumo)
 
     def alocar_retirada(self):
         sel = self.tree_movimentos.selection() if self.tree_movimentos else ()
@@ -1680,3 +1688,165 @@ class AlocarRetiradaDialog:
             self.ao_salvar()
         except Exception as exc:
             messagebox.showerror("Destinação da retirada",str(exc),parent=self.janela)
+
+class RegistroProducaoDialog:
+    """Formulário para registrar porções, faltas e perdas por cuba."""
+
+    REFEICOES = ["desjejum", "colacao", "almoco", "lanche", "jantar", "ceia"]
+
+    def __init__(self, app, db_path, data, ao_salvar):
+        self.app, self.db, self.data, self.ao_salvar = app, db_path, data, ao_salvar
+        self.janela = _PainelJanela(app, "Registro diário de produção")
+        self.janela.title("Registro diário de produção")
+        self.janela.geometry("900x740")
+        self.janela.transient(app)
+        self.janela.grab_set()
+        self.preparacoes, self.linhas_cubas = {}, []
+        self._montar()
+        self._carregar_preparacoes()
+
+    def _montar(self):
+        area = self.janela
+        ctk.CTkLabel(area, text="Fechamento da preparação",
+                     font=ctk.CTkFont(size=19, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=16, pady=(14, 3))
+        ctk.CTkLabel(area, text="Registre o resultado real. Informe sobras e desperdícios separadamente para cada cuba.",
+                     font=ctk.CTkFont(size=11), text_color=tema.SUAVE, wraplength=850,
+                     justify="left").pack(anchor="w", padx=16, pady=(0, 10))
+        filtros = ctk.CTkFrame(area, fg_color="transparent")
+        filtros.pack(fill="x", padx=14, pady=4)
+        ctk.CTkLabel(filtros, text="Data").pack(side="left")
+        self.e_data = ctk.CTkEntry(filtros, width=120)
+        self.e_data.pack(side="left", padx=5)
+        self.e_data.insert(0, self.data)
+        ctk.CTkLabel(filtros, text="Refeição").pack(side="left", padx=(12, 3))
+        self.cb_ref = ctk.CTkComboBox(filtros, width=145, values=self.REFEICOES,
+                                      command=lambda _v: self._carregar_preparacoes())
+        self.cb_ref.set("almoco")
+        self.cb_ref.pack(side="left")
+        _btn(filtros, "Carregar", self._carregar_preparacoes, 100,
+             cor=CINZA, hover=tema.SUAVE).pack(side="left", padx=6)
+        selecao = ctk.CTkFrame(area)
+        selecao.pack(fill="x", padx=14, pady=5)
+        ctk.CTkLabel(selecao, text="Preparação do cardápio").pack(anchor="w", padx=10, pady=(8, 2))
+        self.cb_preparacao = ctk.CTkComboBox(selecao, values=[], command=self._selecionar_preparacao)
+        self.cb_preparacao.pack(fill="x", padx=10, pady=(0, 8))
+        self.lbl_ficha = ctk.CTkLabel(selecao, text="Selecione uma preparação do cardápio.",
+                                      text_color=tema.SUAVE, anchor="w")
+        self.lbl_ficha.pack(fill="x", padx=10, pady=(0, 8))
+        dados = ctk.CTkFrame(area)
+        dados.pack(fill="x", padx=14, pady=5)
+        self.e_planejadas = self._campo(dados, "Porções planejadas", "0", 0, 0)
+        self.e_produzidas = self._campo(dados, "Porções produzidas", "", 0, 1)
+        self.e_faltantes = self._campo(dados, "Porções faltantes", "0", 0, 2)
+        self.e_peso = self._campo(dados, "Peso por porção (g), opcional", "", 1, 0)
+        self.e_usuario = self._campo(dados, "Responsável", getpass.getuser(), 1, 1)
+        self.var_faltou = tk.BooleanVar(value=False)
+        ctk.CTkCheckBox(dados, text="Não foi produzida/disponibilizada",
+                        variable=self.var_faltou).grid(row=1, column=2, sticky="w", padx=8, pady=10)
+        for coluna in range(3):
+            dados.grid_columnconfigure(coluna, weight=1)
+        bloco = ctk.CTkFrame(area)
+        bloco.pack(fill="both", expand=True, padx=14, pady=5)
+        cab = ctk.CTkFrame(bloco, fg_color="transparent")
+        cab.pack(fill="x", padx=8, pady=(8, 3))
+        ctk.CTkLabel(cab, text="Sobras e desperdícios por cuba (kg)",
+                     font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        _btn(cab, "＋ Adicionar cuba", self._adicionar_cuba, 135,
+             cor=CINZA, hover=tema.SUAVE).pack(side="right")
+        self.cubas_frame = ctk.CTkScrollableFrame(bloco, height=180)
+        self.cubas_frame.pack(fill="both", expand=True, padx=7, pady=(2, 8))
+        self._adicionar_cuba()
+        ctk.CTkLabel(area, text="Observação operacional").pack(anchor="w", padx=16, pady=(5, 1))
+        self.txt_observacao = ctk.CTkTextbox(area, height=50)
+        self.txt_observacao.pack(fill="x", padx=14, pady=(0, 8))
+        rodape = ctk.CTkFrame(area, fg_color="transparent")
+        rodape.pack(fill="x", padx=14, pady=(0, 14))
+        _btn(rodape, "Cancelar", self.janela.destroy, 110, cor=CINZA, hover=tema.SUAVE).pack(side="left")
+        _btn(rodape, "Salvar produção", self._salvar, 155).pack(side="right")
+
+    def _campo(self, raiz, rotulo, valor, linha, coluna):
+        bloco = ctk.CTkFrame(raiz, fg_color="transparent")
+        bloco.grid(row=linha, column=coluna, sticky="ew", padx=6, pady=5)
+        ctk.CTkLabel(bloco, text=rotulo, anchor="w", font=ctk.CTkFont(size=10)).pack(anchor="w")
+        entrada = ctk.CTkEntry(bloco)
+        entrada.pack(fill="x", pady=(2, 0))
+        if valor:
+            entrada.insert(0, str(valor))
+        return entrada
+
+    def _carregar_preparacoes(self):
+        try:
+            data, refeicao = self.e_data.get().strip(), self.cb_ref.get().strip().lower()
+            self.preparacoes = {
+                f"{p['id_preparacao_dia']} | {p.get('nome_ficha') or p['nome']}": p
+                for p in ga.listar_preparacoes_dia(self.db, data, refeicao)
+            }
+            opcoes = list(self.preparacoes)
+            self.cb_preparacao.configure(values=opcoes)
+            self.cb_preparacao.set(opcoes[0] if opcoes else "")
+            if opcoes:
+                self._selecionar_preparacao(opcoes[0])
+            else:
+                self.e_planejadas.delete(0, "end")
+                self.e_planejadas.insert(0, "0")
+                self.lbl_ficha.configure(text="Não há preparações esperadas para esta data e refeição.")
+        except Exception as exc:
+            messagebox.showerror("Preparações do dia", str(exc), parent=self.janela)
+
+    def _selecionar_preparacao(self, valor):
+        p = self.preparacoes.get(valor)
+        if p:
+            self.e_planejadas.delete(0, "end")
+            self.e_planejadas.insert(0, str(p.get("porcoes_previstas") or 0))
+            self.lbl_ficha.configure(text=f"Ficha: {p.get('nome_ficha') or 'Sem ficha vinculada'} · Categoria: {p.get('categoria') or 'Geral'}")
+
+    def _adicionar_cuba(self):
+        linha = ctk.CTkFrame(self.cubas_frame, fg_color="transparent")
+        linha.pack(fill="x", pady=3)
+        nome = ctk.CTkEntry(linha, width=135, placeholder_text="Cuba/panela")
+        nome.pack(side="left", padx=3)
+        sobra = ctk.CTkEntry(linha, width=100, placeholder_text="Sobra kg")
+        sobra.pack(side="left", padx=3)
+        desperdicio = ctk.CTkEntry(linha, width=110, placeholder_text="Desperdício kg")
+        desperdicio.pack(side="left", padx=3)
+        obs = ctk.CTkEntry(linha, placeholder_text="Observação")
+        obs.pack(side="left", fill="x", expand=True, padx=3)
+        _btn(linha, "Remover", lambda: self._remover_cuba(linha), 75,
+             cor=LARANJA, hover=tema.LARANJA).pack(side="right", padx=3)
+        self.linhas_cubas.append((linha, nome, sobra, desperdicio, obs))
+
+    def _remover_cuba(self, linha):
+        self.linhas_cubas = [r for r in self.linhas_cubas if r[0] is not linha]
+        linha.destroy()
+
+    def _salvar(self):
+        try:
+            p = self.preparacoes.get(self.cb_preparacao.get())
+            if not p:
+                raise ValueError("Selecione uma preparação do cardápio esperado.")
+            cubas = []
+            for _linha, nome, sobra, desperdicio, obs in self.linhas_cubas:
+                if not any(x.get().strip() for x in (nome, sobra, desperdicio, obs)):
+                    continue
+                cubas.append({"identificacao": nome.get().strip(),
+                              "peso_sobra_kg": sobra.get().strip() or 0,
+                              "peso_desperdicio_kg": desperdicio.get().strip() or 0,
+                              "observacao": obs.get().strip()})
+            registro = ga.salvar_registro_producao(
+                self.db, p["id_preparacao_dia"], self.e_data.get().strip(),
+                self.cb_ref.get().strip().lower(), self.e_planejadas.get().strip(),
+                porcoes_produzidas=self.e_produzidas.get().strip() or None,
+                porcoes_faltantes=self.e_faltantes.get().strip() or 0,
+                faltou_preparacao=self.var_faltou.get(),
+                peso_por_porcao_g=self.e_peso.get().strip() or None,
+                cubas=cubas, observacao=self.txt_observacao.get("1.0", "end").strip(),
+                usuario=self.e_usuario.get().strip())
+            self.janela.destroy()
+            messagebox.showinfo("Produção registrada",
+                f"{registro['nome_preparacao_snapshot']}: {_fmt_num(registro['porcoes_produzidas'])} produzida(s), "
+                f"{_fmt_num(registro['porcoes_faltantes'])} faltante(s), {len(registro['cubas'])} cuba(s).",
+                parent=self.app)
+            self.ao_salvar()
+        except Exception as exc:
+            messagebox.showerror("Registro de produção", str(exc), parent=self.janela)
