@@ -15,7 +15,7 @@ def _positivo(valor):
     return n if isfinite(n) and n > 0 else None
 
 
-def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None):
+def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None, meta_fibras_g=None):
     """Calcula aporte diário e participação nas metas.
 
     Cada item deve trazer qtd_dia, unidade ('ml' ou 'g') e composição por 100 unidades:
@@ -30,6 +30,8 @@ def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None):
     resultados = []
     totais = {c: 0.0 for c in campos}
     completos = {c: True for c in campos}
+    total_fibra = 0.0
+    fibra_completa = True
     pendencias = []
 
     for indice, item in enumerate(itens or [], 1):
@@ -58,11 +60,25 @@ def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None):
             else:
                 aporte[campo] = composicao * qtd / 100.0
                 totais[campo] += aporte[campo]
+        fibra_ref = item.get("fibra_g_100")
+        try:
+            fibra_ref = float(fibra_ref) if fibra_ref is not None else None
+        except (TypeError, ValueError):
+            fibra_ref = None
+        if fibra_ref is None or not isfinite(fibra_ref) or fibra_ref < 0 or qtd is None or not valido_un:
+            fibra_ofertada = None
+            fibra_completa = False
+        else:
+            fibra_ofertada = fibra_ref * qtd / 100.0
+            total_fibra += fibra_ofertada
         if motivos or any(aporte[c] is None for c in campos):
             pendencias.append({"nome": nome, "motivos": motivos or ["ficha técnica incompleta"]})
-        resultados.append({"nome": nome, "quantidade": qtd, "unidade": unidade or None, **aporte})
+        resultados.append({"nome": nome, "quantidade": qtd, "unidade": unidade or None,
+                           "fibra_g": round(fibra_ofertada, 4) if fibra_ofertada is not None else None,
+                           "tipo_fibra": item.get("tipo_fibra") or "nao_informado", **aporte})
 
     totais_saida = {c: (round(totais[c], 4) if completos[c] else None) for c in campos}
+    fibra_saida = round(total_fibra, 4) if fibra_completa else None
     kcal = totais_saida["kcal_100"]
     proteina = totais_saida["ptn_100"]
     return {
@@ -73,6 +89,10 @@ def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None):
         "peso_kg": peso,
         "percentual_meta_kcal": round(kcal / meta_e * 100, 2) if kcal is not None and meta_e else None,
         "percentual_meta_proteina": round(proteina / meta_p * 100, 2) if proteina is not None and meta_p else None,
+        "fibra_g_dia": fibra_saida,
+        "meta_fibras_g": _positivo(meta_fibras_g),
+        "percentual_meta_fibras": round(fibra_saida / _positivo(meta_fibras_g) * 100, 2)
+            if fibra_saida is not None and _positivo(meta_fibras_g) else None,
         "proteina_g_kg": round(proteina / peso, 3) if proteina is not None and peso else None,
         "completo": not pendencias,
         "pendencias": pendencias,
@@ -125,7 +145,7 @@ def resumir_osmolaridade_preparacoes(item):
 
 
 def comparar_substituicao(itens_atuais, id_substituido, substituto, *,
-                           peso_kg=None, meta_kcal=None, meta_proteina_g=None):
+                           peso_kg=None, meta_kcal=None, meta_proteina_g=None, meta_fibras_g=None):
     """Compara o aporte diário antes/depois de trocar um suplemento.
 
     preparacoes é uma lista de administrações independentes com dose,
@@ -143,8 +163,8 @@ def comparar_substituicao(itens_atuais, id_substituido, substituto, *,
         raise ValueError("A unidade do suplemento substituto deve ser mL ou g.")
     depois_itens = [x for x in itens if x.get("id_suplemento") != id_substituido]
     depois_itens.append(novo_item)
-    antes = calcular_oferta(itens, peso_kg, meta_kcal, meta_proteina_g)
-    depois = calcular_oferta(depois_itens, peso_kg, meta_kcal, meta_proteina_g)
+    antes = calcular_oferta(itens, peso_kg, meta_kcal, meta_proteina_g, meta_fibras_g)
+    depois = calcular_oferta(depois_itens, peso_kg, meta_kcal, meta_proteina_g, meta_fibras_g)
 
     def metricas(resultado):
         totais = resultado["totais"]
@@ -156,6 +176,8 @@ def comparar_substituicao(itens_atuais, id_substituido, substituto, *,
             "proteina_g_dia": ptn,
             "proteina_g_kg_dia": round(ptn / peso, 3) if ptn is not None and peso else None,
             "sodio_mg_dia": totais["sod_100"],
+            "fibras_g_dia": totais.get("fibra_g_dia"),
+            "percentual_meta_fibras": resultado.get("percentual_meta_fibras"),
             "percentual_meta_energetica": resultado["percentual_meta_kcal"],
             "percentual_meta_proteica": resultado["percentual_meta_proteina"],
         }
