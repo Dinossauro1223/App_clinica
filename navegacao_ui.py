@@ -55,19 +55,22 @@ class BarraLateral(ctk.CTkFrame):
 
         rod = ctk.CTkFrame(self, fg_color="transparent")
         rod.pack(side="bottom", fill="x")
+        # Créditos e acesso às referências permanecem lado a lado no rodapé.
+        self.rodape_linha = ctk.CTkFrame(rod, fg_color="transparent")
+        self.rodape_linha.pack(side="bottom", fill="x", padx=4, pady=(2, 8))
         self.lbl_rodape = ctk.CTkLabel(
-            rod, text="", font=ctk.CTkFont(size=10), text_color="#A9CBB8",
-            justify="left", anchor="w", wraplength=self.EXPANDIDA - 28
+            self.rodape_linha, text="", font=ctk.CTkFont(size=9),
+            text_color="#A9CBB8", justify="left", anchor="w", wraplength=105
         )
-        self.lbl_rodape.pack(side="bottom", fill="x", padx=14, pady=(2, 10))
+        self.lbl_rodape.pack(side="left", fill="x", expand=True, padx=(4, 2))
         if callable(self.referencias_comando):
             self.btn_referencias = ctk.CTkButton(
-                rod, text="📚  Referências utilizadas", anchor="w", height=34,
+                self.rodape_linha, text="📚 Referências", width=112, anchor="center", height=32,
                 corner_radius=7, fg_color="transparent", hover_color=tema.VERDE_HOVER,
-                text_color="#E8F2EC", font=ctk.CTkFont(size=11, weight="bold"),
+                text_color="#E8F2EC", font=ctk.CTkFont(size=10, weight="bold"),
                 command=self.referencias_comando,
             )
-            self.btn_referencias.pack(side="top", fill="x", padx=6, pady=(0, 4))
+            self.btn_referencias.pack(side="right", padx=(2, 4))
         self._adicionar_item(rod, *config, rodape=True)
 
         self.rolagem = ctk.CTkScrollableFrame(
@@ -141,9 +144,11 @@ class BarraLateral(ctk.CTkFrame):
         self.lbl_rodape.configure(text=self.rodape if aberta else "©")
         if hasattr(self, "btn_referencias"):
             self.btn_referencias.configure(
-                text="📚  Referências utilizadas" if aberta else "📚",
-                anchor="w" if aberta else "center",
+                text="📚 Referências" if aberta else "📚",
+                width=112 if aberta else 34,
+                anchor="center",
             )
+            self.lbl_rodape.configure(wraplength=105 if aberta else 16)
 
     def _abrir(self, aberta):
         self.configure(width=self.EXPANDIDA if aberta else self.RECOLHIDA)
