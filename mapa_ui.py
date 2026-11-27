@@ -26,6 +26,7 @@ import condutas_alta as ca
 import graficos_layout as gl
 import tema
 import pediatria_oms as oms
+import monitoramento_enteral as monitoramento_enteral
 
 VERDE_ESC, VERDE, VERDE_HOVER, FUNDO = tema.VERDE_ESC, tema.VERDE, tema.VERDE_HOVER, tema.FUNDO
 CINZA_BTN, CINZA_HOVER = tema.SUAVE, tema.SUAVE
@@ -1314,6 +1315,114 @@ class DialogPreparacoesSuplemento(ctk.CTkToplevel):
         self.destroy()
 
 
+class DialogAdministracaoEnteral(_Janela):
+    """Registro factual da administração enteral, separado da prescrição do mapa."""
+
+    def __init__(self, parent, db, id_paciente, id_registro_mapa=None):
+        super().__init__(parent, "Administração enteral real", "760x720")
+        self.db = db
+        self.id_paciente = int(id_paciente)
+        self.id_registro_mapa = id_registro_mapa
+        self._campos = {}
+        self._construir()
+        self._atualizar_lista()
+
+    def _campo(self, pai, chave, rotulo, valor="", largura=130):
+        linha = ctk.CTkFrame(pai, fg_color="transparent")
+        linha.pack(fill="x", padx=12, pady=3)
+        ctk.CTkLabel(linha, text=rotulo, width=190, anchor="w").pack(side="left")
+        e = ctk.CTkEntry(linha, width=largura)
+        e.insert(0, str(valor))
+        e.pack(side="left")
+        self._campos[chave] = e
+        return e
+
+    def _construir(self):
+        corpo = ctk.CTkScrollableFrame(self, fg_color=FUNDO)
+        corpo.pack(fill="both", expand=True, padx=6, pady=6)
+        ctk.CTkLabel(corpo, text="ADMINISTRAÇÃO REAL",
+                     font=ctk.CTkFont(size=18, weight="bold"), text_color=VERDE_ESC).pack(
+                         anchor="w", padx=12, pady=(8, 2))
+        ctk.CTkLabel(corpo,
+                     text="Registre o que foi efetivamente administrado. O sistema não preenche taxa, volume ou fator de gotas por estimativa.",
+                     text_color=tema.SUAVE, wraplength=680, justify="left").pack(anchor="w", padx=12, pady=(0, 8))
+        agora = datetime.now().replace(second=0, microsecond=0)
+        self._campo(corpo, "inicio", "Início (AAAA-MM-DD HH:MM)", agora.strftime("%Y-%m-%d %H:%M"))
+        self._campo(corpo, "fim", "Fim (AAAA-MM-DD HH:MM)", "", 150)
+        self._campo(corpo, "prescrito", "Volume prescrito (mL)", "", 110)
+        self._campo(corpo, "administrado", "Volume administrado (mL)", "", 110)
+        self._campo(corpo, "taxa", "Taxa real (mL/h)", "", 110)
+        self._campo(corpo, "pausa", "Pausa acumulada (min)", "0", 110)
+        linha = ctk.CTkFrame(corpo, fg_color="transparent")
+        linha.pack(fill="x", padx=12, pady=3)
+        ctk.CTkLabel(linha, text="Via de administração", width=190, anchor="w").pack(side="left")
+        self.cb_via = ctk.CTkComboBox(linha, values=["bomba", "gravitacional", "manual"], width=150, state="readonly")
+        self.cb_via.set("bomba")
+        self.cb_via.pack(side="left")
+        self._campo(corpo, "fator", "Fator de gotas (mL/gota)", "", 120)
+        ctk.CTkLabel(corpo, text="Para via gravitacional, informe o fator do equipo se quiser calcular gotas/min. Sem fator, o sistema mantém o dado como não informado.",
+                     text_color=tema.SUAVE, wraplength=680, justify="left").pack(anchor="w", padx=12, pady=(0, 6))
+        self._campo(corpo, "obs", "Observações", "", 300)
+        acoes = ctk.CTkFrame(corpo, fg_color="transparent")
+        acoes.pack(fill="x", padx=12, pady=8)
+        _btn(acoes, "Salvar administração", self._salvar, 180).pack(side="left")
+        _btn(acoes, "Limpar", self._limpar, 100, CINZA_BTN, CINZA_HOVER).pack(side="left", padx=8)
+        _btn(acoes, "Fechar", self.destroy, 100, CINZA_BTN, CINZA_HOVER).pack(side="right")
+        ctk.CTkLabel(corpo, text="Administrações registradas", font=ctk.CTkFont(size=13, weight="bold"),
+                     text_color=VERDE_ESC).pack(anchor="w", padx=12, pady=(8, 2))
+        self.tabela = ttk.Treeview(corpo, columns=("inicio","fim","vol","taxa","via","gpm"), show="headings", height=7)
+        for col,tit,w in (("inicio","Início",125),("fim","Fim",125),("vol","Administrado (mL)",120),
+                          ("taxa","mL/h",80),("via","Via",100),("gpm","gotas/min",100)):
+            self.tabela.heading(col,text=tit); self.tabela.column(col,width=w,anchor="w")
+        self.tabela.pack(fill="x", padx=12, pady=(2,10))
+
+    def _limpar(self):
+        for chave, campo in self._campos.items():
+            campo.delete(0, "end")
+        self._campos["inicio"].insert(0, datetime.now().replace(second=0, microsecond=0).strftime("%Y-%m-%d %H:%M"))
+        self._campos["pausa"].insert(0, "0")
+        self.cb_via.set("bomba")
+
+    def _salvar(self):
+        try:
+            def valor(chave):
+                return self._campos[chave].get().strip()
+            adm = monitoramento_enteral.salvar_administracao(
+                self.db, self.id_paciente, valor("inicio"), valor("fim") or None,
+                volume_prescrito_ml=valor("prescrito") or None,
+                volume_administrado_ml=valor("administrado") or None,
+                taxa_ml_h=valor("taxa") or None,
+                pausado_min=valor("pausa") or 0,
+                via_administracao=self.cb_via.get(),
+                fator_gotas_ml=valor("fator") or None,
+                observacoes=valor("obs"),
+                id_registro_mapa=self.id_registro_mapa,
+            )
+        except Exception as exc:
+            messagebox.showerror("Administração enteral inválida", str(exc), parent=self)
+            return
+        self._atualizar_lista()
+        messagebox.showinfo("Administração registrada", f"Administração #{adm} registrada.", parent=self)
+
+    def _atualizar_lista(self):
+        try:
+            registros = monitoramento_enteral.listar_administracoes(self.db, self.id_paciente)
+        except Exception as exc:
+            messagebox.showerror("Administração enteral", str(exc), parent=self)
+            return
+        self.tabela.delete(*self.tabela.get_children())
+        for r in registros[-20:][::-1]:
+            gpm = monitoramento_enteral.gotas_por_minuto(r.get("taxa_ml_h"), r.get("fator_gotas_ml"))
+            self.tabela.insert("", "end", values=(
+                str(r.get("inicio_em",""))[:16].replace("T"," "),
+                str(r.get("fim_em") or "—")[:16].replace("T"," "),
+                "—" if r.get("volume_administrado_ml") is None else f'{r["volume_administrado_ml"]:g}',
+                "—" if r.get("taxa_ml_h") is None else f'{r["taxa_ml_h"]:g}',
+                r.get("via_administracao") or "—",
+                "—" if gpm is None else f"{gpm:.1f}",
+            ))
+
+
 class DialogSubstituirSuplemento(ctk.CTkToplevel):
     def __init__(self, formulario, indice, atual):
         super().__init__(formulario.winfo_toplevel())
@@ -1935,6 +2044,8 @@ class FormRegistro(_Janela):
         self.lbl_oferta = ctk.CTkLabel(q, text="Aporte calculado: informe dose e metas.",
                                        text_color=tema.TEXTO, wraplength=760, justify="left")
         self.lbl_oferta.pack(anchor="w", padx=12, pady=(0, 8))
+        self._reg(_btn(q, "Registrar administração enteral real", self._abrir_administracao_enteral,
+                       230, VERDE, VERDE_HOVER, 28)).pack(anchor="w", padx=10, pady=(0, 8))
 
         q = self._secao("Observações")
         for attr, rot in (("t_sim", "Sim: (alimentos que consome)"), ("t_nao", "Não: (alimentos que não consome)")):
@@ -2127,6 +2238,14 @@ class FormRegistro(_Janela):
                 cb.set(str((dados_av.get("amputacoes") or {}).get(nivel, 0)))
         except (TypeError, ValueError, KeyError):
             pass
+
+    def _abrir_administracao_enteral(self):
+        if not self._id_paciente:
+            messagebox.showwarning("Administração enteral",
+                                   "Vincule o leito a um paciente antes de registrar a administração real.",
+                                   parent=self)
+            return
+        DialogAdministracaoEnteral(self, self.ui.db, self._id_paciente, self.reg.get("id_registro"))
 
     def _mostrar_escala(self, tipo):
         """Abre imagem personalizada; usa a imagem distribuída como padrão quando não há substituição."""
