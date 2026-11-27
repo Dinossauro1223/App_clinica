@@ -107,12 +107,13 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.cb_condicao_renal.pack(side="left", padx=(0, 8))
         linha = ctk.CTkFrame(q_renal, fg_color="transparent")
         linha.pack(fill="x", padx=12, pady=(0, 5))
-        ctk.CTkLabel(linha, text="Estágio:", width=60, anchor="w").pack(side="left")
+        ctk.CTkLabel(linha, text="Estágio G (TFGe):", width=115, anchor="w").pack(side="left")
         self.cb_estagio_renal = ctk.CTkComboBox(linha, values=["—", "G1", "G2", "G3a", "G3b", "G4", "G5"],
-                                                width=90, state="readonly")
+                                                width=90, state="disabled")
         self.cb_estagio_renal.set("—")
         self.cb_estagio_renal.pack(side="left", padx=(0, 8))
         self.e_tfge = self._entry(linha, "TFGe (mL/min/1,73 m²)", "", 170)
+        self.e_tfge.bind("<KeyRelease>", lambda _e: self._atualizar_estagio_tfge())
         self.e_albuminuria = self._entry(linha, "Albuminúria (mg/g)", "", 145)
         self.cb_dialise = ctk.CTkComboBox(linha, values=["Não", "Hemodiálise", "Diálise peritoneal"],
                                           width=175, state="readonly")
@@ -467,6 +468,13 @@ class FormEvolucaoUI(ctk.CTkFrame):
         return regras.avaliar_contexto_renal(
             dados, peso_kg=self._peso_nutricional(), idade_anos=self.reg.get("idade_anos"),
             diabetes=bool(self.reg.get("dm")))
+
+    def _atualizar_estagio_tfge(self):
+        try:
+            faixa = regras.classificar_categoria_tfge(self.e_tfge.get().strip() or None)
+            self.cb_estagio_renal.set(faixa or "—")
+        except ValueError:
+            self.cb_estagio_renal.set("—")
 
     def _avaliar_renal(self):
         try:
