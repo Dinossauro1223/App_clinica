@@ -114,13 +114,17 @@ class JanelaReferencias(ctk.CTkToplevel):
         corpo = ctk.CTkScrollableFrame(self, fg_color="transparent")
         corpo.pack(fill="both", expand=True, padx=12, pady=(0, 14))
         for referencia, uso, url in REFERENCIAS:
+            referencia_abnt = (
+                referencia.rstrip(".") + ". Disponível em: " + url +
+                ". Acesso em: 27 nov. 2026."
+            )
             card = ctk.CTkFrame(
                 corpo, fg_color=tema.BRANCO, border_width=1,
                 border_color=tema.BORDA, corner_radius=9,
             )
             card.pack(fill="x", padx=5, pady=5)
             ctk.CTkLabel(
-                card, text=referencia, justify="left", anchor="w",
+                card, text=referencia_abnt, justify="left", anchor="w",
                 wraplength=800, text_color=tema.TEXTO,
                 font=tema.fonte(12),
             ).pack(fill="x", padx=12, pady=(10, 4))
