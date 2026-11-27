@@ -60,6 +60,120 @@ def calcular_metas(peso_kg, kcal_kg, proteina_kg):
             "kcal_kg": kcal, "proteina_g_kg": ptn, "peso_referencia_kg": peso}
 
 
+
+def classificar_categoria_tfge(tfge_ml_min_173):
+    """Classifica a faixa de TFGe; G1/G2 isoladamente não confirmam DRC."""
+    if tfge_ml_min_173 in (None, ""):
+        return None
+    valor = _numero(tfge_ml_min_173, "TFGe")
+    if valor >= 90:
+        return "G1"
+    if valor >= 60:
+        return "G2"
+    if valor >= 45:
+        return "G3a"
+    if valor >= 30:
+        return "G3b"
+    if valor >= 15:
+        return "G4"
+    return "G5"
+
+
+def classificar_albuminuria_mg_g(valor_mg_g):
+    """Categorias KDIGO A1 (<30), A2 (30–300) e A3 (>300 mg/g)."""
+    if valor_mg_g in (None, ""):
+        return None
+    valor = _numero(valor_mg_g, "Albuminúria")
+    if valor < 30:
+        return "A1"
+    if valor <= 300:
+        return "A2"
+    return "A3"
+
+
+def avaliar_contexto_renal(dados, peso_kg=None, idade_anos=None, diabetes=False):
+    """Organiza dados renais e apresenta referência proteica sem alterar metas prescritas.
+
+    A TFGe é recebida do laudo; creatinina, ureia e albumina sérica são apenas
+    dados de apoio e não determinam estágio nem meta proteica isoladamente.
+    """
+    dados = dict(dados or {})
+    referencia = str(dados.get("referencia") or "KDIGO 2024").strip()
+    if referencia not in ("KDIGO 2024", "KDOQI 2020"):
+        raise ValueError("Referência renal inválida.")
+    tfge = _numero(dados["tfge"], "TFGe") if dados.get("tfge") not in (None, "") else None
+    faixa_tfge = classificar_categoria_tfge(tfge) if tfge is not None else None
+    estagio = str(dados.get("estagio") or "").strip().upper() or faixa_tfge
+    if estagio and estagio not in ("G1", "G2", "G3A", "G3B", "G4", "G5"):
+        raise ValueError("Estágio renal inválido.")
+    if estagio in ("G3A", "G3B"):
+        estagio = estagio[:2] + estagio[2:].lower()
+    albuminuria = (_numero(dados["albuminuria_mg_g"], "Albuminúria")
+                   if dados.get("albuminuria_mg_g") not in (None, "") else None)
+    categoria_albuminuria = classificar_albuminuria_mg_g(albuminuria) if albuminuria is not None else None
+    dialise = str(dados.get("dialise") or "nao").strip().lower()
+    if dialise not in ("nao", "hemodialise", "peritoneal"):
+        raise ValueError("Modalidade de diálise inválida.")
+    estabilidade = str(dados.get("estabilidade_metabolica") or "nao_informada").strip().lower()
+    if estabilidade not in ("estavel", "instavel", "nao_informada"):
+        raise ValueError("Estabilidade metabólica inválida.")
+    risco_desnutricao = dados.get("risco_desnutricao")
+    catabolismo = dados.get("catabolismo")
+    sarcopenia = dados.get("fragilidade_sarcopenia")
+    peso = _numero(peso_kg, "Peso nutricional", minimo=0.000001) if peso_kg not in (None, "") else None
+    idade = _numero(idade_anos, "Idade") if idade_anos not in (None, "") else None
+    recomendacao = {"status": "individualizar", "g_kg_dia": None, "g_dia": None,
+                    "texto": "Meta proteica deve ser definida individualmente; não há recomendação numérica automática para os dados informados."}
+    avisos = []
+    confirmada = dados.get("drc_confirmada") is True
+    if faixa_tfge in ("G1", "G2") and not confirmada:
+        avisos.append("TFGe em G1/G2 isoladamente não confirma DRC; é necessário marcador de lesão renal e cronicidade.")
+    if tfge is not None and tfge < 60:
+        avisos.append("Confirme persistência por pelo menos 3 meses ou outro critério clínico para caracterização de DRC.")
+    if estagio and faixa_tfge and estagio != faixa_tfge:
+        avisos.append("Estágio informado difere da faixa calculada pela TFGe; conferir o laudo e o histórico.")
+    if categoria_albuminuria:
+        avisos.append(f"Albuminúria: categoria {categoria_albuminuria} (mg/g). Interpretar junto à TFGe e à cronicidade.")
+    if idade is not None and idade < 18:
+        recomendacao["texto"] = "Em crianças/adolescentes, não aplicar restrição proteica renal automática; considerar crescimento e avaliação especializada."
+    elif estabilidade != "estavel" or catabolismo is True:
+        recomendacao["texto"] = "Instabilidade metabólica ou catabolismo: não aplicar metas restritivas automáticas; individualizar com a equipe."
+    elif risco_desnutricao is True or sarcopenia is True:
+        recomendacao["texto"] = "Risco nutricional, fragilidade ou sarcopenia: evitar restrição automática e individualizar a meta proteica."
+    elif dialise in ("hemodialise", "peritoneal"):
+        if referencia == "KDOQI 2020":
+            recomendacao.update(status="referencia", g_kg_dia="1,0–1,2",
+                                texto="KDOQI 2020: 1,0–1,2 g/kg/dia em adultos metabolicamente estáveis em hemodiálise ou diálise peritoneal.")
+        else:
+            recomendacao["texto"] = "KDIGO 2024 não define aqui uma meta numérica específica para diálise; individualizar. KDOQI 2020 pode ser consultada como referência alternativa."
+    elif estagio in ("G3a", "G3b", "G4", "G5") and confirmada:
+        if referencia == "KDIGO 2024":
+            recomendacao.update(status="referencia", g_kg_dia=0.8,
+                                texto="KDIGO 2024: aproximadamente 0,8 g/kg/dia em adultos com DRC G3–G5; evitar ingestão elevada (>1,3 g/kg/dia) em risco de progressão.")
+        elif diabetes:
+            recomendacao.update(status="referencia", g_kg_dia="0,6–0,8",
+                                texto="KDOQI 2020: 0,6–0,8 g/kg/dia em DRC G3–G5 com diabetes, sob supervisão próxima.")
+        else:
+            recomendacao.update(status="referencia", g_kg_dia="0,55–0,60",
+                                texto="KDOQI 2020: 0,55–0,60 g/kg/dia em DRC G3–G5 sem diabetes, metabolicamente estável e sob supervisão próxima.")
+    if isinstance(recomendacao.get("g_kg_dia"), (int, float)) and peso:
+        recomendacao["g_dia"] = round(recomendacao["g_kg_dia"] * peso, 1)
+    if dados.get("creatinina") not in (None, ""):
+        avisos.append("Creatinina registrada como dado de apoio; não define isoladamente estágio ou meta proteica.")
+    if dados.get("ureia") not in (None, "") or dados.get("albumina_serica") not in (None, ""):
+        avisos.append("Ureia e albumina sérica são dados de apoio e não alteram automaticamente a meta proteica.")
+    return {
+        "referencia": referencia, "tfge_ml_min_173": tfge, "faixa_tfge": faixa_tfge,
+        "drc_confirmada": confirmada, "estagio": estagio,
+        "albuminuria_mg_g": albuminuria, "categoria_albuminuria": categoria_albuminuria,
+        "dialise": dialise, "estabilidade_metabolica": estabilidade,
+        "catabolismo": catabolismo, "risco_desnutricao": risco_desnutricao,
+        "fragilidade_sarcopenia": sarcopenia, "recomendacao_proteica": recomendacao,
+        "avisos": avisos,
+        "exames_apoio": {k: dados.get(k) for k in ("creatinina", "ureia", "albumina_serica")},
+    }
+
+
 def calcular_adequacao(energia_ofertada, proteina_ofertada, meta_kcal, meta_proteina_g):
     energia = _numero(energia_ofertada, "Energia ofertada")
     proteina = _numero(proteina_ofertada, "Proteína ofertada")
