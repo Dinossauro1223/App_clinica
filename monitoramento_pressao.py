@@ -141,3 +141,114 @@ def comparar_tres_dias(caminho,id_paciente,substituido_em):
         "periodo_depois":{"inicio":fim_antes,"fim_exclusivo":fim_depois,
             "hgt":_resumo(hgt_depois,"valor"),"sistolica":resumo_pa(pa_depois,1),"diastolica":resumo_pa(pa_depois,2)}
     }
+
+
+class PainelMonitoramentoPressao(ctk.CTkFrame):
+    """Interface de aferições pressóricas e comparação observacional de três dias."""
+    def __init__(self, master, caminho_banco, id_paciente, **kwargs):
+        super().__init__(master, **kwargs)
+        self.caminho_banco=caminho_banco
+        self.id_paciente=int(id_paciente)
+        self.registros=[]
+        topo=ctk.CTkFrame(self,fg_color="transparent"); topo.pack(fill="x",padx=12,pady=10)
+        ctk.CTkLabel(topo,text="Pressão arterial — acompanhamento HAS",
+                     font=ctk.CTkFont(size=19,weight="bold")).pack(side="left")
+        ctk.CTkButton(topo,text="Registrar pressão",command=self._novo,
+                      fg_color=tema.VERDE,hover_color=tema.VERDE_HOVER).pack(side="right")
+        self.tabela=ttk.Treeview(self,columns=("data","pa","posicao","braco","contexto"),show="headings",height=9)
+        for col,tit,w in (("data","Data e hora",145),("pa","PA (mmHg)",120),
+                          ("posicao","Posição",100),("braco","Braço",100),("contexto","Contexto",150)):
+            self.tabela.heading(col,text=tit); self.tabela.column(col,width=w,anchor="w")
+        self.tabela.pack(fill="both",expand=True,padx=14,pady=8)
+        botoes=ctk.CTkFrame(self,fg_color="transparent");botoes.pack(fill="x",padx=14,pady=(0,8))
+        ctk.CTkButton(botoes,text="Editar",command=self._editar,fg_color=tema.VERDE).pack(side="left",padx=(0,8))
+        ctk.CTkButton(botoes,text="Inativar",command=self._inativar,fg_color=tema.ERRO,
+                      hover_color=tema.ERRO_HOVER).pack(side="left",padx=(0,8))
+        ctk.CTkButton(botoes,text="Registrar troca e comparar 3 dias",command=self._troca,
+                      fg_color=tema.VERDE).pack(side="right")
+        self.atualizar()
+
+    def atualizar(self):
+        self.registros=listar_pressao(self.caminho_banco,self.id_paciente)
+        for item in self.tabela.get_children(): self.tabela.delete(item)
+        for r in self.registros:
+            dt=datetime.fromisoformat(r[3]).strftime("%d/%m/%Y %H:%M")
+            self.tabela.insert("","end",iid=str(r[0]),values=(dt,f"{r[1]}/{r[2]}",r[4] or "—",r[5] or "—",r[6] or "—"))
+
+    def _dialogo(self,registro=None):
+        win=ctk.CTkToplevel(self);win.title("Editar pressão" if registro else "Registrar pressão")
+        win.geometry("430x600");win.transient(self.winfo_toplevel());win.grab_set()
+        vars={
+            "sistolica":ctk.StringVar(value=str(registro[1]) if registro else ""),
+            "diastolica":ctk.StringVar(value=str(registro[2]) if registro else ""),
+            "data":ctk.StringVar(value=datetime.fromisoformat(registro[3]).strftime("%Y-%m-%d") if registro else datetime.now().strftime("%Y-%m-%d")),
+            "hora":ctk.StringVar(value=datetime.fromisoformat(registro[3]).strftime("%H:%M") if registro else datetime.now().strftime("%H:%M")),
+            "posicao":ctk.StringVar(value=registro[4] or "" if registro else ""),
+            "braco":ctk.StringVar(value=registro[5] or "" if registro else ""),
+            "contexto":ctk.StringVar(value=registro[6] or "" if registro else ""),
+            "obs":ctk.StringVar(value=registro[7] or "" if registro else ""),
+            "autor":ctk.StringVar(value=registro[8] or "" if registro else "")
+        }
+        def entrada(rotulo,chave):
+            ctk.CTkLabel(win,text=rotulo).pack(anchor="w",padx=22,pady=(8,2))
+            ctk.CTkEntry(win,textvariable=vars[chave],width=380).pack(padx=22)
+        entrada("Sistólica (mmHg)","sistolica");entrada("Diastólica (mmHg)","diastolica")
+        entrada("Data (AAAA-MM-DD)","data");entrada("Horário (HH:MM)","hora")
+        entrada("Posição (opcional)","posicao");entrada("Braço (opcional)","braco")
+        entrada("Contexto (opcional)","contexto");entrada("Observações","obs");entrada("Responsável","autor")
+        def salvar():
+            try:
+                salvar_pressao(self.caminho_banco,self.id_paciente,vars["sistolica"].get(),
+                    vars["diastolica"].get(),vars["data"].get()+" "+vars["hora"].get(),
+                    vars["posicao"].get() or None,vars["braco"].get() or None,
+                    vars["contexto"].get() or None,vars["obs"].get(),vars["autor"].get() or None,
+                    registro[0] if registro else None)
+            except Exception as exc:
+                messagebox.showerror("Aferição inválida",str(exc),parent=win);return
+            win.destroy();self.atualizar()
+        ctk.CTkButton(win,text="Salvar aferição",command=salvar,fg_color=tema.VERDE).pack(pady=18)
+
+    def _novo(self): self._dialogo()
+    def _selecionado(self):
+        sel=self.tabela.selection()
+        if not sel:
+            messagebox.showinfo("Pressão arterial","Selecione uma aferição.");return None
+        return next((r for r in self.registros if r[0]==int(sel[0])),None)
+    def _editar(self):
+        r=self._selecionado()
+        if r:self._dialogo(r)
+    def _inativar(self):
+        r=self._selecionado()
+        if r and messagebox.askyesno("Inativar aferição","O registro será preservado no banco e ocultado da lista. Continuar?"):
+            inativar_pressao(self.caminho_banco,self.id_paciente,r[0]);self.atualizar()
+
+    def _troca(self):
+        win=ctk.CTkToplevel(self);win.title("Troca de suplemento — comparação de 3 dias")
+        win.geometry("470x430");win.transient(self.winfo_toplevel());win.grab_set()
+        data=ctk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
+        hora=ctk.StringVar(value=datetime.now().strftime("%H:%M"))
+        anterior=ctk.StringVar();novo=ctk.StringVar();autor=ctk.StringVar()
+        for rot,var in (("Data da substituição (AAAA-MM-DD)",data),("Horário (HH:MM)",hora),
+                        ("Suplemento anterior",anterior),("Suplemento novo",novo),("Responsável",autor)):
+            ctk.CTkLabel(win,text=rot).pack(anchor="w",padx=22,pady=(9,2))
+            ctk.CTkEntry(win,textvariable=var,width=420).pack(padx=22)
+        ctk.CTkLabel(win,text="A comparação usa três dias antes e três dias depois da data/hora informada.").pack(padx=20,pady=10)
+        def executar():
+            try:
+                quando=data.get().strip()+" "+hora.get().strip()
+                registrar_substituicao(self.caminho_banco,self.id_paciente,quando,anterior.get(),novo.get(),autor=autor.get())
+                res=comparar_tres_dias(self.caminho_banco,self.id_paciente,quando)
+                def fmt(d,k):
+                    x=d[k]
+                    return "sem dados" if x["media"] is None else f'{x["media"]:.1f} (n={x["afericoes"]}; dias={x["dias_com_dados"]}/3)'
+                msg=("ANTES — HGT: "+fmt(res["periodo_antes"],"hgt")+
+                     "\\nANTES — PA sistólica: "+fmt(res["periodo_antes"],"sistolica")+
+                     "\\nANTES — PA diastólica: "+fmt(res["periodo_antes"],"diastolica")+
+                     "\\n\\nDEPOIS — HGT: "+fmt(res["periodo_depois"],"hgt")+
+                     "\\nDEPOIS — PA sistólica: "+fmt(res["periodo_depois"],"sistolica")+
+                     "\\nDEPOIS — PA diastólica: "+fmt(res["periodo_depois"],"diastolica")+
+                     "\\n\\nComparação observacional; não demonstra causalidade.")
+                messagebox.showinfo("Resumo dos períodos",msg,parent=win);win.destroy()
+            except Exception as exc: messagebox.showerror("Comparação inválida",str(exc),parent=win)
+        ctk.CTkButton(win,text="Registrar substituição e calcular",command=executar,
+                      fg_color=tema.VERDE).pack(pady=15)
