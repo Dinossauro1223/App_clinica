@@ -100,15 +100,26 @@ def _resumo_preparacoes_osmolaridade(item):
         dose = preparacao.get("dose")
         agua_misturada = preparacao.get("agua_adicionada_ml", 0)
         calculo = calcular_osmolaridade_diluicao(item, dose, agua_misturada)
+        dose_ref = _positivo(item.get("dose_ref"))
+        volume_ref = _positivo(item.get("volume_final_ref_ml"))
+        unidade_dose = str(item.get("unidade_dose_ref") or "").strip().lower()
+        unidade_item = str(item.get("unidade") or "").strip().lower()
+        dose_num = _positivo(dose)
+        volume_final = None
+        if dose_ref and volume_ref and dose_num and unidade_dose == unidade_item:
+            agua_num = float(agua_misturada or 0)
+            if isfinite(agua_num) and agua_num >= 0:
+                volume_final = round(volume_ref * (dose_num / dose_ref) + agua_num, 1)
         resultados.append({"numero": indice, "dose": dose,
                            "agua_adicionada_ml": agua_misturada,
                            "agua_separada_ml": preparacao.get("agua_separada_ml"),
-                           **calculo})
+                           "volume_final_ml": volume_final, **calculo})
     completo = all(x.get("valor") is not None for x in resultados)
+    volume_completo = all(x.get("volume_final_ml") is not None for x in resultados)
     return {"status": "calculada" if completo else "dados_incompletos",
             "preparacoes": resultados,
-            "volume_final_total_ml": (round(sum(x.get("volume_final_ml", 0) for x in resultados), 1)
-                                      if completo else None),
+            "volume_final_total_ml": (round(sum(x["volume_final_ml"] for x in resultados), 1)
+                                      if volume_completo else None),
             "agua_separada_total_ml": round(sum(
                 float(p.get("agua_separada_ml") or 0) for p in preparacoes), 1)}
 
