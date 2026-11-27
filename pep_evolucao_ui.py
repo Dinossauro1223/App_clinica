@@ -350,6 +350,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             renal.get("condicao_renal"), "DRC" if self.reg.get("drc") else "Não definida"))
         self.cb_estagio_renal.set(renal.get("estagio") or "—")
         _set(self.e_tfge, renal.get("tfge_ml_min_173"))
+        self._atualizar_estagio_tfge()
         _set(self.e_albuminuria, renal.get("albuminuria_mg_g"))
         self.cb_dialise.set({"nao": "Não", "hemodialise": "Hemodiálise",
                              "peritoneal": "Diálise peritoneal"}.get(renal.get("dialise"), "Não"))
