@@ -311,7 +311,7 @@ class TestBanco(unittest.TestCase):
                          "Dieta enteral")
 
     def test_meta_zero_ou_negativa_e_rejeitada(self):
-        for campo in ("meta_kcal", "meta_proteina_g"):
+        for campo in ("meta_kcal", "meta_proteina_g", "meta_fibras_g"):
             for valor in (0, -1):
                 with self.assertRaises(ValueError):
                     mdb.salvar_registro(self.db, registro_base(
