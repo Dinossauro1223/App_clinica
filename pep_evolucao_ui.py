@@ -469,7 +469,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
             if gkg is not None:
                 texto += f" Referência: {gkg} g/kg/dia"
                 if gdia is not None:
-                    texto += f" ({regras.formatar_numero_pt(gdia, 1)} g/dia)"
+                    gdia_txt = regras.formatar_numero_pt(gdia, 1) if isinstance(gdia, (int, float)) else str(gdia)
+                    texto += f" ({gdia_txt} g/dia)"
                 texto += "."
             if renal["faixa_tfge"]:
                 texto += f" Faixa TFGe: {renal['faixa_tfge']}."
