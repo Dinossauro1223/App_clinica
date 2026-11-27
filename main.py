@@ -282,6 +282,7 @@ class AppClinica(ctk.CTk):
     def _encerrar_servidor_mobile(self):
         """Encerra somente o servidor criado por esta instância do desktop."""
         servidor = getattr(self, "_servidor_mobile", None)
+        thread = getattr(self, "_thread_servidor_mobile", None)
         if servidor is not None:
             try:
                 servidor.shutdown()
@@ -292,6 +293,12 @@ class AppClinica(ctk.CTk):
             except Exception:
                 pass
             self._servidor_mobile = None
+        # Aguarda o loop HTTP terminar antes de destruir a interface e liberar o processo.
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=2.0)
+            if thread.is_alive():
+                print("NutriLab Mobile: servidor não encerrou dentro do prazo de 2 segundos.")
+        self._thread_servidor_mobile = None
 
     def _encerrar_e_destruir(self):
         self._encerrando_app = True
