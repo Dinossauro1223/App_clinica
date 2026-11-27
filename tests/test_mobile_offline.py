@@ -94,6 +94,7 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertIn("OK", r.stdout)
 
     def test_menu_do_dia_nao_depende_do_cache_de_producao_para_abrir_offline(self):
+        self.assertIn("resposta.queued", self.html)
         self.assertIn("let registros=[];", self.html)
         self.assertIn("catch(_e){registros=[];}", self.html)
 

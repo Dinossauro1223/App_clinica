@@ -972,3 +972,115 @@ def publicar_menu_dia(db, mobile_db, data_iso, refeicao=None):
     finally:
         c.close()
     return {"publicacoes": publicados, "total": len(publicados)}
+
+
+def importar_registros_producao_mobile(db, mobile_db, inicio, fim):
+    """Importa no histórico desktop os registros de produção gravados no banco mobile.
+
+    O snapshot de produção é preservado. Registros móveis mais antigos não sobrescrevem
+    alterações posteriores já feitas no desktop; o estoque nunca é movimentado.
+    """
+    import gestao_alimentar_db as ga
+    from datetime import date
+
+    try:
+        inicio = date.fromisoformat(str(inicio)).isoformat()
+        fim = date.fromisoformat(str(fim)).isoformat()
+    except (TypeError, ValueError):
+        raise ErroMobile("Informe um período válido no formato AAAA-MM-DD.")
+    if fim < inicio:
+        raise ErroMobile("A data final deve ser igual ou posterior à inicial.")
+    if not os.path.isfile(mobile_db):
+        return {"importados": 0, "ignorados": 0}
+
+    ga.inicializar(db)
+    mobile = sqlite3.connect(str(mobile_db), timeout=15)
+    mobile.row_factory = sqlite3.Row
+    try:
+        mobile.execute("PRAGMA busy_timeout=15000")
+        tabelas = {r[0] for r in mobile.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        if "menu_dia_producao" not in tabelas:
+            return {"importados": 0, "ignorados": 0}
+        registros = [dict(r) for r in mobile.execute(
+            "SELECT * FROM menu_dia_producao WHERE data BETWEEN ? AND ? ORDER BY data,refeicao,id_registro",
+            (inicio, fim)).fetchall()]
+        cubas_por_registro = {}
+        if "menu_dia_producao_cubas" in tabelas:
+            for registro in registros:
+                cubas_por_registro[registro["id_registro"]] = [
+                    dict(c) for c in mobile.execute(
+                        "SELECT identificacao,peso_desperdicio_kg,peso_sobra_kg,observacao,ordem "
+                        "FROM menu_dia_producao_cubas WHERE id_registro=? ORDER BY ordem,id_cuba",
+                        (registro["id_registro"],)).fetchall()
+                ]
+    finally:
+        mobile.close()
+
+    importados = ignorados = 0
+    local = ga.conectar(db)
+    try:
+        local.execute("BEGIN IMMEDIATE")
+        for registro in registros:
+            preparacao = local.execute(
+                "SELECT id_ficha FROM GA_Preparacoes_Dia "
+                "WHERE id_preparacao_dia=? AND data=? AND refeicao=?",
+                (int(registro["id_preparacao_dia"]), registro["data"], registro["refeicao"])
+            ).fetchone()
+            if not preparacao:
+                ignorados += 1
+                continue
+
+            atualizado = str(registro.get("atualizado_em") or registro.get("criado_em") or "")
+            existente = local.execute(
+                "SELECT id_registro,atualizado_em FROM GA_Producao_Preparacao "
+                "WHERE id_preparacao_dia=? AND data=?",
+                (int(registro["id_preparacao_dia"]), registro["data"])
+            ).fetchone()
+            if existente and str(existente["atualizado_em"] or "") >= atualizado:
+                ignorados += 1
+                continue
+
+            valores = (
+                registro["refeicao"], preparacao["id_ficha"],
+                registro["nome_preparacao_snapshot"], registro.get("categoria_snapshot"),
+                registro.get("porcoes_planejadas"), registro.get("porcoes_produzidas"),
+                registro.get("porcoes_faltantes") or 0, int(registro.get("faltou_preparacao") or 0),
+                registro.get("peso_por_porcao_g"), registro.get("observacao") or "",
+                registro.get("usuario") or "mobile", atualizado or ga._agora()
+            )
+            if existente:
+                id_local = existente["id_registro"]
+                local.execute("""UPDATE GA_Producao_Preparacao SET
+                    refeicao=?,id_ficha=?,nome_preparacao_snapshot=?,categoria_snapshot=?,
+                    porcoes_planejadas=?,porcoes_produzidas=?,porcoes_faltantes=?,faltou_preparacao=?,
+                    peso_por_porcao_g=?,observacao=?,usuario=?,atualizado_em=?
+                    WHERE id_registro=?""", (*valores, id_local))
+                local.execute("DELETE FROM GA_Producao_Cubas WHERE id_registro=?", (id_local,))
+            else:
+                criado = registro.get("criado_em") or atualizado or ga._agora()
+                cur = local.execute("""INSERT INTO GA_Producao_Preparacao(
+                    id_preparacao_dia,data,refeicao,id_ficha,nome_preparacao_snapshot,categoria_snapshot,
+                    porcoes_planejadas,porcoes_produzidas,porcoes_faltantes,faltou_preparacao,
+                    peso_por_porcao_g,observacao,usuario,criado_em,atualizado_em
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (int(registro["id_preparacao_dia"]), registro["data"], *valores[:10],
+                     valores[10], criado, valores[11]))
+                id_local = cur.lastrowid
+
+            cubas = cubas_por_registro.get(registro["id_registro"], [])
+            local.executemany("""INSERT INTO GA_Producao_Cubas(
+                id_registro,identificacao,peso_desperdicio_kg,peso_sobra_kg,observacao,ordem
+            ) VALUES(?,?,?,?,?,?)""", [
+                (id_local, c["identificacao"], c.get("peso_desperdicio_kg") or 0,
+                 c.get("peso_sobra_kg") or 0, c.get("observacao") or "", c.get("ordem") or n)
+                for n, c in enumerate(cubas, 1)
+            ])
+            importados += 1
+        local.commit()
+    except Exception:
+        local.rollback()
+        raise
+    finally:
+        local.close()
+    return {"importados": importados, "ignorados": ignorados}

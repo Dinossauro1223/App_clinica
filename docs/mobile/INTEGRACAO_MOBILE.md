@@ -156,3 +156,5 @@ As médias apresentadas incluem:
 - média por execução e por porção prevista, somente quando as porções foram informadas.
 
 O sistema não chama uma quantidade de consumo efetivo sem inventário físico/conciliação. Estoque inicial, entradas, transferências para copa, perdas/devoluções e estoque final deverão ser conciliados em etapa subsequente.
+
+A tela **Histórico da produção** no desktop importa automaticamente, antes da consulta, os registros mobile do período selecionado. A importação preserva o nome/categoria do snapshot, substitui cubas somente quando o registro mobile é mais recente e não cria movimentações de estoque. Se a preparação de origem não existir mais no banco desktop, o registro é mantido no mobile e contabilizado como ignorado na importação.

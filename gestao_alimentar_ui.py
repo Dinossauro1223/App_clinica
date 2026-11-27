@@ -867,6 +867,16 @@ class GestaoAlimentarUI:
     def abrir_historico_producao(self):
         try:
             inicio, fim = self._periodo_consumo()
+            try:
+                mobile_db = self._mobile_db_path()
+                if os.path.isfile(mobile_db):
+                    im.importar_registros_producao_mobile(self.db, mobile_db, inicio, fim)
+            except Exception as exc:
+                messagebox.showwarning(
+                    "Sincronização da produção mobile",
+                    "Não foi possível importar todos os registros da cozinha. "
+                    "O histórico desktop será aberto com os dados já disponíveis.\\n\\n%s" % exc,
+                    parent=self.tab_consumo)
             RegistroProducaoHistoricoDialog(self.app, self.db, inicio, fim)
         except Exception as exc:
             messagebox.showerror("Histórico da produção", str(exc), parent=self.tab_consumo)

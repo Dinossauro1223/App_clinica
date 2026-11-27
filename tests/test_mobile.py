@@ -146,6 +146,8 @@ class MobileTest(unittest.TestCase):
 
     def test_menu_mobile_exibe_formulario_de_producao_apenas_a_perfis_autorizados(self):
         html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("Produção registrada:", html)
+        html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
         self.assertIn("salvarProducaoMobile", html)
         self.assertIn("adicionarCubaMobile", html)
         self.assertIn("Porções produzidas", html)

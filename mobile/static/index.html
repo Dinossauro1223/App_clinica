@@ -570,6 +570,7 @@ async function vMenuDia(){
       const prep=etapas.length?'<h4>Modo de preparo</h4><ol>'+etapas.map(e=>'<li>'+esc(e.instrucao)+'</li>').join('')+'</ol>':'';
       const registro=registros.find(x=>String(x.id_preparacao_dia)===String(p.id_preparacao_dia));
       const cubas=registro?.cubas?.length?registro.cubas:[{}];
+      const resumoRegistro=registro?'<p class=mini>Produção registrada: '+esc(registro.porcoes_produzidas??'não informada')+' produzida(s) · '+esc(registro.porcoes_faltantes??0)+' faltante(s) · '+esc(registro.cubas?.length??0)+' cuba(s) · responsável: '+esc(registro.usuario||'—')+'</p>':'';
       const formProducao=podeRegistrar?'<section class="cartao prod-mob"><h4>Registro de produção</h4>'+
         '<form onsubmit="salvarProducaoMobile(event,'+Number(p.id_preparacao_dia)+',\''+esc(r.refeicao)+'\')">'+
         '<div class="filtros"><label class=f>Porções produzidas<input name=produzidas type=number min=0 step=0.1 value="'+esc(registro?.porcoes_produzidas??'')+'"></label>'+
@@ -607,10 +608,11 @@ async function salvarProducaoMobile(ev,id,ref){
     peso_sobra_kg:x.querySelector('[name=sobra]').value||0,peso_desperdicio_kg:x.querySelector('[name=desperdicio]').value||0,
     observacao:x.querySelector('[name=obs]').value.trim()})).filter(x=>x.identificacao||Number(x.peso_sobra_kg)||Number(x.peso_desperdicio_kg)||x.observacao);
   try{
-    await api('/api/menu-dia/producao',{data:S.data,refeicao:ref,id_preparacao_dia:id,
+    const resposta=await api('/api/menu-dia/producao',{data:S.data,refeicao:ref,id_preparacao_dia:id,
       porcoes_produzidas:form.produzidas.value||null,porcoes_faltantes:form.faltantes.value||0,
       faltou_preparacao:form.nao_produzida.checked,peso_por_porcao_g:form.peso.value||null,
       observacao:form.observacao.value,cubas});
+    if(resposta.queued){aviso('Sem conexão com o servidor. Registro guardado no aparelho e será enviado quando a conexão voltar.',0);return;}
     await vMenuDia();aviso('Registro de produção salvo. Nenhuma movimentação de estoque foi criada.',0);
   }catch(e){aviso(e.message,1);}
 }
