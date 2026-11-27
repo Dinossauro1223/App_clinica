@@ -4,6 +4,11 @@ from __future__ import annotations
 import sqlite3
 import json
 from datetime import datetime, timedelta
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+import customtkinter as ctk
+import tema
 
 
 def criar_tabelas(conn):
