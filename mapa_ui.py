@@ -1214,7 +1214,7 @@ class DialogSuplemento(_Janela):
         super().__init__(ui, "Suplemento", "760x900")
         self.sup = sup or {}
         self.e = {}
-        quadro = ctk.CTkFrame(self, fg_color="transparent")
+        quadro = ctk.CTkScrollableFrame(self, fg_color="transparent")
         quadro.pack(fill="both", expand=True, padx=20, pady=14)
         campos = [("nome", "Nome", 330), ("preco", "Preço da embalagem (R$)", 120), ("emb_qtd", "Conteúdo da embalagem", 120),
                   ("kcal_100", "kcal por 100", 120), ("ptn_100", "Proteína (g) por 100", 120),
