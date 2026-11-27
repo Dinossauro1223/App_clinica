@@ -98,7 +98,7 @@ def calcular_osmolaridade_diluicao(item, dose, agua_adicionada_ml=0):
         return {"valor": None, "status": "referencia_incompleta", "mensagem": "Informe osmolaridade, dose de referência e volume final de preparo da ficha técnica."}
     if dose_atual is None:
         return {"valor": None, "status": "dose_ausente", "mensagem": "Informe a quantidade do produto nesta preparação."}
-        if str(item.get("unidade_dose_ref") or "").strip().lower() != str(item.get("unidade") or "").strip().lower():
+    if str(item.get("unidade_dose_ref") or "").strip().lower() != str(item.get("unidade") or "").strip().lower():
         return {"valor": None, "status": "unidade_dose_incompativel", "mensagem": "A unidade da dose atual difere da unidade de referência da ficha."}
     fator = dose_atual / dose_ref
     osmoles = osm * (vol_ref / 1000.0) * fator
