@@ -12,10 +12,11 @@ class BarraLateral(ctk.CTkFrame):
     RECOLHIDA = 58
     EXPANDIDA = 250
 
-    def __init__(self, app, secoes, config, rodape="", persistir=True):
+    def __init__(self, app, secoes, config, rodape="", persistir=True, referencias_comando=None):
         super().__init__(app, width=self.RECOLHIDA, corner_radius=0, fg_color=tema.VERDE_ESC)
         self.app = app
         self.rodape = rodape
+        self.referencias_comando = referencias_comando
         try:
             if persistir:
                 from configuracoes_ui import _ler as _ler_preferencias, _salvar as _salvar_preferencias
@@ -59,6 +60,14 @@ class BarraLateral(ctk.CTkFrame):
             justify="left", anchor="w", wraplength=self.EXPANDIDA - 28
         )
         self.lbl_rodape.pack(side="bottom", fill="x", padx=14, pady=(2, 10))
+        if callable(self.referencias_comando):
+            self.btn_referencias = ctk.CTkButton(
+                rod, text="📚  Referências utilizadas", anchor="w", height=34,
+                corner_radius=7, fg_color="transparent", hover_color=tema.VERDE_HOVER,
+                text_color="#E8F2EC", font=ctk.CTkFont(size=11, weight="bold"),
+                command=self.referencias_comando,
+            )
+            self.btn_referencias.pack(side="top", fill="x", padx=6, pady=(0, 4))
         self._adicionar_item(rod, *config, rodape=True)
 
         self.rolagem = ctk.CTkScrollableFrame(
@@ -130,6 +139,11 @@ class BarraLateral(ctk.CTkFrame):
             lbl.configure(text=nome if aberta else "•", anchor="w" if aberta else "center")
         self.lbl_titulo.configure(text="NutriLab" if aberta else "")
         self.lbl_rodape.configure(text=self.rodape if aberta else "©")
+        if hasattr(self, "btn_referencias"):
+            self.btn_referencias.configure(
+                text="📚  Referências utilizadas" if aberta else "📚",
+                anchor="w" if aberta else "center",
+            )
 
     def _abrir(self, aberta):
         self.configure(width=self.EXPANDIDA if aberta else self.RECOLHIDA)
