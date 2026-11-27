@@ -242,8 +242,7 @@ def inicializar(db_path):
                            ("volume_final_ref_ml", "REAL"), ("agua_recomendada_ml", "REAL"),
                            ("fonte_osmolaridade", "TEXT"), ("classificacao_nutricional", "TEXT"),
                            ("grau_hidrolise", "TEXT"), ("proteinas_hidrolisadas", "TEXT"),
-                           ("fonte_classificacao", "TEXT"), ("tipo_formula", "TEXT"), ("fibra_g_100", "REAL"),
-                           ("tipo_fibra", "TEXT"), ("descricao_fibra", "TEXT"), ("fonte_fibra", "TEXT")):
+                           ("fonte_classificacao", "TEXT"), ("tipo_formula", "TEXT")):
             if nome not in colunas_catalogo:
                 c.execute(f"ALTER TABLE Mapa_Suplementos ADD COLUMN {nome} {tipo}")
         colunas_sup = {r["name"] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
