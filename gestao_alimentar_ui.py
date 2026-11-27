@@ -875,7 +875,7 @@ class GestaoAlimentarUI:
                 messagebox.showwarning(
                     "Sincronização da produção mobile",
                     "Não foi possível importar todos os registros da cozinha. "
-                    "O histórico desktop será aberto com os dados já disponíveis.\\n\\n%s" % exc,
+                    "O histórico desktop será aberto com os dados já disponíveis.\n\n%s" % exc,
                     parent=self.tab_consumo)
             RegistroProducaoHistoricoDialog(self.app, self.db, inicio, fim)
         except Exception as exc:
