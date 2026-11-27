@@ -27,6 +27,7 @@ import tema
 from mapa_ui import MapaUI, DialogCurvasOMS
 from tela_boas_vindas import TelaBoasVindas
 from navegacao_ui import BarraLateral, PilhaAbasLaterais
+from referencias_ui import JanelaReferencias
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
 import ambulatorial
 import pediatria_oms as oms
@@ -202,7 +203,8 @@ class AppClinica(ctk.CTk):
         self.menu_lateral = BarraLateral(
             self, secoes=secoes_menu,
             config=("⚙️", "Configurações", lambda: self.abrir_pagina_principal("Configurações", self.tela_configuracoes)),
-            rodape="© 2026 Neis Bila de Alencar. Todos os direitos reservados."
+            rodape="© 2026 Neis Bila de Alencar. Todos os direitos reservados.",
+            referencias_comando=lambda: JanelaReferencias(self)
         )
         self.bind("<Escape>", self._fechar_ultima_aba_lateral, add="+")
         self.tela_inicial()
