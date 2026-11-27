@@ -214,16 +214,21 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
             criterio_bmi = {"imc": round(bmi, 2), "limite": limite,
                             "texto": f"IMC abaixo do ponto de corte GLIM para idade (IMC {bmi:.1f}; corte <{limite})."}
 
-    glim_peso = adulto and any(
-        c.get("origem_anterior") == "R" and c.get("origem_atual") == "R" and (
-            (c["janela"] == "6 meses" and c["perda_percentual"] > 5) or
-            (c["dias_reais"] > 180 and c["perda_percentual"] > 10)
-        )
-        for c in comparacoes
-    )
+    glim_peso = False
+    if adulto and atual.get("peso_origem") == "R":
+        for anterior in itens[:-1]:
+            if anterior.get("peso_origem") != "R":
+                continue
+            dias = (data_atual - anterior["_data"]).total_seconds() / 86400
+            if dias <= 0:
+                continue
+            perda_periodo = (anterior["_peso"] - atual["_peso"]) / anterior["_peso"] * 100
+            if (dias <= 180 and perda_periodo > 5) or (dias > 180 and perda_periodo > 10):
+                glim_peso = True
+                break
     fenotipicos = []
     if glim_peso:
-        fenotipicos.append("perda ponderal compatível com limiar fenotípico GLIM")
+        fenotipicos.append("perda ponderal com limiar quantitativo GLIM atingido; confirmar se foi não intencional")
     if criterio_bmi:
         fenotipicos.append("IMC reduzido segundo GLIM")
     etiologicos = []
@@ -253,7 +258,8 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
             "O IMC GLIM foi avaliado somente com peso e estatura aferidos. "
             if adulto and not imc_com_pesagem_aferida else ""
         ) + "As faixas ASPEN apoiam a documentação clínica e não fecham diagnóstico isoladamente. "
-            "GLIM requer ≥1 critério fenotípico e ≥1 etiológico. Mudanças agudas de peso podem refletir líquidos.",
+            "GLIM requer ≥1 critério fenotípico e ≥1 etiológico; a perda ponderal deve ser não intencional. "
+            "Mudanças agudas de peso podem refletir líquidos.",
     }
 
 
