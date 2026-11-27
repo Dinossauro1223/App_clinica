@@ -1454,6 +1454,16 @@ class DialogSubstituirSuplemento(ctk.CTkToplevel):
                     linhas.append(f"{rotulo}: {valores} (por preparação).")
                 else:
                     linhas.append(f"{rotulo}: não calculável — {resumo.get('mensagem') or 'dados de cada preparação incompletos'}.")
+            def resumo_fibra(item):
+                dose = nc.parse_num(item.get("qtd_dia"))
+                teor = nc.parse_num(item.get("fibra_g_100"))
+                if dose is None or teor is None:
+                    return "não informado"
+                tipo = item.get("tipo_fibra") or "tipo não informado"
+                descricao = f" — {item['descricao_fibra']}" if item.get("descricao_fibra") else ""
+                return f"{teor * dose / 100:.2f} g/dia · {tipo}{descricao}"
+            linhas.append(f"Fibra do produto atual: {resumo_fibra(self.atual)}")
+            linhas.append(f"Fibra do substituto: {resumo_fibra(self.novo)}")
             linhas.extend(self.comparacao["alertas"])
             if not self.comparacao["aporte_completo"]:
                 linhas.append("Atenção: existem dados de composição incompletos; confira as pendências da ficha técnica.")
