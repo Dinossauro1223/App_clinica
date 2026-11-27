@@ -1431,6 +1431,14 @@ class Manipulador(BaseHTTPRequestHandler):
                 raise Erro("Acesso permitido somente pela rede local.", 403)
             u = urlparse(self.path)
             q = {k: v[0] for k, v in parse_qs(u.query).items()}
+            if m == "GET" and u.path == "/health":
+                try:
+                    db_uri = Path(self.server.db).resolve().as_uri() + "?mode=ro"
+                    with sqlite3.connect(db_uri, uri=True, timeout=1) as health_db:
+                        health_db.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone()
+                    return self._enviar(200, {"status": "ok", "database": "ready"})
+                except (sqlite3.Error, OSError):
+                    return self._enviar(503, {"status": "error", "database": "unavailable"})
             if m == "GET" and u.path == "/download/NutriLab-Mobile.apk":
                 apk = (AQUI / "apk" / "saida" / "NutriLab-Mobile.apk").resolve()
                 if not apk.is_file() or AQUI.resolve() not in apk.parents:
