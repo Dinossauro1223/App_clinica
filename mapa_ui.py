@@ -1844,6 +1844,9 @@ class FormRegistro(_Janela):
         self.b_peso = self._reg(_btn(l, "Estimar por AJ + PB", self._estimar_peso, 150, CINZA_BTN, CINZA_HOVER, 28))
         self.b_peso.pack(side="left")
         l = self._linha(q)
+        ctk.CTkLabel(l, text="Horário da pesagem real (HH:MM; opcional):").pack(side="left", padx=(0, 8))
+        self.e_hora_peso = self._entrada(l, "HH:MM", 75)
+        l = self._linha(q)
         ctk.CTkLabel(l, text="IMC (kg/m²):").pack(side="left")
         self.lbl_imc = ctk.CTkLabel(l, text="-", font=ctk.CTkFont(size=14, weight="bold"))
         self.lbl_imc.pack(side="left", padx=6)
@@ -2076,6 +2079,9 @@ class FormRegistro(_Janela):
             self.seg_alt.set({"E": "Estimada", "R": "Real"}[r["altura_origem"]])
         if r.get("peso_origem"):
             self.seg_peso.set({"E": "Estimado", "R": "Real"}[r["peso_origem"]])
+        hora_peso = str(r.get("peso_medido_em") or "").replace("T", " ")
+        if len(hora_peso) >= 16 and ":" in hora_peso:
+            _set_entry(self.e_hora_peso, hora_peso[11:16])
         _set_entry(self.e_reav, mdb.iso_para_br(r.get("data_reavaliacao")))
         if r.get("via"):
             self.seg_via.set(r["via"])
@@ -2186,6 +2192,16 @@ class FormRegistro(_Janela):
         origem_a = {"Estimada": "E", "Real": "R"}.get(self.seg_alt.get())
         origem_p = {"Estimado": "E", "Real": "R"}.get(self.seg_peso.get())
         fi = {"Presente": "P", "Ausente": "A"}.get(self.seg_fi.get())
+        hora_peso = g(self.e_hora_peso)
+        peso_medido_em = None
+        if hora_peso:
+            if origem_p != "R":
+                raise ValueError("O horário só pode ser informado para peso real/aferido.")
+            try:
+                datetime.strptime(f"{self.data_iso} {hora_peso}", "%Y-%m-%d %H:%M")
+            except ValueError:
+                raise ValueError("Horário da pesagem inválido. Use HH:MM, de 00:00 a 23:59.")
+            peso_medido_em = f"{self.data_iso} {hora_peso}"
         dias = n(self.e_fi_dias)
         return {
             "data": self.data_iso, "id_leito": self.leito["id_leito"], "id_paciente": self._id_paciente,
@@ -2198,6 +2214,7 @@ class FormRegistro(_Janela):
             "altura_metodo": self._altura_metodo if origem_a == "E" else None,
             "peso_kg": n(self.e_peso), "peso_origem": origem_p,
             "peso_metodo": self._peso_metodo if origem_p == "E" else None,
+            "peso_medido_em": peso_medido_em,
             "data_reavaliacao": reav, "via": self.seg_via.get() or None,
             "tipo_dieta": self.e_tipo_dieta.get().strip() or None,
             "meta_kcal": n(self.e_meta_kcal), "meta_proteina_g": n(self.e_meta_ptn), "meta_fibras_g": n(self.e_meta_fibras),
