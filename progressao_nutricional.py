@@ -115,12 +115,28 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
                 "data_atual": atual["_data"].strftime("%d/%m/%Y"),
             })
             if adulto and anterior.get("peso_origem") == "R" and atual.get("peso_origem") == "R" and abs(diferenca) >= 1.0:
+                perda_confirmada = diferenca < 0
+                texto_alerta = (
+                    ("Redução" if perda_confirmada else "Aumento") +
+                    f" de {abs(diferenca):.1f} kg ({perda_pct:.1f}% do peso anterior) em {intervalo_h:.1f} h. "
+                )
+                if perda_confirmada:
+                    texto_alerta += (
+                        "Perda aguda importante: pode sinalizar deterioração clínica/nutricional e exige avaliação "
+                        "nutricional, confirmação da tendência e revisão da ingestão. Também investigar balanço hídrico, "
+                        "edema, diurese e técnica de pesagem. Não confirma desnutrição nem substitui critérios GLIM/ASPEN. "
+                    )
+                else:
+                    texto_alerta += (
+                        "Revisar balanço hídrico, edema, diurese e técnica de pesagem; aumento agudo não é indicador "
+                        "de ganho de tecido. "
+                    )
                 alertas.append({
                     "tipo": "variacao_aguda_24h", "diferenca_kg": round(diferenca, 2),
+                    "perda_percentual": round(perda_pct, 2),
+                    "sinal_risco_nutricional": perda_confirmada,
                     "intervalo_horas": round(intervalo_h, 1),
-                    "texto": ("Aumento" if diferenca > 0 else "Redução") +
-                             f" de {abs(diferenca):.1f} kg em {intervalo_h:.1f} h. Revisar balanço hídrico, edema, diurese, "
-                             "condições de pesagem e possível erro de medida. Não classificar como desnutrição isoladamente."
+                    "texto": texto_alerta,
                 })
             break
         if (0 < intervalo_h <= 48 and atual["_data"].date() != anterior["_data"].date()
@@ -139,13 +155,28 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
                 "data_atual": atual["_data"].strftime("%d/%m/%Y"),
             })
             if adulto and abs(diferenca) >= 1.0:
+                perda_confirmada = diferenca < 0
+                texto_alerta = (
+                    ("Redução" if perda_confirmada else "Aumento") +
+                    f" de {abs(diferenca):.1f} kg ({perda_pct:.1f}% do peso anterior) entre datas consecutivas do mapa. "
+                    "O horário da aferição não está registrado; confirmar se o intervalo foi de até 24 h. "
+                )
+                if perda_confirmada:
+                    texto_alerta += (
+                        "A redução pode sinalizar deterioração clínica/nutricional e exige avaliação nutricional, "
+                        "confirmação da tendência e revisão da ingestão. Investigar também balanço hídrico, edema, "
+                        "diurese e técnica de pesagem. Não confirma desnutrição nem substitui critérios GLIM/ASPEN."
+                    )
+                else:
+                    texto_alerta += (
+                        "Revisar balanço hídrico, edema, diurese e técnica de pesagem. Não diagnostica desnutrição."
+                    )
                 alertas.append({
                     "tipo": "variacao_em_dias_consecutivos", "diferenca_kg": round(diferenca, 2),
+                    "perda_percentual": round(perda_pct, 2),
+                    "sinal_risco_nutricional": perda_confirmada,
                     "intervalo_horas": None,
-                    "texto": ("Aumento" if diferenca > 0 else "Redução") +
-                             f" de {abs(diferenca):.1f} kg entre datas consecutivas do mapa. "
-                             "O horário da aferição não está registrado; confirmar se o intervalo foi de até 24 h "
-                             "e revisar balanço hídrico/condições de pesagem. Não diagnostica desnutrição."
+                    "texto": texto_alerta,
                 })
             break
 
