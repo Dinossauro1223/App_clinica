@@ -350,9 +350,15 @@ class TestBanco(unittest.TestCase):
 
     def test_suplementos(self):
         novo = mdb.salvar_suplemento(self.db, dict(nome="Módulo X", modulo="Módulo de fibras", preco="12,50",
-                                                    emb_qtd="200", emb_un="g", kcal_100="350", ptn_100="2,5"))
+                                                    emb_qtd="200", emb_un="g", kcal_100="350", ptn_100="2,5",
+                                                    osmolaridade_ref="300", unidade_osmolaridade="mOsm/L",
+                                                    dose_ref="20", unidade_dose_ref="g", volume_final_ref_ml="150",
+                                                    agua_recomendada_ml="130", fonte_osmolaridade="Ficha técnica 2026"))
         s = [x for x in mdb.listar_suplementos(self.db) if x["id_suplemento"] == novo][0]
         self.assertEqual((s["preco"], s["emb_qtd"], s["kcal_100"], s["ptn_100"]), (12.5, 200.0, 350.0, 2.5))
+        self.assertEqual((s["osmolaridade_ref"], s["unidade_osmolaridade"], s["dose_ref"],
+                          s["unidade_dose_ref"], s["volume_final_ref_ml"], s["agua_recomendada_ml"]),
+                         (300.0, "mOsm/L", 20.0, "g", 150.0, 130.0))
         self.assertIn("Módulo de fibras", mdb.listar_modulos(self.db))
         mdb.salvar_suplemento(self.db, dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo", emb_un="ml"))
         self.assertIn("Novo módulo", mdb.listar_modulos(self.db))
@@ -362,7 +368,11 @@ class TestBanco(unittest.TestCase):
             mdb.salvar_suplemento(self.db, dict(nome="Y", emb_un="L"))
         # usado em registro: só desativa; não usado: exclui
         mdb.salvar_registro(self.db, registro_base(self.db, self.leitos[0]["id_leito"], "2026-10-25",
-                            suplementos=[dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo")]))
+                            suplementos=[dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo",
+                                qtd_dia=20, unidade="g", agua_ml=130)]))
+        salvo = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["suplementos"][0]
+        self.assertEqual((salvo["osmolaridade_ref"], salvo["dose_ref"], salvo["volume_final_ref_ml"],
+                          salvo["agua_recomendada_ml"], salvo["agua_ml"]), (300.0, 20.0, 150.0, 130.0, 130.0))
         self.assertFalse(mdb.remover_suplemento(self.db, novo))
         self.assertNotIn(novo, [x["id_suplemento"] for x in mdb.listar_suplementos(self.db)])
         outro = mdb.salvar_suplemento(self.db, dict(nome="Z"))
