@@ -895,6 +895,23 @@ class TestEscalasVisita(unittest.TestCase):
         self.assertEqual(__import__("json").loads(salvo["escalas_visita_json"]), respostas)
         self.assertEqual(salvo["tipo_dieta"], "Hipossódica")
 
+    def test_migracao_adiciona_horario_de_pesagem_em_banco_legado(self):
+        fd, legado = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            esquema_antigo = mdb._SCHEMA.replace("peso_medido_em TEXT", "")
+            with closing(sqlite3.connect(legado)) as c, c:
+                c.executescript(esquema_antigo)
+            mdb.inicializar(legado)
+            with closing(sqlite3.connect(legado)) as c:
+                colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
+            self.assertIn("peso_medido_em", colunas)
+        finally:
+            try:
+                os.remove(legado)
+            except PermissionError:
+                pass
+
     def test_migracao_aditiva_e_idempotente(self):
         mdb.inicializar(self.db)
         mdb.inicializar(self.db)
