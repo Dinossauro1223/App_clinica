@@ -241,7 +241,7 @@ def formatar_progressao(resultado):
     if resultado.get("outras_medidas"):
         linhas.append("As variações de perímetros/estatura são exibidas para acompanhamento; não recebem classificação diagnóstica automática.")
     if resultado.get("criterio_bmi_glim"):
-        linhas.append(resultado["criterio_bmi_glim"]["texto")
+        linhas.append(resultado["criterio_bmi_glim"]["texto"])
     linhas.extend(a["texto"] for a in resultado.get("alertas", []))
     linhas.append(resultado.get("nota", ""))
     return "\n".join(linhas)
