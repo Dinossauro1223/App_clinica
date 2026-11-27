@@ -14,7 +14,8 @@ class TestProgressaoNutricional(unittest.TestCase):
         self.assertEqual(alerta["tipo"], "variacao_em_dias_consecutivos")
         self.assertIsNone(alerta["intervalo_horas"])
         self.assertIn("não está registrado", alerta["texto"])
-        self.assertIn("Não diagnostica desnutrição", alerta["texto"])
+        self.assertTrue(alerta["sinal_risco_nutricional"])
+        self.assertIn("Não confirma desnutrição", alerta["texto"])
 
     def test_variacao_com_horarios_reais_em_24h_sinaliza_balanco_hidrico(self):
         resultado = pn.analisar_progressao_peso([
