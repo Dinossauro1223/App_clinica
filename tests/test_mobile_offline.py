@@ -93,6 +93,12 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("OK", r.stdout)
 
+    def test_menu_do_dia_so_aparece_quando_ha_preparacoes_publicadas(self):
+        self.assertIn("let abasAtivas=[...(ABAS[u.perfil]||[])]", self.html)
+        self.assertIn("const menuHoje=await api('/api/menu-dia?data='+encodeURIComponent(S.data))", self.html)
+        self.assertIn("if(!possuiPreparacoes)abasAtivas=abasAtivas.filter(a=>a[0]!=='menu')", self.html)
+        self.assertIn("abasAtivas[0]?.[0]||'painel'", self.html)
+
     def test_interface_oferece_as_tres_acoes_de_sincronizacao(self):
         for texto in ("Enviar atualizações", "Adiar até o próximo acesso ao servidor",
                       "Reverter cópia local para a versão do servidor"):

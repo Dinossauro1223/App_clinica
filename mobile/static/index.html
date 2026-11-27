@@ -458,10 +458,21 @@ async function entrar(){
   S.itens=(await api('/api/itens')).itens;S.suplementos=(await api('/api/suplementos')).suplementos||[];
   if(u.estoque)S.est=u.estoque;
   const sub=!escolheSetor()&&S.setores[0]?' · '+S.setores[0].nome:'';
+  let abasAtivas=[...(ABAS[u.perfil]||[])];
+  // O Menu do Dia só aparece quando há preparações publicadas para a data atual.
+  // A consulta usa o cache GET existente quando o aparelho está sem conexão.
+  if(abasAtivas.some(a=>a[0]==='menu')){
+    try{
+      const menuHoje=await api('/api/menu-dia?data='+encodeURIComponent(S.data));
+      const possuiPreparacoes=!!menuHoje.publicado&&(menuHoje.refeicoes||[])
+        .some(r=>(r.snapshot?.preparacoes||[]).length>0);
+      if(!possuiPreparacoes)abasAtivas=abasAtivas.filter(a=>a[0]!=='menu');
+    }catch(e){abasAtivas=abasAtivas.filter(a=>a[0]!=='menu')}
+  }
   $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span><button onclick="sair()">Sair</button></div></header>
-  <nav>${ABAS[u.perfil].map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
+  <nav>${abasAtivas.map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
   <footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
-  ir(ABAS[u.perfil][0][0]);
+  ir(abasAtivas[0]?.[0]||'painel');
   verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
 }
 const ir=tenta(async aba=>{
