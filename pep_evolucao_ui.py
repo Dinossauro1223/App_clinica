@@ -457,7 +457,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
             "ureia": self.e_ureia.get().strip() or None,
             "albumina_serica": self.e_albumina_serica.get().strip() or None,
         }
-        preenchido = (dados["drc_confirmada"] is not None or dados["estagio"] or dados["tfge"] or
+        preenchido = (dados["condicao_renal"] != "NAO_DEFINIDA" or
+                      dados["drc_confirmada"] is not None or dados["estagio"] or dados["tfge"] or
                       dados["albuminuria_mg_g"] or dados["dialise"] != "nao" or
                       dados["estabilidade_metabolica"] != "nao_informada" or
                       any(dados[k] for k in ("creatinina", "ureia", "albumina_serica")))
