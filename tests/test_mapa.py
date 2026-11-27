@@ -385,6 +385,10 @@ class TestBanco(unittest.TestCase):
         os.close(fd)
         try:
             with sqlite3.connect(legado) as c:
+                c.execute("""CREATE TABLE Mapa_Suplementos (
+                    id_suplemento INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, modulo TEXT, preco REAL,
+                    emb_qtd REAL, emb_un TEXT DEFAULT 'ml', kcal_100 REAL, ptn_100 REAL, lip_100 REAL,
+                    carb_100 REAL, sod_100 REAL, observacao TEXT, ativo INTEGER DEFAULT 1)""")
                 c.execute("""CREATE TABLE Mapa_Registro_Suplementos (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL,
                     id_suplemento INTEGER, nome TEXT NOT NULL, modulo TEXT, qtd_dia REAL,
@@ -393,8 +397,13 @@ class TestBanco(unittest.TestCase):
             mdb.inicializar(legado)
             with sqlite3.connect(legado) as c:
                 colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
+                colunas_catalogo = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Suplementos)")}
             self.assertTrue({"kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
-                             "ficha_observacao", "ficha_snapshot_em"}.issubset(colunas))
+                             "ficha_observacao", "ficha_snapshot_em", "osmolaridade_ref",
+                             "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
+                             "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade"}.issubset(colunas))
+            self.assertTrue({"osmolaridade_ref", "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
+                             "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade"}.issubset(colunas_catalogo))
         finally:
             try:
                 os.remove(legado)
