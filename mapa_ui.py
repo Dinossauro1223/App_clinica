@@ -2197,6 +2197,8 @@ class FormRegistro(_Janela):
         if hora_peso:
             if origem_p != "R":
                 raise ValueError("O horário só pode ser informado para peso real/aferido.")
+            if n(self.e_peso) is None:
+                raise ValueError("Informe o peso aferido antes de registrar o horário da pesagem.")
             try:
                 datetime.strptime(f"{self.data_iso} {hora_peso}", "%Y-%m-%d %H:%M")
             except ValueError:
