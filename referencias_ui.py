@@ -30,6 +30,11 @@ REFERENCIAS = [
         "https://www.ncbi.nlm.nih.gov/books/NBK610839/",
     ),
     (
+        "GOMES, F. et al. ESPEN practical guideline: clinical nutrition in hospitalized patients. Clinical Nutrition, v. 40, n. 12, p. 5684-5709, 2021. DOI: 10.1016/j.clnu.2021.09.012.",
+        "Referência para acompanhamento da ingestão e suporte nutricional em pacientes hospitalizados.",
+        "https://doi.org/10.1016/j.clnu.2021.09.012",
+    ),
+    (
         "IKIZLER, T. Alp et al. KDOQI clinical practice guideline for nutrition in CKD: 2020 update. American Journal of Kidney Diseases, v. 76, n. 3, supl. 1, p. S1-S107, 2020. DOI: 10.1053/j.ajkd.2020.05.006.",
         "Referência alternativa para avaliação e cuidado nutricional na doença renal crônica.",
         "https://doi.org/10.1053/j.ajkd.2020.05.006",
