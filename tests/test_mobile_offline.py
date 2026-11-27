@@ -55,7 +55,7 @@ global.window=global;global.addEventListener=()=>{};
 global.location={href:'http://127.0.0.1:8765/'};
 const store=new Map();
 global.localStorage={getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
-global.document={addEventListener(){},body:{appendChild(){}},createElement(){return {style:{},className:'',innerHTML:'',querySelector(){return {onclick:null,textContent:''}},remove(){}}}};
+global.document={addEventListener(){},documentElement:{dataset:{},style:{setProperty(){}}},body:{appendChild(){},style:{}},querySelectorAll(){return []},createElement(){return {style:{},className:'',innerHTML:'',querySelector(){return {onclick:null,textContent:''}},remove(){}}}};
 let online=true;
 global.fetch=async (input,init={})=>{
  if(!online)throw new TypeError('offline');

@@ -1,5 +1,4 @@
-        self._grupo(conteudo, "Aparência")
-from tkinter import ttk, filedialog
+# -*- coding: utf-8 -*-
 """Tela enxuta de configurações visuais para o NutriLab."""
 from __future__ import annotations
 
@@ -10,8 +9,7 @@ import sys
 import webbrowser
 from pathlib import Path
 import tkinter as tk
-import midias_usuario
-from tkinter import ttk
+from tkinter import ttk, filedialog
 from urllib.parse import quote
 
 import customtkinter as ctk
@@ -21,59 +19,20 @@ import db_service
 import tema
 import nrs2002 as nrs
 import mapa_db as mdb
-        self._grupo(conteudo, "Aplicativo mobile e conexão")
 import evolucao_nutricional as evregras
-        self._grupo(conteudo, "Contas e permissões")
+import midias_usuario
 import integracao_mobile
-        self._grupo(conteudo, "Configurações clínicas")
 import refeicoes_db as rdb
 from mobile import servidor as servidor_mobile
-        self._grupo(conteudo, "Equipe de atendimento")
 
-        self._grupo(conteudo, "Refeições e custos")
 CAMINHO = os.path.join(os.path.expanduser("~"), ".nutrilab", "preferencias.json")
 PERFIS_COMPARTILHADOS = {"Copa": "copa", "Almoxarifado": "estoque_almox"}
-        self._grupo(conteudo, "Dados e recuperação")
 
-        self._recolher_cards_config(conteudo)
 def _ler():
     try:
         with open(CAMINHO, encoding="utf-8") as f:
             dados = json.load(f)
         return dados if isinstance(dados, dict) else {}
-    def _grupo(self, raiz, titulo):
-        ctk.CTkLabel(raiz, text=titulo, font=tema.fonte(14, "bold"),
-                      text_color=tema.VERDE).pack(anchor="w", padx=24, pady=(14, 2))
-
-    def _recolher_cards_config(self, raiz, card_aberto=None):
-        """Recolhe cada bloco sem destruir widgets nem perder dados digitados."""
-        for card in raiz.winfo_children():
-            if not isinstance(card, ctk.CTkFrame) or card is card_aberto:
-                continue
-            filhos = card.winfo_children()
-            if not filhos or not isinstance(filhos[0], ctk.CTkLabel):
-                continue
-            titulo = filhos[0]
-            texto = str(titulo.cget("text"))
-            conteudos = [(w, {k: v for k, v in w.pack_info().items() if k not in ("in", "before", "after")})
-                         for w in filhos[1:]]
-            estado = {"aberto": False}
-            titulo.configure(text="▸ " + texto, cursor="hand2")
-            def alternar(_evento=None, h=titulo, itens=conteudos, e=estado, t=texto):
-                e["aberto"] = not e["aberto"]
-                h.configure(text=("▾ " if e["aberto"] else "▸ ") + t)
-                if e["aberto"]:
-                    for widget, opcoes in itens:
-                        widget.pack(**opcoes)
-                else:
-                    for widget, _opcoes in itens:
-                        widget.pack_forget()
-            titulo.bind("<Button-1>", alternar)
-            titulo.bind("<Return>", alternar)
-            titulo.bind("<space>", alternar)
-            titulo.bind("<Enter>", lambda _e, h=titulo: h.configure(text_color=tema.VERDE_HOVER))
-            titulo.bind("<Leave>", lambda _e, h=titulo, t=texto, e=estado: h.configure(text_color=tema.VERDE, text=("▾ " if e["aberto"] else "▸ ")+t))
-
     except (OSError, ValueError):
         return {}
 
@@ -113,7 +72,6 @@ class ConfiguracoesUI:
         seletor = ctk.CTkSegmentedButton(
             card, values=list(self.OPCOES), command=self._aplicar,
             selected_color=tema.VERDE, selected_hover_color=tema.VERDE_HOVER,
-        self._midias_personalizadas(conteudo)
             unselected_color=tema.BRANCO, unselected_hover_color=tema.BORDA,
             text_color=tema.TEXTO, text_color_disabled=tema.SUAVE,
             corner_radius=8, border_width=1
@@ -122,18 +80,71 @@ class ConfiguracoesUI:
         seletor.pack(anchor="w", padx=18, pady=(0, 16))
         self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
         self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
+        self._grupo(conteudo, "Aplicativo mobile e conexão")
+        self._midias_personalizadas(conteudo)
+        self._grupo(conteudo, "Contas e permissões")
         self._distribuicao(conteudo)
         self._contas_compartilhadas(conteudo)
+        self._grupo(conteudo, "Configurações clínicas")
         self._nrs(conteudo)
+        self._midias_personalizadas(conteudo)
         self._progressao_oral(conteudo)
+        self._grupo(conteudo, "Equipe de atendimento")
         self._equipe(conteudo)
+        self._grupo(conteudo, "Refeições e custos")
         self._refeicoes(conteudo)
         self._precos_refeicoes(conteudo)
+        self._grupo(conteudo, "Dados e recuperação")
         self._backups(conteudo)
+        self._recolher_cards_config(conteudo)
         ctk.CTkButton(conteudo, text="Voltar ao início", fg_color=tema.VERDE,
                      hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=14, pady=10)
 
 
+
+    def _grupo(self, raiz, titulo):
+        ctk.CTkLabel(raiz, text=titulo, font=tema.fonte(14, "bold"),
+                      text_color=tema.VERDE).pack(anchor="w", padx=24, pady=(14, 2))
+
+    def _recolher_cards_config(self, raiz, card_aberto=None):
+        """Recolhe blocos de configuração sem destruir widgets ou dados digitados."""
+        for card in raiz.winfo_children():
+            if not isinstance(card, ctk.CTkFrame) or card is card_aberto:
+                continue
+            filhos = card.winfo_children()
+            if not filhos or not isinstance(filhos[0], ctk.CTkLabel):
+                continue
+            titulo = filhos[0]
+            texto = str(titulo.cget("text"))
+            conteudos = [
+                (w, {k: v for k, v in w.pack_info().items()
+                     if k not in ("in", "before", "after")})
+                for w in filhos[1:]
+            ]
+            estado = {"aberto": False}
+            titulo.configure(text="▸ " + texto, cursor="hand2")
+
+            def alternar(_evento=None, h=titulo, itens=conteudos, e=estado, t=texto):
+                e["aberto"] = not e["aberto"]
+                h.configure(text=("▾ " if e["aberto"] else "▸ ") + t)
+                if e["aberto"]:
+                    for widget, opcoes in itens:
+                        widget.pack(**opcoes)
+                else:
+                    for widget, _opcoes in itens:
+                        widget.pack_forget()
+
+            titulo.bind("<Button-1>", alternar)
+            titulo.bind("<Return>", alternar)
+            titulo.bind("<space>", alternar)
+            titulo.bind("<Enter>", lambda _e, h=titulo: h.configure(text_color=tema.VERDE_HOVER))
+            titulo.bind(
+                "<Leave>",
+                lambda _e, h=titulo, t=texto, e=estado: h.configure(
+                    text_color=tema.VERDE,
+                    text=("▾ " if e["aberto"] else "▸ ") + t,
+                ),
+            )
 
     def _mobile_db_path(self):
         banco_clinica = getattr(getattr(self.app, "mapa", None), "db", None)
@@ -634,6 +645,17 @@ class ConfiguracoesUI:
                         if not messagebox.askyesno("Desativar integrante",
                                                    f"Desativar {nome}? Rascunhos pendentes impedem a desativação.",
                                                    parent=self.app):
+                            return
+                        try:
+                            evdb.desativar_membro(caminho_db, mid)
+                            status.configure(text=f"{nome} desativado.", text_color=tema.VERDE)
+                            atualizar_lista()
+                        except Exception as erro:
+                            status.configure(text=str(erro), text_color=tema.LARANJA_TEXTO)
+                    ctk.CTkButton(linha, text="Desativar", width=78, fg_color=tema.SUAVE,
+                                  hover_color=tema.LARANJA, command=desativar).pack(side="right", padx=4)
+        atualizar_lista()
+
     def _midias_personalizadas(self, raiz):
         """Gerencia escalas e imagens de apoio sem gravá-las dentro da pasta do executável."""
         card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
@@ -697,17 +719,6 @@ class ConfiguracoesUI:
         ctk.CTkButton(linha, text="Adicionar / substituir imagem", command=adicionar,
             fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER).pack(side="left", padx=4)
         atualizar()
-
-                            return
-                        try:
-                            evdb.desativar_membro(caminho_db, mid)
-                            status.configure(text=f"{nome} desativado.", text_color=tema.VERDE)
-                            atualizar_lista()
-                        except Exception as erro:
-                            status.configure(text=str(erro), text_color=tema.LARANJA_TEXTO)
-                    ctk.CTkButton(linha, text="Desativar", width=78, fg_color=tema.SUAVE,
-                                  hover_color=tema.LARANJA, command=desativar).pack(side="right", padx=4)
-        atualizar_lista()
 
     def _refeicoes(self, raiz):
         """Configura janelas independentes para pacientes e funcionários."""

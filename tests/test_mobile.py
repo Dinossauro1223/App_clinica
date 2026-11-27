@@ -1,52 +1,4 @@
-    def test_imagem_de_orientacao_e_compartilhada_e_persiste_apos_atualizacao(self):
-        orientacoes = self.chamar(self.adm, "GET", "/api/orientacoes")[1]["orientacoes"]
-        dil = next(o for o in orientacoes if o["slug"] == "diluicao")
-        # PNG mínimo conhecido; o servidor valida a assinatura e persiste o conteúdo no SQLite.
-        png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/pZ8AAAAASUVORK5CYII="
-        cod, resposta = self.chamar(self.adm, "POST", "/api/admin/orientacoes/imagem",
-                                    {"id": dil["id"], "tipo": "image/png", "imagem_data": png})
-        self.assertEqual(cod, 200, resposta)
-        self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/admin/orientacoes/imagem",
-                                     {"id": dil["id"], "tipo": "image/png", "imagem_data": png})[0], 403)
-        salvo = next(o for o in self.chamar(self.t["cop"], "GET", "/api/orientacoes")[1]["orientacoes"]
-                     if o["slug"] == "diluicao")
-        self.assertEqual((salvo["imagem_tipo"], salvo["imagem_data"]), ("image/png", png))
-        # Reexecutar a preparação/migração simula uma atualização do servidor sem perder a mídia.
-        sv.preparar_banco(self.db)
-        depois = next(o for o in self.chamar(self.adm, "GET", "/api/orientacoes")[1]["orientacoes"]
-                      if o["slug"] == "diluicao")
-        self.assertEqual((depois["imagem_tipo"], depois["imagem_data"]), ("image/png", png))
-    def test_mobile_tem_tema_persistente_e_configuracoes_admin_recolhiveis(self):
-        html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
-        self.assertIn("temaSelectHtml", html)
-        self.assertIn("aplicaTemaMobile", html)
-        self.assertIn("html[data-tema=escuro]", html)
-        self.assertIn("html[data-tema=sistema]", html)
-        self.assertIn("colapsarCadastrosAdmin", html)
-        self.assertIn("aria-expanded", html)
-        self.assertIn("admin-grupo", html)
-        self.assertIn("Estoque da cozinha", html)
-        self.assertIn("1. Conferir e atualizar saldo", html)
-        self.assertIn("2. Registrar movimentação", html)
-        self.assertIn("lerEscalaTextoMobile", html)
-        self.assertIn("aplicaEscalaTextoMobile", html)
-        self.assertIn("min=50 max=200 step=10", html)
-        self.assertIn("Acessibilidade do texto", html)
-        self.assertIn("preferencias-conteudo", html)
-        self.assertIn("style.zoom", html)
-
 """Testes do NutriLab Mobile (criado em 12/11/2026). Dados 100% sintéticos; servidor em 127.0.0.1, porta livre."""
-    def test_upload_orientacao_rejeita_formato_invalido(self):
-        dil = next(o for o in self.chamar(self.adm, "GET", "/api/orientacoes")[1]["orientacoes"]
-                   if o["slug"] == "diluicao")
-        cod, resposta = self.chamar(self.adm, "POST", "/api/admin/orientacoes/imagem",
-                                    {"id": dil["id"], "tipo": "image/png", "imagem_data": "bm90LWEtcG5n"})
-        self.assertEqual(cod, 400)
-        self.assertIn("formato", resposta["erro"].lower())
-
-
-
-
 import json
 import tempfile
 import threading
@@ -580,6 +532,57 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(arroz["pendentes"], 0)
         cod, negado = self.chamar(self.t["cop"], "GET", "/api/admin/almox/prazos")
         self.assertEqual(cod, 403)
+
+
+    def test_imagem_de_orientacao_e_compartilhada_e_persiste_apos_atualizacao(self):
+        orientacoes = self.chamar(self.adm, "GET", "/api/orientacoes")[1]["orientacoes"]
+        dil = next(o for o in orientacoes if o["slug"] == "diluicao")
+        # PNG mínimo conhecido; o servidor valida a assinatura e persiste o conteúdo no SQLite.
+        png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/pZ8AAAAASUVORK5CYII="
+        cod, resposta = self.chamar(self.adm, "POST", "/api/admin/orientacoes/imagem",
+                                    {"id": dil["id"], "tipo": "image/png", "imagem_data": png})
+        self.assertEqual(cod, 200, resposta)
+        self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/admin/orientacoes/imagem",
+                                     {"id": dil["id"], "tipo": "image/png", "imagem_data": png})[0], 403)
+        salvo = next(o for o in self.chamar(self.t["cop"], "GET", "/api/orientacoes")[1]["orientacoes"]
+                     if o["slug"] == "diluicao")
+        self.assertEqual((salvo["imagem_tipo"], salvo["imagem_data"]), ("image/png", png))
+        # Reexecutar a preparação/migração simula uma atualização do servidor sem perder a mídia.
+        sv.preparar_banco(self.db)
+        depois = next(o for o in self.chamar(self.adm, "GET", "/api/orientacoes")[1]["orientacoes"]
+                      if o["slug"] == "diluicao")
+        self.assertEqual((depois["imagem_tipo"], depois["imagem_data"]), ("image/png", png))
+
+    def test_upload_orientacao_rejeita_formato_invalido(self):
+        dil = next(o for o in self.chamar(self.adm, "GET", "/api/orientacoes")[1]["orientacoes"]
+                   if o["slug"] == "diluicao")
+        cod, resposta = self.chamar(self.adm, "POST", "/api/admin/orientacoes/imagem",
+                                    {"id": dil["id"], "tipo": "image/png", "imagem_data": "bm90LWEtcG5n"})
+        self.assertEqual(cod, 400)
+        self.assertIn("formato", resposta["erro"].lower())
+
+
+
+
+    def test_mobile_tem_tema_persistente_e_configuracoes_admin_recolhiveis(self):
+        html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("temaSelectHtml", html)
+        self.assertIn("aplicaTemaMobile", html)
+        self.assertIn("html[data-tema=escuro]", html)
+        self.assertIn("html[data-tema=sistema]", html)
+        self.assertIn("colapsarCadastrosAdmin", html)
+        self.assertIn("aria-expanded", html)
+        self.assertIn("admin-grupo", html)
+        self.assertIn("Estoque da cozinha", html)
+        self.assertIn("1. Conferir e atualizar saldo", html)
+        self.assertIn("2. Registrar movimentação", html)
+        self.assertIn("lerEscalaTextoMobile", html)
+        self.assertIn("aplicaEscalaTextoMobile", html)
+        self.assertIn("min=50 max=200 step=10", html)
+        self.assertIn("Acessibilidade do texto", html)
+        self.assertIn("preferencias-conteudo", html)
+        self.assertIn("style.zoom", html)
+
 
 
 
