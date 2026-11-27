@@ -7,7 +7,7 @@ autorizados pelo nutricionista; não contém coeficientes clínicos presumidos.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from math import ceil
+from math import ceil, isfinite
 
 
 TNO_PERCENTUAIS = {"Ruim": 25, "Baixa": 50, "Regular": 75, "Boa": 100, "Ótima": 100}
@@ -21,8 +21,8 @@ def _numero(valor, nome, *, minimo=0):
         n = float(str(valor).replace(",", "."))
     except (TypeError, ValueError):
         raise ValueError(f"{nome} deve ser numérico.") from None
-    if n < minimo:
-        raise ValueError(f"{nome} deve ser maior ou igual a {minimo}.")
+    if not isfinite(n) or n < minimo:
+        raise ValueError(f"{nome} deve ser um número finito maior ou igual a {minimo}.")
     return n
 
 
@@ -126,6 +126,10 @@ def avaliar_contexto_renal(dados, peso_kg=None, idade_anos=None, diabetes=False)
                     "texto": "Meta proteica deve ser definida individualmente; não há recomendação numérica automática para os dados informados."}
     avisos = []
     confirmada = dados.get("drc_confirmada") is True
+    condicao_renal = str(dados.get("condicao_renal") or
+                         ("DRC" if confirmada else "NAO_DEFINIDA")).strip().upper()
+    if condicao_renal not in ("DRC", "LRA", "DRC + LRA", "NAO_DEFINIDA"):
+        raise ValueError("Condição renal inválida.")
     if faixa_tfge in ("G1", "G2") and not confirmada:
         avisos.append("TFGe em G1/G2 isoladamente não confirma DRC; é necessário marcador de lesão renal e cronicidade.")
     if tfge is not None and tfge < 60:
@@ -134,14 +138,18 @@ def avaliar_contexto_renal(dados, peso_kg=None, idade_anos=None, diabetes=False)
         avisos.append("Estágio informado difere da faixa calculada pela TFGe; conferir o laudo e o histórico.")
     if categoria_albuminuria:
         avisos.append(f"Albuminúria: categoria {categoria_albuminuria} (mg/g). Interpretar junto à TFGe e à cronicidade.")
-    if idade is not None and idade < 18:
+    if condicao_renal in ("LRA", "DRC + LRA"):
+        recomendacao["texto"] = "Lesão renal aguda ou condição aguda associada: não aplicar automaticamente recomendações proteicas de DRC; individualizar conforme fase, catabolismo e terapia renal."
+    elif idade is not None and idade < 18:
         recomendacao["texto"] = "Em crianças/adolescentes, não aplicar restrição proteica renal automática; considerar crescimento e avaliação especializada."
     elif estabilidade != "estavel" or catabolismo is True:
         recomendacao["texto"] = "Instabilidade metabólica ou catabolismo: não aplicar metas restritivas automáticas; individualizar com a equipe."
     elif risco_desnutricao is True or sarcopenia is True:
         recomendacao["texto"] = "Risco nutricional, fragilidade ou sarcopenia: evitar restrição automática e individualizar a meta proteica."
     elif dialise in ("hemodialise", "peritoneal"):
-        if referencia == "KDOQI 2020":
+        if not confirmada:
+            recomendacao["texto"] = "Informe/valide DRC confirmada antes de aplicar referências proteicas de diálise da KDOQI."
+        elif referencia == "KDOQI 2020":
             recomendacao.update(status="referencia", g_kg_dia="1,0–1,2",
                                 texto="KDOQI 2020: 1,0–1,2 g/kg/dia em adultos metabolicamente estáveis em hemodiálise ou diálise peritoneal.")
         else:
@@ -170,7 +178,8 @@ def avaliar_contexto_renal(dados, peso_kg=None, idade_anos=None, diabetes=False)
     if dados.get("ureia") not in (None, "") or dados.get("albumina_serica") not in (None, ""):
         avisos.append("Ureia e albumina sérica são dados de apoio e não alteram automaticamente a meta proteica.")
     return {
-        "referencia": referencia, "tfge_ml_min_173": tfge, "faixa_tfge": faixa_tfge,
+        "referencia": referencia, "condicao_renal": condicao_renal,
+        "tfge_ml_min_173": tfge, "faixa_tfge": faixa_tfge,
         "drc_confirmada": confirmada, "estagio": estagio,
         "albuminuria_mg_g": albuminuria, "categoria_albuminuria": categoria_albuminuria,
         "dialise": dialise, "estabilidade_metabolica": estabilidade,
