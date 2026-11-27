@@ -81,20 +81,39 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
         intervalo_h = (atual["_data"] - anterior["_data"]).total_seconds() / 3600
         if 0 < intervalo_h <= 24 and atual.get("_tem_hora") and anterior.get("_tem_hora"):
             diferenca = atual["_peso"] - anterior["_peso"]
+            perda_pct = (anterior["_peso"] - atual["_peso"]) / anterior["_peso"] * 100
+            comparacoes.append({
+                "janela": "até 24 horas", "dias_reais": round(intervalo_h / 24, 2),
+                "peso_anterior_kg": anterior["_peso"], "peso_atual_kg": atual["_peso"],
+                "diferenca_kg": round(diferenca, 2), "perda_percentual": round(perda_pct, 2),
+                "faixa": "variação aguda — revisar balanço hídrico, não é faixa diagnóstica de desnutrição",
+                "data_anterior": anterior["_data"].strftime("%d/%m/%Y"),
+                "data_atual": atual["_data"].strftime("%d/%m/%Y"),
+            })
             if abs(diferenca) >= 1.0:
                 alertas.append({
                     "tipo": "variacao_aguda_24h", "diferenca_kg": round(diferenca, 2),
                     "intervalo_horas": round(intervalo_h, 1),
                     "texto": ("Aumento" if diferenca > 0 else "Redução") +
-                             f" de {abs(diferenca):.1f} kg em até 24 h. Revisar balanço hídrico, edema, diurese, "
+                             f" de {abs(diferenca):.1f} kg em {intervalo_h:.1f} h. Revisar balanço hídrico, edema, diurese, "
                              "condições de pesagem e possível erro de medida. Não classificar como desnutrição isoladamente."
                 })
             break
         if (0 < intervalo_h <= 48 and atual["_data"].date() != anterior["_data"].date()
                 and (not atual.get("_tem_hora") or not anterior.get("_tem_hora"))):
-            # O mapa registra a data, mas não o horário real da aferição.
-            # Não se afirma intervalo exato de 24 h sem timestamp de medida.
+            # O mapa registra a data, mas o horário real pode estar ausente.
+            # Mostra a diferença entre datas consecutivas sem presumir 24 h exatas.
             diferenca = atual["_peso"] - anterior["_peso"]
+            perda_pct = (anterior["_peso"] - atual["_peso"]) / anterior["_peso"] * 100
+            comparacoes.append({
+                "janela": "datas consecutivas (horário não registrado)",
+                "dias_reais": round(intervalo_h / 24, 2),
+                "peso_anterior_kg": anterior["_peso"], "peso_atual_kg": atual["_peso"],
+                "diferenca_kg": round(diferenca, 2), "perda_percentual": round(perda_pct, 2),
+                "faixa": "variação aguda — confirmar intervalo e revisar balanço hídrico",
+                "data_anterior": anterior["_data"].strftime("%d/%m/%Y"),
+                "data_atual": atual["_data"].strftime("%d/%m/%Y"),
+            })
             if abs(diferenca) >= 1.0:
                 alertas.append({
                     "tipo": "variacao_em_dias_consecutivos", "diferenca_kg": round(diferenca, 2),
