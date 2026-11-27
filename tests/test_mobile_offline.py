@@ -93,6 +93,10 @@ window.NL={isStaff:()=>false,token:()=>'',userId:()=>1};
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("OK", r.stdout)
 
+    def test_menu_do_dia_nao_depende_do_cache_de_producao_para_abrir_offline(self):
+        self.assertIn("let registros=[];", self.html)
+        self.assertIn("catch(_e){registros=[];}", self.html)
+
     def test_menu_do_dia_so_aparece_quando_ha_preparacoes_publicadas(self):
         self.assertIn("let abasAtivas=[...(ABAS[u.perfil]||[])]", self.html)
         self.assertIn("const menuHoje=await api('/api/menu-dia?data='+encodeURIComponent(S.data))", self.html)

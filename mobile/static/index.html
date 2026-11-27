@@ -552,8 +552,9 @@ const coleta=()=>[...document.querySelectorAll('details.leito[data-id]')].map(e=
 });
 async function vMenuDia(){
   const j=await api('/api/menu-dia?data='+encodeURIComponent(S.data));
-  const prod=await api('/api/menu-dia/producao?data='+encodeURIComponent(S.data));
-  const registros=prod.registros||[];
+  let registros=[];
+  try{const prod=await api('/api/menu-dia/producao?data='+encodeURIComponent(S.data));registros=prod.registros||[]}
+  catch(_e){registros=[];} // A falta do cache de produção não pode ocultar o Menu do Dia offline.
   const podeRegistrar=['admin','nutricionista','estoque_cozinha'].includes(S.u.perfil);
   const nomes={desjejum:'Desjejum',colacao:'Lanche da manhã',almoco:'Almoço',lanche:'Lanche da tarde',jantar:'Jantar',ceia:'Ceia'};
   if(!j.publicado){
