@@ -89,7 +89,7 @@ def _comparar_valor(atual, novo):
             "diferenca_percentual": percentual}
 
 
-def _resumo_preparacoes_osmolaridade(item):
+def resumir_osmolaridade_preparacoes(item):
     preparacoes = item.get("preparacoes")
     if not isinstance(preparacoes, list) or not preparacoes:
         return {"status": "preparacoes_nao_informadas",
@@ -170,8 +170,8 @@ def comparar_substituicao(itens_atuais, id_substituido, substituto, *,
         return None
     m_antes["volume_produto_ml_dia"] = volume_produto(itens)
     m_depois["volume_produto_ml_dia"] = volume_produto(depois_itens)
-    osm_atual = _resumo_preparacoes_osmolaridade(atual)
-    osm_novo = _resumo_preparacoes_osmolaridade(novo_item)
+    osm_atual = resumir_osmolaridade_preparacoes(atual)
+    osm_novo = resumir_osmolaridade_preparacoes(novo_item)
     m_antes["volume_preparacao_final_ml_dia"] = osm_atual.get("volume_final_total_ml")
     m_depois["volume_preparacao_final_ml_dia"] = osm_novo.get("volume_final_total_ml")
     comparacoes = {k: _comparar_valor(m_antes[k], m_depois[k]) for k in m_antes}
