@@ -195,7 +195,7 @@ class PainelMonitoramentoPressao(ctk.CTkFrame):
         ctk.CTkButton(botoes,text="Editar",command=self._editar,fg_color=tema.VERDE).pack(side="left",padx=(0,8))
         ctk.CTkButton(botoes,text="Inativar",command=self._inativar,fg_color=tema.ERRO,
                       hover_color=tema.ERRO_HOVER).pack(side="left",padx=(0,8))
-        ctk.CTkButton(botoes,text="Registrar troca e comparar 3 dias",command=self._troca,
+        ctk.CTkButton(botoes,text="Comparar troca registrada",command=self._troca,
                       fg_color=tema.VERDE).pack(side="right")
         self.atualizar()
 
