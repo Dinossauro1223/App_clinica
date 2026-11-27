@@ -174,6 +174,19 @@ class TestCalculoOsmolaridadeDiluicao(unittest.TestCase):
         r = sc.calcular_osmolaridade_diluicao(dict(self.ficha, unidade_dose_ref="g"), 100, 50)
         self.assertIsNone(r["valor"])
         self.assertEqual(r["status"], "unidade_dose_incompativel")
+    def test_comparacao_substituicao_inclui_fibras(self):
+        atual = {"id_suplemento": 1, "nome": "A", "qtd_dia": 200, "unidade": "ml",
+                 "kcal_100": 100, "ptn_100": 4, "lip_100": 2, "carb_100": 10, "sod_100": 50,
+                 "fibra_g_100": 2, "tipo_fibra": "soluvel"}
+        novo = {"id_suplemento": 2, "nome": "B", "qtd_dia": 200, "unidade": "ml",
+                "kcal_100": 150, "ptn_100": 6, "lip_100": 3, "carb_100": 15, "sod_100": 80,
+                "fibra_g_100": 5, "tipo_fibra": "mista"}
+        r = sc.comparar_substituicao([atual], 1, novo, peso_kg=60, meta_fibras_g=25)
+        self.assertEqual(r["antes"]["fibras_g_dia"], 4)
+        self.assertEqual(r["depois"]["fibras_g_dia"], 10)
+        self.assertEqual(r["comparacoes"]["fibras_g_dia"]["diferenca"], 6)
+        self.assertEqual(r["comparacoes"]["percentual_meta_fibras"]["substituto"], 40)
+
     def test_comparacao_substituicao_calcula_energia_proteina_e_peso(self):
         atual = {"id_suplemento": 1, "nome": "A", "qtd_dia": 200, "unidade": "ml",
                  "kcal_100": 100, "ptn_100": 4, "lip_100": 2, "carb_100": 10, "sod_100": 50,
