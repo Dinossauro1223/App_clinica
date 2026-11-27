@@ -353,12 +353,17 @@ class TestBanco(unittest.TestCase):
                                                     emb_qtd="200", emb_un="g", kcal_100="350", ptn_100="2,5",
                                                     osmolaridade_ref="300", unidade_osmolaridade="mOsm/L",
                                                     dose_ref="20", unidade_dose_ref="g", volume_final_ref_ml="150",
-                                                    agua_recomendada_ml="130", fonte_osmolaridade="Ficha técnica 2026"))
+                                                    agua_recomendada_ml="130", fonte_osmolaridade="Ficha técnica 2026",
+            classificacao_nutricional="oligomerica", grau_hidrolise="parcialmente_hidrolisada",
+            proteinas_hidrolisadas="proteína do soro do leite", fonte_classificacao="Ficha fabricante 2026",
+            tipo_formula="fechada"))
         s = [x for x in mdb.listar_suplementos(self.db) if x["id_suplemento"] == novo][0]
         self.assertEqual((s["preco"], s["emb_qtd"], s["kcal_100"], s["ptn_100"]), (12.5, 200.0, 350.0, 2.5))
         self.assertEqual((s["osmolaridade_ref"], s["unidade_osmolaridade"], s["dose_ref"],
                           s["unidade_dose_ref"], s["volume_final_ref_ml"], s["agua_recomendada_ml"]),
                          (300.0, "mOsm/L", 20.0, "g", 150.0, 130.0))
+        self.assertEqual((s["classificacao_nutricional"], s["grau_hidrolise"], s["proteinas_hidrolisadas"], s["tipo_formula"]),
+                         ("oligomerica", "parcialmente_hidrolisada", "proteína do soro do leite", "fechada"))
         self.assertIn("Módulo de fibras", mdb.listar_modulos(self.db))
         mdb.salvar_suplemento(self.db, dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo", emb_un="ml",
             osmolaridade_ref="300", unidade_osmolaridade="mOsm/L", dose_ref="20", unidade_dose_ref="ml",
@@ -375,6 +380,8 @@ class TestBanco(unittest.TestCase):
         salvo = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["suplementos"][0]
         self.assertEqual((salvo["osmolaridade_ref"], salvo["dose_ref"], salvo["volume_final_ref_ml"],
                           salvo["agua_recomendada_ml"], salvo["agua_ml"]), (300.0, 20.0, 150.0, 130.0, 130.0))
+        self.assertEqual((salvo["classificacao_nutricional"], salvo["grau_hidrolise"], salvo["tipo_formula"]),
+                         ("oligomerica", "parcialmente_hidrolisada", "fechada"))
         self.assertFalse(mdb.remover_suplemento(self.db, novo))
         self.assertNotIn(novo, [x["id_suplemento"] for x in mdb.listar_suplementos(self.db)])
         outro = mdb.salvar_suplemento(self.db, dict(nome="Z"))
@@ -401,9 +408,11 @@ class TestBanco(unittest.TestCase):
             self.assertTrue({"kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
                              "ficha_observacao", "ficha_snapshot_em", "osmolaridade_ref",
                              "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
-                             "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade"}.issubset(colunas))
+                             "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade", "classificacao_nutricional",
+                             "grau_hidrolise", "proteinas_hidrolisadas", "fonte_classificacao", "tipo_formula"}.issubset(colunas))
             self.assertTrue({"osmolaridade_ref", "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
-                             "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade"}.issubset(colunas_catalogo))
+                             "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade", "classificacao_nutricional",
+                             "grau_hidrolise", "proteinas_hidrolisadas", "fonte_classificacao", "tipo_formula"}.issubset(colunas_catalogo))
         finally:
             try:
                 os.remove(legado)
