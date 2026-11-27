@@ -429,6 +429,7 @@ class TestBanco(unittest.TestCase):
             with closing(sqlite3.connect(legado)) as c, c:
                 colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
                 colunas_catalogo = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Suplementos)")}
+                colunas_registro = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
             self.assertTrue({"kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
                              "ficha_observacao", "ficha_snapshot_em", "osmolaridade_ref",
                              "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
@@ -439,7 +440,6 @@ class TestBanco(unittest.TestCase):
                              "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade", "classificacao_nutricional",
                              "grau_hidrolise", "proteinas_hidrolisadas", "fonte_classificacao", "tipo_formula",
                              "fibra_g_100", "tipo_fibra", "descricao_fibra", "fonte_fibra"}.issubset(colunas_catalogo))
-            colunas_registro = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
             self.assertIn("meta_fibras_g", colunas_registro)
         finally:
             try:
@@ -899,7 +899,7 @@ class TestEscalasVisita(unittest.TestCase):
         fd, legado = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         try:
-            esquema_antigo = mdb._SCHEMA.replace("peso_medido_em TEXT", "")
+            esquema_antigo = mdb._SCHEMA.replace(", peso_medido_em TEXT", "")
             with closing(sqlite3.connect(legado)) as c, c:
                 c.executescript(esquema_antigo)
             mdb.inicializar(legado)
