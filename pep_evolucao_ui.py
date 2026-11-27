@@ -101,6 +101,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.cb_drc_confirmada = ctk.CTkComboBox(linha, values=["—", "Sim", "Não"], width=90, state="readonly")
         self.cb_drc_confirmada.set("Sim" if self.reg.get("drc") else "—")
         self.cb_drc_confirmada.pack(side="left", padx=(0, 12))
+        self.cb_condicao_renal = ctk.CTkComboBox(
+            linha, values=["Não definida", "DRC", "LRA", "DRC + LRA"], width=130, state="readonly")
+        self.cb_condicao_renal.set("DRC" if self.reg.get("drc") else "Não definida")
+        self.cb_condicao_renal.pack(side="left", padx=(0, 8))
         ctk.CTkLabel(linha, text="Estágio:", width=60, anchor="w").pack(side="left")
         self.cb_estagio_renal = ctk.CTkComboBox(linha, values=["—", "G1", "G2", "G3a", "G3b", "G4", "G5"],
                                                 width=90, state="readonly")
@@ -338,6 +342,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.cb_drc_confirmada.set("Sim" if renal.get("drc_confirmada") is True else
                                    "Não" if renal.get("drc_confirmada") is False else
                                    ("Sim" if self.reg.get("drc") else "—"))
+        self.cb_condicao_renal.set({"DRC": "DRC", "LRA": "LRA", "DRC + LRA": "DRC + LRA"}.get(
+            renal.get("condicao_renal"), "DRC" if self.reg.get("drc") else "Não definida"))
         self.cb_estagio_renal.set(renal.get("estagio") or "—")
         _set(self.e_tfge, renal.get("tfge_ml_min_173"))
         _set(self.e_albuminuria, renal.get("albuminuria_mg_g"))
@@ -429,6 +435,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
                         "Não informada": "nao_informada"}.get(self.cb_estabilidade_renal.get(), "nao_informada")
         dados = {
             "referencia": self.cb_renal_ref.get(),
+            "condicao_renal": {"Não definida": "NAO_DEFINIDA"}.get(
+                self.cb_condicao_renal.get(), self.cb_condicao_renal.get()),
             "drc_confirmada": self._tri_bool(self.cb_drc_confirmada.get()),
             "estagio": None if self.cb_estagio_renal.get() == "—" else self.cb_estagio_renal.get(),
             "tfge": self.e_tfge.get().strip() or None,
