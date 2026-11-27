@@ -360,7 +360,9 @@ class TestBanco(unittest.TestCase):
                           s["unidade_dose_ref"], s["volume_final_ref_ml"], s["agua_recomendada_ml"]),
                          (300.0, "mOsm/L", 20.0, "g", 150.0, 130.0))
         self.assertIn("Módulo de fibras", mdb.listar_modulos(self.db))
-        mdb.salvar_suplemento(self.db, dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo", emb_un="ml"))
+        mdb.salvar_suplemento(self.db, dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo", emb_un="ml",
+            osmolaridade_ref="300", unidade_osmolaridade="mOsm/L", dose_ref="20", unidade_dose_ref="ml",
+            volume_final_ref_ml="150", agua_recomendada_ml="130", fonte_osmolaridade="Ficha técnica 2026"))
         self.assertIn("Novo módulo", mdb.listar_modulos(self.db))
         with self.assertRaises(ValueError):
             mdb.salvar_suplemento(self.db, dict(nome="Y", kcal_100="abc"))
