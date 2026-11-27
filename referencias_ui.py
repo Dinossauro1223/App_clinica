@@ -10,6 +10,11 @@ import tema
 
 REFERENCIAS = [
     (
+        "BRANDÃO, Andréa Araujo et al. Diretriz Brasileira de Hipertensão Arterial – 2025. Arquivos Brasileiros de Cardiologia, v. 122, n. 9, e20250624, 2025. DOI: 10.36660/abc.20250624.",
+        "Referência brasileira atual para contextualizar o monitoramento pressórico e a avaliação de pacientes com hipertensão.",
+        "https://doi.org/10.36660/abc.20250624",
+    ),
+    (
         "CEDERHOLM, Tommy et al. GLIM criteria for the diagnosis of malnutrition: a consensus report from the global clinical nutrition community. Clinical Nutrition, v. 38, n. 1, p. 1-9, 2019. DOI: 10.1016/j.clnu.2018.08.002.",
         "Critérios fenotípicos e etiológicos para avaliação de desnutrição.",
         "https://doi.org/10.1016/j.clnu.2018.08.002",
@@ -48,6 +53,11 @@ REFERENCIAS = [
         "MIFFLIN, Mark D. et al. A new predictive equation for resting energy expenditure in healthy individuals. The American Journal of Clinical Nutrition, v. 51, n. 2, p. 241-247, 1990. DOI: 10.1093/ajcn/51.2.241.",
         "Equação preditiva de gasto energético em repouso.",
         "https://doi.org/10.1093/ajcn/51.2.241",
+    ),
+    (
+        "SOCIEDADE BRASILEIRA DE DIABETES. Diretriz da Sociedade Brasileira de Diabetes: edição 2026. São Paulo: SBD, 2026.",
+        "Referência nacional para contextualizar diabetes mellitus, metas glicêmicas e recomendações nutricionais.",
+        "https://diretriz.diabetes.org.br/",
     ),
     (
         "UNIVERSIDADE FEDERAL DO RIO GRANDE DO NORTE. Sistema Integrado de Bibliotecas. Orientações para normalização de trabalhos acadêmicos. Natal: UFRN, [s. d.].",
