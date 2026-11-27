@@ -1434,8 +1434,13 @@ class Manipulador(BaseHTTPRequestHandler):
             if m == "GET" and u.path == "/health":
                 try:
                     db_uri = Path(self.server.db).resolve().as_uri() + "?mode=ro"
-                    with sqlite3.connect(db_uri, uri=True, timeout=1) as health_db:
+                    health_db = sqlite3.connect(db_uri, uri=True, timeout=1)
+                    try:
                         health_db.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone()
+                    finally:
+                        # O context manager de sqlite3 faz commit/rollback, mas não fecha
+                        # a conexão. Fechá-la explicitamente libera o arquivo no Windows.
+                        health_db.close()
                     database_id = hashlib.sha256(str(Path(self.server.db).resolve()).casefold().encode("utf-8")).hexdigest()
                     return self._enviar(200, {"status": "ok", "database": "ready", "database_id": database_id})
                 except (sqlite3.Error, OSError):
