@@ -401,6 +401,52 @@ def gerar_evolucao(dados):
         linhas.append("**Metas nutricionais:** " +
             f"Kcal/dia: {formatar_numero_pt(metas['kcal_dia'])} kcal ({formatar_numero_pt(metas['kcal_kg'], 1)} kcal/kg); " +
             f"PTN/dia: {formatar_numero_pt(metas['proteina_g_dia'], 1)} g ({formatar_numero_pt(metas['proteina_g_kg'], 1)} g/kg).")
+
+    renal = dados.get("avaliacao_renal") or {}
+    if renal:
+        partes_renais = [str(renal.get("condicao_renal") or "Condição renal não definida")]
+        if renal.get("tfge_ml_min_173") is not None:
+            partes_renais.append(
+                f"TFGe: {formatar_numero_pt(renal['tfge_ml_min_173'], 1)} mL/min/1,73 m²"
+                + (f" ({renal['faixa_tfge']})" if renal.get("faixa_tfge") else ""))
+        if renal.get("estagio"):
+            partes_renais.append(f"estágio informado: {renal['estagio']}")
+        if renal.get("categoria_albuminuria"):
+            partes_renais.append(f"albuminúria: {renal['categoria_albuminuria']}")
+        if renal.get("dialise") in ("hemodialise", "peritoneal"):
+            modalidade = "hemodiálise" if renal["dialise"] == "hemodialise" else "diálise peritoneal"
+            detalhe_dialise = modalidade
+            if renal.get("frequencia_dialise_semana") is not None:
+                detalhe_dialise += f", {formatar_numero_pt(renal['frequencia_dialise_semana'], 1)} sessões/semana"
+            if renal.get("duracao_dialise_horas") is not None:
+                detalhe_dialise += f", {formatar_numero_pt(renal['duracao_dialise_horas'], 1)} h/sessão"
+            if renal.get("inicio_dialise"):
+                detalhe_dialise += f", início em {renal['inicio_dialise']}"
+            partes_renais.append(detalhe_dialise)
+        linhas.append("**Avaliação renal:** " + "; ".join(partes_renais) + ".")
+        recomendacao_renal = renal.get("recomendacao_proteica") or {}
+        if recomendacao_renal.get("texto"):
+            texto_recomendacao = recomendacao_renal["texto"]
+            if recomendacao_renal.get("g_kg_dia") is not None:
+                texto_recomendacao += f" Referência: {recomendacao_renal['g_kg_dia']} g/kg/dia"
+                if recomendacao_renal.get("g_dia") is not None:
+                    gdia = recomendacao_renal["g_dia"]
+                    gdia_txt = formatar_numero_pt(gdia, 1) if isinstance(gdia, (int, float)) else str(gdia)
+                    texto_recomendacao += f" ({gdia_txt} g/dia)"
+                texto_recomendacao += "."
+            linhas.append("**Referência proteica renal (não substitui a meta prescrita):** " + texto_recomendacao)
+        if renal.get("avisos"):
+            linhas.append("**Observações renais:** " + " ".join(renal["avisos"]))
+        exames = renal.get("exames_apoio") or {}
+        exames_txt = []
+        for chave, rotulo, unidade in (("creatinina", "creatinina", "mg/dL"),
+                                       ("ureia", "ureia", "mg/dL"),
+                                       ("albumina_serica", "albumina sérica", "g/dL")):
+            if exames.get(chave) not in (None, ""):
+                exames_txt.append(f"{rotulo}: {exames[chave]} {unidade}")
+        if exames_txt:
+            linhas.append("**Exames renais de apoio:** " + "; ".join(exames_txt) + ".")
+
     via = str(dados.get("via") or "").strip().casefold()
     enteral = via == "enteral"
     oferta = dados.get("oferta")
