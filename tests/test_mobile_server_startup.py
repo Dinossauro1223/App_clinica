@@ -30,11 +30,18 @@ class TestHealthCheckMobile(unittest.TestCase):
         with urlopen(self.url, timeout=1) as response:
             data = json.loads(response.read().decode("utf-8"))
         self.assertEqual(response.status, 200)
-        self.assertEqual(data, {"status": "ok", "database": "ready"})
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual(data["database"], "ready")
+        self.assertEqual(data["database_id"], mobile_server_health.database_identity(self.db))
 
     def test_health_check_helper_and_wait_for_helper(self):
         self.assertTrue(mobile_server_health.check_server_health(self.url))
-        self.assertTrue(mobile_server_health.wait_for_server_health(self.url, timeout=1.0, interval=0.05))
+        self.assertTrue(mobile_server_health.wait_for_server_health(
+            self.url, timeout=1.0, interval=0.05, expected_db=self.db
+        ))
+        self.assertFalse(mobile_server_health.check_server_health(
+            self.url, expected_db=str(Path(self.tmp.name) / "other.db")
+        ))
 
     def test_health_check_rejects_non_nutrilab_http_service(self):
         self.assertFalse(mobile_server_health.check_server_health(self.url + "/not-health"))
