@@ -14,8 +14,9 @@ Não é necessário abrir portas no roteador, contratar IP público ou configura
 4. No computador da clínica, deixe o Tailscale conectado e confirme que o dispositivo permite conexões de entrada.
 5. Inicie o NutriLab Desktop. O servidor móvel continua hospedado pelo programa desktop; portanto, o computador e o NutriLab precisam permanecer ligados e em execução.
 6. No NutriLab Desktop, consulte o indicador de conexão. Quando o Tailscale estiver ativo, ele mostrará o endereço `http://100.x.y.z:8765`.
-7. No celular, abra a configuração de conexão do NutriLab Mobile e informe esse endereço como servidor. Faça login com a conta individual do setor.
-8. Teste primeiro conectado ao Wi-Fi da clínica e depois usando a rede móvel do celular. O indicador deve mostrar conexão e a sincronização deve ocorrer.
+7. No celular, abra o NutriLab Mobile enquanto ainda estiver conectado ao servidor. Na aba **Cadastros**, o cartão **Rede local e servidor** mostra o endereço remoto e oferece o botão **Copiar endereço remoto**. Copie-o antes de sair do Wi-Fi da clínica.
+8. Se preferir, copie o endereço diretamente do indicador do NutriLab Desktop. No celular, abra a tela de login, toque em **Escanear QR code** e cole o endereço no campo de endereço manual; toque em **Conectar a este servidor**. O campo aceita o endereço Tailscale mesmo sem QR code.
+9. Faça login com a conta individual do setor. Teste primeiro conectado ao Wi-Fi da clínica e depois usando a rede móvel do celular, mantendo o Tailscale conectado nos dois dispositivos. O indicador deve mostrar conexão e a sincronização deve ocorrer.
 
 O endereço Tailscale permanece estável quando o computador muda de Wi-Fi para cabo ou outra rede. Se o endereço for alterado administrativamente no painel Tailscale, consulte novamente o indicador do desktop.
 
