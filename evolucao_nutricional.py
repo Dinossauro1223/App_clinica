@@ -443,10 +443,21 @@ def gerar_evolucao(dados):
             else:
                 taxa_txt = (f"gotejamento estimado: {formatar_numero_pt(administracao['gotejamento_gotas_min'], 1)} gotas/min "
                             f"(equipo de {formatar_numero_pt(administracao['fator_gotas_ml'], 1)} gotas/mL)")
-            linhas.append("**Administração da dieta fechada:** " +
+            volume_atual = administracao.get("volume_etapas_atual_ml")
+            diferenca_volume = (administracao["volume_total_ml"] - volume_atual
+                                if volume_atual is not None else None)
+            contexto_volume = ""
+            if diferenca_volume is not None and abs(diferenca_volume) > 0.1:
+                contexto_volume = (
+                    f" Oferta atualmente cadastrada: {formatar_numero_pt(volume_atual)} mL/dia; "
+                    f"diferença até o volume-meta: {formatar_numero_pt(diferenca_volume)} mL/dia."
+                )
+            linhas.append("**Planejamento de administração da dieta fechada (volume-meta):** " +
                 f"{formatar_numero_pt(administracao['volume_total_ml'])} mL em {formatar_numero_pt(administracao['duracao_horas'], 1)} h; " +
                 f"{taxa_txt}; {formatar_numero_pt(administracao['energia_total_kcal'])} kcal no período " +
-                f"({formatar_numero_pt(administracao['energia_kcal_h'], 1)} kcal/h). Cálculo matemático; validar velocidade e tolerância clinicamente.")
+                f"({formatar_numero_pt(administracao['energia_kcal_h'], 1)} kcal/h)." +
+                contexto_volume +
+                " Estimativa matemática para o volume-meta; não altera a prescrição atual. Validar volume, velocidade e tolerância clinicamente.")
         if bomba.get("usa_bomba") and not administracao and oferta and oferta.get("volume_total_ml") is not None and oferta.get("volume_meta_ml") is not None:
             aviso = aviso_bomba(oferta["volume_total_ml"], oferta["volume_meta_ml"], True,
                                 bomba.get("taxa_estimativa_ml_h", 10))
