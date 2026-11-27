@@ -1417,7 +1417,8 @@ class DialogSubstituirSuplemento(ctk.CTkToplevel):
                 self.formulario._suplementos, self.atual.get("id_suplemento"), self.novo,
                 peso_kg=nc.parse_num(self.formulario.e_peso.get()),
                 meta_kcal=nc.parse_num(self.formulario.e_meta_kcal.get()),
-                meta_proteina_g=nc.parse_num(self.formulario.e_meta_ptn.get()))
+                meta_proteina_g=nc.parse_num(self.formulario.e_meta_ptn.get()),
+                meta_fibras_g=nc.parse_num(self.formulario.e_meta_fibras.get()))
             linhas = []
             for chave, rotulo, unidade in (
                 ("energia_kcal_dia", "Energia total", "kcal/dia"),
@@ -1429,6 +1430,8 @@ class DialogSubstituirSuplemento(ctk.CTkToplevel):
                 ("volume_produto_ml_dia", "Volume de produto", "mL/dia"),
                 ("volume_preparacao_final_ml_dia", "Volume final preparado", "mL/dia"),
                 ("sodio_mg_dia", "Sódio", "mg/dia"),
+                ("fibras_g_dia", "Fibras totais", "g/dia"),
+                ("percentual_meta_fibras", "Adequação de fibras", "%"),
             ):
                 comp = self.comparacao["comparacoes"][chave]
                 atual_v, novo_v, delta = comp["atual"], comp["substituto"], comp["diferenca"]
@@ -1481,6 +1484,7 @@ class DialogSuplemento(_Janela):
                   ("kcal_100", "kcal por 100", 120), ("ptn_100", "Proteína (g) por 100", 120),
                   ("lip_100", "Lipídio (g) por 100", 120), ("carb_100", "Carboidrato (g) por 100", 120),
                   ("sod_100", "Sódio (mg) por 100", 120),
+                  ("fibra_g_100", "Fibra total (g) por 100", 120),
                   ("osmolaridade_ref", "Osmolaridade da ficha", 120),
                   ("dose_ref", "Dose da referência", 120),
                   ("volume_final_ref_ml", "Volume final de preparo (mL)", 140),
@@ -1500,6 +1504,19 @@ class DialogSuplemento(_Janela):
                 self.cb_un = ctk.CTkComboBox(quadro, values=["ml", "g"], width=70, state="readonly")
                 self.cb_un.grid(row=linha, column=2, padx=6)
                 self.cb_un.set(self.sup.get("emb_un") or "ml")
+            linha += 1
+        ctk.CTkLabel(quadro, text="Tipo de fibra").grid(row=linha, column=0, sticky="w", pady=4)
+        self.cb_tipo_fibra = ctk.CTkComboBox(quadro, values=["Solúvel", "Insolúvel", "Mista", "Prebiótica", "Outra", "Não informado"], width=200, state="readonly")
+        self.cb_tipo_fibra.grid(row=linha, column=1, sticky="w", pady=4)
+        tipo_atual = self.sup.get("tipo_fibra") or "nao_informado"
+        self.cb_tipo_fibra.set({"soluvel":"Solúvel","insoluvel":"Insolúvel","mista":"Mista","prebiotica":"Prebiótica","outra":"Outra","nao_informado":"Não informado"}.get(tipo_atual,"Não informado"))
+        linha += 1
+        for chave, rotulo in (("descricao_fibra", "Fibra específica (ex.: inulina, FOS, psyllium)"),
+                              ("fonte_fibra", "Fonte do teor de fibras (fabricante/ficha)")):
+            ctk.CTkLabel(quadro, text=rotulo).grid(row=linha, column=0, sticky="w", pady=4)
+            self.e[chave] = ctk.CTkEntry(quadro, width=330)
+            self.e[chave].grid(row=linha, column=1, sticky="w", pady=4)
+            _set_entry(self.e[chave], self.sup.get(chave) or "")
             linha += 1
         ctk.CTkLabel(quadro, text="Unidade da osmolaridade").grid(row=linha, column=0, sticky="w", pady=4)
         self.cb_un_osm = ctk.CTkComboBox(quadro, values=["mOsm/L", "mOsm/kg"], width=140, state="readonly")
@@ -1552,6 +1569,7 @@ class DialogSuplemento(_Janela):
         d.update(modulo=self.cb_mod.get().strip(), emb_un=self.cb_un.get(),
                  unidade_osmolaridade=self.cb_un_osm.get(), unidade_dose_ref=self.cb_un_dose.get(),
                  fonte_osmolaridade=self.e_fonte_osm.get().strip(),
+                 tipo_fibra={"Solúvel":"soluvel","Insolúvel":"insoluvel","Mista":"mista","Prebiótica":"prebiotica","Outra":"outra","Não informado":"nao_informado"}.get(self.cb_tipo_fibra.get(),"nao_informado"),
                  observacao=self.t_obs.get("1.0", "end-1c").strip(), id_suplemento=self.sup.get("id_suplemento"),
                  proteinas_hidrolisadas=self.e_proteinas_hidrolisadas.get().strip(),
                  fonte_classificacao=self.e_fonte_classificacao.get().strip())
@@ -1834,6 +1852,7 @@ class FormRegistro(_Janela):
         l = self._linha(q)
         self.e_meta_kcal = self._entrada(l, "Meta energética (kcal/dia)", 85)
         self.e_meta_ptn = self._entrada(l, "Meta proteica (g/dia)", 85)
+        self.e_meta_fibras = self._entrada(l, "Meta de fibras (g/dia)", 85)
 
         q = self._secao("Suplementação oral / dieta enteral")
         self.lbl_sup_tipo = ctk.CTkLabel(q, text="Suplementação oral: complemento da alimentação por via oral",
@@ -2021,6 +2040,7 @@ class FormRegistro(_Janela):
         self.e_tipo_dieta.set(r.get("tipo_dieta") or "")
         _set_entry(self.e_meta_kcal, _fmt(r.get("meta_kcal")).replace(",0", "") if r.get("meta_kcal") is not None else "")
         _set_entry(self.e_meta_ptn, _fmt(r.get("meta_proteina_g")).replace(",0", "") if r.get("meta_proteina_g") is not None else "")
+        _set_entry(self.e_meta_fibras, _fmt(r.get("meta_fibras_g")).replace(",0", "") if r.get("meta_fibras_g") is not None else "")
         self._via_mudou(r.get("via") or "Oral", preservar=True)
         for campo, var in self.var_carac.items():
             var.set(1 if r.get(campo) else 0)
@@ -2138,7 +2158,7 @@ class FormRegistro(_Janela):
             "peso_metodo": self._peso_metodo if origem_p == "E" else None,
             "data_reavaliacao": reav, "via": self.seg_via.get() or None,
             "tipo_dieta": self.e_tipo_dieta.get().strip() or None,
-            "meta_kcal": n(self.e_meta_kcal), "meta_proteina_g": n(self.e_meta_ptn),
+            "meta_kcal": n(self.e_meta_kcal), "meta_proteina_g": n(self.e_meta_ptn), "meta_fibras_g": n(self.e_meta_fibras),
             **{campo: var.get() for campo, var in self.var_carac.items()},
             "condicoes": ",".join(c for c, var in self.var_cond.items() if var.get()) or None,
             "consistencia": self.seg_cons.get() or None,
@@ -2471,7 +2491,8 @@ class FormRegistro(_Janela):
         resultado = sc.calcular_oferta(
             itens, peso_kg=nc.parse_num(self.e_peso.get()),
             meta_kcal=nc.parse_num(self.e_meta_kcal.get()),
-            meta_proteina_g=nc.parse_num(self.e_meta_ptn.get()))
+            meta_proteina_g=nc.parse_num(self.e_meta_ptn.get()),
+            meta_fibras_g=nc.parse_num(self.e_meta_fibras.get()))
         t = resultado["totais"]
         partes = []
         if t["kcal_100"] is not None:
