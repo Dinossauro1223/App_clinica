@@ -597,9 +597,9 @@ function cubaMobileHtml(c={}){return '<div class="cuba-mob filtros">'+
   '<label class=f>Sobra (kg)<input name=sobra type=number min=0 step=0.001 value="'+esc(c.peso_sobra_kg??0)+'"></label>'+
   '<label class=f>Desperdício (kg)<input name=desperdicio type=number min=0 step=0.001 value="'+esc(c.peso_desperdicio_kg??0)+'"></label>'+
   '<label class=f>Observação<input name=obs value="'+esc(c.observacao||'')+'"></label>'+
-  '<button type=button class="btn sec" onclick="this.parentElement.remove()">Remover</button></div>'}
+  '<button type=button class="btn sec" onclick="this.closest(\\'.cuba-mob\\').remove()">Remover</button></div>'}
 function adicionarCubaMobile(btn){const lista=btn.parentElement.querySelector('.lista-cubas');lista.insertAdjacentHTML('beforeend',cubaMobileHtml({}));}
-function alternarNaoProduzidaMobile(check){const form=check.form;if(check.checked){form.elements.namedItem('produzidas').value=0;const planejadas=form.closest('details').querySelector('p.mini')?.textContent.match(/[0-9]+(?:[.,][0-9]+)?/)?.[0];form.elements.namedItem('faltantes').value=planejadas?planejadas.replace(',','.'):0;}}
+function alternarNaoProduzidaMobile(check){const form=check.form;if(check.checked){form.produzidas.value=0;const planejadas=form.closest('details').querySelector('p.mini')?.textContent.match(/[0-9]+(?:[.,][0-9]+)?/)?.[0];form.faltantes.value=planejadas?planejadas.replace(',','.'):0;}}
 async function salvarProducaoMobile(ev,id,ref){
   ev.preventDefault();const form=ev.currentTarget;
   const cubas=[...form.querySelectorAll('.cuba-mob')].map(x=>({identificacao:x.querySelector('[name=identificacao]').value.trim(),
@@ -608,8 +608,8 @@ async function salvarProducaoMobile(ev,id,ref){
   try{
     await api('/api/menu-dia/producao',{data:S.data,refeicao:ref,id_preparacao_dia:id,
       porcoes_produzidas:form.produzidas.value||null,porcoes_faltantes:form.faltantes.value||0,
-      faltou_preparacao:form.nao_produzida.checked,peso_por_porcao_g:form.elements.namedItem('peso').value||null,
-      observacao:form.elements.namedItem('observacao').value,cubas});
+      faltou_preparacao:form.nao_produzida.checked,peso_por_porcao_g:form.peso.value||null,
+      observacao:form.observacao.value,cubas});
     await vMenuDia();aviso('Registro de produção salvo. Nenhuma movimentação de estoque foi criada.',0);
   }catch(e){aviso(e.message,1);}
 }

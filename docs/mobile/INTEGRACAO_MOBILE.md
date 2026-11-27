@@ -156,7 +156,3 @@ As médias apresentadas incluem:
 - média por execução e por porção prevista, somente quando as porções foram informadas.
 
 O sistema não chama uma quantidade de consumo efetivo sem inventário físico/conciliação. Estoque inicial, entradas, transferências para copa, perdas/devoluções e estoque final deverão ser conciliados em etapa subsequente.
-
-### Registro de produção no mobile
-
-A rota autenticada `/api/menu-dia/producao` permite à Cozinha registrar por preparação as porções produzidas e faltantes, a não produção, o peso opcional por porção, observações e sobras/desperdício por cuba. O registro fica associado à preparação existente no snapshot publicado para a data e refeição. A Cozinha, Nutrição e Administração podem gravar; Copa pode consultar; Almoxarifado não tem acesso. Corrigir um registro atualiza o mesmo identificador e substitui suas cubas. O fluxo não cria movimentos nem altera saldos de estoque.

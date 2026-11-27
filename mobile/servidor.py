@@ -1023,6 +1023,10 @@ def _rotear(c, ip, m, p, q, b, auth):
                 peso_desperdicio_kg REAL NOT NULL DEFAULT 0, observacao TEXT, ordem INTEGER NOT NULL DEFAULT 0
             )""")
             d = dia_valido(b.get("data") or hoje())
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_publicacoes (
+                data TEXT NOT NULL, refeicao TEXT NOT NULL, snapshot_json TEXT NOT NULL,
+                publicado_em TEXT NOT NULL, PRIMARY KEY(data,refeicao)
+            )""")
             ref = str(b.get("refeicao") or "").strip().lower()
             if ref not in ("desjejum", "colacao", "almoco", "lanche", "jantar", "ceia"):
                 raise Erro("Selecione uma refeição válida.")

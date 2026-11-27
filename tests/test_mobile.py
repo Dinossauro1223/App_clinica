@@ -151,7 +151,7 @@ class MobileTest(unittest.TestCase):
         self.assertIn("Porções produzidas", html)
         self.assertIn("Porções faltantes", html)
         self.assertIn("Sobras e desperdício por cuba (kg)", html)
-        self.assertIn("estoque_cozinha].includes(S.u.perfil)", html)
+        self.assertIn("estoque_cozinha'].includes(S.u.perfil)", html)
 
     def test_menu_dia_publicado_disponivel_aos_perfis_operacionais_e_bloqueado_ao_almox(self):
         dia = "2026-11-26"
