@@ -13,11 +13,12 @@ from datetime import date, datetime, timedelta
 
 
 JANELAS_ASPEN = (
-    (7, 2, 1.0, "1 semana"),
-    (30, 7, 5.0, "1 mês"),
-    (90, 14, 7.5, "3 meses"),
-    (180, 30, 10.0, "6 meses"),
-    (365, 45, 20.0, "1 ano"),
+    # dias, tolerância de busca, faixa moderada (%), faixa elevada (> %), rótulo
+    (7, 2, 1.0, 2.0, "1 semana"),
+    (30, 7, 5.0, 5.0, "1 mês"),
+    (90, 14, 7.5, 7.5, "3 meses"),
+    (180, 30, 10.0, 10.0, "6 meses"),
+    (365, 45, 20.0, 20.0, "1 ano"),
 )
 
 
@@ -61,7 +62,7 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
     for bruto in registros or []:
         try:
             peso = float(str(bruto.get("peso_kg")).replace(",", "."))
-            valor_data = bruto.get("medido_em") or bruto.get("data")
+            valor_data = bruto.get("peso_medido_em") or bruto.get("medido_em") or bruto.get("data")
             quando = _data(valor_data)
             texto_data = str(valor_data or "")
             tem_hora = isinstance(valor_data, datetime) or (len(texto_data) > 10 and ":" in texto_data)
@@ -106,7 +107,7 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
             break
 
     data_atual = atual["_data"]
-    for dias, tolerancia, limiar, rotulo in JANELAS_ASPEN:
+    for dias, tolerancia, limiar_moderado, limiar_elevado, rotulo in JANELAS_ASPEN:
         alvo = data_atual - timedelta(days=dias)
         candidatos = [x for x in itens[:-1] if x["_data"] < data_atual]
         if not candidatos:
@@ -120,9 +121,9 @@ def analisar_progressao_peso(registros, idade_anos=None, *, agora=None):
             continue
         perda = (anterior["_peso"] - atual["_peso"]) / anterior["_peso"] * 100
         faixa = "sem limiar ASPEN atingido"
-        if perda >= (1.0 if dias == 7 else limiar):
+        if perda >= limiar_moderado:
             faixa = "faixa moderada de perda ponderal (ASPEN)"
-        if perda > limiar:
+        if perda > limiar_elevado:
             faixa = "faixa elevada de perda ponderal (ASPEN)"
         comparacoes.append({
             "janela": rotulo, "dias_reais": round(intervalo, 1),
