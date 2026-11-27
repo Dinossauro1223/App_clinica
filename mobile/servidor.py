@@ -1436,7 +1436,8 @@ class Manipulador(BaseHTTPRequestHandler):
                     db_uri = Path(self.server.db).resolve().as_uri() + "?mode=ro"
                     with sqlite3.connect(db_uri, uri=True, timeout=1) as health_db:
                         health_db.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone()
-                    return self._enviar(200, {"status": "ok", "database": "ready"})
+                    database_id = hashlib.sha256(str(Path(self.server.db).resolve()).casefold().encode("utf-8")).hexdigest()
+                    return self._enviar(200, {"status": "ok", "database": "ready", "database_id": database_id})
                 except (sqlite3.Error, OSError):
                     return self._enviar(503, {"status": "error", "database": "unavailable"})
             if m == "GET" and u.path == "/download/NutriLab-Mobile.apk":
