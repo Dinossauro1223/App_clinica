@@ -1229,9 +1229,9 @@ class DialogPreparacoesSuplemento(ctk.CTkToplevel):
                      wraplength=710, justify="left", text_color=tema.SUAVE).pack(anchor="w", padx=16, pady=(0, 10))
         cab = ctk.CTkFrame(self, fg_color="transparent")
         cab.pack(fill="x", padx=16)
-        for texto, largura in (("Refeição", 150), ("Dose (" + str(item.get("unidade") or "un.") + ")", 130),
-                               ("Água misturada (mL)", 150), ("Água separada (mL)", 150)):
-            ctk.CTkLabel(cab, text=texto, width=largura, anchor="w").pack(side="left", padx=3)
+        for texto, largura in (("Refeição", 145), ("Dose (" + str(item.get("unidade") or "un.") + ")", 105),
+                               ("Água misturada (mL)", 125), ("Água separada (mL)", 125), ("Hora real", 90)):
+            ctk.CTkLabel(cab, text=texto, width=largura, anchor="w").pack(side="left", padx=2)
         existentes = {str(p.get("refeicao")): p for p in item.get("preparacoes", [])}
         self.linhas = []
         for refeicao in self.REFEICOES:
@@ -1242,12 +1242,12 @@ class DialogPreparacoesSuplemento(ctk.CTkToplevel):
                             command=self._atualizar_total).pack(side="left", padx=3)
             prep = existentes.get(refeicao, {})
             campos = []
-            for chave, largura in (("dose", 130), ("agua_adicionada_ml", 150), ("agua_separada_ml", 150)):
-                ent = ctk.CTkEntry(linha, width=largura)
-                ent.pack(side="left", padx=3)
+            for chave, largura in (("dose", 105), ("agua_adicionada_ml", 125), ("agua_separada_ml", 125), ("horario", 90)):
+                ent = ctk.CTkEntry(linha, width=largura, placeholder_text="HH:MM" if chave == "horario" else "")
+                ent.pack(side="left", padx=2)
                 valor = prep.get(chave)
                 if valor not in (None, ""):
-                    ent.insert(0, str(valor).replace(".", ","))
+                    ent.insert(0, str(valor).replace(".", ",") if chave != "horario" else str(valor))
                 ent.bind("<KeyRelease>", lambda _e: self._atualizar_total())
                 campos.append(ent)
             self.linhas.append((refeicao, var, *campos))
@@ -1261,7 +1261,7 @@ class DialogPreparacoesSuplemento(ctk.CTkToplevel):
 
     def _coletar(self):
         preparacoes = []
-        for refeicao, var, dose_e, agua_e, separada_e in self.linhas:
+        for refeicao, var, dose_e, agua_e, separada_e, horario_e in self.linhas:
             if not var.get():
                 continue
             dose_txt = dose_e.get().strip()
@@ -1272,8 +1272,12 @@ class DialogPreparacoesSuplemento(ctk.CTkToplevel):
                 raise ValueError(f"Informe uma dose positiva para {refeicao}.")
             if agua is None or agua < 0 or separada is None or separada < 0:
                 raise ValueError(f"Água inválida em {refeicao}.")
+            horario = horario_e.get().strip()
+            if horario and not re.fullmatch(r"(?:[01]\\d|2[0-3]):[0-5]\\d", horario):
+                raise ValueError(f"Horário inválido em {refeicao}; use HH:MM.")
             preparacoes.append({"refeicao": refeicao, "dose": dose,
-                                "agua_adicionada_ml": agua, "agua_separada_ml": separada})
+                                "agua_adicionada_ml": agua, "agua_separada_ml": separada,
+                                "horario": horario or None})
         if not preparacoes:
             raise ValueError("Marque ao menos uma refeição e informe sua dose.")
         return preparacoes
