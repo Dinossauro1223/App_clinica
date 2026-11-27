@@ -229,8 +229,12 @@ class AppClinica(ctk.CTk):
             daemon=True,
         ).start()
 
-    def _iniciar_servidor_mobile_worker(self):
-        """Prepara banco/API fora da thread gráfica e publica somente o resultado."""
+    def _iniciar_servidor_mobile_worker(self, tentativa=1):
+        """Prepara banco/API fora da thread gráfica e publica somente o resultado.
+
+        Em falhas transitórias, repete a inicialização até três vezes, com espera
+        cancelável para que o fechamento do aplicativo nunca fique preso.
+        """
         servidor = None
         thread = None
         try:
@@ -318,6 +322,14 @@ class AppClinica(ctk.CTk):
                         )
                 except OSError:
                     pass
+                if tentativa < 3:
+                    atraso = 1.5 * tentativa
+                    print(
+                        "NutriLab Mobile: tentativa %d/3 falhou; nova tentativa em %.1f s: %s"
+                        % (tentativa, atraso, erro)
+                    )
+                    if not self._mobile_encerrando.wait(atraso):
+                        return self._iniciar_servidor_mobile_worker(tentativa + 1)
                 self._mobile_resultados.put(("erro", str(erro), None))
 
     def _processar_resultado_servidor_mobile(self):
