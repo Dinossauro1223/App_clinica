@@ -207,6 +207,7 @@ class AppClinica(ctk.CTk):
         self.bind("<Escape>", self._fechar_ultima_aba_lateral, add="+")
         self._servidor_mobile = None
         self._thread_servidor_mobile = None
+        self._thread_inicializacao_mobile = None
         self._mobile_lock = threading.Lock()
         self._mobile_resultados = queue.Queue()
         self._mobile_encerrando = threading.Event()
@@ -223,11 +224,13 @@ class AppClinica(ctk.CTk):
         """Agenda a inicialização do Mobile em worker, sem bloquear a interface Tk."""
         self._mobile_status = "iniciando"
         self._mobile_poll_id = self.after(100, self._processar_resultado_servidor_mobile)
-        threading.Thread(
+        worker = threading.Thread(
             target=self._iniciar_servidor_mobile_worker,
             name="NutriLabMobileStartup",
             daemon=True,
-        ).start()
+        )
+        self._thread_inicializacao_mobile = worker
+        worker.start()
 
     def _iniciar_servidor_mobile_worker(self, tentativa=1):
         """Prepara banco/API fora da thread gráfica e publica somente o resultado.
@@ -386,6 +389,14 @@ class AppClinica(ctk.CTk):
             except (tk.TclError, RuntimeError):
                 pass
             self._mobile_poll_id = None
+
+        # Aguarda o worker de inicialização (preparação do banco/health-check) de forma
+        # limitada; o Event acima cancela as esperas de retry e impede novas inicializações.
+        worker_startup = getattr(self, "_thread_inicializacao_mobile", None)
+        if worker_startup is not None and worker_startup.is_alive() and worker_startup is not threading.current_thread():
+            worker_startup.join(timeout=2.0)
+            if worker_startup.is_alive():
+                print("NutriLab Mobile: worker de inicialização não encerrou dentro de 2 segundos.")
 
         # O lock impede que o worker registre/inicie um servidor após o início do fechamento.
         lock = getattr(self, "_mobile_lock", None)
