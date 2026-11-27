@@ -1863,6 +1863,8 @@ class FormRegistro(_Janela):
         self.e_meta_kcal = self._entrada(l, "Meta energética (kcal/dia)", 85)
         self.e_meta_ptn = self._entrada(l, "Meta proteica (g/dia)", 85)
         self.e_meta_fibras = self._entrada(l, "Meta de fibras (g/dia)", 85)
+        ctk.CTkLabel(q, text="Meta definida pelo nutricionista conforme avaliação clínica; não há ajuste automático apenas pela presença de constipação ou diarreia.",
+                     text_color=tema.SUAVE, wraplength=760, justify="left").pack(anchor="w", padx=12, pady=(0, 5))
 
         q = self._secao("Suplementação oral / dieta enteral")
         self.lbl_sup_tipo = ctk.CTkLabel(q, text="Suplementação oral: complemento da alimentação por via oral",
