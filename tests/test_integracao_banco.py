@@ -171,7 +171,8 @@ class TestConfigurarBancoDados(BaseApp):
         self.main.AppClinica.configurar_banco_dados(self.app)
         self.assertEqual(
             tabelas(caminho),
-            self.ESQUEMA | self.CONDUTAS_ALTA | self.AMBULATORIAL | self.ALMOX | self.PEP | {"schema_migrations"},
+            self.ESQUEMA | self.CONDUTAS_ALTA | self.AMBULATORIAL | self.ALMOX | self.PEP
+            | {"HGT_Registros", "PA_Registros", "Suplemento_Substituicoes", "schema_migrations"},
         )
         self.assertGreater(consulta(caminho, "SELECT COUNT(*) FROM Exames_Catalogo")[0][0], 15)
         self.assertEqual(consulta(caminho, "SELECT COUNT(*) FROM Regras_Complementares"), [(1,)])
