@@ -205,7 +205,12 @@ def comparar_substituicao(itens_atuais, id_substituido, substituto, *,
 
 
 def calcular_osmolaridade_diluicao(item, dose, agua_adicionada_ml=0):
-    """Estima mOsm/L com base em osmolaridade, dose e volume final de referência.\n\n    Dose e água representam os totais diários do item. A estimativa pressupõe que\n    todas as ofertas mantenham a mesma proporção de produto/água. Se as preparações\n    tiverem diluições diferentes, cada uma deve ser avaliada separadamente; este\n    resumo diário não substitui o cálculo individual.\n    """
+    """Estima mOsm/L para uma única preparação, nunca como média de diluições distintas.
+
+    Dose e água informadas devem corresponder ao mesmo preparo/refeição. Para
+    várias ofertas no dia, use resumir_osmolaridade_preparacoes, que calcula cada
+    preparo individualmente. Água administrada separadamente não entra na diluição.
+    """
     unidade = str(item.get("unidade_osmolaridade") or "mOsm/L").strip()
     if unidade != "mOsm/L":
         return {"valor": None, "status": "unidade_incompativel", "mensagem": "A ficha informa mOsm/kg; não é possível converter para mOsm/L sem dados de densidade."}
