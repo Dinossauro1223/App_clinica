@@ -150,6 +150,19 @@ def comparar_substituicao(itens_atuais, id_substituido, substituto, *,
         }
 
     m_antes, m_depois = metricas(antes), metricas(depois)
+    def volume_produto(lista):
+        if all(str(x.get("unidade") or "").strip().lower() == "ml" and _positivo(x.get("qtd_dia")) is not None
+               for x in lista):
+            return round(sum(float(x["qtd_dia"]) for x in lista), 1)
+        if not lista:
+            return 0.0
+        return None
+    m_antes["volume_produto_ml_dia"] = volume_produto(itens)
+    m_depois["volume_produto_ml_dia"] = volume_produto(depois_itens)
+    osm_atual = _resumo_preparacoes_osmolaridade(atual)
+    osm_novo = _resumo_preparacoes_osmolaridade(novo_item)
+    m_antes["volume_preparacao_final_ml_dia"] = osm_atual.get("volume_final_total_ml")
+    m_depois["volume_preparacao_final_ml_dia"] = osm_novo.get("volume_final_total_ml")
     comparacoes = {k: _comparar_valor(m_antes[k], m_depois[k]) for k in m_antes}
     def agua_total(lista, campo):
         return round(sum(float(x.get(campo) or 0) for x in lista), 1)
@@ -163,8 +176,8 @@ def comparar_substituicao(itens_atuais, id_substituido, substituto, *,
                                                   agua_total(depois_itens, "agua_ml")),
         "agua_separada_ml_dia": _comparar_valor(agua_total(itens, "agua_separada_ml"),
                                                  agua_total(depois_itens, "agua_separada_ml")),
-        "osmolaridade_atual": _resumo_preparacoes_osmolaridade(atual),
-        "osmolaridade_substituto": _resumo_preparacoes_osmolaridade(novo_item),
+        "osmolaridade_atual": osm_atual,
+        "osmolaridade_substituto": osm_novo,
         "alertas": [f"{rotulo} diminui após a substituição." for chave, rotulo in
                     (("energia_kcal_dia", "A oferta energética"),
                      ("proteina_g_dia", "A oferta proteica"))
