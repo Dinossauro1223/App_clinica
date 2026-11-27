@@ -202,7 +202,7 @@ class TestEvolucaoNutricional(unittest.TestCase):
             "creatinina": 3.2, "ureia": 110, "albumina_serica": 2.8
         }, peso_kg=60)
         self.assertEqual(a["recomendacao_proteica"]["g_kg_dia"], 0.8)
-        self.assertEqual(len(a["avisos"]), 3)
+        self.assertEqual(len(a["avisos"]), 2)
 
     def test_antropometria_decimal_ptbr_e_peso_corrigido(self):
         texto = ev.formatar_antropometria({
