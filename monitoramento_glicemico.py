@@ -160,7 +160,7 @@ def listar_ofertas_nutricionais(caminho, id_paciente, inicio=None, fim=None):
                 "instante": instante, "suplemento": nome, "refeicao": prep.get("refeicao") or "",
                 "dose": dose, "unidade": unidade or "", "agua_misturada_ml": agua,
                 "agua_separada_ml": agua_separada, "carboidratos_g": carboidratos,
-                "fibras_g": fibras, "tipo_fibra": tipo_fibra or "não informado"
+                "fibras_g": fibras, "tipo_fibra": tipo_fibra or "não informado", "tipo_evento": "suplemento"
             })
     try:
         administracoes = me.listar_administracoes(caminho, id_paciente, inicio, fim)
