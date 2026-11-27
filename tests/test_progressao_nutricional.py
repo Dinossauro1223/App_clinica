@@ -39,6 +39,7 @@ class TestProgressaoNutricional(unittest.TestCase):
         alerta = resultado["alertas"][0]
         self.assertFalse(alerta["sinal_risco_nutricional"])
         self.assertLess(alerta["perda_percentual"], 0)
+        self.assertIn("1.6% de ganho", pn.formatar_progressao(resultado))
 
     def test_perda_ponderal_em_seis_meses_marca_criterio_fenotipico_glim(self):
         resultado = pn.analisar_progressao_peso([
