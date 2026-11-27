@@ -124,12 +124,20 @@ def listar_substituicoes(caminho,id_paciente):
             ORDER BY substituido_em DESC,id_substituicao DESC""",(int(id_paciente),)).fetchall()
 
 
-def _resumo(valores, chave):
-    dias=sorted({v[0][:10] for v in valores})
-    nums=[float(v[1]) for v in valores if v[1] is not None]
+def _resumo(valores, inicio):
+    inicio_dt = datetime.fromisoformat(inicio)
+    dias = set()
+    nums = []
+    for instante, valor in valores:
+        if valor is None:
+            continue
+        deslocamento = (datetime.fromisoformat(instante) - inicio_dt).total_seconds()
+        if 0 <= deslocamento < 3 * 86400:
+            dias.add(int(deslocamento // 86400) + 1)
+            nums.append(float(valor))
     return {"media": sum(nums)/len(nums) if nums else None,
-            "afericoes":len(nums),"dias_com_dados":len(dias),"dias_cobertos":dias,
-            "amostra_insuficiente":len(dias) < 3}
+            "afericoes": len(nums), "dias_com_dados": len(dias),
+            "dias_cobertos": sorted(dias), "amostra_insuficiente": len(dias) < 3}
 
 
 def comparar_tres_dias(caminho,id_paciente,substituido_em):
@@ -152,13 +160,14 @@ def comparar_tres_dias(caminho,id_paciente,substituido_em):
         pa_depois=conn.execute("""SELECT medido_em,sistolica_mmhg,diastolica_mmhg FROM PA_Registros
             WHERE id_paciente=? AND ativo=1 AND medido_em>=? AND medido_em<? ORDER BY medido_em""",
             (int(id_paciente),fim_antes,fim_depois)).fetchall()
-    def resumo_pa(rows,idx):
-        return _resumo([(r[0],r[idx]) for r in rows],"valor")
+    def resumo_pa(rows,idx,inicio):
+        return _resumo([(r[0],r[idx]) for r in rows],inicio)
     return {
+        "janela_depois_encerrada": datetime.now() >= troca + timedelta(days=3),
         "periodo_antes":{"inicio":ini_antes,"fim_exclusivo":fim_antes,
-            "hgt":_resumo(hgt_antes,"valor"),"sistolica":resumo_pa(pa_antes,1),"diastolica":resumo_pa(pa_antes,2)},
+            "hgt":_resumo(hgt_antes,ini_antes),"sistolica":resumo_pa(pa_antes,1,ini_antes),"diastolica":resumo_pa(pa_antes,2,ini_antes)},
         "periodo_depois":{"inicio":fim_antes,"fim_exclusivo":fim_depois,
-            "hgt":_resumo(hgt_depois,"valor"),"sistolica":resumo_pa(pa_depois,1),"diastolica":resumo_pa(pa_depois,2)}
+            "hgt":_resumo(hgt_depois,fim_antes),"sistolica":resumo_pa(pa_depois,1,fim_antes),"diastolica":resumo_pa(pa_depois,2,fim_antes)}
     }
 
 
@@ -274,35 +283,53 @@ class PainelMonitoramentoPressao(ctk.CTkFrame):
             inativar_pressao(self.caminho_banco,self.id_paciente,r[0]);self.atualizar()
 
     def _troca(self):
-        win=ctk.CTkToplevel(self);win.title("Troca de suplemento — comparação de 3 dias")
-        win.geometry("470x430");win.transient(self.winfo_toplevel());win.grab_set()
-        data=ctk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
-        hora=ctk.StringVar(value=datetime.now().strftime("%H:%M"))
-        anterior=ctk.StringVar();novo=ctk.StringVar();autor=ctk.StringVar()
-        for rot,var in (("Data da substituição (AAAA-MM-DD)",data),("Horário (HH:MM)",hora),
-                        ("Suplemento anterior",anterior),("Suplemento novo",novo),("Responsável",autor)):
-            ctk.CTkLabel(win,text=rot).pack(anchor="w",padx=22,pady=(9,2))
-            ctk.CTkEntry(win,textvariable=var,width=420).pack(padx=22)
-        ctk.CTkLabel(win,text="A comparação usa três dias antes e três dias depois da data/hora informada.").pack(padx=20,pady=10)
-        def executar():
+        eventos=listar_substituicoes(self.caminho_banco,self.id_paciente)
+        if not eventos:
+            messagebox.showinfo("Comparação de suplementos",
+                "Ainda não há substituições confirmadas registradas para este paciente. "
+                "As próximas trocas feitas no mapa serão registradas automaticamente.",parent=self)
+            return
+        win=ctk.CTkToplevel(self);win.title("Comparar resposta após troca de suplemento")
+        win.geometry("560x560");win.transient(self.winfo_toplevel());win.grab_set()
+        opcoes={}
+        for r in eventos:
+            dt=datetime.fromisoformat(r[1]).strftime("%d/%m/%Y %H:%M")
+            rotulo=f"{dt} — {r[2] or 'Suplemento anterior não informado'} → {r[3]}"
+            opcoes[rotulo]=r
+        ctk.CTkLabel(win,text="Selecione uma substituição já confirmada",
+                     font=ctk.CTkFont(size=16,weight="bold")).pack(anchor="w",padx=20,pady=(18,6))
+        combo=ctk.CTkComboBox(win,values=list(opcoes),width=510,state="readonly")
+        combo.pack(padx=20,pady=6)
+        combo.set(next(iter(opcoes)))
+        resultado=ctk.CTkTextbox(win,width=520,height=390,wrap="word")
+        resultado.pack(fill="both",expand=True,padx=20,pady=10)
+        def fmt(periodo,chave):
+            x=periodo[chave]
+            if x["media"] is None:
+                return "sem aferições"
+            aviso="; cobertura incompleta" if x["amostra_insuficiente"] else ""
+            return f'{x["media"]:.1f} (n={x["afericoes"]}; dias de 24h={x["dias_com_dados"]}/3{aviso})'
+        def calcular():
+            evento=opcoes.get(combo.get())
+            if not evento:return
             try:
-                quando=data.get().strip()+" "+hora.get().strip()
-                registrar_substituicao(self.caminho_banco,self.id_paciente,quando,anterior.get(),novo.get(),autor=autor.get())
-                res=comparar_tres_dias(self.caminho_banco,self.id_paciente,quando)
-                def fmt(d,k):
-                    x=d[k]
-                    if x["media"] is None:
-                        return "sem dados"
-                    aviso = "; amostra incompleta" if x["amostra_insuficiente"] else ""
-                    return f'{x["media"]:.1f} (n={x["afericoes"]}; dias={x["dias_com_dados"]}/3{aviso})'
-                msg=("ANTES — HGT: "+fmt(res["periodo_antes"],"hgt")+
-                     "\\nANTES — PA sistólica: "+fmt(res["periodo_antes"],"sistolica")+
-                     "\\nANTES — PA diastólica: "+fmt(res["periodo_antes"],"diastolica")+
-                     "\\n\\nDEPOIS — HGT: "+fmt(res["periodo_depois"],"hgt")+
-                     "\\nDEPOIS — PA sistólica: "+fmt(res["periodo_depois"],"sistolica")+
-                     "\\nDEPOIS — PA diastólica: "+fmt(res["periodo_depois"],"diastolica")+
-                     "\\n\\nComparação observacional; não demonstra causalidade.")
-                messagebox.showinfo("Resumo dos períodos",msg,parent=win);win.destroy()
-            except Exception as exc: messagebox.showerror("Comparação inválida",str(exc),parent=win)
-        ctk.CTkButton(win,text="Registrar substituição e calcular",command=executar,
-                      fg_color=tema.VERDE).pack(pady=15)
+                res=comparar_tres_dias(self.caminho_banco,self.id_paciente,
+                                       datetime.fromisoformat(evento[1]).strftime("%Y-%m-%d %H:%M"))
+                linhas=[f"Troca: {evento[2] or 'não informado'} → {evento[3]}",
+                        "Período anterior (72 horas):",
+                        "HGT: "+fmt(res["periodo_antes"],"hgt"),
+                        "PA sistólica: "+fmt(res["periodo_antes"],"sistolica"),
+                        "PA diastólica: "+fmt(res["periodo_antes"],"diastolica"),
+                        "",
+                        "Período posterior (72 horas):",
+                        "HGT: "+fmt(res["periodo_depois"],"hgt"),
+                        "PA sistólica: "+fmt(res["periodo_depois"],"sistolica"),
+                        "PA diastólica: "+fmt(res["periodo_depois"],"diastolica")]
+                if not res["janela_depois_encerrada"]:
+                    linhas.append("A janela posterior ainda está em andamento; a média é parcial.")
+                linhas.append("Comparação observacional; não demonstra que o suplemento causou a alteração.")
+                resultado.delete("1.0","end");resultado.insert("end","\\n".join(linhas))
+            except Exception as exc:
+                messagebox.showerror("Comparação",str(exc),parent=win)
+        ctk.CTkButton(win,text="Calcular comparação",command=calcular,
+                      fg_color=tema.VERDE).pack(pady=(0,16))
