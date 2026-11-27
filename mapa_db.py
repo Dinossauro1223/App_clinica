@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS Mapa_Registro_Suplementos (
     osmolaridade_ref REAL, unidade_osmolaridade TEXT, dose_ref REAL, unidade_dose_ref TEXT,
     volume_final_ref_ml REAL, agua_recomendada_ml REAL, fonte_osmolaridade TEXT,
     classificacao_nutricional TEXT, grau_hidrolise TEXT, proteinas_hidrolisadas TEXT,
-    fonte_classificacao TEXT, tipo_formula TEXT);
+    fonte_classificacao TEXT, tipo_formula TEXT, fibra_g_100 REAL, tipo_fibra TEXT, descricao_fibra TEXT, fonte_fibra TEXT);
 CREATE TABLE IF NOT EXISTS Mapa_Evolucao_Dados (
     id_registro INTEGER PRIMARY KEY REFERENCES Mapa_Registros(id_registro) ON DELETE CASCADE,
     dados_json TEXT NOT NULL, criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL
