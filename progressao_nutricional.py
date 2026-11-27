@@ -303,9 +303,18 @@ def formatar_progressao(resultado):
         return "Progressão antropométrica: sem histórico de peso suficiente."
     linhas = ["Progressão antropométrica do peso:"]
     for item in resultado.get("comparacoes", []):
+        percentual = item.get("perda_percentual")
+        if percentual is None:
+            variacao_txt = "variação percentual indisponível"
+        elif percentual > 0:
+            variacao_txt = f"{percentual:.1f}% de perda"
+        elif percentual < 0:
+            variacao_txt = f"{abs(percentual):.1f}% de ganho"
+        else:
+            variacao_txt = "sem variação percentual"
         linhas.append(
             f"• {item['janela']}: {item['peso_anterior_kg']:.1f} → {item['peso_atual_kg']:.1f} kg; "
-            f"{item['diferenca_kg']:+.1f} kg ({item['perda_percentual']:+.1f}% de perda; {item['faixa']})."
+            f"{item['diferenca_kg']:+.1f} kg ({variacao_txt}; {item['faixa']})."
         )
         if item.get("origens_diferentes"):
             linhas.append("  Atenção: origem do peso anterior e atual é diferente (aferido/estimado).")
