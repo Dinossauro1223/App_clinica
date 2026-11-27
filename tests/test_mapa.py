@@ -376,12 +376,20 @@ class TestBanco(unittest.TestCase):
         # usado em registro: só desativa; não usado: exclui
         mdb.salvar_registro(self.db, registro_base(self.db, self.leitos[0]["id_leito"], "2026-10-25",
                             suplementos=[dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo",
-                                qtd_dia=20, unidade="g", agua_ml=130)]))
+                                qtd_dia=20, unidade="g", agua_ml=130,
+                                preparacoes=[{"refeicao": "almoço", "dose": 10,
+                                              "agua_adicionada_ml": 65, "agua_separada_ml": 100},
+                                             {"refeicao": "jantar", "dose": 10,
+                                              "agua_adicionada_ml": 65, "agua_separada_ml": 0}])]))
         salvo = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["suplementos"][0]
         self.assertEqual((salvo["osmolaridade_ref"], salvo["dose_ref"], salvo["volume_final_ref_ml"],
                           salvo["agua_recomendada_ml"], salvo["agua_ml"]), (300.0, 20.0, 150.0, 130.0, 130.0))
         self.assertEqual((salvo["classificacao_nutricional"], salvo["grau_hidrolise"], salvo["tipo_formula"]),
                          ("oligomerica", "parcialmente_hidrolisada", "fechada"))
+        self.assertEqual(salvo["preparacoes"], [
+            {"refeicao": "almoço", "dose": 10, "agua_adicionada_ml": 65, "agua_separada_ml": 100},
+            {"refeicao": "jantar", "dose": 10, "agua_adicionada_ml": 65, "agua_separada_ml": 0},
+        ])
         self.assertFalse(mdb.remover_suplemento(self.db, novo))
         self.assertNotIn(novo, [x["id_suplemento"] for x in mdb.listar_suplementos(self.db)])
         outro = mdb.salvar_suplemento(self.db, dict(nome="Z"))
