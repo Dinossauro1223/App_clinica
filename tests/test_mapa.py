@@ -325,7 +325,12 @@ class TestBanco(unittest.TestCase):
 
     def test_mapa_copia_historico(self):
         a, b = self.leitos[0]["id_leito"], self.leitos[1]["id_leito"]
-        mdb.salvar_registro(self.db, registro_base(self.db, a, "2026-10-24"))
+        sid = mdb.salvar_suplemento(self.db, dict(
+            nome="Módulo fibra teste", modulo="Módulo de fibras", emb_un="g",
+            fibra_g_100=80, tipo_fibra="soluvel", descricao_fibra="inulina", fonte_fibra="Ficha oficial"))
+        mdb.salvar_registro(self.db, registro_base(self.db, a, "2026-10-24",
+            meta_fibras_g=25, suplementos=[dict(id_suplemento=sid, nome="Módulo fibra teste",
+                modulo="Módulo de fibras", qtd_dia=5, unidade="g")]))
         mdb.salvar_registro(self.db, registro_base(self.db, b, "2026-10-24", nome_paciente="João Pedro", sexo="H"))
         self.assertEqual(mdb.ultima_data_com_registros(self.db, "2026-10-25"), "2026-10-24")
         self.assertEqual(mdb.copiar_mapa(self.db, "2026-10-24", "2026-10-25", self.setor), 2)
@@ -336,6 +341,10 @@ class TestBanco(unittest.TestCase):
         r24 = mdb.obter_registro(self.db, "2026-10-24", a)
         r25 = mdb.obter_registro(self.db, "2026-10-25", a)
         self.assertEqual(r24["id_paciente"], r25["id_paciente"])
+        self.assertEqual(r25["meta_fibras_g"], 25)
+        self.assertEqual((r25["suplementos"][0]["fibra_g_100"], r25["suplementos"][0]["tipo_fibra"],
+                          r25["suplementos"][0]["descricao_fibra"]),
+                         (80.0, "soluvel", "inulina"))
         hist = mdb.historico_paciente(self.db, id_paciente=r25["id_paciente"])
         self.assertEqual([h["data"] for h in hist], ["2026-10-25", "2026-10-24"])
         mdb.remover_registro(self.db, r25["id_registro"])
