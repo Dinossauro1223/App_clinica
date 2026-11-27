@@ -118,6 +118,7 @@ def listar_administracoes(caminho, id_paciente, inicio=None, fim=None):
         sql += " AND inicio_em <= ?"; args.append(str(fim))
     sql += " ORDER BY inicio_em,id_administracao"
     with closing(sqlite3.connect(caminho)) as conn, conn:
+        conn.row_factory = sqlite3.Row
         criar_tabela(conn)
         return [dict(r) for r in conn.execute(sql,args)]
 
