@@ -155,6 +155,29 @@ def estimar_tempo_bomba(volume_adicional_ml, taxa_estimativa_ml_h=10):
 
 
 
+def planejar_administracao_enteral(volume_total_ml, kcal_100ml, duracao_horas, *, usa_bomba=False, fator_gotas_ml=20):
+    """Calcula taxa de administração e energia ofertada no período informado.
+
+    O fator de gotas deve corresponder ao equipo utilizado. Bomba retorna mL/h;
+    gravidade retorna gotas/min. Resultado matemático, não prescrição de velocidade.
+    """
+    volume = _numero(volume_total_ml, "Volume total", minimo=0.000001)
+    kcal = _numero(kcal_100ml, "Energia por 100 mL", minimo=0.000001)
+    horas = _numero(duracao_horas, "Duração da administração", minimo=0.000001)
+    taxa_ml_h = volume / horas
+    energia_total = volume * kcal / 100
+    resultado = {"volume_total_ml": volume, "duracao_horas": horas,
+                 "energia_total_kcal": energia_total, "energia_kcal_h": energia_total / horas,
+                 "taxa_ml_h": taxa_ml_h, "usa_bomba": bool(usa_bomba)}
+    if usa_bomba:
+        resultado["velocidade_bomba_ml_h"] = round(taxa_ml_h, 1)
+    else:
+        fator = _numero(fator_gotas_ml, "Fator de gotas do equipo", minimo=0.000001)
+        resultado["fator_gotas_ml"] = fator
+        resultado["gotejamento_gotas_min"] = round(taxa_ml_h * fator / 60, 1)
+    return resultado
+
+
 def calcular_oferta_enteral(volume_por_etapa_ml, numero_etapas, kcal_100ml, proteina_100ml):
     """Calcula oferta diária a partir da composição cadastrada por 100 mL da fórmula."""
     volume_etapa = _numero(volume_por_etapa_ml, "Volume por etapa", minimo=0.000001)
@@ -276,6 +299,17 @@ def gerar_evolucao(dados):
                 f"{formatar_numero_pt(incremento)} mL/dia até atingir {formatar_numero_pt(meta)} mL/dia.{detalhe}")
         elif not bomba.get("usa_bomba"):
             linhas.append("**Evolução da dieta:** Progressão de aproximadamente 30–40 mL/dia, conforme tolerância e conduta nutricional.")
+        administracao = dados.get("administracao_enteral") or {}
+        if administracao:
+            if administracao.get("usa_bomba"):
+                taxa_txt = f"velocidade da bomba: {formatar_numero_pt(administracao['velocidade_bomba_ml_h'], 1)} mL/h"
+            else:
+                taxa_txt = (f"gotejamento estimado: {formatar_numero_pt(administracao['gotejamento_gotas_min'], 1)} gotas/min "
+                            f"(equipo de {formatar_numero_pt(administracao['fator_gotas_ml'], 1)} gotas/mL)")
+            linhas.append("**Administração da dieta fechada:** " +
+                f"{formatar_numero_pt(administracao['volume_total_ml'])} mL em {formatar_numero_pt(administracao['duracao_horas'], 1)} h; " +
+                f"{taxa_txt}; {formatar_numero_pt(administracao['energia_total_kcal'])} kcal no período " +
+                f"({formatar_numero_pt(administracao['energia_kcal_h'], 1)} kcal/h). Cálculo matemático; validar velocidade e tolerância clinicamente.")
         if bomba.get("usa_bomba") and oferta and oferta.get("volume_total_ml") is not None and oferta.get("volume_meta_ml") is not None:
             aviso = aviso_bomba(oferta["volume_total_ml"], oferta["volume_meta_ml"], True,
                                 bomba.get("taxa_estimativa_ml_h", 10))
