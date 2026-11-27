@@ -18,6 +18,7 @@ import customtkinter as ctk
 import nutri_calculos as nc
 import nrs2002 as nrs
 import suplementos_calculos as sc
+import monitoramento_pressao as monitoramento_pa
 import avaliacao_nutri as avaliacao
 import mapa_db as mdb
 import midias_usuario
@@ -1477,6 +1478,31 @@ class DialogSubstituirSuplemento(ctk.CTkToplevel):
     def _confirmar(self):
         if not self.comparacao or not self.novo:
             return
+        id_paciente = self.formulario._id_paciente
+        if id_paciente:
+            try:
+                catalogo = {int(x.get("id_suplemento")): x for x in self.formulario._catalogo
+                            if x.get("id_suplemento") is not None}
+                atual_base = catalogo.get(int(self.atual.get("id_suplemento") or 0), {})
+                novo_base = catalogo.get(int(self.novo.get("id_suplemento") or 0), {})
+                snapshot_atual = {**atual_base, **self.atual}
+                snapshot_novo = {**novo_base, **self.novo}
+                quando = datetime.now().strftime("%Y-%m-%d %H:%M")
+                monitoramento_pa.registrar_substituicao(
+                    self.formulario.ui.db, id_paciente, quando,
+                    self.atual.get("nome"), self.novo.get("nome"),
+                    id_suplemento_anterior=self.atual.get("id_suplemento"),
+                    id_suplemento_novo=self.novo.get("id_suplemento"),
+                    snapshot_anterior=snapshot_atual, snapshot_novo=snapshot_novo)
+            except Exception as exc:
+                messagebox.showerror("Substituição", 
+                    "Não foi possível registrar a troca no histórico clínico. A substituição não foi aplicada.\\n\\n"
+                    + str(exc), parent=self)
+                return
+        else:
+            messagebox.showwarning("Substituição sem vínculo",
+                "O leito não está vinculado a um cadastro de paciente. A troca será aplicada ao mapa, "
+                "mas não poderá entrar na comparação clínica de HGT e pressão arterial.", parent=self)
         self.formulario._suplementos[self.indice] = self.novo
         self.formulario._atualizar_sup()
         self.formulario._recalcular_oferta()
