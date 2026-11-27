@@ -141,8 +141,9 @@ class JanelaReferencias(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             self,
-            text=("Nota clínica: variação de peso em até 24 horas é um alerta para revisar balanço hídrico "
-                  "e condições de pesagem, não diagnóstico isolado de desnutrição. O diagnóstico GLIM "
-                  "requer pelo menos um critério fenotípico e um etiológico; a perda ponderal deve ser não intencional."),
+            text=("Nota clínica: perda de pelo menos 1 kg em até 24 horas é sinal de possível deterioração "
+                  "clínica/nutricional e exige avaliação da ingestão e da tendência, além de revisão do balanço "
+                  "hídrico e da técnica de pesagem. Não confirma desnutrição nem substitui GLIM/ASPEN. O diagnóstico "
+                  "GLIM exige pelo menos um critério fenotípico e um etiológico; a perda ponderal deve ser não intencional."),
             justify="left", wraplength=840, text_color=tema.LARANJA_TEXTO,
         ).pack(fill="x", padx=20, pady=(0, 14))
