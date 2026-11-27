@@ -849,9 +849,9 @@ class GestaoAlimentarUI:
             alteradas = sum(1 for x in resultado["publicacoes"] if x.get("alterado"))
             messagebox.showinfo(
                 "Menu do Dia publicado",
-                f"Publicação concluída para {data}.\\n"
-                f"Refeições verificadas: {resultado['total']}.\\n"
-                f"Snapshots novos/atualizados: {alteradas}.\\n"
+                f"Publicação concluída para {data}.\n"
+                f"Refeições verificadas: {resultado['total']}.\n"
+                f"Snapshots novos/atualizados: {alteradas}.\n"
                 "O aplicativo mobile receberá a versão publicada quando consultar o Menu do Dia.",
                 parent=self.tab_consumo)
         except Exception as exc:

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Testes da integração desktop <-> mobile (criado em 12/11/2026). Dados sintéticos; sem interface gráfica real."""
 import os
+import sqlite3
+import threading
 import json
 import shutil
 import sys
@@ -566,3 +568,53 @@ class TestCatalogoAlmoxDesktopMobile(unittest.TestCase):
         rows = self.mobile("SELECT ativo FROM itens")
         self.assertEqual(rows[0]["ativo"], 0)
 
+
+
+class TestPublicarMenuDia(unittest.TestCase):
+    def test_publica_snapshot_com_ficha_e_repeticao_nao_cria_nova_versao(self):
+        import gestao_alimentar_db as ga
+
+        fd, caminho = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        self.addCleanup(_remover, caminho)
+        def abrir_mobile(*_args):
+            conn = sqlite3.connect(caminho)
+            conn.row_factory = sqlite3.Row
+            return servidor, conn
+        servidor = types.SimpleNamespace(LOCK=threading.Lock())
+        preparacoes = [{
+            "id_preparacao_dia": 7, "refeicao": "almoco", "nome": "Arroz",
+            "categoria": "acompanhamento", "porcoes_previstas": 80, "id_ficha": 3,
+        }]
+        ficha = {
+            "id_ficha": 3, "nome": "Arroz branco", "modo_preparo": "Lavar e cozinhar",
+            "ingredientes": [{"nome": "Arroz", "qtd_per_capita": 50, "unidade": "g"}],
+            "etapas_preparo": [{"ordem": 1, "instrucao": "Lavar"}],
+            "imagens": [],
+        }
+        with mock.patch.object(im, "_abrir_mobile", side_effect=abrir_mobile), \
+             mock.patch.object(ga, "listar_preparacoes_dia", return_value=preparacoes), \
+             mock.patch.object(ga, "obter_ficha", return_value=ficha), \
+             mock.patch.object(ga, "obter_imagem_ficha", return_value=None):
+            primeira = im.publicar_menu_dia("desktop.db", "mobile.db", DIA)
+            segunda = im.publicar_menu_dia("desktop.db", "mobile.db", DIA)
+
+        self.assertEqual(primeira["total"], 6)
+        self.assertTrue(any(x.get("alterado") for x in primeira["publicacoes"]))
+        self.assertTrue(all(not x.get("alterado") for x in segunda["publicacoes"]))
+        conn = sqlite3.connect(caminho)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT snapshot_json FROM menu_dia_publicacoes WHERE data=? AND refeicao='almoco'",
+            (DIA,)).fetchone()
+        snapshot = json.loads(row["snapshot_json"])
+        item = snapshot["preparacoes"][0]
+        self.assertEqual(item["ficha"]["ingredientes"][0]["nome"], "Arroz")
+        self.assertEqual(item["ficha"]["etapas_preparo"][0]["instrucao"], "Lavar")
+        conn.close()
+
+    def test_refeicao_invalida_e_rejeitada_antes_de_abrir_mobile(self):
+        with mock.patch.object(im, "_abrir_mobile") as abrir:
+            with self.assertRaises(im.ErroMobile):
+                im.publicar_menu_dia("desktop.db", "mobile.db", DIA, "cafe")
+        abrir.assert_not_called()

@@ -115,7 +115,13 @@ Cada suplemento contém `id_suplemento`, `nome`, `modulo`, `ml_oferta`, `agua_ml
 
 O endpoint autenticado `GET /api/suplementos` fornece o catálogo ativo do banco mobile. O painel de integração do desktop sincroniza esse catálogo com `Mapa_Suplementos` ao ser aberto e antes de enviar o mapa à Copa.
 
-### Uso offline no APK
+### Menu do Dia publicado no mobile
+
+A integração desktop disponibiliza `integracao_mobile.publicar_menu_dia(db, mobile_db, data, refeicao=None)`. Ela publica snapshots por data/refeição no banco do servidor, incluindo categoria, porções previstas, ficha vinculada, ingredientes, modo de preparo, etapas e imagens incorporadas. Uma publicação sem alterações não regrava a versão; uma refeição sem preparações é publicada como lista vazia.
+
+O mobile consulta `GET /api/menu-dia?data=AAAA-MM-DD`. A aba Menu do Dia está disponível para Copa, Nutrição, Administração e Cozinha. A resposta GET usa o cache offline já existente. A Copa consulta o cardápio publicado, sem editar o conteúdo no aparelho.
+
+
 
 O APK inclui uma cópia local de `mobile/static/index.html`. Se o servidor não responder, a interface é carregada dessa cópia usando a URL do servidor como origem, para manter as mesmas rotas `/api`.
 
