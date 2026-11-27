@@ -144,6 +144,15 @@ class MobileTest(unittest.TestCase):
                  "porcoes_produzidas": 1, "porcoes_faltantes": 0}
         self.assertEqual(self.chamar(self.t["coz"], "POST", "/api/menu-dia/producao", corpo)[0], 404)
 
+    def test_menu_mobile_exibe_formulario_de_producao_apenas_a_perfis_autorizados(self):
+        html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("salvarProducaoMobile", html)
+        self.assertIn("adicionarCubaMobile", html)
+        self.assertIn("Porções produzidas", html)
+        self.assertIn("Porções faltantes", html)
+        self.assertIn("Sobras e desperdício por cuba (kg)", html)
+        self.assertIn("estoque_cozinha].includes(S.u.perfil)", html)
+
     def test_menu_dia_publicado_disponivel_aos_perfis_operacionais_e_bloqueado_ao_almox(self):
         dia = "2026-11-26"
         snapshot = {"esquema": 1, "data": dia, "refeicao": "almoco",

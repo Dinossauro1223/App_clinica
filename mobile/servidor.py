@@ -1005,6 +1005,23 @@ def _rotear(c, ip, m, p, q, b, auth):
         if m == "POST":
             if perfil not in perfis_escrita:
                 raise Erro("Somente a cozinha, a nutrição e a administração podem registrar produção.", 403)
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_producao (
+                id_registro INTEGER PRIMARY KEY AUTOINCREMENT,
+                data TEXT NOT NULL, refeicao TEXT NOT NULL, id_preparacao_dia INTEGER NOT NULL,
+                nome_preparacao_snapshot TEXT NOT NULL, categoria_snapshot TEXT,
+                porcoes_planejadas REAL, porcoes_produzidas REAL,
+                porcoes_faltantes REAL NOT NULL DEFAULT 0,
+                faltou_preparacao INTEGER NOT NULL DEFAULT 0 CHECK(faltou_preparacao IN (0,1)),
+                peso_por_porcao_g REAL, observacao TEXT, usuario TEXT NOT NULL,
+                criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL,
+                UNIQUE(data,refeicao,id_preparacao_dia)
+            )""")
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_producao_cubas (
+                id_cuba INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_registro INTEGER NOT NULL REFERENCES menu_dia_producao(id_registro) ON DELETE CASCADE,
+                identificacao TEXT NOT NULL, peso_sobra_kg REAL NOT NULL DEFAULT 0,
+                peso_desperdicio_kg REAL NOT NULL DEFAULT 0, observacao TEXT, ordem INTEGER NOT NULL DEFAULT 0
+            )""")
             d = dia_valido(b.get("data") or hoje())
             ref = str(b.get("refeicao") or "").strip().lower()
             if ref not in ("desjejum", "colacao", "almoco", "lanche", "jantar", "ceia"):
@@ -1028,7 +1045,7 @@ def _rotear(c, ip, m, p, q, b, auth):
             produzidas = b.get("porcoes_produzidas")
             produzidas = num(produzidas, "porções produzidas") if produzidas not in (None, "") else None
             faltantes = num(b.get("porcoes_faltantes", 0), "porções faltantes")
-            nao_produzida = bool(b.get("faltou_preparacao"))
+            nao_produzida = b.get("faltou_preparacao") is True
             if nao_produzida:
                 produzidas = 0
                 faltantes = planejadas or 0
