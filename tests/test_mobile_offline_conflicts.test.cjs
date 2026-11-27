@@ -5,9 +5,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const html = fs.readFileSync('mobile/static/index.html', 'utf8');
-const match = html.match(/\/\* BEGIN OFFLINE MAP CONFLICT HELPERS[\s\S]*?\/\* END OFFLINE MAP CONFLICT HELPERS \*\//);
+const match = html.match(/\/\/ BEGIN OFFLINE MAP CONFLICT HELPERS[\s\S]*?\/\/ END OFFLINE MAP CONFLICT HELPERS/);
 assert.ok(match, 'helpers de conflito offline devem estar presentes no app');
-const helpers = vm.runInNewContext(match[0].replace(/^\/\*/, '').replace(/\*\/$/, '') +
+const helpers = vm.runInNewContext(match[0] +
   '\n;({idsMapa,baseCompletaMapa,contarConflitosMapa})');
 const snap = row => JSON.stringify({id_leito: row.id_leito, nome: row.nome || ''});
 const base = {
