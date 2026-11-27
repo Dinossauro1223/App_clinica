@@ -63,13 +63,16 @@ class _EncerramentoControlado:
 
     def __init__(self, cancelar=False):
         self.cancelar = cancelar
+        self.encerrado = False
         self.esperas = []
 
     def is_set(self):
-        return False
+        return self.encerrado
 
     def wait(self, segundos):
         self.esperas.append(segundos)
+        if self.cancelar:
+            self.encerrado = True
         return self.cancelar
 
 
