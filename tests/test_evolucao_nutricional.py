@@ -161,13 +161,17 @@ class TestEvolucaoNutricional(unittest.TestCase):
         }, peso_kg=70, diabetes=True)
         hd = ev.avaliar_contexto_renal({
             "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G5",
-            "dialise": "hemodialise", "estabilidade_metabolica": "estavel"
+            "dialise": "hemodialise", "estabilidade_metabolica": "estavel",
+            "frequencia_dialise_semana": 3, "duracao_dialise_horas": 4, "inicio_dialise": "01/10/2026"
         }, peso_kg=70)
         self.assertEqual(sem_dm["recomendacao_proteica"]["g_kg_dia"], "0,55–0,60")
         self.assertEqual(sem_dm["recomendacao_proteica"]["g_dia"], "38,5–42")
         self.assertEqual(com_dm["recomendacao_proteica"]["g_kg_dia"], "0,6–0,8")
         self.assertEqual(com_dm["recomendacao_proteica"]["g_dia"], "42–56")
         self.assertEqual(hd["recomendacao_proteica"]["g_kg_dia"], "1,0–1,2")
+        self.assertEqual(hd["frequencia_dialise_semana"], 3)
+        self.assertEqual(hd["duracao_dialise_horas"], 4)
+        self.assertEqual(hd["inicio_dialise"], "01/10/2026")
 
     def test_instabilidade_catabolismo_e_crianca_bloqueiam_restricao_automatica(self):
         instavel = ev.avaliar_contexto_renal({
