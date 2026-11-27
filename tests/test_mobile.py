@@ -491,6 +491,25 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(self.chamar(cop, "GET", "/api/admin/mapa/atividade?periodo=ano&ano=2026")[0], 403)
 
 
+    def test_mobile_tem_tema_persistente_e_configuracoes_admin_recolhiveis(self):
+        html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("temaSelectHtml", html)
+        self.assertIn("aplicaTemaMobile", html)
+        self.assertIn("html[data-tema=escuro]", html)
+        self.assertIn("html[data-tema=sistema]", html)
+        self.assertIn("colapsarCadastrosAdmin", html)
+        self.assertIn("aria-expanded", html)
+        self.assertIn("admin-grupo", html)
+        self.assertIn("Estoque da cozinha", html)
+        self.assertIn("1. Conferir e atualizar saldo", html)
+        self.assertIn("2. Registrar movimentação", html)
+        self.assertIn("lerEscalaTextoMobile", html)
+        self.assertIn("aplicaEscalaTextoMobile", html)
+        self.assertIn("min=50 max=200 step=10", html)
+        self.assertIn("Acessibilidade do texto", html)
+        self.assertIn("preferencias-conteudo", html)
+        self.assertIn("style.zoom", html)
+
     def test_configuracoes_exibem_dois_qrs_e_compartilhamento(self):
         cfg = (Path(__file__).resolve().parents[1] / "configuracoes_ui.py").read_text(encoding="utf-8")
         servidor = (Path(__file__).resolve().parents[1] / "mobile" / "servidor.py").read_text(encoding="utf-8")

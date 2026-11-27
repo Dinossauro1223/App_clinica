@@ -59,6 +59,7 @@ class ConfiguracoesUI:
                       text_color=tema.VERDE).pack(anchor="w", padx=24, pady=(22, 8))
         conteudo = ctk.CTkScrollableFrame(raiz, fg_color="transparent")
         conteudo.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        self._grupo(conteudo, "Aparência")
         card = ctk.CTkFrame(conteudo, fg_color=tema.BRANCO, border_width=1,
                            border_color=tema.BORDA, corner_radius=12)
         card.pack(fill="x", padx=24, pady=12)
@@ -80,19 +81,59 @@ class ConfiguracoesUI:
         seletor.pack(anchor="w", padx=18, pady=(0, 16))
         self.lbl_status = ctk.CTkLabel(card, text="", font=tema.fonte(12), text_color=tema.SUAVE)
         self.lbl_status.pack(anchor="w", padx=18, pady=(0, 12))
+        self._grupo(conteudo, "Aplicativo mobile e conexão")
         self._distribuicao(conteudo)
+        self._grupo(conteudo, "Contas e permissões")
         self._contas_compartilhadas(conteudo)
+        self._grupo(conteudo, "Configurações clínicas")
         self._nrs(conteudo)
         self._midias_personalizadas(conteudo)
         self._progressao_oral(conteudo)
+        self._grupo(conteudo, "Equipe de atendimento")
         self._equipe(conteudo)
+        self._grupo(conteudo, "Refeições e custos")
         self._refeicoes(conteudo)
         self._precos_refeicoes(conteudo)
+        self._grupo(conteudo, "Dados e recuperação")
         self._backups(conteudo)
+        self._recolher_cards_config(conteudo)
         ctk.CTkButton(conteudo, text="Voltar ao início", fg_color=tema.VERDE,
                      hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=14, pady=10)
 
 
+
+    def _grupo(self, raiz, titulo):
+        ctk.CTkLabel(raiz, text=titulo, font=tema.fonte(14, "bold"),
+                      text_color=tema.VERDE).pack(anchor="w", padx=24, pady=(14, 2))
+
+    def _recolher_cards_config(self, raiz, card_aberto=None):
+        """Recolhe cada bloco sem destruir widgets nem perder dados digitados."""
+        for card in raiz.winfo_children():
+            if not isinstance(card, ctk.CTkFrame) or card is card_aberto:
+                continue
+            filhos = card.winfo_children()
+            if not filhos or not isinstance(filhos[0], ctk.CTkLabel):
+                continue
+            titulo = filhos[0]
+            texto = str(titulo.cget("text"))
+            conteudos = [(w, {k: v for k, v in w.pack_info().items() if k not in ("in", "before", "after")})
+                         for w in filhos[1:]]
+            estado = {"aberto": False}
+            titulo.configure(text="▸ " + texto, cursor="hand2")
+            def alternar(_evento=None, h=titulo, itens=conteudos, e=estado, t=texto):
+                e["aberto"] = not e["aberto"]
+                h.configure(text=("▾ " if e["aberto"] else "▸ ") + t)
+                if e["aberto"]:
+                    for widget, opcoes in itens:
+                        widget.pack(**opcoes)
+                else:
+                    for widget, _opcoes in itens:
+                        widget.pack_forget()
+            titulo.bind("<Button-1>", alternar)
+            titulo.bind("<Return>", alternar)
+            titulo.bind("<space>", alternar)
+            titulo.bind("<Enter>", lambda _e, h=titulo: h.configure(text_color=tema.VERDE_HOVER))
+            titulo.bind("<Leave>", lambda _e, h=titulo, t=texto, e=estado: h.configure(text_color=tema.VERDE, text=("▾ " if e["aberto"] else "▸ ")+t))
 
     def _mobile_db_path(self):
         banco_clinica = getattr(getattr(self.app, "mapa", None), "db", None)

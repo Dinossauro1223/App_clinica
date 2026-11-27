@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>NutriLab Mobile</title>
 <style>
-:root{--tinta:#1d2a2a;--papel:#f3f6f2;--cartao:#fff;--linha:#cfd8d3;--suave:#5d6b66;--cor:#0f4c5c;--alerta:#b3261e;--alerta-bg:#fde8e6}
+:root{--tinta:#1d2a2a;--papel:#f3f6f2;--cartao:#fff;--linha:#cfd8d3;--suave:#5d6b66;--cor:#0f4c5c;--alerta:#b3261e;--alerta-bg:#fde8e6;--campo:#fff;--campo-texto:#1d2a2a;--sec-bg:#fff;--sec-texto:#0f4c5c;--sombra:0 1px 2px #00000008;--aviso-bg:#e6ece8;--chip-bg:#e6ece8;--nota-bg:#edf3ef}
 *{box-sizing:border-box}
 body{margin:0;font:16px/1.4 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:var(--tinta);background:var(--papel)}
 header{background:var(--cor);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px}
@@ -51,6 +51,18 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .caixa{background:var(--papel);width:100%;max-width:520px;max-height:85vh;overflow:auto;padding:14px calc(14px + env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom));border-radius:14px 14px 0 0}
 .caixa ul{margin:6px 0 0;padding-left:18px}
 #entrada{max-width:380px;margin:12vh auto;padding:0 16px}
+.preferencias{position:relative;display:inline-block;vertical-align:middle;margin:5px 0}
+.preferencias summary{cursor:pointer;list-style:none;border:1px solid var(--linha);border-radius:8px;padding:7px 10px;min-height:40px;font-weight:700;background:var(--cartao);color:var(--tinta)}
+.preferencias summary::-webkit-details-marker{display:none}
+.preferencias[open] summary{border-color:var(--cor)}
+.preferencias-conteudo{position:absolute;z-index:8;top:calc(100% + 6px);right:0;width:min(310px,calc(100vw - 24px));padding:12px;background:var(--cartao);color:var(--tinta);border:1px solid var(--linha);border-radius:10px;box-shadow:0 4px 18px #0002}
+.preferencias-conteudo label{margin-bottom:10px}
+.preferencias-conteudo select{background:var(--campo);color:var(--campo-texto)}
+.texto-controle{width:100%;min-height:28px;accent-color:var(--cor)}
+.texto-valor{float:right;font-weight:800;color:var(--cor)}
+body.zoom-texto{zoom:1}
+@media(max-width:420px){.preferencias-conteudo{right:auto;left:0}.preferencias{max-width:100%}.sub{flex-wrap:wrap}}
+
 #entrada h1{font-size:2rem;margin:0 0 4px}
 .creditos{text-align:center;color:var(--suave);font-size:.78rem;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--linha);margin-top:12px}
 .orientacao-texto{white-space:normal;line-height:1.55}
@@ -92,6 +104,22 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .editor-orientacao{border-top:1px solid var(--linha);padding-top:10px;margin-top:10px}
 .editor-orientacao textarea{min-height:140px}
 .orientacao-fonte{font-size:.78rem;color:var(--suave)}
+ html[data-tema=escuro]{--tinta:#e6eeeb;--papel:#141c1b;--cartao:#202a28;--linha:#394744;--suave:#aab8b3;--campo:#18211f;--campo-texto:#e6eeeb;--sec-bg:#202a28;--sec-texto:#85c9b6;--alerta-bg:#482a29;--alerta:#f28d87;--aviso-bg:#263532;--chip-bg:#303b38;--nota-bg:#273734;color-scheme:dark}
+ @media(prefers-color-scheme:dark){html[data-tema=sistema]{--tinta:#e6eeeb;--papel:#141c1b;--cartao:#202a28;--linha:#394744;--suave:#aab8b3;--campo:#18211f;--campo-texto:#e6eeeb;--sec-bg:#202a28;--sec-texto:#85c9b6;--alerta-bg:#482a29;--alerta:#f28d87;--aviso-bg:#263532;--chip-bg:#303b38;--nota-bg:#273734;color-scheme:dark}}
+ html[data-tema=claro]{color-scheme:light}
+ input[type=text],input[type=number],input[type=password],input[type=date],input[type=time],input[type=datetime-local],input[type=search],select,textarea{background:var(--campo);color:var(--campo-texto);border-color:var(--linha)}
+ .cartao,.passo-preparo,.fruta-card{background:var(--cartao);color:var(--tinta);box-shadow:var(--sombra)}
+.aviso{background:var(--aviso-bg);color:var(--tinta)}.chip{background:var(--chip-bg);color:var(--suave)}.orientacao-nota{background:var(--nota-bg);color:var(--tinta)}
+.modal .caixa{background:var(--papel)!important;color:var(--tinta)}.sup-linha{background:var(--cartao)!important}
+header .sub span{min-width:0;overflow-wrap:anywhere}
+ .btn.sec{background:var(--sec-bg);color:var(--sec-texto)}.barra{background:var(--papel)}
+ .admin-secao h2{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;outline-offset:3px}
+.admin-secao[data-aberto=false] > :not(h2){display:none}
+.admin-grupo{grid-column:1/-1;margin:12px 0 0;font-size:1rem;color:var(--tinta);border-bottom:1px solid var(--linha);padding-bottom:6px}
+ .admin-secao h2::before{content:'▸';display:inline-block;width:1em;color:var(--cor);transition:transform .15s ease}
+ .admin-secao[data-aberto=true] h2::before{transform:rotate(90deg)}
+ .tema-controle{min-height:38px;width:auto;max-width:130px;padding:4px 8px;border:1px solid #ffffff55;border-radius:7px;background:#ffffff12;color:inherit;font-size:.82rem}
+ #entrada .tema-controle{background:var(--cartao);color:var(--tinta);border-color:var(--linha);margin:8px 0 14px;width:100%;max-width:none}
 @media(min-width:650px){.frutas-grade{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:360px){.passos-preparo{grid-template-columns:1fr}}
 </style>
@@ -279,6 +307,13 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 <script>
 const $=s=>document.querySelector(s),esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),v=x=>x==null?'':x;
 const S={tok:null,u:null,hoje:'',aba:'',setor:'',est:'almox',data:'',setores:[],itens:[],suplementos:[],timer:null};
+const lerTemaMobile=()=>{try{return (window.NLOffline&&NLOffline.get('aparencia'))||localStorage.getItem('nl:aparencia')||'sistema'}catch(e){return 'sistema'}};
+function aplicaTemaMobile(valor,salvar=true){const tema=['sistema','claro','escuro'].includes(valor)?valor:'sistema';document.documentElement.dataset.tema=tema;if(salvar){try{if(window.NLOffline&&NLOffline.set)NLOffline.set('aparencia',tema);else localStorage.setItem('nl:aparencia',tema)}catch(e){}}document.querySelectorAll('.tema-controle').forEach(sel=>{if(sel.value!==tema)sel.value=tema});}
+function lerEscalaTextoMobile(){try{return Math.max(50,Math.min(200,Math.round((Number((window.NLOffline&&NLOffline.get('escalaTexto'))||localStorage.getItem('nl:escalaTexto')||100)||100)/10)*10))}catch(e){return 100}}
+function aplicaEscalaTextoMobile(valor,salvar=true){const escala=Math.max(50,Math.min(200,Math.round((Number(valor)||100)/10)*10));document.documentElement.style.setProperty('--escala-texto',escala/100);document.body.style.zoom=String(escala/100);document.querySelectorAll('.texto-controle').forEach(sl=>{if(Number(sl.value)!==escala)sl.value=escala});document.querySelectorAll('.texto-valor').forEach(o=>o.textContent=escala+'%');if(salvar){try{if(window.NLOffline&&NLOffline.set)NLOffline.set('escalaTexto',escala);else localStorage.setItem('nl:escalaTexto',String(escala))}catch(e){}}}
+function temaSelectHtml(){const escala=lerEscalaTextoMobile();return '<details class=preferencias><summary>Configurações</summary><div class=preferencias-conteudo><label class=f>Aparência<select class=tema-controle aria-label=Aparência onchange="aplicaTemaMobile(this.value)"><option value=sistema>Auto (sistema)</option><option value=claro>Claro</option><option value=escuro>Escuro</option></select></label><label class=f>Acessibilidade do texto <span class=texto-valor>'+escala+'%</span><input class=texto-controle aria-label=Tamanho do texto type=range min=50 max=200 step=10 value='+escala+' oninput="aplicaEscalaTextoMobile(this.value)"></label><p class=mini>50% a 200%, em intervalos de 10%. Os elementos acompanham a escala para facilitar o uso.</p></div></details>'}
+aplicaTemaMobile(lerTemaMobile(),false);
+aplicaEscalaTextoMobile(lerEscalaTextoMobile(),false);
 try{S.tok=(window.NLOffline&&NLOffline.get('token'))||sessionStorage.getItem('tok')}catch(e){}
 const NOME={admin:'Administrador',nutricionista:'Nutrição',copa:'Copa',estoque_cozinha:'Cozinha',estoque_almox:'Almoxarifado'};
 const COR={admin:'#0f4c5c',nutricionista:'#2f7d4f',copa:'#a85f00',estoque_cozinha:'#b5391f',estoque_almox:'#4b3f8f'};
@@ -304,7 +339,7 @@ const tenta=f=>async(...a)=>{try{await f(...a)}catch(e){aviso(e.message,1)}};
 function sair(){clearInterval(S.timer);S.tok=null;S.u=null;try{sessionStorage.removeItem('tok');if(window.NLOffline){NLOffline.remove('token');NLOffline.remove('user')}}catch(e){}telaLogin()}
 function telaLogin(msg){
   document.documentElement.style.setProperty('--cor','#0f4c5c');document.body.className='';
-  $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
+  $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${temaSelectHtml()}${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
   <label class=f>Login<input type=text id=lg autocapitalize=none autocomplete=username></label>
   <label class=f>Senha<input type=password id=sn autocomplete=current-password></label>
   <button class=btn style="width:100%" onclick="entrar()">Entrar</button>
@@ -318,6 +353,7 @@ function telaLogin(msg){
    <button class="btn sec" style="margin-top:6px" onclick="fecharLeitorQR()">Cancelar</button>
   </section></div><footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   $('#sn').onkeydown=e=>{if(e.key==='Enter')entrar()};
+ aplicaTemaMobile(lerTemaMobile(),false);
 }
 
 let qrStream=null, qrLoop=null;
@@ -416,14 +452,15 @@ async function entrar(){
 }
 async function abrir(u,hoje){
   S.u=u;S.hoje=hoje;S.data=hoje;try{if(window.NLOffline)NLOffline.set('user',JSON.stringify({usuario:u,hoje}))}catch(e){}
-  document.documentElement.style.setProperty('--cor',COR[u.perfil]);document.body.className=ehStaff()?'adm':'';
+  document.documentElement.style.setProperty('--cor',COR[u.perfil]);aplicaTemaMobile(lerTemaMobile(),false);document.body.className=ehStaff()?'adm':'';
   S.setores=(await api('/api/setores')).setores;S.setor=(S.setores[0]||{}).id||'';
   S.itens=(await api('/api/itens')).itens;S.suplementos=(await api('/api/suplementos')).suplementos||[];
   if(u.estoque)S.est=u.estoque;
   const sub=!escolheSetor()&&S.setores[0]?' · '+S.setores[0].nome:'';
-  $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span><button onclick="sair()">Sair</button></div></header>
+  $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span>${temaSelectHtml()}<button onclick="sair()">Sair</button></div></header>
   <nav>${ABAS[u.perfil].map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
   <footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
+  aplicaTemaMobile(lerTemaMobile(),false);aplicaEscalaTextoMobile(lerEscalaTextoMobile(),false);
   ir(ABAS[u.perfil][0][0]);
   verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
 }
@@ -682,13 +719,15 @@ async function vEstoque(){
   const j=EST=await api(`/api/estoque?estoque=${S.est}&data=${S.data}`);
   if(!j.linhas.length){$('#vista').innerHTML=filtros('estoque')+'<div class=cartao>Nenhum item cadastrado. Peça ao administrador.</div>';return}
   const dia=!ehStaff()||S.data===S.hoje;
+  const estoqueNome=S.est==='cozinha'?'Estoque da cozinha':S.est==='copa'?'Estoque da copa':'Estoque do almoxarifado';
+  const estoqueOrientacao=S.est==='cozinha'?'Confira o saldo da cozinha antes do preparo. Registre entradas recebidas do almoxarifado e salve a contagem do dia.':S.est==='copa'?'Confira o saldo da copa. Quando precisar repor, verifique primeiro a disponibilidade na cozinha.':'Confira os saldos do almoxarifado e registre recebimentos e devoluções com a origem correta.';
   const cats=[...new Set(j.linhas.map(l=>l.categoria||'Outros'))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  $('#vista').innerHTML=filtros('estoque')+'<h2>Estoque do almoxarifado</h2><p class=mini>Os produtos com validade mais próxima aparecem primeiro. Use a busca ou a categoria para localizar um item rapidamente.</p>'+
+  $('#vista').innerHTML=filtros('estoque')+`<h2>${estoqueNome}</h2><p class=mini>${esc(estoqueOrientacao)} Os produtos com validade mais próxima aparecem primeiro. Use a busca ou a categoria para localizar um item rapidamente.</p><h2>1. Conferir e atualizar saldo</h2>`+
   `<div class="cartao filtros"><label class=f>Buscar produto<input id=buscaEstoque type=search placeholder="Digite o nome do produto" oninput="filtrarEstoque()"></label><label class=f>Categoria<select id=categoriaEstoque onchange="filtrarEstoque()"><option value="">Todas as categorias</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select></label></div>`+
   j.linhas.map(l=>`<div class=cartao data-i=${l.id_item} data-nome="${esc(l.nome.toLocaleLowerCase('pt-BR'))}" data-cat="${esc(l.categoria||'Outros')}"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(l.nome)}</b><span class=mini>${esc(l.unidade)}</span></div><div class=mini>${esc(l.categoria||'Outros')} · Validade: ${l.validade?br(l.validade):'não informada'}</div>
    ${(S.u.perfil==='estoque_almox'||S.u.perfil==='admin')?`<details style="margin-top:6px"><summary>Editar categoria e validade</summary><label class=f>Categoria<select id="cat-${l.id_item}">${cats.map(c=>`<option value="${esc(c)}" ${c===(l.categoria||'Gêneros alimentícios')?'selected':''}>${esc(c)}</option>`).join('')}</select></label><label class=f>Validade<input type=date id="val-${l.id_item}" value="${l.validade||''}"></label><button class="btn sec peq" onclick="salvarClassificacao(${l.id_item})">Salvar categoria/validade</button></details>`:''}
    <input type=number inputmode=decimal min=0 step=any value="${l.qtd}" style="margin:6px 0">${chips(l,j.estoque+'|'+l.id_item,j.pendentes)}</div>`).join('')+
-  (dia?`<h2>Registrar recebimento, retirada ou devolução</h2><div class=cartao><label class=f>Item<select id=ri onchange="origens()">${j.linhas.map(l=>`<option value=${l.id_item}>${esc(l.nome)} (${esc(l.unidade)})</option>`).join('')}</select></label>
+  (dia?`<h2>2. Registrar movimentação</h2><p class=mini>Selecione o item, informe a quantidade e indique a origem conforme as opções disponíveis. Identifique devoluções no campo de observação; a movimentação ficará registrada no histórico.</p><div class=cartao><label class=f>Item<select id=ri onchange="origens()">${j.linhas.map(l=>`<option value=${l.id_item}>${esc(l.nome)} (${esc(l.unidade)})</option>`).join('')}</select></label>
    <label class=f>Quantidade movimentada<input type=number inputmode=decimal min=0 step=any id=rq></label><label class=f>Observação (opcional)<textarea id=robs rows=2 placeholder="Ex.: devolução de 20 g não utilizados"></textarea></label><div class=seg id=ro></div>
    <button class="btn sec" style="width:100%;margin-top:6px" onclick="repor()">Registrar movimentação</button></div>`:'')+barra('salvaEst','Salvar contagem de '+br(j.data));
   if(dia)origens();
@@ -847,7 +886,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)verAvisos(
 async function vCad(){
   const [u,r]=await Promise.all([api('/api/admin/usuarios'),api('/api/admin/refeicoes')]);
   const opSet=(sel,vazio)=>`<option value="">${vazio}</option>`+S.setores.map(s=>`<option value=${s.id} ${s.id===sel?'selected':''}>${esc(s.nome)}</option>`).join('');
-  $('#vista').innerHTML=`<div class=grade><div class=cartao><h2 style="margin-top:0">Novo usuário</h2>
+  $('#vista').innerHTML=`<div class=grade><h2 class=admin-grupo>Contas e permissões</h2><div class=cartao><h2 style="margin-top:0">Novo usuário</h2>
   <label class=f>Login<input type=text id=nl autocapitalize=none></label><label class=f>Nome<input type=text id=nn></label>
   <label class=f>Perfil<select id=np onchange="$('#ns').parentNode.style.display=(this.value==='nutricionista')?'block':'none'">${Object.keys(NOME).map(k=>`<option value=${k}>${NOME[k]}${k==='copa'?' (copeira: mapa compartilhado, refeições e estoque da copa)':k==='nutricionista'?' (publica mapa, avisos, horários)':''}</option>`).join('')}</select></label>
   <label class=f style="display:none">Setor da nutrição (vazio = todos os setores)<select id=ns>${opSet(null,'— todos os setores —')}</select></label>
@@ -855,13 +894,13 @@ async function vCad(){
   <div class=cartao><h2 style="margin-top:0">Usuários</h2>${u.usuarios.map(x=>`<div style="padding:6px 0;border-bottom:1px solid var(--linha)"><b>${esc(x.nome)}</b> <span class=mini>${esc(x.login)} · ${NOME[x.perfil]}${x.ativo?'':' · desativado'}</span><br>
    ${x.perfil==='copa'?'<span class=mini>Todos os setores · mapa compartilhado</span>':x.perfil==='nutricionista'?`<select onchange="trocaSetor(${x.id},this.value)" style="width:auto;min-height:36px">${opSet(x.id_setor,'todos os setores')}</select> `:''}
    <button class="btn sec peq" onclick="ativa(${x.id},${x.ativo?0:1})">${x.ativo?'Desativar':'Reativar'}</button> <button class="btn sec peq" onclick="senha(${x.id})">Nova senha</button></div>`).join('')}</div>
-  <div class=cartao><h2 style="margin-top:0">Atividade de atualização dos mapas</h2>
+  <h2 class=admin-grupo>Monitoramento e auditoria</h2><div class=cartao><h2 style="margin-top:0">Atividade de atualização dos mapas</h2>
    <p class=mini>Conta alterações efetivamente aplicadas no mapa, por copeira. Salvamentos sem mudança e propostas pendentes não entram no ranking.</p>
    <label class=f>Período<select id=periodoAtividade><option value=mes>Mês atual</option><option value=ano>Ano atual</option></select></label>
    <button class="btn sec" onclick="carregaAtividade()">Atualizar gráfico</button>
    <div id=graficoAtividade class=mini style="margin-top:10px">Carregando atividade…</div>
   </div>
-  <div class=cartao><h2 style="margin-top:0">Prazo médio de reposição dos insumos</h2>
+  <h2 class=admin-grupo>Abastecimento e almoxarifado</h2><div class=cartao><h2 style="margin-top:0">Prazo médio de reposição dos insumos</h2>
    <p class=mini>Tempo em dias corridos entre o registro do pedido e a confirmação do recebimento. A média considera apenas pedidos recebidos.</p>
    <button class="btn sec" onclick="carregaPrazos()">Atualizar prazos</button>
    <div id=graficoPrazos class=mini style="margin-top:10px">Carregando prazos…</div>
@@ -872,14 +911,14 @@ async function vCad(){
    <label class=f>Fornecedor<input type=text id=pedidoFornecedor></label></div>
    <button class=btn onclick="novoPedidoMobile()">Registrar pedido</button>
   </div>
-  <div class=cartao><h2 style="margin-top:0">Refeições contadas</h2><p class=mini>Habilite outras refeições quando quiser. O horário vale para todos os setores; a nutrição de cada setor pode ajustar o do seu.</p>
+  <h2 class=admin-grupo>Distribuição de refeições</h2><div class=cartao><h2 style="margin-top:0">Refeições contadas</h2><p class=mini>Habilite outras refeições quando quiser. O horário vale para todos os setores; a nutrição de cada setor pode ajustar o do seu.</p>
   ${r.refeicoes.map(x=>`<div data-cf=${x.refeicao} style="margin-bottom:8px"><label class=tg><input type=checkbox class=ca ${x.ativa?'checked':''}><b>${REF[x.refeicao]}</b></label>
    <div class=filtros><label class=f>Abre<input type=time class=cb value="${v(x.abre)}"></label><label class=f>Fecha<input type=time class=cc value="${v(x.fecha)}"></label></div></div>`).join('')}
   <button class=btn onclick="salvaCfg()">Salvar refeições</button></div>
-  <div class=cartao><h2 style="margin-top:0">Setor e leitos</h2><label class=f>Setor<select id=ss>${opSet(null,'— novo setor —')}</select></label>
+  <h2 class=admin-grupo>Organização dos setores</h2><div class=cartao><h2 style="margin-top:0">Setor e leitos</h2><label class=f>Setor<select id=ss>${opSet(null,'— novo setor —')}</select></label>
   <label class=f>Nome do novo setor<input type=text id=sn2></label><label class=f>Prefixo dos leitos (ex.: A)<input type=text id=sp></label>
   <div class=filtros><label class=f>De<input type=number id=si value=1></label><label class=f>Até<input type=number id=sf></label></div><button class=btn onclick="novoSetor()">Salvar setor/leitos</button></div>
-  <div class=cartao><h2 style="margin-top:0">Itens do almoxarifado</h2>
+  <h2 class=admin-grupo>Catálogo de insumos</h2><div class=cartao><h2 style="margin-top:0">Itens do almoxarifado</h2>
   <label class=f>Nome do produto<input type=text id=in></label>
   <label class=f>Unidade de estoque (ex.: pacote, frasco ou lata)<input type=text id=iu placeholder="Ex.: pacote"></label>
   <label class=f>Categoria<select id=icategoria><option>Gêneros alimentícios</option><option>Grãos e cereais</option><option>Hortifrúti</option><option>Carnes e proteínas</option><option>Laticínios</option><option>Temperos e condimentos</option><option>Dietas enterais</option><option>Suplementos</option><option>Materiais</option><option>Limpeza</option><option>Outros</option></select></label>
@@ -899,9 +938,20 @@ async function vCad(){
    <button class="btn sec peq" onclick="editarItem(${i.id})">Editar preço/embalagem</button></div>`).join('')}
   </div></div>`;
   $('#pedidoItem').innerHTML=S.itens.map(i=>'<option value="'+i.id+'">'+esc(i.nome)+'</option>').join('');
+  colapsarCadastrosAdmin();
+  aplicaTemaMobile(lerTemaMobile(),false);
   await Promise.all([carregaAtividade(),carregaPrazos()]);
 }
 
+function colapsarCadastrosAdmin(){
+  document.querySelectorAll('#vista .cartao').forEach(card=>{
+    const titulo=card.querySelector('h2');if(!titulo||card.dataset.recolhivel==='1')return;
+    card.classList.add('admin-secao');card.dataset.recolhivel='1';card.dataset.aberto='false';
+    titulo.setAttribute('role','button');titulo.setAttribute('tabindex','0');titulo.setAttribute('aria-expanded','false');
+    const alternar=()=>{const aberto=card.dataset.aberto!=='true';card.dataset.aberto=String(aberto);titulo.setAttribute('aria-expanded',String(aberto));};
+    titulo.addEventListener('click',alternar);titulo.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();alternar()}});
+  });
+}
 const carregaAtividade=tenta(async()=>{
  const periodo=$('#periodoAtividade')?.value||'mes';
  const [ano,mes]=(S.hoje||'').split('-');
