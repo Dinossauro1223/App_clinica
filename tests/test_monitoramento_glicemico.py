@@ -51,6 +51,29 @@ class TestMonitoramentoGlicemico(unittest.TestCase):
         self.assertEqual(len(mg.listar_hgt(self.db, 7)), 1)
         self.assertEqual(len(mg.listar_hgt(self.db, 8)), 1)
 
+    def test_relaciona_hgt_a_oferta_real_com_composicao_e_horario(self):
+        import json
+        with sqlite3.connect(self.db) as conn:
+            conn.execute("CREATE TABLE Mapa_Registros (id_registro INTEGER PRIMARY KEY, data TEXT, id_paciente INTEGER)")
+            conn.execute("""CREATE TABLE Mapa_Registro_Suplementos (
+                id_registro INTEGER, nome TEXT, preparacoes_json TEXT, carb_100 REAL,
+                fibra_g_100 REAL, tipo_fibra TEXT, unidade TEXT)""")
+            conn.execute("INSERT INTO Mapa_Registros VALUES (1,'2026-11-27',7)")
+            conn.execute("INSERT INTO Mapa_Registro_Suplementos VALUES (1,?,?,?,?,?,?)",(
+                "Fórmula sintética",
+                json.dumps([
+                    {"refeicao":"Desjejum","horario":"08:00","dose":200,
+                     "agua_adicionada_ml":100,"agua_separada_ml":50},
+                    {"refeicao":"Lanche","dose":100}
+                ]),
+                12,3,"mista","ml"))
+        eventos=mg.listar_ofertas_nutricionais(self.db,7)
+        self.assertEqual(len(eventos),1)
+        self.assertEqual(eventos[0]["instante"].strftime("%H:%M"),"08:00")
+        self.assertEqual(eventos[0]["carboidratos_g"],24)
+        self.assertEqual(eventos[0]["fibras_g"],6)
+        self.assertEqual(eventos[0]["agua_misturada_ml"],100)
+
     def test_intervalo_temporal_assinado(self):
         self.assertEqual(
             mg.intervalo_relativo_hora("2026-11-27 10:00", "2026-11-27 08:00"), 120
