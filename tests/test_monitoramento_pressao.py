@@ -2,6 +2,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from datetime import datetime
 
 import monitoramento_pressao as mp
@@ -12,7 +13,7 @@ import db_migracoes as mig
 class TestMonitoramentoPressao(unittest.TestCase):
     def setUp(self):
         fd,self.db=tempfile.mkstemp(suffix=".db"); os.close(fd)
-        with sqlite3.connect(self.db) as c:
+        with closing(sqlite3.connect(self.db)) as c, c:
             c.execute("""CREATE TABLE HGT_Registros (
                 id_hgt INTEGER PRIMARY KEY, id_paciente INTEGER, valor_mg_dl REAL, medido_em TEXT,
                 contexto TEXT, observacoes TEXT, criado_em TEXT, atualizado_em TEXT,
