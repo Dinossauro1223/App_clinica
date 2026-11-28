@@ -113,7 +113,7 @@ def listar_administracoes(caminho, id_paciente, inicio=None, fim=None):
     sql = "SELECT * FROM Enteral_Administracoes WHERE id_paciente=?"
     args = [int(id_paciente)]
     if inicio:
-        sql += " AND COALESCE(fim_em,inicio_em) >= ?"; args.append(str(inicio))
+        sql += " AND (fim_em IS NULL OR fim_em >= ?)"; args.append(str(inicio))
     if fim:
         sql += " AND inicio_em <= ?"; args.append(str(fim))
     sql += " ORDER BY inicio_em,id_administracao"
