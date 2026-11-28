@@ -20,6 +20,7 @@ import pep_db
 import pep_evolucao_db as evdb
 import tema
 import progressao_nutricional as progressao
+import monitoramento_enteral
 
 
 class FormEvolucaoUI(ctk.CTkFrame):
@@ -690,6 +691,12 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     if not self.var_bomba.get():
                         dados["bomba"]["fator_gotas_ml"] = float(fator_txt.replace(",", "."))
                     dados["administracao_enteral"] = administracao
+                try:
+                    dados["administracao_real"] = monitoramento_enteral.resumir_administracoes_dia(
+                        self.db, self.reg["id_paciente"], self.reg["data"]
+                    )
+                except (AttributeError, ValueError, sqlite3.Error):
+                    dados["administracao_real"] = None
                 dados["progressao_enteral"] = {
                     "solicitada": bool(self.var_progressao.get()), "autorizada": False,
                     "volume_atual_ml": oferta["volume_total_ml"], "volume_meta_ml": volume_meta,
