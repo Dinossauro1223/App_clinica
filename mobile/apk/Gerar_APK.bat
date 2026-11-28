@@ -49,12 +49,7 @@ echo.
 echo ===== NutriLab: gerando o APK  [Gerar_APK versao 23/11/2026 v4] =====
 echo Pasta deste arquivo: %~dp0
 echo.
-if not exist "%FONTE%\AndroidManifest.xml" goto :versao_invalida
-echo ERRO: mobile\version.properties precisa conter versionName e versionCode validos.
-pause
-exit /b 1
-
-:sem_app
+if not exist "%FONTE%\AndroidManifest.xml" goto :sem_app
 if not exist "%FERR%" mkdir "%FERR%"
 if not exist "%DL%" mkdir "%DL%"
 if exist "%LOG%" del /q "%LOG%"
@@ -215,6 +210,10 @@ python "%~dp0servir_apk.py"
 goto :fim
 :fim_integrado
 exit /b 0
+
+:versao_invalida
+echo ERRO: mobile\version.properties precisa conter versionName e versionCode validos.
+goto :falha
 
 :sem_app
 echo ERRO: nao encontrei a pasta app ao lado deste arquivo.
