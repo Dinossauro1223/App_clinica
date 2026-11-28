@@ -119,15 +119,16 @@ class Graficos:
         self.especs = especificacoes_sinteticas()
         self.quadro = self.painel = None
 
-    def montar(self, disposicao, estilo="animado", espera=0.9):
-        """Monta a tela de gráficos. `espera`: quanto o Tk processa eventos antes de devolver (0 = já no 1º quadro)."""
+    def montar(self, disposicao, estilo="animado", espera=0.9, ritmo=None):
+        """Monta a tela de gráficos. `espera`: quanto o Tk processa eventos antes de devolver (0 = já no 1º quadro).
+        `ritmo`: o graficos_layout.Ritmo da animação (sem ele, animação completa)."""
         if self.quadro is not None:
             destruir_rolavel(self.quadro)
             bombear(self.raiz, 0.3)
         self.quadro = self.ctk.CTkScrollableFrame(self.raiz, fg_color="white")
         self.quadro.pack(fill="both", expand=True)
         grupos = self.especs if estilo == "animado" else self.grupos
-        self.painel = self.ui.PainelGraficos(self.quadro, grupos, disposicao)
+        self.painel = self.ui.PainelGraficos(self.quadro, grupos, disposicao, ritmo=ritmo)
         bombear(self.raiz, espera)
         return self.painel
 
@@ -353,6 +354,174 @@ class Graficos:
               f"média {media(cena):.2f} ms, máx {max(cena):.2f} ms; com redesenho da tela "
               f"média {media(tela):.2f} ms, máx {max(tela):.2f} ms", flush=True)
         assert max(tela) < 400, f"um quadro levou {max(tela):.0f} ms (limite de segurança 400 ms)"
+
+    # ------------------------------------------------------------------ ritmo: animação conforme o computador
+    @staticmethod
+    def cartas_animadas(painel):
+        return [c for f in painel.faixas + painel.faixas_empilhadas for c in f.cards if c.animado]
+
+    def esperar_primeiro_desenho(self, painel, limite=4.0):
+        faixas = painel.faixas + painel.faixas_empilhadas
+        fim = time.monotonic() + limite
+        while time.monotonic() < fim and not all(f.carrossel is not None for f in faixas):
+            bombear(self.raiz, 0.03)
+        assert all(f.carrossel is not None for f in faixas), "alguma faixa não fez o primeiro desenho"
+
+    def esperar_entradas(self, painel, limite=20.0):
+        """Espera terminarem todas as entradas que começaram (as que ainda não apareceram não contam)."""
+        fim = time.monotonic() + limite
+        while time.monotonic() < fim:
+            bombear(self.raiz, 0.05)
+            if all(c.inicio is None or c.pronto for c in self.cartas_animadas(painel)):
+                bombear(self.raiz, 0.1)
+                return
+        raise AssertionError(f"as entradas não terminaram em {limite:.0f} s: "
+                             f"{[round(c.p, 2) for c in self.cartas_animadas(painel) if c.inicio is not None]}")
+
+    @staticmethod
+    def formas_no_canvas(faixa):
+        """Quantas formas dos gráficos há no canvas da faixa (sem o balão, que só existe depois de passar o mouse)."""
+        return len(faixa.canvas.find_all()) - (2 if faixa._dica is not None else 0)
+
+    @staticmethod
+    def foto_da_carta(carta):
+        """O que a carta desenhou no canvas de verdade: (tipo, coordenadas, texto, estado) de cada forma."""
+        c = carta.faixa.canvas
+        fotos = []
+        for _tipo, item in carta.pintor.itens:
+            tipo = c.type(item)
+            fotos.append((tipo, tuple(round(v, 2) for v in c.coords(item)),
+                          c.itemcget(item, "text") if tipo == "text" else "", c.itemcget(item, "state") or "normal"))
+        return fotos
+
+    def fotos_das_cartas_prontas(self, painel):
+        return {(i, j): self.foto_da_carta(c) for i, f in enumerate(painel.faixas)
+                for j, c in enumerate(f.cards) if c.animado and c.pronto}
+
+    def sem_animacao_aparece_pronto(self):
+        gl = self.gl
+        p = self.montar(gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.0, ritmo=gl.Ritmo(gl.DESEMPENHO_ECONOMICO))
+        self.esperar_primeiro_desenho(p)
+        bombear(self.raiz, 0.15)
+        cartas = self.cartas_animadas(p)
+        assert len(cartas) >= 8, f"poucos gráficos animados na tela: {len(cartas)}"
+        meio = [round(c.p, 2) for c in cartas if not c.pronto]
+        assert not meio, f"sem animação, mas há gráficos no meio da entrada: p={meio}"
+        for faixa in p.faixas:
+            assert faixa._job_entrada is None and faixa._job_animacao is None, "sobrou relógio de animação"
+            desenhadas = self.formas_no_canvas(faixa)
+            esperadas = sum(len(c.pintor.itens) for c in faixa.cards)
+            assert desenhadas == esperadas, f"{desenhadas} formas no canvas, a cena do grupo tem {esperadas}"
+        faixa, _ = self.faixa_com_rolagem()
+        faixa.ir_para(faixa.n_posicoes - 1)
+        bombear(self.raiz, 0.12)                                  # sem encaixe animado: já está no lugar
+        self.na_posicao(faixa, faixa.n_posicoes - 1, "sem animação: encaixe imediato")
+        assert faixa._job_animacao is None, "o encaixe deveria ser imediato"
+        assert faixa.cards[-1].pronto, "o gráfico que apareceu deveria estar pronto"
+
+    def contar_quadros(self, ritmo):
+        """Monta a tela, espera as entradas e conta quantos quadros intermediários os gráficos desenharam."""
+        contagem = {"quadros": 0}
+        original = self.ui.CardNativo.desenhar
+
+        def contando(carta):
+            if 0 < carta.p < 1:
+                contagem["quadros"] += 1
+            original(carta)
+        self.ui.CardNativo.desenhar = contando
+        try:
+            p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.0, ritmo=ritmo)
+            self.esperar_primeiro_desenho(p)
+            self.esperar_entradas(p)
+        finally:
+            self.ui.CardNativo.desenhar = original
+        return p, contagem["quadros"]
+
+    def animacao_reduzida_usa_menos_quadros(self):
+        gl = self.gl
+        completo, n_completo = self.contar_quadros(gl.Ritmo(gl.DESEMPENHO_COMPLETO))
+        fotos_completo = self.fotos_das_cartas_prontas(completo)
+        reduzido, n_reduzido = self.contar_quadros(gl.Ritmo(gl.DESEMPENHO_AUTOMATICO, gl.NIVEL_REDUZIDO, "teste"))
+        fotos_reduzido = self.fotos_das_cartas_prontas(reduzido)
+        print(f"[INFO] quadros intermediários desenhados na entrada de todos os gráficos: "
+              f"completo {n_completo}, reduzido {n_reduzido}", flush=True)
+        assert n_completo > 20, f"a animação completa quase não desenhou quadros ({n_completo})"
+        assert n_reduzido < 0.8 * n_completo, f"reduzido desenhou {n_reduzido} quadros, completo {n_completo}"
+        assert fotos_completo and set(fotos_completo) <= set(fotos_reduzido), "o reduzido não terminou os mesmos gráficos"
+        for chave, foto in fotos_completo.items():
+            assert foto == fotos_reduzido[chave], f"o desenho final do gráfico {chave} muda com o ritmo"
+
+    def computador_lento_reduz_sozinho(self):
+        gl = self.gl
+        ritmo = gl.Ritmo()                                        # automático, partindo da animação completa
+        original = self.ui.CardNativo.desenhar
+
+        def lento(carta):
+            time.sleep(0.03)                                      # como se pintar um gráfico demorasse 30 ms a mais
+            original(carta)
+        self.ui.CardNativo.desenhar = lento
+        try:
+            p = self.montar(gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.0, ritmo=ritmo)
+            self.esperar_primeiro_desenho(p)
+            self.esperar_entradas(p, limite=30.0)
+        finally:
+            self.ui.CardNativo.desenhar = original
+        print(f"[INFO] computador lento simulado: o automático ficou em '{gl.NOMES_NIVEL[ritmo.nivel]}'. "
+              f"{ritmo.motivo}", flush=True)
+        assert ritmo.nivel > gl.NIVEL_COMPLETO, "o ritmo não percebeu o computador lento"
+        assert "cada quadro levou" in ritmo.motivo, f"motivo inesperado: {ritmo.motivo!r}"
+        for faixa in p.faixas:
+            assert faixa._job_entrada is None, "sobrou relógio de animação"
+            assert all(c.inicio is None or c.pronto for c in faixa.cards), "entrada parada no meio"
+            desenhadas = self.formas_no_canvas(faixa)
+            esperadas = sum(len(c.pintor.itens) for c in faixa.cards)
+            assert desenhadas == esperadas, f"{desenhadas} formas no canvas, a cena do grupo tem {esperadas}"
+
+    def cronometros(self):
+        """Quantos agendamentos (after) o Tk tem pendentes agora, de qualquer parte do programa."""
+        return len(self.raiz.tk.splitlist(self.raiz.tk.call("after", "info")))
+
+    def menor_numero_de_cronometros(self):
+        vistos = []
+        for _ in range(8):
+            bombear(self.raiz, 0.05)
+            vistos.append(self.cronometros())
+        return min(vistos)
+
+    def sem_cronometro_depois_da_entrada(self):
+        """Terminada a entrada, os gráficos não deixam relógio nenhum ligado: parado, o programa não gasta nada."""
+        gl = self.gl
+        self.montar(gl.DISPOSICAO_LADO_A_LADO, "animado", espera=1.2, ritmo=gl.Ritmo(gl.DESEMPENHO_ECONOMICO))
+        sem_animacao = self.menor_numero_de_cronometros()          # sem animação nunca há relógio dos gráficos
+        p = self.montar(gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.0, ritmo=gl.Ritmo(gl.DESEMPENHO_COMPLETO))
+        self.esperar_primeiro_desenho(p)
+        self.esperar_entradas(p)
+        bombear(self.raiz, 0.5)
+        com_animacao = self.menor_numero_de_cronometros()
+        print(f"[INFO] agendamentos pendentes no Tk depois da entrada: {com_animacao} "
+              f"(sem animação: {sem_animacao})", flush=True)
+        assert com_animacao <= sem_animacao, \
+            f"sobraram {com_animacao - sem_animacao} agendamento(s) depois que a animação terminou"
+
+    def consulta_ao_sistema(self):
+        """O que o Windows diz sobre acesso remoto e animações (e se as constantes da API valem de verdade)."""
+        gl = self.gl
+        nivel, motivo = gl.sistema_pede_economia()
+        print(f"[INFO] o sistema pede: {gl.NOMES_NIVEL[nivel]}" + (f" ({motivo})" if motivo else ""), flush=True)
+        if not sys.platform.startswith("win"):
+            assert (nivel, motivo) == (gl.NIVEL_COMPLETO, ""), "fora do Windows não há o que declarar"
+            return
+        import ctypes
+        usuario = ctypes.windll.user32
+        remoto = usuario.GetSystemMetrics(gl.SM_REMOTESESSION)
+        ligado = ctypes.c_int(-1)
+        ok = usuario.SystemParametersInfoW(gl.SPI_GETCLIENTAREAANIMATION, 0, ctypes.byref(ligado), 0)
+        print(f"[INFO] Windows: sessão remota={remoto}; animações ligadas={ligado.value}; consulta ok={ok}", flush=True)
+        if not ok:
+            raise Pulou("o Windows não respondeu à consulta de animações (constante errada ou sem permissão)")
+        assert ligado.value in (0, 1), f"valor inesperado para 'animações ligadas': {ligado.value}"
+        esperado = gl.NIVEL_REDUZIDO if (remoto or not ligado.value) else gl.NIVEL_COMPLETO
+        assert nivel == esperado, f"sistema_pede_economia deu {nivel}, esperado {esperado}"
 
     def entrada_durante_o_redimensionamento(self):
         p = self.montar(self.gl.DISPOSICAO_LADO_A_LADO, "animado", espera=0.2)
@@ -644,6 +813,12 @@ def main():
                     ("gráficos animados: balão com o valor", g.balao_com_o_valor),
                     ("gráficos animados: textos cabem nos cartões (fonte real)", g.textos_cabem_nos_cartoes_com_a_fonte_real),
                     ("gráficos animados: custo de um quadro", g.custo_dos_quadros),
+                    ("gráficos: sem animação, tudo aparece pronto", g.sem_animacao_aparece_pronto),
+                    ("gráficos: animação reduzida usa menos quadros e chega ao mesmo desenho",
+                     g.animacao_reduzida_usa_menos_quadros),
+                    ("gráficos: computador lento reduz a animação sozinho", g.computador_lento_reduz_sozinho),
+                    ("gráficos: nenhum agendamento sobra depois da entrada", g.sem_cronometro_depois_da_entrada),
+                    ("sistema: consulta ao Windows (acesso remoto e animações)", g.consulta_ao_sistema),
                     ("gráficos: arraste curto volta ao encaixe", g.arraste_lento_volta_ao_encaixe),
                     ("gráficos: arraste longo avança uma posição", g.arraste_lento_avanca),
                     ("gráficos: arremesso rápido vai para a próxima", g.arremesso_rapido),

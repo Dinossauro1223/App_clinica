@@ -706,6 +706,8 @@ class TestEscalaDaTela(unittest.TestCase):
 from test_graficos_nativos import SPECS  # noqa: E402
 import graficos_nativos as gn  # noqa: E402
 import graficos_pintor as gp  # noqa: E402
+sys.path.insert(0, os.path.join(RAIZ, "tools"))
+from medir_desempenho_graficos import PintorAntigo  # noqa: E402  (o pintor de antes: referência única)
 
 
 def cena(extensao=-90.0, texto="42", visivel=True, dx=0):
@@ -803,6 +805,66 @@ class TestPintor(unittest.TestCase):
                 pintor.desenhar(formas, 12, 0)
             self.assertEqual(len(tela.formas), len(formas), nome)         # nunca criou formas a mais durante a animação
             self.assertEqual(self.contar("criar", tela), len(formas), nome)
+
+    def test_poligono_suave_leva_os_passos_da_curva(self):
+        self.pintor.desenhar(cena())
+        suave = self.tela.formas[1]
+        self.assertTrue(suave["smooth"])
+        self.assertEqual(suave["splinesteps"], gp.PASSOS_DA_CURVA)
+        # poligono sem curva (ou outro tipo de forma) nao pede o ajuste
+        reto = [{"t": "poli", "c": [0, 0, 5, 0, 5, 5], "fill": "#fff", "outline": "", "suave": False}]
+        tela = TelaFalsa()
+        gp.PintorCanvas(tela, FontesFalsas()).desenhar(reto)
+        self.assertNotIn("splinesteps", tela.formas[1])
+        self.assertFalse(tela.formas[1]["smooth"])
+        self.assertNotIn("splinesteps", self.tela.formas[2])
+
+    def test_passos_da_curva_podem_ser_trocados(self):
+        tela = TelaFalsa()
+        gp.PintorCanvas(tela, FontesFalsas(), passos_da_curva=5).desenhar(cena())
+        self.assertEqual(tela.formas[1]["splinesteps"], 5)
+
+    def test_so_o_deslocamento_mudou_move_tudo_uma_vez(self):
+        self.pintor.desenhar(cena(), 0, 0)
+        self.tela.chamadas.clear()
+        self.pintor.desenhar(cena(), 7, 3)                  # a mesma cena, em outro lugar da faixa
+        self.assertEqual(self.pedidos(), ["coords"] * 6)
+        self.assertEqual(self.tela.formas[2]["c"], (8, 4, 12, 8))
+        self.tela.chamadas.clear()
+        self.pintor.desenhar(cena(), 7, 3)                  # e de novo no mesmo lugar: nada a fazer
+        self.assertEqual(self.tela.chamadas, [])
+        self.pintor.desenhar(cena(), 0, 0)                  # voltou
+        self.assertEqual(self.pedidos(), ["coords"] * 6)
+        self.assertEqual(self.tela.formas[2]["c"], (1, 1, 5, 5))
+
+    def test_pede_ao_tk_exatamente_o_mesmo_que_o_pintor_de_antes(self):
+        """O pintor foi reescrito para gastar menos Python por quadro. Em todos os gráficos reais, numa sequência com
+        progresso que vai, volta e repete, e com o deslocamento mudando, ele pede ao Tk as MESMAS coisas, na mesma
+        ordem, que o pintor antigo (copiado aqui como referência), e a tela termina igual."""
+        fontes = FontesFalsas()
+        progressos = (0.0, 0.1, 0.1, 0.5, 0.35, 1.0, 1.0, 1.0, 0.0, 0.8, 0.8)
+        deslocamentos = (10, 10, 10, 10, 10, 10, 10, 25, 25, 25, 10)
+        for nome, spec in SPECS.items():
+            novo_tela, velho_tela = TelaFalsa(), TelaFalsa()
+            novo = gp.PintorCanvas(novo_tela, fontes)
+            velho = PintorAntigo(velho_tela, fontes)
+            for prog, dx in zip(progressos, deslocamentos):
+                formas, _ = gn.construir(spec, 840, prog, fontes.medir, 1.0)
+                novo.desenhar(formas, dx, 0)
+                velho.desenhar(formas, dx, 0)
+                self.assertEqual(novo_tela.chamadas, velho_tela.chamadas, f"{nome} p={prog} dx={dx}")
+            self.assertEqual(novo_tela.formas, velho_tela.formas, nome)
+            self.assertGreater(len(novo_tela.chamadas), len(formas), nome)       # a sequência não foi trivial
+
+    def test_cena_alterada_por_fora_continua_certa(self):
+        """As coordenadas guardadas são cópias: mexer na lista da cena depois de desenhar não confunde o pintor."""
+        forma = {"t": "linha", "c": [0, 0, 5, 5], "fill": "#111", "largura": 2, "tracejado": None}
+        self.pintor.desenhar([forma])
+        self.pintor.desenhar([forma])                        # o 2º quadro já passa pela atualização (nada muda)
+        self.assertEqual(self.tela.chamadas, [("criar", 1)])
+        forma["c"][2] = 9                                    # a MESMA lista, alterada por fora
+        self.pintor.desenhar([forma])
+        self.assertEqual(self.tela.formas[1]["c"], (0, 0, 9, 5))
 
     @staticmethod
     def contar(tipo, tela):
@@ -1138,6 +1200,316 @@ class TestPainelNativo(BaseDosTestes):
         painel.ajustar_todas(1100)
         self.assertTrue(all(f.canvas.formas for f in painel.faixas))
         self.assertTrue(all(c.inicio is not None for f in painel.faixas for c in f.cards[:1]))
+
+
+class RitmoGravador(gl.Ritmo):
+    """Ritmo que também guarda o que o desenho informou, quadro a quadro."""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.registros = []
+
+    def registrar_quadro(self, custo, periodo=None):
+        self.registros.append((custo, periodo))
+        super().registrar_quadro(custo, periodo)
+
+
+class TestRitmoNasFaixas(BaseDosTestes):
+    """A animação segue o ritmo: completa (16 ms, 100%), reduzida (33 ms, 60%) ou nenhuma (gráfico já pronto)."""
+
+    def nova_faixa_nativa(self, nomes=("barras_v", "linhas", "roscas"), largura=1100, ritmo=None, **kw):
+        cartas = [self.ui.CardNativo(SPECS[n]) for n in nomes]
+        faixa = self.ui.FaixaHorizontal(Base(), cartas, escala=1.0, fontes=FontesFalsas(), ritmo=ritmo, **kw)
+        faixa.canvas.bindings["<Configure>"](Evento(width=largura))
+        return faixa
+
+    @staticmethod
+    def intervalos(faixa):
+        return sorted(ms for ms, _ in faixa.canvas.agendados.values())
+
+    def rodar_quadros(self, faixa, passo, limite=200):
+        quadros = 0
+        while faixa.canvas.agendados:
+            quadros += 1
+            self.assertLess(quadros, limite, "a animação não terminou")
+            self.relogio.avancar(passo)
+            faixa.canvas.executar_agendados()
+        return quadros
+
+    def estado_final(self, faixa):
+        """Formas que o canvas deveria ter com todos os gráficos prontos (cena calculada direto, progresso 1)."""
+        esperado = []
+        for carta in faixa.cards:
+            formas, _ = gn.construir(carta.spec, carta.largura, 1.0, faixa.fontes.medir, 1.0, carta.altura)
+            esperado += [(f["t"], tuple(x + (carta.x if i % 2 == 0 else 0) for i, x in enumerate(f["c"])),
+                          f.get("texto"), "normal" if f.get("visivel", True) else "hidden") for f in formas]
+        return esperado
+
+    @staticmethod
+    def desenhado(faixa):
+        return [(f["t"], f["c"], f.get("text"), f.get("state", "normal"))
+                for _, f in sorted(faixa.canvas.formas.items())]
+
+    # ------------------------------------------------------------------ completo (o que já existia)
+    def test_sem_ritmo_informado_a_animacao_e_completa(self):
+        faixa = self.nova_faixa_nativa(("barras_v",))
+        self.assertEqual(faixa.ritmo.modo, gl.DESEMPENHO_COMPLETO)
+        self.assertEqual(self.intervalos(faixa), [16])
+
+    # ------------------------------------------------------------------ reduzido
+    def test_reduzido_usa_33_ms_e_dura_60_por_cento(self):
+        ritmo = gl.Ritmo(gl.DESEMPENHO_AUTOMATICO, gl.NIVEL_REDUZIDO, "teste")
+        faixa = self.nova_faixa_nativa(("barras_v",), ritmo=ritmo)
+        self.assertEqual(self.intervalos(faixa), [33])
+        quadros = self.rodar_quadros(faixa, 0.033)
+        self.assertTrue(faixa.cards[0].pronto)
+        self.assertAlmostEqual(quadros * 0.033, gl.DURACAO_ENTRADA * 0.6, delta=0.07)
+        completo = self.nova_faixa_nativa(("barras_v",), ritmo=gl.Ritmo(gl.DESEMPENHO_COMPLETO))
+        quadros_completo = self.rodar_quadros(completo, 0.016)
+        self.assertLess(quadros, quadros_completo / 2.5)                  # muito menos quadros para o mesmo gráfico
+
+    def test_reduzido_encurta_tambem_o_atraso_entre_graficos(self):
+        ritmo = gl.Ritmo(gl.DESEMPENHO_AUTOMATICO, gl.NIVEL_REDUZIDO)
+        faixa = self.nova_faixa_nativa(largura=1900, atraso=0.5, ritmo=ritmo)
+        a, b, _ = faixa.cards
+        fator = gl.FATOR_DURACAO[gl.NIVEL_REDUZIDO]
+        self.assertAlmostEqual(a.inicio, self.relogio() + 0.5 * fator)
+        self.assertAlmostEqual(b.inicio - a.inicio, gl.ATRASO_ENTRE_CARDS * fator)
+
+    def test_reduzido_encaixa_mais_rapido_e_com_menos_quadros(self):
+        completo = self.nova_faixa_nativa(ritmo=gl.Ritmo(gl.DESEMPENHO_COMPLETO))
+        self.rodar_quadros(completo, 0.016)
+        completo.ir_para(1)
+        quadros_c = 0
+        while completo.canvas.agendados and quadros_c < 200:
+            quadros_c += 1
+            self.relogio.avancar(0.016)
+            completo.canvas.executar_agendados()
+        reduzido = self.nova_faixa_nativa(ritmo=gl.Ritmo(gl.DESEMPENHO_AUTOMATICO, gl.NIVEL_REDUZIDO))
+        self.rodar_quadros(reduzido, 0.033)
+        reduzido.ir_para(1)
+        quadros_r = 0
+        while reduzido.canvas.agendados and quadros_r < 200:
+            quadros_r += 1
+            self.relogio.avancar(0.033)
+            reduzido.canvas.executar_agendados()
+        self.assertEqual(reduzido.deslocamento, completo.deslocamento)   # chegou ao mesmo lugar
+        self.assertLess(quadros_r, quadros_c)
+
+    def test_o_quadro_do_encaixe_tambem_espera_o_intervalo_do_nivel(self):
+        for nivel, esperado in ((gl.NIVEL_COMPLETO, 16), (gl.NIVEL_REDUZIDO, 33)):
+            faixa = self.nova_faixa_nativa(ritmo=gl.Ritmo(gl.DESEMPENHO_AUTOMATICO, nivel))
+            self.rodar_quadros(faixa, 0.033)
+            faixa.ir_para(1)
+            self.assertEqual(faixa.canvas.agendados[faixa._job_animacao][0], esperado, nivel)
+
+    def test_encaixe_cancelado_e_retomado_comeca_sem_quadro_anterior(self):
+        ritmo = RitmoGravador(gl.DESEMPENHO_COMPLETO)
+        faixa = self.nova_faixa_nativa(ritmo=ritmo)
+        self.rodar_quadros(faixa, 0.016)
+        faixa.ir_para(1)
+        for _ in range(3):
+            self.relogio.avancar(0.016)
+            faixa.canvas.executar_agendados()
+        faixa.canvas.bindings["<ButtonPress-1>"](Evento(x_root=500))             # o dedo pega a faixa: cancela o encaixe
+        self.assertIsNone(faixa._job_animacao)
+        antes = len(ritmo.registros)
+        self.relogio.avancar(30.0)
+        faixa.ir_para(0)
+        self.assertEqual(ritmo.registros[antes][1], None)                        # nada de "30 s desde o quadro anterior"
+
+    # ------------------------------------------------------------------ sem animação
+    def test_sem_animacao_pinta_tudo_pronto_e_sem_relogio(self):
+        faixa = self.nova_faixa_nativa(ritmo=gl.Ritmo(gl.DESEMPENHO_ECONOMICO))
+        self.assertEqual(faixa.canvas.agendados, {})                               # nenhum quadro agendado
+        self.assertTrue(all(c.pronto and c.p == 1.0 for c in faixa.cards))        # inclusive os que nem apareceram
+        self.assertEqual(self.desenhado(faixa), self.estado_final(faixa))        # e é o mesmo desenho final
+        self.assertEqual([c for c in faixa.canvas.chamadas if c[0] == "coords"], [])   # pintou uma vez só
+        self.assertEqual([c.inicio is not None for c in faixa.cards], [True, False, False])
+
+    def test_o_desenho_final_e_igual_em_qualquer_nivel(self):
+        finais = []
+        for ritmo, passo in ((gl.Ritmo(gl.DESEMPENHO_COMPLETO), 0.016),
+                             (gl.Ritmo(gl.DESEMPENHO_AUTOMATICO, gl.NIVEL_REDUZIDO), 0.033),
+                             (gl.Ritmo(gl.DESEMPENHO_ECONOMICO), 0.016)):
+            faixa = self.nova_faixa_nativa(("barras_v", "linhas"), largura=1900, ritmo=ritmo)
+            self.rodar_quadros(faixa, passo)
+            finais.append(self.desenhado(faixa))
+        self.assertEqual(finais[0], finais[1])
+        self.assertEqual(finais[0], finais[2])
+
+    def test_sem_animacao_o_grafico_que_aparece_depois_ja_esta_pronto(self):
+        faixa = self.nova_faixa_nativa(ritmo=gl.Ritmo(gl.DESEMPENHO_ECONOMICO))
+        faixa.ir_para(1)
+        self.assertEqual(faixa.canvas.agendados, {})
+        self.assertEqual(faixa.deslocamento, faixa.carrossel.x_da_posicao(1))    # foi direto, sem encaixe animado
+        self.assertEqual(faixa.ativo, 1)
+        self.assertIsNotNone(faixa.cards[1].inicio)
+        self.assertTrue(all(c.pronto for c in faixa.cards))
+
+    def test_sem_animacao_arrastar_continua_seguindo_o_mouse(self):
+        faixa = self.nova_faixa_nativa(ritmo=gl.Ritmo(gl.DESEMPENHO_ECONOMICO))
+        c = faixa.canvas
+        c.bindings["<ButtonPress-1>"](Evento(x_root=900))
+        c.bindings["<B1-Motion>"](Evento(x_root=500))                             # 400 px para a esquerda
+        self.assertEqual(faixa.deslocamento, 400)
+        c.bindings["<ButtonRelease-1>"](Evento(x_root=500))
+        self.assertEqual(faixa.deslocamento, faixa.carrossel.x_da_posicao(faixa.ativo))   # soltou: encaixou na hora
+        self.assertEqual(c.agendados, {})
+
+    def test_sem_animacao_redimensionar_nao_agenda_nada(self):
+        faixa = self.nova_faixa_nativa(("barras_v",), ritmo=gl.Ritmo(gl.DESEMPENHO_ECONOMICO))
+        faixa.canvas.bindings["<Configure>"](Evento(width=700))
+        faixa.canvas.executar_agendados()                                        # o redesenho com espera de 120 ms
+        self.assertEqual(faixa.cards[0].largura, 700)
+        self.assertTrue(faixa.cards[0].pronto)
+        self.assertEqual(faixa.canvas.agendados, {})
+
+    def test_faixa_de_imagens_nao_muda_com_o_ritmo(self):
+        faixa = self.ui.FaixaHorizontal(Base(), [imagem(), imagem()], escala=1.0,
+                                        ritmo=gl.Ritmo(gl.DESEMPENHO_ECONOMICO))
+        faixa.canvas.bindings["<Configure>"](Evento(width=1100))
+        self.assertEqual(len(faixa.canvas.itens), 2)
+        faixa.ir_para(1)
+        self.assertEqual(faixa.deslocamento, faixa.carrossel.x_da_posicao(1))
+
+    # ------------------------------------------------------------------ o ritmo muda no meio da animação
+    def test_ao_descer_para_sem_animacao_a_entrada_termina_no_proximo_quadro(self):
+        ritmo = gl.Ritmo()
+        faixa = self.nova_faixa_nativa(("barras_v",), ritmo=ritmo)
+        for _ in range(5):
+            self.relogio.avancar(0.016)
+            faixa.canvas.executar_agendados()
+        self.assertTrue(0 < faixa.cards[0].p < 1)
+        for _ in range(2 * gl.AMOSTRAS_PARA_DECIDIR):                           # o computador "ficou lento"
+            ritmo.registrar_quadro(0.5, 1.0)
+        self.assertEqual(ritmo.nivel, gl.NIVEL_SEM_ANIMACAO)
+        self.relogio.avancar(0.016)
+        faixa.canvas.executar_agendados()
+        self.assertEqual(faixa.cards[0].p, 1.0)
+        self.assertEqual(faixa.canvas.agendados, {})
+        self.assertEqual(self.desenhado(faixa), self.estado_final(faixa))
+
+    def test_ao_descer_para_sem_animacao_o_encaixe_termina_no_proximo_quadro(self):
+        ritmo = gl.Ritmo()
+        faixa = self.nova_faixa_nativa(ritmo=ritmo)
+        faixa.ir_para(1)
+        self.relogio.avancar(0.016)
+        faixa.canvas.executar_agendados()
+        self.assertLess(faixa.deslocamento, faixa.carrossel.x_da_posicao(1))     # no meio do caminho
+        ritmo.modo = gl.DESEMPENHO_ECONOMICO
+        self.relogio.avancar(0.016)
+        faixa.canvas.executar_agendados()
+        self.assertEqual(faixa.deslocamento, faixa.carrossel.x_da_posicao(1))
+        self.relogio.avancar(0.016)
+        faixa.canvas.executar_agendados()
+        self.assertEqual(faixa.canvas.agendados, {})
+        self.assertTrue(faixa.cards[1].pronto)
+
+    # ------------------------------------------------------------------ o que é informado ao ritmo
+    def test_cada_quadro_que_pintou_e_informado_com_custo_e_intervalo(self):
+        ritmo = RitmoGravador(gl.DESEMPENHO_COMPLETO)
+        faixa = self.nova_faixa_nativa(("barras_v",), ritmo=ritmo)
+        for _ in range(6):
+            self.relogio.avancar(0.016)
+            faixa.canvas.executar_agendados()
+        self.assertEqual(len(ritmo.registros), 6)
+        self.assertIsNone(ritmo.registros[0][1])                                 # o 1º quadro não tem anterior
+        for custo, periodo in ritmo.registros[1:]:
+            self.assertAlmostEqual(periodo, 0.016, places=6)
+            self.assertEqual(custo, 0.0)                                         # relógio falso: pintar não "demora"
+
+    def test_quadro_de_espera_nao_conta(self):
+        ritmo = RitmoGravador(gl.DESEMPENHO_COMPLETO)
+        faixa = self.nova_faixa_nativa(("barras_v",), ritmo=ritmo, atraso=0.5)
+        for _ in range(10):                                                      # 160 ms: ainda no atraso inicial
+            self.relogio.avancar(0.016)
+            faixa.canvas.executar_agendados()
+        self.assertEqual(ritmo.registros, [])
+
+    def test_sequencia_nova_comeca_sem_quadro_anterior(self):
+        ritmo = RitmoGravador(gl.DESEMPENHO_COMPLETO)
+        faixa = self.nova_faixa_nativa(("barras_v", "linhas", "roscas"), ritmo=ritmo)
+        self.rodar_quadros(faixa, 0.016)
+        antes = len(ritmo.registros)
+        self.relogio.avancar(30.0)                                               # fica parado por muito tempo
+        faixa.ir_para(1)                                                         # o 2º gráfico passa a aparecer
+        self.rodar_quadros(faixa, 0.016)
+        novos = ritmo.registros[antes:]
+        self.assertTrue(novos)
+        self.assertTrue(all(periodo is None or periodo < 1.0 for _, periodo in novos))   # nada de "30 s entre quadros"
+
+    # ------------------------------------------------------------------ o modo automático, de ponta a ponta
+    def test_computador_rapido_continua_com_animacao_completa(self):
+        ritmo = gl.Ritmo()
+        faixa = self.nova_faixa_nativa(("barras_v", "linhas"), largura=1900, ritmo=ritmo)
+        original = self.ui.CardNativo.desenhar
+
+        def rapido(carta):
+            self.relogio.avancar(0.001)
+            original(carta)
+        with mock.patch.object(self.ui.CardNativo, "desenhar", rapido):
+            self.rodar_quadros(faixa, 0.016)
+        self.assertEqual(ritmo.nivel, gl.NIVEL_COMPLETO)
+
+    def test_computador_lento_reduz_sozinho_e_o_grafico_termina_igual(self):
+        ritmo = gl.Ritmo()
+        faixa = self.nova_faixa_nativa(("barras_v", "linhas"), largura=1900, ritmo=ritmo)
+        original = self.ui.CardNativo.desenhar
+
+        def lento(carta):
+            self.relogio.avancar(0.012)                                          # cada pintura "demora" 12 ms
+            original(carta)
+        intervalos = []
+        with mock.patch.object(self.ui.CardNativo, "desenhar", lento):
+            quadros = 0
+            while faixa.canvas.agendados:
+                quadros += 1
+                self.assertLess(quadros, 200)
+                intervalos += self.intervalos(faixa)
+                self.relogio.avancar(0.016)
+                faixa.canvas.executar_agendados()
+        self.assertGreater(ritmo.nivel, gl.NIVEL_COMPLETO)                       # percebeu e reduziu
+        self.assertIn("cada quadro levou", ritmo.motivo)
+        self.assertEqual(intervalos[0], 16)
+        self.assertIn(33, intervalos)                                            # e passou a pedir quadros a cada 33 ms
+        self.assertEqual(self.desenhado(faixa), self.estado_final(faixa))        # o gráfico final é o mesmo
+
+
+class TestRitmoNoPainel(BaseDosTestes):
+    def test_todas_as_faixas_dividem_o_mesmo_ritmo(self):
+        ritmo = gl.Ritmo(gl.DESEMPENHO_COMPLETO)
+        for disposicao in (gl.DISPOSICAO_LADO_A_LADO, gl.DISPOSICAO_VERTICAL):
+            painel = self.ui.PainelGraficos(Base(), grupos_nativos(), disposicao, fontes=FontesFalsas(), ritmo=ritmo)
+            faixas = painel.faixas + painel.faixas_empilhadas
+            self.assertTrue(faixas)
+            self.assertTrue(all(f.ritmo is ritmo for f in faixas), disposicao)
+            self.assertIs(painel.ritmo, ritmo)
+
+    def test_sem_ritmo_informado_e_um_so_completo_para_todas(self):
+        painel = self.ui.PainelGraficos(Base(), grupos_nativos(), gl.DISPOSICAO_LADO_A_LADO, fontes=FontesFalsas())
+        self.assertEqual(painel.ritmo.modo, gl.DESEMPENHO_COMPLETO)
+        self.assertEqual(len({id(f.ritmo) for f in painel.faixas}), 1)
+
+    def test_de_cima_para_baixo_sem_animacao_tudo_aparece_pronto(self):
+        painel = self.ui.PainelGraficos(Base(), grupos_nativos(), gl.DISPOSICAO_VERTICAL, fontes=FontesFalsas(),
+                                        ritmo=gl.Ritmo(gl.DESEMPENHO_ECONOMICO))
+        painel.ajustar_todas(1100)
+        for faixa in painel.faixas_empilhadas:
+            self.assertEqual(faixa.canvas.agendados, {})
+            self.assertTrue(faixa.cards[0].pronto)
+
+    def test_uma_montagem_nova_com_ritmo_completo_volta_a_animar(self):
+        ritmo = gl.Ritmo(gl.DESEMPENHO_ECONOMICO)
+        sem = self.ui.PainelGraficos(Base(), grupos_nativos(), gl.DISPOSICAO_LADO_A_LADO, fontes=FontesFalsas(),
+                                     ritmo=ritmo)
+        sem.ajustar_todas(1100)
+        self.assertTrue(all(not f.canvas.agendados for f in sem.faixas))
+        ritmo.modo = gl.DESEMPENHO_COMPLETO
+        com = self.ui.PainelGraficos(Base(), grupos_nativos(), gl.DISPOSICAO_LADO_A_LADO, fontes=FontesFalsas(),
+                                     ritmo=ritmo)
+        com.ajustar_todas(1100)
+        self.assertTrue(all(f.canvas.agendados for f in com.faixas))
 
 
 if __name__ == "__main__":

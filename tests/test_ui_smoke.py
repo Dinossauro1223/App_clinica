@@ -801,6 +801,82 @@ class TestInterface(unittest.TestCase):
         nativas, imagens = self._cartas()
         self.assertEqual((len(nativas), len(imagens)), (10, 0))     # a tela não fica em branco
 
+    def test_desempenho_da_animacao_dos_graficos(self):
+        from unittest import mock
+        from test_mapa import popular_mes
+        gl = mapa_ui.gl
+        popular_mes(self.db, n_leitos=6)
+        with mock.patch.object(gl, "sistema_pede_economia", return_value=(gl.NIVEL_COMPLETO, "")):
+            self.ui.mostrar_graficos()
+            # padrão: automático, com um só ritmo para o programa todo, entregue ao painel
+            self.assertEqual(self.ui.desempenho_graficos, gl.DESEMPENHO_AUTOMATICO)
+            ritmo = self.ui.ritmo_graficos
+            self.assertIs(self.ui.ritmo_graficos, ritmo)
+            self.assertIs(self.ui._painel.ritmo, ritmo)
+            self.assertEqual((ritmo.modo, ritmo.nivel), (gl.DESEMPENHO_AUTOMATICO, gl.NIVEL_COMPLETO))
+            dc = mapa_ui.DialogConfig(self.ui)
+            self.assertEqual(dc.cb_desempenho.get(), gl.ROTULOS_DESEMPENHO[gl.DESEMPENHO_AUTOMATICO])
+            self.assertEqual(dc.lb_ritmo.cget("text"), "Agora: animação completa.")
+            # econômico: vale na hora e a tela aberta é refeita com os gráficos já prontos
+            dc.cb_desempenho.set(gl.ROTULOS_DESEMPENHO[gl.DESEMPENHO_ECONOMICO])
+            dc._atualizar_texto_ritmo()
+            self.assertIn("Sem animação", dc.lb_ritmo.cget("text"))
+            dc._salvar()
+            self.assertEqual(self.ui.desempenho_graficos, gl.DESEMPENHO_ECONOMICO)
+            self.assertIs(self.ui.ritmo_graficos, ritmo)               # o mesmo objeto, só mudou de modo
+            self.assertEqual(ritmo.modo, gl.DESEMPENHO_ECONOMICO)
+            self.assertIs(self.ui._painel.ritmo, ritmo)
+            self.ui._painel.ajustar_todas(1300)
+            nativas, _ = self._cartas()
+            self.assertEqual(len(nativas), 10)
+            self.assertTrue(all(c.pronto for c in nativas))            # tudo pronto, sem esperar animação
+            # reabre com o valor salvo e volta para o completo: os gráficos voltam a animar
+            dc = mapa_ui.DialogConfig(self.ui)
+            self.assertEqual(dc.cb_desempenho.get(), gl.ROTULOS_DESEMPENHO[gl.DESEMPENHO_ECONOMICO])
+            dc.cb_desempenho.set(gl.ROTULOS_DESEMPENHO[gl.DESEMPENHO_COMPLETO])
+            dc._salvar()
+            self.assertEqual((ritmo.modo, ritmo.nivel), (gl.DESEMPENHO_COMPLETO, gl.NIVEL_COMPLETO))
+            self.ui._painel.ajustar_todas(1300)
+            nativas, _ = self._cartas()
+            self.assertFalse(any(c.pronto for c in nativas))           # ainda no começo da animação
+        # valor desconhecido na configuração volta para o padrão
+        mapa_ui.mdb.salvar_config(self.db, gl.CHAVE_DESEMPENHO, "qualquer coisa")
+        self.assertEqual(self.ui.desempenho_graficos, gl.DESEMPENHO_AUTOMATICO)
+
+    def test_o_que_o_programa_aprendeu_sobre_o_computador_vale_para_as_proximas_telas(self):
+        from unittest import mock
+        from test_mapa import popular_mes
+        gl = mapa_ui.gl
+        popular_mes(self.db, n_leitos=6)
+        with mock.patch.object(gl, "sistema_pede_economia", return_value=(gl.NIVEL_COMPLETO, "")):
+            self.ui.mostrar_graficos()
+            for _ in range(gl.AMOSTRAS_PARA_DECIDIR):                  # o computador demorou em todos os quadros
+                self.ui._painel.ritmo.registrar_quadro(0.03, 0.2)
+            self.assertEqual(self.ui.ritmo_graficos.nivel, gl.NIVEL_REDUZIDO)
+            self.ui.mostrar_graficos()                                 # abre a tela de novo
+            self.assertIs(self.ui._painel.ritmo, self.ui.ritmo_graficos)
+            self.assertEqual(self.ui._painel.ritmo.nivel, gl.NIVEL_REDUZIDO)
+            dc = mapa_ui.DialogConfig(self.ui)                         # e a janela de Configurações conta o que houve
+            texto = dc.lb_ritmo.cget("text")
+            self.assertIn("animação reduzida", texto)
+            self.assertIn("cada quadro levou 30 ms", texto)
+            self.assertIn("escolha Completo", texto)
+
+    def test_desempenho_automatico_comeca_reduzido_quando_o_sistema_pede(self):
+        from unittest import mock
+        gl = mapa_ui.gl
+        motivo = "o programa está em acesso remoto (área de trabalho remota)"
+        with mock.patch.object(gl, "sistema_pede_economia", return_value=(gl.NIVEL_REDUZIDO, motivo)):
+            self.ui.mostrar_mapa()
+            dc = mapa_ui.DialogConfig(self.ui)
+            texto = dc.lb_ritmo.cget("text")
+            self.assertIn("animação reduzida", texto)
+            self.assertIn("acesso remoto", texto)
+            # escolher Completo mostra que ali a animação é sempre completa, sem esconder o motivo do automático
+            dc.cb_desempenho.set(gl.ROTULOS_DESEMPENHO[gl.DESEMPENHO_COMPLETO])
+            dc._atualizar_texto_ritmo()
+            self.assertEqual(dc.lb_ritmo.cget("text"), "Animação completa em qualquer computador.")
+
     def test_exportar_imagens_sem_matplotlib_avisa_em_vez_de_quebrar(self):
         from unittest import mock
         from test_mapa import popular_mes
