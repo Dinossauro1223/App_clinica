@@ -260,13 +260,15 @@ public class MainActivity extends Activity {
         }
         long existente = prefs.getLong(PREF_DOWNLOAD_ID, -1L);
         if (existente >= 0) {
+            long codigoExistente = prefs.getLong(PREF_DOWNLOAD_CODE, -1L);
             Cursor pendente = consultarDownload(existente);
-            if (pendente != null) {
+            if (pendente != null && codigoExistente >= codigo) {
                 pendente.close();
                 retomarDownloadPendente();
                 return;
             }
-            limparRegistroDownload(false);
+            if (pendente != null) pendente.close();
+            limparRegistroDownload(true);
         }
         try {
             android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
@@ -312,6 +314,7 @@ public class MainActivity extends Activity {
         Cursor c = consultarDownload(id);
         if (c == null) {
             limparRegistroDownload(false);
+            prefs.edit().remove(PREF_UPDATE_CHECK).apply();
             return;
         }
         int status = c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS));
@@ -331,6 +334,7 @@ public class MainActivity extends Activity {
         } else if (status == android.app.DownloadManager.STATUS_FAILED) {
             // Falha de transporte não equivale a bloqueio da instalação; o servidor será consultado novamente.
             limparRegistroDownload(true);
+            prefs.edit().remove(PREF_UPDATE_CHECK).apply();
             verificarAtualizacaoNoServidor();
         } else {
             mostrarProgressoDownload(id);
@@ -429,6 +433,7 @@ public class MainActivity extends Activity {
         if (!validarHashDownload(id)) {
             android.util.Log.e("NutriLabUpdate", "Hash do APK baixado não confere; descartando arquivo incompleto.");
             limparRegistroDownload(true);
+            prefs.edit().remove(PREF_UPDATE_CHECK).apply();
             verificarAtualizacaoNoServidor();
             return;
         }

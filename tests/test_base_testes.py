@@ -48,6 +48,14 @@ class TestBasesTeste(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             base_testes._copiar_consistente(exportado, importado)
 
+    def test_preserva_arquivo_temporario_existente(self):
+        destino = self.raiz / "exportado.db"
+        temporario = destino.with_name(destino.name + ".tmp")
+        temporario.write_text("arquivo que não pode ser apagado", encoding="utf-8")
+        with self.assertRaises(FileExistsError):
+            base_testes.exportar_base_teste(self.producao, destino)
+        self.assertEqual(temporario.read_text(encoding="utf-8"), "arquivo que não pode ser apagado")
+
     def test_recusa_arquivo_que_nao_e_banco_nutrilab(self):
         invalido = self.raiz / "invalido.db"
         invalido.write_bytes(b"nao e sqlite")

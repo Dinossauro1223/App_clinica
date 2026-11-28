@@ -49,7 +49,7 @@ def _copiar_consistente(origem: Path, destino: Path) -> Path:
     destino.parent.mkdir(parents=True, exist_ok=True)
     temporario = destino.with_name(destino.name + ".tmp")
     if temporario.exists():
-        temporario.unlink()
+        raise FileExistsError(f"Arquivo temporário já existe e será preservado: {temporario}")
     fonte = None
     copia = None
     try:
@@ -91,7 +91,7 @@ def importar_base_teste(arquivo, diretorio_dados=None) -> Path:
     """Importa uma base como cópia isolada, nunca como restauração da produção."""
     origem = Path(arquivo).expanduser().resolve()
     _validar_base(origem)
-    raiz = Path(diretorio_dados) if diretorio_dados is not None else db_service.diretorio_dados()
+    raiz = Path(diretorio_dados) if diretorio_dados is not None else Path(db_service.caminho_banco()).parent
     pasta = raiz / "bases_teste"
     carimbo = datetime.now().strftime("%Y%m%d-%H%M%S")
     destino = pasta / f"{origem.stem}_teste_{carimbo}.db"
