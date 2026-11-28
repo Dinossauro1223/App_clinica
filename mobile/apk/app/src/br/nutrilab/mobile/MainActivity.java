@@ -282,11 +282,15 @@ public class MainActivity extends Activity {
             req.setDestinationInExternalFilesDir(this, android.os.Environment.DIRECTORY_DOWNLOADS,
                     "NutriLab-Mobile-" + codigo + ".apk");
             long id = dm.enqueue(req);
-            prefs.edit().putLong(PREF_DOWNLOAD_ID, id)
+            boolean registroSalvo = prefs.edit().putLong(PREF_DOWNLOAD_ID, id)
                     .putLong(PREF_DOWNLOAD_CODE, codigo)
                     .putString(PREF_DOWNLOAD_NAME, versao)
                     .putString(PREF_DOWNLOAD_SHA, sha256)
-                    .putString(PREF_DOWNLOAD_URL, url).apply();
+                    .putString(PREF_DOWNLOAD_URL, url).commit();
+            if (!registroSalvo) {
+                dm.remove(id);
+                throw new Exception("Não foi possível persistir o identificador do download para retomada.");
+            }
             mostrarProgressoDownload(id);
         } catch (Exception e) {
             android.util.Log.e("NutriLabUpdate", "Falha ao iniciar download", e);
