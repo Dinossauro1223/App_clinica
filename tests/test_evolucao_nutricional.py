@@ -282,7 +282,7 @@ class TestEvolucaoNutricional(unittest.TestCase):
         }
         texto = ev.gerar_evolucao(dados)
         self.assertIn("600 mL administrados", texto)
-        self.assertIn("900,0 kcal", texto)
+        self.assertIn("900 kcal", texto)
         self.assertIn("51,4% kcal", texto)
         self.assertIn("53,6% PTN", texto)
 
