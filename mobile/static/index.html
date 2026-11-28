@@ -698,7 +698,7 @@ async function vMenuDia(){
         foto('porcao_individual','Porção individual')+foto('recipiente_cheio','Recipiente cheio')+ing+prep+resumoRegistro+formProducao+'</details>';
     }).join('');
     return '<section class=cartao><h3>'+esc(nomes[r.refeicao]||r.refeicao)+'</h3>'+
-      '<p class=mini>Publicado em '+esc(r.publicado_em||'—')+'</p>'+
+      '<p class=mini>Versão '+esc(r.snapshot?.versao??1)+' · publicado em '+esc(r.publicado_em||'—')+'</p>'+
       (conteudo||'<p class=mini>Nenhuma preparação cadastrada.</p>')+'</section>';
   }).join('');
   $('#vista').innerHTML='<div class=cartao><div class=filtros><label class=f>Data<input type=date value="'+esc(S.data)+'" onchange="S.data=this.value||S.hoje;ir(\'menu\')"></label></div>'+
