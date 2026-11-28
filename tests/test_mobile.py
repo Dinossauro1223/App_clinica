@@ -140,6 +140,16 @@ class MobileTest(unittest.TestCase):
         self.assertEqual(nova_versao["versao_publicacao"], 2)
         consulta = self.chamar(self.t["coz"], "GET", "/api/menu-dia/producao?data=" + dia)[1]
         self.assertEqual(consulta["registros"][0]["versao_publicacao"], 2)
+        c = sv.conectar(self.db)
+        try:
+            historico = c.execute(
+                "SELECT versao_publicacao,dados_json,cubas_json FROM menu_dia_producao_historico "
+                "WHERE data=? AND refeicao=? ORDER BY versao_publicacao", (dia, "almoco")).fetchall()
+            self.assertEqual([x["versao_publicacao"] for x in historico], [1])
+            self.assertEqual(json.loads(historico[0]["dados_json"])["porcoes_produzidas"], 76)
+            self.assertEqual(json.loads(historico[0]["cubas_json"])[0]["identificacao"], "Cuba 1")
+        finally:
+            c.close()
         atualizado = {**corpo, "porcoes_produzidas": 78, "porcoes_faltantes": 2,
                       "cubas": [{"identificacao": "Cuba 2", "peso_sobra_kg": 0.2,
                                  "peso_desperdicio_kg": 0.05}]}
