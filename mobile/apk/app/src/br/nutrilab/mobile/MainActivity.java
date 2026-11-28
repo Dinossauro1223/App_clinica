@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
     private static final int ESCOLHER_IMAGEM_QR = 4103;
     private static final int ESCANEAR_QR = 4104;
     private static final int PEDIR_CAMERA_SCANNER = 4105;
+    private static final int PEDIR_NOTIFICACAO = 4106;
 
     /** A pagina do NutriLab tem o elemento #app; qualquer outra pagina (por exemplo a do download do APK) nao tem. */
     private static final String E_NUTRILAB = "(function(){return !!document.getElementById('app')})()";
@@ -253,6 +254,10 @@ public class MainActivity extends Activity {
     }
 
     private void iniciarDownloadAutomatico(String url, String versao, long codigo, String sha256) {
+        if (android.os.Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, PEDIR_NOTIFICACAO);
+        }
         long existente = prefs.getLong(PREF_DOWNLOAD_ID, -1L);
         if (existente >= 0) {
             Cursor pendente = consultarDownload(existente);

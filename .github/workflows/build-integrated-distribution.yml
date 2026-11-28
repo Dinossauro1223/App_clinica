@@ -110,6 +110,18 @@ jobs:
             throw "O APK dentro do ZIP não corresponde ao APK compilado."
           }
           Write-Host "EXE, APK e ZIP validados. SHA-256 APK: $shaOrigem"
+          $versoes = Get-Content -LiteralPath "mobile/version.properties" | ConvertFrom-StringData
+          $aapt = Join-Path $env:ANDROID_HOME "build-tools\34.0.0\aapt.exe"
+          $badging = & $aapt dump badging $apk
+          $matchVersao = ($badging | Select-String "^package:.*versionCode='(\d+)'.*versionName='([^']+)'").Matches
+          if ($matchVersao.Count -ne 1) { throw "Não foi possível ler a versão do APK compilado." }
+          if ([int]$matchVersao[0].Groups[1].Value -ne [int]$versoes.versionCode) {
+            throw "versionCode do APK não corresponde a mobile/version.properties."
+          }
+          if ($matchVersao[0].Groups[2].Value -ne $versoes.versionName) {
+            throw "versionName do APK não corresponde a mobile/version.properties."
+          }
+          Write-Host "Versão Android validada: $($versoes.versionName) (code $($versoes.versionCode))"
 
       - name: Publicar pacote integrado para inspeção
         uses: actions/upload-artifact@v4
