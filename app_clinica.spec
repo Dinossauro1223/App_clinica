@@ -36,6 +36,7 @@ ARQUIVOS_DATA = [
     (os.path.join(SPECPATH, 'assets', 'escalas_visita'), 'assets/escalas_visita'),
     (PASTA_CAMADAS, 'identidade_camadas'),
     (os.path.join(SPECPATH, 'mobile', 'servidor.py'), 'mobile'),
+    (os.path.join(SPECPATH, 'mobile', 'version.properties'), 'mobile'),
     (os.path.join(SPECPATH, 'mobile', 'static'), 'mobile/static'),
     (MODELO_BANCO, 'modelo_banco'),
     ('regras_exames_complementares.json', '.'),

@@ -16,6 +16,7 @@ import customtkinter as ctk
 import qrcode
 from tkinter import messagebox
 import db_service
+import base_testes
 import tema
 import nrs2002 as nrs
 import mapa_db as mdb
@@ -95,6 +96,8 @@ class ConfiguracoesUI:
         self._precos_refeicoes(conteudo)
         self._grupo(conteudo, "Dados e recuperação")
         self._backups(conteudo)
+        self._grupo(conteudo, "Importação e exportação para testes")
+        self._bases_teste(conteudo)
         self._recolher_cards_config(conteudo)
         ctk.CTkButton(conteudo, text="Voltar ao início", fg_color=tema.VERDE,
                      hover_color=tema.VERDE_HOVER, command=self.app.tela_inicial).pack(anchor="w", padx=14, pady=10)
@@ -954,6 +957,102 @@ class ConfiguracoesUI:
         ctk.CTkButton(card, text="Restaurar backup selecionado", command=restaurar,
                       fg_color=tema.LARANJA, hover_color=tema.LARANJA_TEXTO,
                       font=tema.fonte(12, "bold")).pack(anchor="w", padx=18, pady=(0, 14))
+
+    def _bases_teste(self, raiz):
+        """Exporta a base completa e abre cópias isoladas, sem tocar na produção."""
+        caminho_db = Path(db_service.caminho_banco())
+        card = ctk.CTkFrame(raiz, fg_color=tema.BRANCO, border_width=1,
+                            border_color=tema.BORDA, corner_radius=12)
+        card.pack(fill="x", padx=24, pady=(4, 12))
+        ctk.CTkLabel(card, text="Bases de pacientes para testes",
+                     font=tema.fonte(16, "bold"), text_color=tema.TEXTO).pack(
+                         anchor="w", padx=18, pady=(16, 4))
+        ctk.CTkLabel(
+            card,
+            text="Exporte uma cópia completa do banco (pacientes e registros clínicos relacionados) ou importe um arquivo .db como uma nova base de testes. A importação nunca substitui a base de produção: abre outra instância do NutriLab com banco isolado.",
+            font=tema.fonte(12), text_color=tema.SUAVE, wraplength=820, justify="left"
+        ).pack(anchor="w", padx=18, pady=(0, 8))
+        ctk.CTkLabel(
+            card,
+            text="Atenção: a exportação pode conter dados pessoais e informações de saúde. Use somente arquivos autorizados e armazene-os em local protegido.",
+            font=tema.fonte(12, "bold"), text_color=tema.LARANJA_TEXTO,
+            wraplength=820, justify="left"
+        ).pack(anchor="w", padx=18, pady=(0, 12))
+
+        def exportar():
+            destino = filedialog.asksaveasfilename(
+                title="Exportar cópia da base para testes",
+                defaultextension=".db",
+                initialfile="NutriLab_base_teste.db",
+                filetypes=[("Banco SQLite", "*.db"), ("Todos os arquivos", "*.*")]
+            )
+            if not destino:
+                return
+            if not messagebox.askyesno(
+                "Confirmar exportação",
+                "O arquivo incluirá pacientes, prontuários e demais registros clínicos presentes no banco. "
+                "Confirma que possui autorização para exportar e armazenar esses dados?"
+            ):
+                return
+            try:
+                arquivo = base_testes.exportar_base_teste(caminho_db, destino)
+            except Exception as erro:
+                messagebox.showerror("Falha na exportação", str(erro))
+                return
+            messagebox.showinfo(
+                "Exportação concluída",
+                "Cópia consistente criada e validada. A base em uso não foi alterada.\n\n" + str(arquivo)
+            )
+
+        def importar_e_abrir():
+            origem = filedialog.askopenfilename(
+                title="Selecionar base exportada do NutriLab",
+                filetypes=[("Banco SQLite", "*.db"), ("Todos os arquivos", "*.*")]
+            )
+            if not origem:
+                return
+            if not messagebox.askyesno(
+                "Importar como base de testes",
+                "Será criada uma NOVA cópia em 'bases_teste' e aberta em outra janela. "
+                "A base de produção não será substituída. Os dados importados podem conter informações pessoais e de saúde.\n\n"
+                "Deseja continuar?"
+            ):
+                return
+            try:
+                copia = base_testes.importar_base_teste(origem)
+                base_testes.abrir_base_teste(copia, banco_producao=caminho_db)
+            except Exception as erro:
+                messagebox.showerror("Falha na importação", str(erro))
+                return
+            messagebox.showinfo(
+                "Ambiente de testes aberto",
+                "A cópia foi criada em:\n" + str(copia)
+                + "\n\nA outra janela está identificada como AMBIENTE DE TESTES."
+            )
+
+        def abrir_existente():
+            origem = filedialog.askopenfilename(
+                title="Abrir base de testes existente",
+                filetypes=[("Banco SQLite", "*.db"), ("Todos os arquivos", "*.*")]
+            )
+            if not origem:
+                return
+            try:
+                base_testes.abrir_base_teste(origem, banco_producao=caminho_db)
+            except Exception as erro:
+                messagebox.showerror("Não foi possível abrir a base de testes", str(erro))
+
+        botoes = ctk.CTkFrame(card, fg_color="transparent")
+        botoes.pack(fill="x", padx=14, pady=(0, 14))
+        ctk.CTkButton(botoes, text="Exportar base atual",
+                      command=exportar, fg_color=tema.VERDE,
+                      hover_color=tema.VERDE_HOVER).pack(side="left", padx=4)
+        ctk.CTkButton(botoes, text="Importar e abrir em testes",
+                      command=importar_e_abrir, fg_color=tema.AZUL,
+                      hover_color=tema.AZUL_HOVER).pack(side="left", padx=4)
+        ctk.CTkButton(botoes, text="Abrir base de testes existente",
+                      command=abrir_existente, fg_color=tema.SUAVE,
+                      hover_color=tema.BORDA).pack(side="left", padx=4)
 
     def _aplicar(self, nome):
         modo = self.OPCOES.get(nome, "Light")

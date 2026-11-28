@@ -110,6 +110,25 @@ jobs:
             throw "O APK dentro do ZIP não corresponde ao APK compilado."
           }
           Write-Host "EXE, APK e ZIP validados. SHA-256 APK: $shaOrigem"
+          $versoesTexto = Get-Content -Raw -LiteralPath "mobile/version.properties"
+          $versoes = ConvertFrom-StringData -StringData $versoesTexto
+          $aapt = Join-Path $env:ANDROID_HOME "build-tools\34.0.0\aapt.exe"
+          $badging = & $aapt dump badging $apk
+          $linhaPacote = $badging | Where-Object { $_ -like "package:*" } | Select-Object -First 1
+          Write-Host "Metadados AAPT: $linhaPacote"
+          $matchVersao = ($linhaPacote | Select-String "^package:.*?versionCode='(\d+)'.*? versionName='([^']+)'").Matches
+          if ($matchVersao.Count -ne 1) { throw "Não foi possível ler a versão do APK compilado." }
+          $codigoEsperado = [int]([string]$versoes.versionCode).Trim()
+          $nomeEsperado = ([string]$versoes.versionName).Trim()
+          $codigoObtido = [int]$matchVersao[0].Groups[1].Value
+          $nomeObtido = ([string]$matchVersao[0].Groups[2].Value).Trim()
+          if ($codigoObtido -ne $codigoEsperado) {
+            throw "versionCode do APK ($codigoObtido) não corresponde ao arquivo ($codigoEsperado)."
+          }
+          if ($nomeObtido -ne $nomeEsperado) {
+            throw "versionName do APK ('$nomeObtido') não corresponde ao arquivo ('$nomeEsperado')."
+          }
+          Write-Host "Versão Android validada: $nomeObtido (code $codigoObtido)"
 
       - name: Publicar pacote integrado para inspeção
         uses: actions/upload-artifact@v4

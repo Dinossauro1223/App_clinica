@@ -138,7 +138,8 @@ class AppClinica(ctk.CTk):
         # Vale para todos os campos e tabelas de todas as janelas; a lista aparece com F1 (docs/desenvolvimento/ATALHOS_DE_TECLADO.md).
         atalhos_edicao.instalar(self)
 
-        self.title("Sistema de Gestão Clínica")
+        self._modo_testes = os.environ.get("NUTRILAB_MODO_TESTE") == "1"
+        self.title("NutriLab — AMBIENTE DE TESTES" if self._modo_testes else "Sistema de Gestão Clínica")
         self.geometry("950x750")
         try:
             self.state("zoomed")
@@ -151,8 +152,9 @@ class AppClinica(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
 
         self.configurar_banco_dados()
-        # Sobe o servidor assim que o banco principal está pronto, antes da montagem de telas pesadas.
-        self._iniciar_servidor_mobile()
+        # Bases de teste usam banco próprio e não devem iniciar servidor nem sincronizar com a clínica.
+        if not self._modo_testes:
+            self._iniciar_servidor_mobile()
 
         # Mapa Nutricional: usa o mesmo banco da tela Pacientes (get_base_path) para unificar os dados.
         db_mapa = caminho_do_banco()
@@ -206,6 +208,12 @@ class AppClinica(ctk.CTk):
                 ("🍲", "Fichas e consumo da cozinha", lambda: self.abrir_pagina_principal("Fichas e consumo", self.tela_gestao_alimentar_fichas)),
             ]),
         ]
+        if self._modo_testes:
+            # Evita que a cópia isolada acesse o servidor mobile da clínica em execução.
+            secoes_menu = [
+                (titulo, [item for item in itens if item[1] != "Mobile (copa)"])
+                for titulo, itens in secoes_menu
+            ]
         self.menu_lateral = BarraLateral(
             self, secoes=secoes_menu,
             config=("⚙️", "Configurações", lambda: self.abrir_pagina_principal("Configurações", self.tela_configuracoes)),
@@ -231,13 +239,23 @@ class AppClinica(ctk.CTk):
         self._sincronizacao_mobile_erro = ""
         self._sincronizacao_mobile_concluida = False
         self.after(500, self._atualizar_status_conexao)
-        self.after(8000, self._sincronizar_mobile_periodicamente)
-        # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
-        self.after(1200, lambda: atualizador.iniciar_verificacao(self, self._resultado_atualizacao))
+        if not self._modo_testes:
+            self.after(8000, self._sincronizar_mobile_periodicamente)
+            # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
+            self.after(1200, lambda: atualizador.iniciar_verificacao(self, self._resultado_atualizacao))
 
 
     def _atualizar_status_conexao(self):
         """Mostra continuamente se o servidor central local está acessível aos dispositivos."""
+        if getattr(self, "_modo_testes", False):
+            try:
+                self._lbl_status_conexao.configure(
+                    text="● AMBIENTE DE TESTES — alterações isoladas da base de produção",
+                    text_color=tema.LARANJA_TEXTO
+                )
+            except (AttributeError, tk.TclError):
+                pass
+            return
         estado_servidor = None
         try:
             with urllib.request.urlopen("http://127.0.0.1:8765/api/status", timeout=0.8) as resposta:
@@ -276,7 +294,7 @@ class AppClinica(ctk.CTk):
 
     def _sincronizar_mobile_periodicamente(self):
         """Sincroniza mapa, refeições e estoques sem bloquear a interface nem aprovar prontuários."""
-        if getattr(self, "_encerrando_app", False):
+        if getattr(self, "_modo_testes", False) or getattr(self, "_encerrando_app", False):
             return
         if getattr(self, "_sincronizacao_mobile_em_andamento", False):
             try:
@@ -490,6 +508,12 @@ class AppClinica(ctk.CTk):
         self.mapa.mostrar_suplementos()
 
     def tela_mobile(self):
+        if getattr(self, "_modo_testes", False):
+            messagebox.showinfo(
+                "Ambiente de testes",
+                "O módulo mobile está desativado nesta cópia para impedir acesso ao servidor de produção."
+            )
+            return
         from mobile_ui import MobileUI
         MobileUI(self, caminho_do_banco(), get_base_path()).mostrar()
 
