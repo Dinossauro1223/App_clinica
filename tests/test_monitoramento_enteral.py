@@ -37,6 +37,31 @@ class TestMonitoramentoEnteral(unittest.TestCase):
         self.assertEqual(me.classificar_hgt_em_relacao_a_administracao(
             "2026-11-27 11:00", adm)["classificacao"], "apos_fim")
 
+    def test_resume_volume_real_do_dia_sem_ratear_evento_incompleto(self):
+        me.salvar_administracao(
+            self.db, 7, "2026-11-27 08:00", "2026-11-27 10:00",
+            volume_prescrito_ml=500, volume_administrado_ml=450,
+            via_administracao="bomba",
+        )
+        me.salvar_administracao(
+            self.db, 7, "2026-11-27 23:30", "2026-11-28 01:00",
+            volume_prescrito_ml=300, volume_administrado_ml=300,
+            via_administracao="bomba",
+        )
+        resumo = me.resumir_administracoes_dia(self.db, 7, "2026-11-27")
+        self.assertEqual(resumo["volume_administrado_ml"], 450)
+        self.assertEqual(resumo["volume_prescrito_ml"], 500)
+        self.assertAlmostEqual(resumo["cobertura_volume_pct"], 90.0)
+        self.assertFalse(resumo["volume_calculavel"])
+        self.assertEqual(len(resumo["administracoes_pendentes"]), 1)
+
+    def test_volume_real_sem_registro_nao_vira_zero(self):
+        resumo = me.resumir_administracoes_dia(self.db, 7, "2026-11-27")
+        self.assertEqual(resumo["volume_administrado_ml"], 0)
+        self.assertEqual(resumo["administracoes_completas"], [])
+        self.assertEqual(resumo["administracoes_pendentes"], [])
+        self.assertFalse(resumo["volume_calculavel"])
+
     def test_rejeita_fim_antes_do_inicio(self):
         with self.assertRaises(ValueError):
             me.salvar_administracao(
