@@ -92,7 +92,7 @@ def _abrir_mobile(mobile_db):
         raise ErroMobile("O servidor mobile instalado é de uma versão antiga e não serve para esta integração.\n"
                          "Aplique o pacote 'Att 14.11.26 Mobile Completo', que atualiza o servidor.")
     if not os.path.exists(mobile_db):
-        raise ErroMobile("O banco do mobile ainda não existe:\n%s\nLigue o servidor uma vez (mobile\\iniciar_servidor.bat)." % mobile_db)
+        raise ErroMobile("O banco do mobile ainda não existe:\n%s\nAbra o NutriLab desktop para preparar o banco e iniciar o servidor automaticamente, ou execute mobile\\iniciar_servidor.bat se estiver usando o servidor separado." % mobile_db)
     c = sv.conectar(mobile_db)
     try:
         c.execute("PRAGMA busy_timeout=15000")
@@ -108,7 +108,7 @@ def _abrir_mobile(mobile_db):
 def _admin(c):
     r = c.execute("SELECT * FROM usuarios WHERE perfil='admin' AND ativo=1 ORDER BY id LIMIT 1").fetchone()
     if not r:
-        raise ErroMobile("O banco do mobile não tem o usuário administrador. Ligue o servidor uma vez.")
+        raise ErroMobile("O banco do mobile não tem usuário administrador. Abra o NutriLab desktop para preparar o servidor automaticamente, ou execute o servidor separado.")
     return dict(r)
 
 

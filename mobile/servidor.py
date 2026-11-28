@@ -1582,6 +1582,20 @@ class Manipulador(BaseHTTPRequestHandler):
                 raise Erro("Acesso permitido somente pela rede local.", 403)
             u = urlparse(self.path)
             q = {k: v[0] for k, v in parse_qs(u.query).items()}
+            if m == "GET" and u.path == "/health":
+                try:
+                    db_uri = Path(self.server.db).resolve().as_uri() + "?mode=ro"
+                    health_db = sqlite3.connect(db_uri, uri=True, timeout=1)
+                    try:
+                        health_db.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone()
+                    finally:
+                        # O context manager de sqlite3 faz commit/rollback, mas não fecha
+                        # a conexão. Fechá-la explicitamente libera o arquivo no Windows.
+                        health_db.close()
+                    database_id = hashlib.sha256(str(Path(self.server.db).resolve()).casefold().encode("utf-8")).hexdigest()
+                    return self._enviar(200, {"status": "ok", "database": "ready", "database_id": database_id})
+                except (sqlite3.Error, OSError):
+                    return self._enviar(503, {"status": "error", "database": "unavailable"})
             if m == "GET" and u.path == "/download/NutriLab-Mobile.apk":
                 apk = (AQUI / "apk" / "saida" / "NutriLab-Mobile.apk").resolve()
                 if not apk.is_file() or AQUI.resolve() not in apk.parents:

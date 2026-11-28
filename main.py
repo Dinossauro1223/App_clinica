@@ -6,6 +6,7 @@ import sqlite3
 import os
 import math
 import threading
+import queue
 import socket
 import importlib.util
 import json
@@ -13,6 +14,7 @@ import shutil
 import sys
 import platform
 import re
+import mobile_server_health
 from datetime import datetime
 from fpdf import FPDF
 from PIL import Image
@@ -203,6 +205,14 @@ class AppClinica(ctk.CTk):
             rodape="© 2026 Neis Bila de Alencar. Todos os direitos reservados."
         )
         self.bind("<Escape>", self._fechar_ultima_aba_lateral, add="+")
+        self._servidor_mobile = None
+        self._thread_servidor_mobile = None
+        self._thread_inicializacao_mobile = None
+        self._mobile_lock = threading.Lock()
+        self._mobile_resultados = queue.Queue()
+        self._mobile_encerrando = threading.Event()
+        self._mobile_status = "iniciando"
+        self._mobile_poll_id = None
         self.tela_inicial()
         self._iniciar_backups()
         self._iniciar_servidor_mobile()
@@ -211,59 +221,195 @@ class AppClinica(ctk.CTk):
 
 
     def _iniciar_servidor_mobile(self):
-        """Inicia o servidor local uma única vez; não assume propriedade de processo preexistente."""
-        self._servidor_mobile = None
-        try:
-            with socket.create_connection(("127.0.0.1", 8765), timeout=0.35):
-                # O BAT/manual ou outra instância já atende a porta: não iniciar nem encerrar esse processo.
-                return
-        except OSError:
-            pass
+        """Agenda a inicialização do Mobile em worker, sem bloquear a interface Tk."""
+        self._mobile_status = "iniciando"
+        self._mobile_poll_id = self.after(100, self._processar_resultado_servidor_mobile)
+        worker = threading.Thread(
+            target=self._iniciar_servidor_mobile_worker,
+            name="NutriLabMobileStartup",
+            daemon=True,
+        )
+        self._thread_inicializacao_mobile = worker
+        worker.start()
 
-        caminho_servidor = os.path.join(get_base_path(), "mobile", "servidor.py")
-        if not os.path.isfile(caminho_servidor):
-            caminho_servidor = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mobile", "servidor.py")
+    def _iniciar_servidor_mobile_worker(self, tentativa=1):
+        """Prepara banco/API fora da thread gráfica e publica somente o resultado.
+
+        Em falhas transitórias, repete a inicialização até três vezes, com espera
+        cancelável para que o fechamento do aplicativo nunca fique preso.
+        """
+        servidor = None
+        thread = None
         try:
+            caminho_db = im.caminho_mobile_db(caminho_do_banco(), get_base_path())
+            url_health = "http://127.0.0.1:8765/health"
+            if self._mobile_encerrando.is_set():
+                return
+
+            # Reutiliza somente um servidor NutriLab saudável com identidade de banco correta.
+            try:
+                with socket.create_connection(("127.0.0.1", 8765), timeout=0.35):
+                    if mobile_server_health.check_server_health(
+                        url_health, timeout=0.6, expected_db=caminho_db
+                    ):
+                        self._mobile_resultados.put(("ok", "Servidor mobile já estava ativo.", None))
+                        return
+                    raise RuntimeError(
+                        "A porta 8765 já está ocupada por um serviço que não passou no health-check "
+                        "do NutriLab ou usa outro banco. Nenhum processo desconhecido será encerrado."
+                    )
+            except OSError:
+                pass
+
+            if self._mobile_encerrando.is_set():
+                return
+
+            caminho_servidor = os.path.join(get_base_path(), "mobile", "servidor.py")
+            if not os.path.isfile(caminho_servidor):
+                caminho_servidor = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)), "mobile", "servidor.py"
+                )
             spec = importlib.util.spec_from_file_location("nutrilab_servidor_mobile", caminho_servidor)
             if spec is None or spec.loader is None:
                 raise RuntimeError("Não foi possível carregar mobile/servidor.py.")
             modulo = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(modulo)
 
-            # O servidor, o painel desktop e a integração devem apontar para o mesmo banco.
-            caminho_db = im.caminho_mobile_db(caminho_do_banco(), get_base_path())
+            # O banco é preparado antes de abrir o socket, evitando API sem esquema inicializado.
             senha_inicial = modulo.preparar_banco(caminho_db, False)
-            # Suba a API antes de exibir o aviso modal da primeira senha: a janela não deve
-            # atrasar o servidor nem impedir que o celular alcance a tela de login.
+            if self._mobile_encerrando.is_set():
+                return
+
             servidor = modulo.criar_servidor(caminho_db, 8765, "0.0.0.0")
-            thread = threading.Thread(target=servidor.serve_forever, name="NutriLabMobile", daemon=True)
-            thread.start()
-            self._servidor_mobile = servidor
-            self._thread_servidor_mobile = thread
+            thread = threading.Thread(
+                target=servidor.serve_forever, name="NutriLabMobile", daemon=True
+            )
+            # O lock fecha a corrida entre registrar/iniciar o servidor e o fechamento da janela.
+            with self._mobile_lock:
+                if self._mobile_encerrando.is_set():
+                    servidor.server_close()
+                    return
+                self._servidor_mobile = servidor
+                self._thread_servidor_mobile = thread
+                thread.start()
+
+            if not mobile_server_health.wait_for_server_health(
+                url_health, timeout=3.0, interval=0.15, expected_db=caminho_db
+            ):
+                raise RuntimeError(
+                    "O servidor foi iniciado, mas não respondeu ao health-check em até 3 segundos."
+                )
+            self._mobile_resultados.put(("ok", "Banco preparado e API pronta para receber conexões.", senha_inicial))
+        except Exception as erro:
+            if servidor is not None and not self._mobile_encerrando.is_set():
+                with self._mobile_lock:
+                    if not self._mobile_encerrando.is_set():
+                        self._parar_servidor_mobile_worker(servidor, thread)
+                        if self._servidor_mobile is servidor:
+                            self._servidor_mobile = None
+                            self._thread_servidor_mobile = None
+            if not self._mobile_encerrando.is_set():
+                try:
+                    pasta_logs = os.path.join(
+                        os.path.dirname(os.path.abspath(
+                            sys.executable if getattr(sys, "frozen", False) else __file__
+                        )), "logs"
+                    )
+                    os.makedirs(pasta_logs, exist_ok=True)
+                    with open(
+                        os.path.join(pasta_logs, "servidor_mobile.log"), "a", encoding="utf-8"
+                    ) as registro:
+                        registro.write(
+                            f"\\n[{datetime.now().isoformat(timespec='seconds')}] "
+                            f"Inicialização mobile falhou: {type(erro).__name__}: {erro}\\n"
+                        )
+                except OSError:
+                    pass
+                if tentativa < 3:
+                    atraso = 1.5 * tentativa
+                    print(
+                        "NutriLab Mobile: tentativa %d/3 falhou; nova tentativa em %.1f s: %s"
+                        % (tentativa, atraso, erro)
+                    )
+                    # Event.wait() retorna True quando o fechamento cancela a espera.
+                    # Nesse caso, não deve haver nova tentativa nem mensagem de erro na UI.
+                    if self._mobile_encerrando.wait(atraso):
+                        return
+                    return self._iniciar_servidor_mobile_worker(tentativa + 1)
+                self._mobile_resultados.put(("erro", str(erro), None))
+
+    def _processar_resultado_servidor_mobile(self):
+        """Atualiza o estado e exibe avisos exclusivamente na thread principal."""
+        if self._mobile_encerrando.is_set():
+            return
+        try:
+            tipo, detalhe, senha_inicial = self._mobile_resultados.get_nowait()
+        except queue.Empty:
+            self._mobile_poll_id = self.after(150, self._processar_resultado_servidor_mobile)
+            return
+
+        if tipo == "ok":
+            self._mobile_status = "pronto"
+            print("NutriLab Mobile:", detalhe)
             if senha_inicial:
                 messagebox.showinfo(
                     "Acesso inicial ao NutriLab Mobile",
-                    "Foi criado o usuário administrador do servidor mobile.\n\n"
-                    f"Usuário: admin\nSenha inicial: {senha_inicial}\n\n"
+                    "Foi criado o usuário administrador do servidor mobile.\\n\\n"
+                    f"Usuário: admin\\nSenha inicial: {senha_inicial}\\n\\n"
                     "Altere a senha após o primeiro acesso e guarde-a em local seguro."
                 )
-        except OSError as erro:
+        else:
+            self._mobile_status = "indisponivel"
             messagebox.showwarning(
                 "Servidor mobile indisponível",
-                "Não foi possível iniciar o servidor mobile na porta 8765. "
-                "Os módulos que não dependem dele continuarão disponíveis.\n\n"
-                f"Detalhe: {erro}"
-            )
-        except Exception as erro:
-            messagebox.showwarning(
-                "Servidor mobile indisponível",
-                "O NutriLab continuará funcionando, mas a integração mobile não foi iniciada.\n\n"
-                f"Detalhe: {erro}"
+                "A Clínica continuará aberta, mas a sincronização mobile não está disponível. "
+                "O erro foi registrado em logs/servidor_mobile.log quando possível.\\n\\n"
+                f"Detalhe: {detalhe}"
             )
 
+    @staticmethod
+    def _parar_servidor_mobile_worker(servidor, thread):
+        """Para um servidor ainda sob responsabilidade do worker."""
+        try:
+            if thread is not None and thread.is_alive():
+                servidor.shutdown()
+            servidor.server_close()
+            if thread is not None and thread.is_alive():
+                thread.join(timeout=2.0)
+        except Exception:
+            pass
+
     def _encerrar_servidor_mobile(self):
-        """Encerra somente o servidor criado por esta instância do desktop."""
-        servidor = getattr(self, "_servidor_mobile", None)
+        """Cancela a inicialização pendente e encerra apenas o servidor desta instância."""
+        self._mobile_encerrando.set()
+        poll_id = getattr(self, "_mobile_poll_id", None)
+        if poll_id is not None:
+            try:
+                self.after_cancel(poll_id)
+            except (tk.TclError, RuntimeError):
+                pass
+            self._mobile_poll_id = None
+
+        # Aguarda o worker de inicialização (preparação do banco/health-check) de forma
+        # limitada; o Event acima cancela as esperas de retry e impede novas inicializações.
+        worker_startup = getattr(self, "_thread_inicializacao_mobile", None)
+        if worker_startup is not None and worker_startup.is_alive() and worker_startup is not threading.current_thread():
+            worker_startup.join(timeout=2.0)
+            if worker_startup.is_alive():
+                print("NutriLab Mobile: worker de inicialização não encerrou dentro de 2 segundos.")
+
+        # O lock impede que o worker registre/inicie um servidor após o início do fechamento.
+        lock = getattr(self, "_mobile_lock", None)
+        if lock is None:
+            servidor = getattr(self, "_servidor_mobile", None)
+            thread = getattr(self, "_thread_servidor_mobile", None)
+        else:
+            with lock:
+                servidor = getattr(self, "_servidor_mobile", None)
+                thread = getattr(self, "_thread_servidor_mobile", None)
+                self._servidor_mobile = None
+                self._thread_servidor_mobile = None
+
         if servidor is not None:
             try:
                 servidor.shutdown()
@@ -273,7 +419,11 @@ class AppClinica(ctk.CTk):
                 servidor.server_close()
             except Exception:
                 pass
-            self._servidor_mobile = None
+        # Aguarda o loop HTTP terminar antes de destruir a interface e liberar o processo.
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=2.0)
+            if thread.is_alive():
+                print("NutriLab Mobile: servidor não encerrou dentro do prazo de 2 segundos.")
 
     def _encerrar_e_destruir(self):
         self._encerrando_app = True

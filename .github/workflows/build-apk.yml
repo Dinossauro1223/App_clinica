@@ -52,6 +52,9 @@ jobs:
       - name: End-to-end HTTP transfer — phone/server to desktop clinical database
         run: python -m unittest discover -s tests -p "test_mobile_http_e2e.py" -v
 
+      - name: Test automatic server startup health-check
+        run: python -m unittest discover -s tests -p "test_mobile_server_startup.py" -v
+
       - name: Publish APK artifact
         uses: actions/upload-artifact@v4
         with:
