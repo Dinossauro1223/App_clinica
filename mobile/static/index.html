@@ -46,6 +46,9 @@ label.f{display:block;font-size:.85rem;color:var(--suave);margin-bottom:8px}
 .barra{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:var(--papel);border-top:1px solid var(--linha)}
 .barra .btn{display:block;width:100%;max-width:600px;margin:0 auto}body.adm .barra .btn{max-width:1100px}
 .aviso{padding:10px 12px;border-radius:8px;margin-bottom:10px;background:#e6ece8}.aviso.erro{background:var(--alerta-bg);color:var(--alerta);font-weight:600}
+#conexao{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;background:#e6ece8;color:#24533d;font-size:.84rem;font-weight:700}
+#conexao.off{background:var(--alerta-bg);color:var(--alerta)}#conexao.wait{background:#fff3d6;color:#795400}
+#conexao small{font-weight:500;opacity:.85}
 .alerta{border-left:5px solid var(--alerta)}
 .nums{font-variant-numeric:tabular-nums;font-size:1.5rem;font-weight:800}
 .mini{font-size:.85rem;color:var(--suave)}
@@ -145,16 +148,39 @@ header .sub span{min-width:0;overflow-wrap:anywhere}
     suplementos:(l.suplementos||[]).map(s=>({id_suplemento:s.id_suplemento,nome:s.nome,ml_oferta:Number(s.ml_oferta||0),
       agua_ml:Number(s.agua_ml||0),refeicoes:s.refeicoes||[],qtd_dia:Number(s.qtd_dia||0),batido_fruta:!!s.batido_fruta}))
   });
+  // BEGIN OFFLINE MAP CONFLICT HELPERS (also exercised by Node tests)
+  function idsMapa(linhas){return (linhas||[]).map(l=>String(l.id_leito)).sort();}
+  function baseCompletaMapa(body,base){
+    if(!base||!Object.keys(base).length)return false;
+    const enviados=idsMapa(body.linhas),referencia=Object.keys(base).sort();
+    return enviados.length>0&&enviados.length===referencia.length&&enviados.every((id,i)=>id===referencia[i]);
+  }
+  function contarConflitosMapa(base,linhas,snapshotFn){
+    const idsBase=Object.keys(base||{}).sort(),idsAtuais=idsMapa(linhas),atuais=new Set(idsAtuais),anteriores=new Set(idsBase);
+    let total=0;
+    for(const id of idsBase)if(!atuais.has(id))total++;
+    for(const id of idsAtuais)if(!anteriores.has(id))total++;
+    for(const id of idsBase){
+      if(!atuais.has(id))continue;
+      const atual=(linhas||[]).find(l=>String(l.id_leito)===id);
+      if(!atual||snapshotFn(atual)!==snapshotFn(base[id]))total++;
+    }
+    return total;
+  }
+  // END OFFLINE MAP CONFLICT HELPERS
+
   function guardarFila(path,body){
     const q=queue(),key=path+'|'+(body.setor||'')+'|'+(body.data||'');
     let base=null;
     if(path==='/api/mapa'){
       const url=`/api/mapa?setor=${encodeURIComponent(body.setor||'')}&data=${encodeURIComponent(body.data||'')}`;
       try{
-        const old=JSON.parse(read('GET:'+url)||'{}');base={};
+        const old=JSON.parse(read('GET:'+url)||'{}'),anteriores=old.linhas||[];base={};
+        // Guarda o mapa remoto inteiro, não apenas os leitos presentes no envio.
+        // Assim, inclusões e remoções concorrentes também entram na comparação.
+        for(const prev of anteriores)base[String(prev.id_leito)]=prev;
         for(const l of body.linhas||[]){
-          const prev=(old.linhas||[]).find(x=>String(x.id_leito)===String(l.id_leito));
-          if(prev)base[l.id_leito]=prev;
+          const prev=anteriores.find(x=>String(x.id_leito)===String(l.id_leito));
           if(l.nome){
             const mesma=prev&&String(prev.nome||'').trim().toLowerCase()===String(l.nome).trim().toLowerCase();
             const idDiferente=prev&&String(prev.id_paciente||'')!==String(l.id_paciente||'');
@@ -163,13 +189,15 @@ header .sub span{min-width:0;overflow-wrap:anywhere}
             else{l.id_paciente=null;l.id_ocupacao='offline:'+Date.now()+'-'+Math.random().toString(36).slice(2)}
           }else{l.id_ocupacao=null;l.id_paciente=null}
         }
-      }catch(e){}
+      }catch(e){base=null;}
     }
     const user=read('user');
     let userId=null;try{userId=JSON.parse(user||'{}').usuario?.id||null}catch(e){}
-    const entry={path,body,base,userId,criado_em:new Date().toISOString()};
+    const operationId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('nl-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+    const baseCompleta=path==='/api/mapa'&&baseCompletaMapa(body,base);
+    const entry={path,body,base,baseCompleta,userId,operationId,criado_em:new Date().toISOString()};
     const ix=path==='/api/mapa'?q.findIndex(x=>x.path===path&&x.body.setor===body.setor&&x.body.data===body.data):-1;
-    if(ix>=0){entry.base=q[ix].base;entry.userId=q[ix].userId;q[ix]=entry}else q.push(entry);
+    if(ix>=0){entry.base=q[ix].base;entry.baseCompleta=q[ix].baseCompleta;entry.userId=q[ix].userId;q[ix]=entry}else q.push(entry);
     write('queue',JSON.stringify(q));
     if(path==='/api/mapa'){
       const url=`/api/mapa?setor=${encodeURIComponent(body.setor||'')}&data=${encodeURIComponent(body.data||'')}`;
@@ -223,32 +251,32 @@ header .sub span{min-width:0;overflow-wrap:anywhere}
     return fetchOnline(input,init);
   };
 
-  let adiado=false,modal=null;
+  let adiado=false,modal=null,sincronizando=false,ultimoErro='';
+  const idOperacao=item=>item.operationId||(item.operationId='nl-'+Date.now()+'-'+Math.random().toString(36).slice(2));
   async function servidorAcessivel(){
     try{
       const token=window.NL&&window.NL.token?window.NL.token():'';
       const r=await fetchOnline('/api/eu',{headers:token?{Authorization:'Bearer '+token}:{}});
-      return r.status===200||r.status===401;
+      if(r.status===401){if(window.NL&&window.NL.expired)window.NL.expired();return false}
+      return r.status===200;
     }catch(e){return false}
   }
   async function conflitos(q){
     let total=0,cache={};
     for(const item of q){
-      if(item.path!=='/api/mapa'||!item.base)continue;
+      if(item.path!=='/api/mapa')continue;
+      if(!item.baseCompleta||!item.base||!Object.keys(item.base).length)return -1;
       const key=String(item.body.setor)+'|'+String(item.body.data);
       if(!cache[key]){
         try{
           const token=window.NL&&window.NL.token?window.NL.token():'';
           const url=`/api/mapa?setor=${encodeURIComponent(item.body.setor||'')}&data=${encodeURIComponent(item.body.data||'')}`;
           const r=await fetchOnline(url,{headers:token?{Authorization:'Bearer '+token}:{}});
-          if(!r.ok)continue;cache[key]=await r.json();
-        }catch(e){continue}
+          if(!r.ok)return null;cache[key]=await r.json();
+        }catch(e){return null}
       }
       const linhas=cache[key].linhas||[];
-      for(const id of Object.keys(item.base)){
-        const atual=linhas.find(l=>String(l.id_leito)===String(id));
-        if(!atual||snapshot(atual)!==snapshot(item.base[id]))total++;
-      }
+      total+=contarConflitosMapa(item.base,linhas,snapshot);
     }
     return total;
   }
@@ -257,7 +285,8 @@ header .sub span{min-width:0;overflow-wrap:anywhere}
     fechar();
     modal=document.createElement('div');modal.className='modal';
     modal.style.cssText='position:fixed;inset:0;z-index:99999;background:#0009;display:flex;align-items:center;justify-content:center;padding:16px';
-    const texto=nConflitos?`${nConflitos} leito(s) também foram alterados no servidor desde a última cópia local. Confira as diferenças antes de enviar. O servidor continuará aplicando suas regras de autorização.`:
+    const texto=nConflitos<0?'Não havia uma cópia anterior completa para comparar este mapa. Revise os dados com atenção antes de decidir pelo envio.':
+      nConflitos?`${nConflitos} divergência(s) foram encontradas no mapa do servidor desde a última cópia local (alterações, inclusões ou remoções de leitos). Confira as diferenças antes de enviar. O servidor continuará aplicando suas regras de autorização.`:
       'Há alterações feitas sem conexão que ainda não foram enviadas ao servidor.';
     modal.innerHTML=`<div class=caixa style="max-width:520px;width:100%;background:white;padding:20px;border-radius:12px">
       <h2 style="margin-top:0">Sincronização pendente</h2><p>${texto}</p><p class=mini>${q.length} operação(ões) aguardando envio.</p>
@@ -275,7 +304,8 @@ header .sub span{min-width:0;overflow-wrap:anywhere}
         if(atual.some(x=>x.userId&&uid&&x.userId!==uid))throw new Error('As alterações pendentes pertencem a outro usuário. Entre com a conta que as criou.');
         for(let i=0;i<atual.length;i++){
           const item=atual[i];
-          const r=await fetchOnline(item.path,{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(item.body)});
+          write('queue',JSON.stringify(atual));
+          const r=await fetchOnline(item.path,{method:'POST',headers:{'Content-Type':'application/json','X-Nutrilab-Operation-Id':idOperacao(item),...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(item.body)});
           if(r.status===401){fechar();if(window.NL&&window.NL.expired)window.NL.expired();return}
           const j=await r.json().catch(()=>({}));
           if(!r.ok)throw new Error(j.erro||'O servidor recusou uma atualização.');
@@ -293,13 +323,45 @@ header .sub span{min-width:0;overflow-wrap:anywhere}
       if(window.NL&&window.NL.aviso)window.NL.aviso('Cópia local descartada. Os dados serão carregados do servidor.',false);
     };
   }
-  async function ready(){
-    const q=queue();
-    if(!q.length||adiado||modal)return;
-    if(!(await servidorAcessivel()))return;
-    const n=await conflitos(q);mostrar(q,n);
+  async function enviarAutomaticamente(q){
+    if(sincronizando||!q.length)return;
+    sincronizando=true;ultimoErro='';
+    const token=window.NL&&window.NL.token?window.NL.token():'';
+    const uid=window.NL&&window.NL.userId?window.NL.userId():null;
+    try{
+      if(q.some(x=>x.userId&&uid&&x.userId!==uid))
+        throw new Error('As alterações pendentes pertencem a outro usuário. Entre com a conta que as criou.');
+      for(const item of q){
+        const operationId=idOperacao(item);
+        write('queue',JSON.stringify(q));
+        const r=await fetchOnline(item.path,{method:'POST',headers:{
+          'Content-Type':'application/json','X-Nutrilab-Operation-Id':operationId,
+          ...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(item.body)});
+        if(r.status===401){if(window.NL&&window.NL.expired)window.NL.expired();return}
+        const j=await r.json().catch(()=>({}));
+        if(!r.ok)throw new Error(j.erro||'O servidor recusou uma atualização.');
+        const atual=queue(),ix=atual.findIndex(x=>idOperacao(x)===operationId);
+        if(ix>=0){atual.splice(ix,1);write('queue',JSON.stringify(atual))}
+      }
+      if(window.NL&&window.NL.refresh)await window.NL.refresh();
+      if(window.NL&&window.NL.aviso)window.NL.aviso('Alterações locais sincronizadas com o servidor.',false);
+    }catch(e){ultimoErro=e.message}
+    finally{sincronizando=false}
   }
-  window.NLOffline={get:read,set:write,remove,clearData,ready,pendentes:()=>queue().length};
+  async function ready(){
+    if(!window.NL||!window.NL.userId||!window.NL.userId())return;
+    const q=queue();
+    if(!q.length||adiado||modal||sincronizando)return;
+    if(!(await servidorAcessivel()))return;
+    const n=await conflitos(q);
+    if(n===null)return;
+    // Sem uma base completa não é possível garantir que o mapa não tenha divergências.
+    // Nessa situação, assim como quando há conflitos, o envio exige confirmação humana.
+    if(n<0||n>0){mostrar(q,n);return}
+    await enviarAutomaticamente(q);
+  }
+  window.NLOffline={get:read,set:write,remove,clearData,ready,pendentes:()=>queue().length,
+    sincronizando:()=>sincronizando,erro:()=>ultimoErro,temPendente:path=>queue().some(x=>x.path===path)};
 const lerTemaMobile=()=>{try{return (window.NLOffline&&NLOffline.get('aparencia'))||localStorage.getItem('nl:aparencia')||'sistema'}catch(e){return 'sistema'}};
 function aplicaTemaMobile(valor,salvar=true){const tema=['sistema','claro','escuro'].includes(valor)?valor:'sistema';document.documentElement.dataset.tema=tema;if(salvar){try{if(window.NLOffline&&NLOffline.set)NLOffline.set('aparencia',tema);else localStorage.setItem('nl:aparencia',tema)}catch(e){}}document.querySelectorAll('.tema-controle').forEach(sel=>{if(sel.value!==tema)sel.value=tema});}
 function lerEscalaTextoMobile(){try{return Math.max(50,Math.min(200,Math.round((Number((window.NLOffline&&NLOffline.get('escalaTexto'))||localStorage.getItem('nl:escalaTexto')||100)||100)/10)*10))}catch(e){return 100}}
@@ -313,7 +375,7 @@ aplicaEscalaTextoMobile(lerEscalaTextoMobile(),false);
 </script>
 <script>
 const $=s=>document.querySelector(s),esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),v=x=>x==null?'':x;
-const S={tok:null,u:null,hoje:'',aba:'',setor:'',est:'almox',data:'',setores:[],itens:[],suplementos:[],timer:null};
+const S={tok:null,u:null,hoje:'',aba:'',setor:'',est:'almox',data:'',setores:[],itens:[],suplementos:[],timer:null,statusTimer:null};
 try{S.tok=(window.NLOffline&&NLOffline.get('token'))||sessionStorage.getItem('tok')}catch(e){}
 const NOME={admin:'Administrador',nutricionista:'Nutrição',copa:'Copa',estoque_cozinha:'Cozinha',estoque_almox:'Almoxarifado'};
 const COR={admin:'#0f4c5c',nutricionista:'#2f7d4f',copa:'#a85f00',estoque_cozinha:'#b5391f',estoque_almox:'#4b3f8f'};
@@ -335,11 +397,58 @@ async function api(p,b){
   $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${temaSelectHtml()}${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
 }
 function aviso(t,erro){const a=$('#aviso');if(a){a.innerHTML=t?`<div class="aviso ${erro?'erro':''}">${esc(t)}</div>`:'';if(t)scrollTo(0,0)}}
+async function atualizarConexao(){
+  const el=$('#conexao');if(!el)return;
+  const pendentes=window.NLOffline?NLOffline.pendentes():0;
+  try{
+    const j=await api('/api/status');
+    if(j.__offline)throw new Error('cache');
+    if(S.u&&S.u.perfil==='admin'&&j.ip_lan&&j.ip_lan!==j.ip_registrado&&
+       !(window.NLOffline&&NLOffline.temPendente('/api/admin/rede/registrar'))){
+      try{const salvo=await api('/api/admin/rede/registrar',{});if(!salvo.queued)j.ip_registrado=j.ip_lan}catch(e){}
+    }
+    const erroSync=window.NLOffline?NLOffline.erro():'';
+    if(window.NLOffline&&NLOffline.sincronizando()){
+      el.className='wait';el.innerHTML='<span>↻ Sincronizando alterações</span><small>'+pendentes+' pendente(s)</small>';
+    }else if(erroSync){
+      el.className='wait';el.innerHTML='<span>● Conectado, mas há sincronização pendente</span><small>'+esc(erroSync)+'</small>';
+    }else{
+      const remoto=j.url_tailscale?' · Acesso remoto (Tailscale): '+esc(j.url_tailscale):'';
+      el.className='';el.innerHTML='<span>● Conectado ao servidor da clínica</span><small>'+(pendentes?pendentes+' pendente(s) · IP: ':'IP: ')+esc(j.ip_lan||'detectado')+remoto+'</small>';
+    }
+  }catch(e){
+    el.className='off';el.innerHTML='<span>● Desconectado — modo local</span><small>'+(pendentes?pendentes+' alteração(ões) aguardando envio':'Alterações ficam salvas neste aparelho')+'</small>';
+    if(window.Android&&typeof Android.descobrirServidorAutomaticamente==='function')Android.descobrirServidorAutomaticamente();
+  }
+}
+async function copiarEnderecoRemoto(endereco){
+  if(!endereco){aviso('O Tailscale não está conectado neste computador.',1);return}
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(endereco);
+    }else{
+      const campo=document.createElement('textarea');campo.value=endereco;
+      campo.setAttribute('readonly','');campo.style.position='fixed';campo.style.opacity='0';
+      document.body.appendChild(campo);campo.select();
+      const ok=document.execCommand('copy');campo.remove();
+      if(!ok)throw new Error('Cópia automática indisponível. Selecione e copie o endereço manualmente.');
+    }
+    aviso('Endereço Tailscale copiado: '+endereco+'. Instale o Tailscale no celular, entre na mesma rede e use este endereço para conectar.',0);
+  }catch(e){aviso(e.message||'Não foi possível copiar. Endereço: '+endereco,1)}
+}
+async function registrarRedeLocal(){
+  try{
+    const j=await api('/api/admin/rede/registrar',{});
+    if(j.queued){aviso('Servidor indisponível. O pedido de registro ficará pendente neste aparelho.',0);return}
+    aviso('Endereço da rede local registrado: '+j.ip_lan+'.',0);await atualizarConexao();
+  }catch(e){aviso(e.message,1)}
+}
 const tenta=f=>async(...a)=>{try{await f(...a)}catch(e){aviso(e.message,1)}};
-function sair(){clearInterval(S.timer);S.tok=null;S.u=null;try{sessionStorage.removeItem('tok');if(window.NLOffline){NLOffline.remove('token');NLOffline.remove('user')}}catch(e){}telaLogin()}
+function sair(){clearInterval(S.timer);clearInterval(S.statusTimer);S.tok=null;S.u=null;try{sessionStorage.removeItem('tok');if(window.NLOffline){NLOffline.remove('token');NLOffline.remove('user')}}catch(e){}telaLogin()}
 function telaLogin(msg){
   document.documentElement.style.setProperty('--cor','#0f4c5c');document.body.className='';
-  $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
+  $('#app').innerHTML=`<div id=entrada><h1>NutriLab</h1><p class=mini>Serviço de Nutrição — acesso da equipe</p>
+  <div id=conexao class=wait><span>● Verificando conexão…</span><small> </small></div>${msg?`<div class="aviso erro">${esc(msg)}</div>`:''}
   <label class=f>Login<input type=text id=lg autocapitalize=none autocomplete=username></label>
   <label class=f>Senha<input type=password id=sn autocomplete=current-password></label>
   <button class=btn style="width:100%" onclick="entrar()">Entrar</button>
@@ -354,6 +463,7 @@ function telaLogin(msg){
    <button class="btn sec" style="margin-top:6px" onclick="fecharLeitorQR()">Cancelar</button>
   </section></div><footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   $('#sn').onkeydown=e=>{if(e.key==='Enter')entrar()};
+  atualizarConexao();clearInterval(S.statusTimer);S.statusTimer=setInterval(atualizarConexao,15000);
 }
 
 let qrStream=null, qrLoop=null;
@@ -470,10 +580,11 @@ async function entrar(){
     }catch(e){abasAtivas=abasAtivas.filter(a=>a[0]!=='menu')}
   }
   $('#app').innerHTML=`<header><h1>${esc(NOME[u.perfil])}</h1><div class=sub><span>${esc(u.nome+sub)} · hoje, ${br(hoje)}</span><button onclick="sair()">Sair</button></div></header>
+  <div id=conexao class=wait><span>● Verificando conexão…</span><small> </small></div>
   <nav>${abasAtivas.map(a=>`<button data-a=${a[0]} onclick="ir('${a[0]}')">${a[1]}</button>`).join('')}</nav><main><div id=aviso></div><div id=vista></div></main>
   <footer class=creditos>Créditos: Thiago S. Santos e Neis B. Alencar · NutriLab 2026</footer>`;
   ir(abasAtivas[0]?.[0]||'painel');
-  verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
+  verAvisos();clearInterval(S.timer);S.timer=setInterval(verAvisos,60000);clearInterval(S.statusTimer);atualizarConexao();S.statusTimer=setInterval(()=>{atualizarConexao();if(S.u&&window.NLOffline)NLOffline.ready()},15000);if(window.NLOffline)setTimeout(()=>NLOffline.ready(),500);
 }
 const ir=tenta(async aba=>{
   S.aba=aba;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.a===aba));aviso('');
@@ -568,9 +679,12 @@ async function vMenuDia(){
       const foto=(tipo,titulo)=>imgs[tipo]?.data_url?'<figure style="margin:8px 0"><img loading=lazy src="'+imgs[tipo].data_url+'" alt="'+titulo+'" style="width:100%;max-height:240px;object-fit:contain;border-radius:8px"><figcaption class=mini>'+titulo+'</figcaption></figure>':'';
       const ing=ingredientes.length?'<h4>Ingredientes por porção</h4><ul>'+ingredientes.map(i=>'<li>'+esc(i.nome)+': '+esc(i.qtd_per_capita)+' '+esc(i.unidade)+'</li>').join('')+'</ul>':'';
       const prep=etapas.length?'<h4>Modo de preparo</h4><ol>'+etapas.map(e=>'<li>'+esc(e.instrucao)+'</li>').join('')+'</ol>':'';
-      const registro=registros.find(x=>String(x.id_preparacao_dia)===String(p.id_preparacao_dia));
+      const versaoAtual=Number(r.snapshot?.versao||1);
+      const registroAnterior=registros.find(x=>String(x.id_preparacao_dia)===String(p.id_preparacao_dia));
+      const registro=registros.find(x=>String(x.id_preparacao_dia)===String(p.id_preparacao_dia)&&Number(x.versao_publicacao||1)===versaoAtual);
+      const registroVersaoAnterior=!!registroAnterior&&!registro;
       const cubas=registro?.cubas?.length?registro.cubas:[{}];
-      const resumoRegistro=registro?'<p class=mini>Produção registrada: '+esc(registro.porcoes_produzidas??'não informada')+' produzida(s) · '+esc(registro.porcoes_faltantes??0)+' faltante(s) · '+esc(registro.cubas?.length??0)+' cuba(s) · responsável: '+esc(registro.usuario||'—')+'</p>':'';
+      const resumoRegistro=registro?'<p class=mini>Produção registrada para a versão '+esc(registro.versao_publicacao||1)+': '+esc(registro.porcoes_produzidas??'não informada')+' produzida(s) · '+esc(registro.porcoes_faltantes??0)+' faltante(s) · '+esc(registro.cubas?.length??0)+' cuba(s) · responsável: '+esc(registro.usuario||'—')+'</p>':(registroVersaoAnterior?'<p class=mini>Existe produção registrada para a versão '+esc(registroAnterior.versao_publicacao||1)+'. Esta é a versão '+esc(versaoAtual)+'; revise e registre novamente a produção.</p>':'');
       const formProducao=podeRegistrar?'<section class="cartao prod-mob"><h4>Registro de produção</h4>'+
         '<form onsubmit="salvarProducaoMobile(event,'+Number(p.id_preparacao_dia)+',\''+esc(r.refeicao)+'\')">'+
         '<div class="filtros"><label class=f>Porções produzidas<input name=produzidas type=number min=0 step=0.1 value="'+esc(registro?.porcoes_produzidas??'')+'"></label>'+
@@ -587,7 +701,7 @@ async function vMenuDia(){
         foto('porcao_individual','Porção individual')+foto('recipiente_cheio','Recipiente cheio')+ing+prep+resumoRegistro+formProducao+'</details>';
     }).join('');
     return '<section class=cartao><h3>'+esc(nomes[r.refeicao]||r.refeicao)+'</h3>'+
-      '<p class=mini>Publicado em '+esc(r.publicado_em||'—')+'</p>'+
+      '<p class=mini>Versão '+esc(r.snapshot?.versao??1)+' · publicado em '+esc(r.publicado_em||'—')+'</p>'+
       (conteudo||'<p class=mini>Nenhuma preparação cadastrada.</p>')+'</section>';
   }).join('');
   $('#vista').innerHTML='<div class=cartao><div class=filtros><label class=f>Data<input type=date value="'+esc(S.data)+'" onchange="S.data=this.value||S.hoje;ir(\'menu\')"></label></div>'+
@@ -961,9 +1075,16 @@ async function verAvisos(){
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)verAvisos()});
 /* ---------- Cadastros (admin) ---------- */
 async function vCad(){
-  const [u,r]=await Promise.all([api('/api/admin/usuarios'),api('/api/admin/refeicoes')]);
+  const [u,r,rede]=await Promise.all([api('/api/admin/usuarios'),api('/api/admin/refeicoes'),api('/api/status').catch(()=>({}))]);
   const opSet=(sel,vazio)=>`<option value="">${vazio}</option>`+S.setores.map(s=>`<option value=${s.id} ${s.id===sel?'selected':''}>${esc(s.nome)}</option>`).join('');
-  $('#vista').innerHTML=`<div class=grade><div class=cartao><h2 style="margin-top:0">Novo usuário</h2>
+  $('#vista').innerHTML=`<div class=grade><div class=cartao><h2 style="margin-top:0">Rede local e servidor</h2>
+  <p class=mini>Endereço detectado automaticamente no computador que está executando o servidor. Após reiniciar o roteador, registre novamente se o IP mudar.</p>
+  <p><b>IP atual:</b> ${esc(rede.ip_lan||'Não detectado')}</p><p class=mini><b>Último IP registrado:</b> ${esc(rede.ip_registrado||'Ainda não registrado')}</p>
+  <p><b>Acesso remoto (Tailscale):</b> ${esc(rede.url_tailscale||'Não conectado')}</p>
+  <button class="btn sec" ${rede.url_tailscale?'':'disabled'} onclick="copiarEnderecoRemoto('${esc(rede.url_tailscale||'')}')">Copiar endereço remoto</button>
+  <p class=mini>Para usar fora do Wi-Fi da clínica, instale o Tailscale no celular, entre na mesma rede privada e informe o endereço copiado na opção “Escanear QR code” → endereço manual. Não abra a porta do servidor diretamente na internet.</p>
+  <button class=btn onclick="registrarRedeLocal()">Registrar IP atual da rede</button></div>
+  <div class=cartao><h2 style="margin-top:0">Novo usuário</h2>
   <h2 class=admin-grupo>Monitoramento e auditoria</h2><div class=cartao><h2 style="margin-top:0">Atividade de atualização dos mapas</h2>
   <label class=f>Perfil<select id=np onchange="$('#ns').parentNode.style.display=(this.value==='nutricionista')?'block':'none'">${Object.keys(NOME).map(k=>`<option value=${k}>${NOME[k]}${k==='copa'?' (copeira: mapa compartilhado, refeições e estoque da copa)':k==='nutricionista'?' (publica mapa, avisos, horários)':''}</option>`).join('')}</select></label>
   <label class=f style="display:none">Setor da nutrição (vazio = todos os setores)<select id=ns>${opSet(null,'— todos os setores —')}</select></label>

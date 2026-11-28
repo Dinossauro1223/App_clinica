@@ -1,5 +1,7 @@
 # Copyright (c) 2026 Neis Bila de Alencar. Todos os direitos reservados.
 import customtkinter as ctk
+import importlib.util
+import types
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import sqlite3
@@ -7,12 +9,13 @@ import os
 import math
 import threading
 import socket
-import importlib.util
 import json
 import shutil
 import sys
 import platform
 import re
+import urllib.request
+import traceback
 from datetime import datetime
 from fpdf import FPDF
 from PIL import Image
@@ -32,6 +35,7 @@ import ambulatorial
 import pediatria_oms as oms
 import atualizador
 import ui_motion
+import ui_workers
 from backup_manager import BackupManager
 from ambulatorial_ui import PainelConsultaEstruturada, DialogoAssociacoesExames
 
@@ -144,6 +148,8 @@ class AppClinica(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
 
         self.configurar_banco_dados()
+        # Sobe o servidor assim que o banco principal está pronto, antes da montagem de telas pesadas.
+        self._iniciar_servidor_mobile()
 
         # Mapa Nutricional: usa o mesmo banco da tela Pacientes (get_base_path) para unificar os dados.
         db_mapa = caminho_do_banco()
@@ -165,7 +171,7 @@ class AppClinica(ctk.CTk):
 
         # --- NAVEGAÇÃO PRINCIPAL + PAINEL DE EDIÇÃO REDIMENSIONÁVEL ---
         self.area_principal_host = ctk.CTkFrame(self, corner_radius=10, fg_color=tema.FUNDO)
-        self.area_principal_host.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
+        self.area_principal_host.grid(row=0, column=1, padx=20, pady=(34, 20), sticky="nsew")
         self._layout_principal = ttk.Panedwindow(self.area_principal_host, orient=tk.HORIZONTAL)
         self._layout_principal.pack(fill="both", expand=True)
         self._pagina_host = ctk.CTkFrame(self._layout_principal, fg_color="transparent")
@@ -202,33 +208,168 @@ class AppClinica(ctk.CTk):
             config=("⚙️", "Configurações", lambda: self.abrir_pagina_principal("Configurações", self.tela_configuracoes)),
             rodape="© 2026 Neis Bila de Alencar. Todos os direitos reservados."
         )
+        # Faixa persistente: o funcionário identifica o estado do servidor sem abrir Configurações.
+        self._barra_status_conexao = ctk.CTkFrame(
+            self, height=26, corner_radius=0, fg_color=tema.BRANCO,
+            border_width=1, border_color=tema.BORDA
+        )
+        self._barra_status_conexao.place(x=58, y=0, relwidth=1, width=-58, height=26)
+        self._lbl_status_conexao = ctk.CTkLabel(
+            self._barra_status_conexao, text="● Verificando servidor da clínica…",
+            font=tema.fonte(11, "bold"), text_color=tema.SUAVE, anchor="w"
+        )
+        self._lbl_status_conexao.pack(fill="both", expand=True, padx=12)
         self.bind("<Escape>", self._fechar_ultima_aba_lateral, add="+")
         self.tela_inicial()
         self._iniciar_backups()
-        self._iniciar_servidor_mobile()
+        self._sincronizacao_mobile_em_andamento = False
+        self._sincronizacao_mobile_propostas = 0
+        self._sincronizacao_mobile_erro = ""
+        self._sincronizacao_mobile_concluida = False
+        self.after(500, self._atualizar_status_conexao)
+        self.after(8000, self._sincronizar_mobile_periodicamente)
         # Consulta GitHub em segundo plano; indisponibilidade não bloqueia a abertura nem altera dados.
         self.after(1200, lambda: atualizador.iniciar_verificacao(self, self._resultado_atualizacao))
 
+
+    def _atualizar_status_conexao(self):
+        """Mostra continuamente se o servidor central local está acessível aos dispositivos."""
+        estado_servidor = None
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:8765/api/status", timeout=0.8) as resposta:
+                if resposta.status == 200:
+                    estado_servidor = json.loads(resposta.read().decode("utf-8"))
+        except (OSError, ValueError, urllib.error.URLError):
+            estado_servidor = None
+        try:
+            if estado_servidor and estado_servidor.get("status") == "online":
+                endereco = estado_servidor.get("ip_lan") or "rede local"
+                remoto = estado_servidor.get("url_tailscale")
+                sufixo_remoto = " · Tailscale: " + str(remoto) if remoto else ""
+                pendentes = int(getattr(self, "_sincronizacao_mobile_propostas", 0) or 0)
+                erro_sync = getattr(self, "_sincronizacao_mobile_erro", "")
+                if erro_sync:
+                    texto = "● Servidor conectado — falha ao sincronizar dados: " + str(erro_sync)[:110]
+                    cor = tema.LARANJA_TEXTO
+                elif not getattr(self, "_sincronizacao_mobile_concluida", False):
+                    texto = "● Servidor conectado — sincronização inicial dos setores em andamento · IP: " + str(endereco) + sufixo_remoto
+                    cor = tema.SUAVE
+                elif pendentes:
+                    texto = "● Conectado — %d alteração(ões) do mobile aguardam revisão · IP: %s%s" % (pendentes, endereco, sufixo_remoto)
+                    cor = tema.LARANJA_TEXTO
+                else:
+                    texto = "● Servidor conectado — setores sincronizados · IP: " + str(endereco) + sufixo_remoto
+                    cor = tema.VERDE
+                self._lbl_status_conexao.configure(text=texto, text_color=cor)
+            else:
+                self._lbl_status_conexao.configure(
+                    text="● Servidor desconectado — o programa continua usando os dados locais",
+                    text_color=tema.LARANJA_TEXTO
+                )
+            self.after(5000, self._atualizar_status_conexao)
+        except (AttributeError, tk.TclError):
+            return
+
+    def _sincronizar_mobile_periodicamente(self):
+        """Sincroniza mapa, refeições e estoques sem bloquear a interface nem aprovar prontuários."""
+        if getattr(self, "_encerrando_app", False):
+            return
+        if getattr(self, "_sincronizacao_mobile_em_andamento", False):
+            try:
+                self.after(30000, self._sincronizar_mobile_periodicamente)
+            except tk.TclError:
+                pass
+            return
+        self._sincronizacao_mobile_em_andamento = True
+
+        def trabalho():
+            # O servidor precisa responder como NutriLab; uma porta aberta por outro programa não basta.
+            with urllib.request.urlopen("http://127.0.0.1:8765/api/status", timeout=1.0) as resposta:
+                if resposta.status != 200:
+                    return None
+                estado = json.loads(resposta.read().decode("utf-8"))
+            if estado.get("status") != "online":
+                return None
+            banco_desktop = caminho_do_banco()
+            banco_mobile = im.caminho_mobile_db(banco_desktop, get_base_path())
+            if not os.path.isfile(banco_mobile):
+                return None
+            return im.sincronizar_automaticamente(
+                banco_desktop, banco_mobile, datetime.now().date().isoformat()
+            )
+
+        def sucesso(resultado):
+            if resultado is None:
+                return
+            self._sincronizacao_mobile_propostas = resultado.get("revisoes_pendentes", 0)
+            self._sincronizacao_mobile_erro = ""
+            self._sincronizacao_mobile_concluida = True
+
+        def erro(exc):
+            self._sincronizacao_mobile_erro = str(exc)
+
+        def finalizar():
+            self._sincronizacao_mobile_em_andamento = False
+            try:
+                self._atualizar_status_conexao()
+                self.after(30000, self._sincronizar_mobile_periodicamente)
+            except tk.TclError:
+                pass
+
+        return ui_workers.executar_em_segundo_plano(
+            self, trabalho, ao_sucesso=sucesso, ao_erro=erro, ao_finalizar=finalizar,
+            nome="nutrilab-sincronizacao-automatica"
+        )
+
+    def _registrar_erro_servidor_mobile(self, erro, detalhes):
+        """Guarda diagnóstico técnico sem incluir dados de pacientes."""
+        try:
+            pasta = os.path.join(os.path.dirname(caminho_do_banco()), "logs")
+            os.makedirs(pasta, exist_ok=True)
+            arquivo = os.path.join(pasta, "mobile_server_startup.log")
+            with open(arquivo, "a", encoding="utf-8") as log:
+                log.write("[%s] %s: %s\n%s\n" % (
+                    datetime.now().isoformat(timespec="seconds"),
+                    type(erro).__name__, erro, detalhes
+                ))
+        except Exception:
+            pass
 
     def _iniciar_servidor_mobile(self):
         """Inicia o servidor local uma única vez; não assume propriedade de processo preexistente."""
         self._servidor_mobile = None
         try:
-            with socket.create_connection(("127.0.0.1", 8765), timeout=0.35):
-                # O BAT/manual ou outra instância já atende a porta: não iniciar nem encerrar esse processo.
-                return
-        except OSError:
+            with urllib.request.urlopen("http://127.0.0.1:8765/api/status", timeout=0.5) as resposta:
+                if resposta.status == 200:
+                    estado = json.loads(resposta.read().decode("utf-8"))
+                    if estado.get("status") == "online":
+                        # Uma instância NutriLab já atende; não assumir propriedade do processo.
+                        return
+        except (OSError, ValueError, urllib.error.URLError):
             pass
 
-        caminho_servidor = os.path.join(get_base_path(), "mobile", "servidor.py")
-        if not os.path.isfile(caminho_servidor):
-            caminho_servidor = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mobile", "servidor.py")
         try:
-            spec = importlib.util.spec_from_file_location("nutrilab_servidor_mobile", caminho_servidor)
-            if spec is None or spec.loader is None:
-                raise RuntimeError("Não foi possível carregar mobile/servidor.py.")
-            modulo = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(modulo)
+            caminho_servidor = os.path.join(get_base_path(), "mobile", "servidor.py")
+            if not os.path.isfile(caminho_servidor):
+                caminho_servidor = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mobile", "servidor.py")
+            try:
+                import mobile as pacote_mobile
+            except ImportError:
+                pacote_mobile = types.ModuleType("mobile")
+                pacote_mobile.__path__ = [os.path.dirname(caminho_servidor)]
+                sys.modules["mobile"] = pacote_mobile
+
+            # Carrega o arquivo empacotado, mas registra-o com o nome canônico para que
+            # integracao_mobile/configuracoes_ui/mobile_ui compartilhem a mesma instância e LOCK.
+            modulo = sys.modules.get("mobile.servidor")
+            if modulo is None:
+                spec = importlib.util.spec_from_file_location("mobile.servidor", caminho_servidor)
+                if spec is None or spec.loader is None:
+                    raise RuntimeError("Não foi possível carregar mobile/servidor.py.")
+                modulo = importlib.util.module_from_spec(spec)
+                sys.modules["mobile.servidor"] = modulo
+                spec.loader.exec_module(modulo)
+            setattr(pacote_mobile, "servidor", modulo)
 
             # O servidor, o painel desktop e a integração devem apontar para o mesmo banco.
             caminho_db = im.caminho_mobile_db(caminho_do_banco(), get_base_path())
@@ -248,6 +389,7 @@ class AppClinica(ctk.CTk):
                     "Altere a senha após o primeiro acesso e guarde-a em local seguro."
                 )
         except OSError as erro:
+            self._registrar_erro_servidor_mobile(erro, traceback.format_exc())
             messagebox.showwarning(
                 "Servidor mobile indisponível",
                 "Não foi possível iniciar o servidor mobile na porta 8765. "
@@ -255,6 +397,7 @@ class AppClinica(ctk.CTk):
                 f"Detalhe: {erro}"
             )
         except Exception as erro:
+            self._registrar_erro_servidor_mobile(erro, traceback.format_exc())
             messagebox.showwarning(
                 "Servidor mobile indisponível",
                 "O NutriLab continuará funcionando, mas a integração mobile não foi iniciada.\n\n"
@@ -265,6 +408,16 @@ class AppClinica(ctk.CTk):
         """Encerra somente o servidor criado por esta instância do desktop."""
         servidor = getattr(self, "_servidor_mobile", None)
         if servidor is not None:
+            descoberta = getattr(servidor, "discovery_server", None)
+            if descoberta is not None:
+                try:
+                    descoberta.shutdown()
+                except Exception:
+                    pass
+                try:
+                    descoberta.server_close()
+                except Exception:
+                    pass
             try:
                 servidor.shutdown()
             except Exception:

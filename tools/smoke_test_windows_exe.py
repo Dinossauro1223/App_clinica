@@ -37,7 +37,17 @@ def main() -> int:
             if codigo not in (0, 404, 503):
                 raise RuntimeError(f"Servidor na porta 8765 respondeu inesperadamente: HTTP {codigo}: {corpo[:300]!r}")
             time.sleep(.5)
-        raise RuntimeError("NutriLab.exe abriu, mas o servidor mobile não respondeu em 30 segundos.")
+        log = exe.parent / "logs" / "mobile_server_startup.log"
+        detalhe = ""
+        if log.is_file():
+            try:
+                detalhe = log.read_text(encoding="utf-8", errors="replace")[-5000:]
+            except OSError:
+                detalhe = "(não foi possível ler o log de inicialização)"
+        raise RuntimeError(
+            "NutriLab.exe abriu, mas o servidor mobile não respondeu em 30 segundos."
+            + ("\\nDiagnóstico de inicialização:\\n" + detalhe if detalhe else "")
+        )
     finally:
         if processo.poll() is None:
             processo.terminate()

@@ -108,6 +108,21 @@ class MobileTest(unittest.TestCase):
                 publicado_em TEXT NOT NULL, PRIMARY KEY(data,refeicao))""")
             c.execute("INSERT OR REPLACE INTO menu_dia_publicacoes VALUES(?,?,?,?)",
                       (dia, "almoco", json.dumps(snapshot), "2026-11-27T08:00:00-03:00"))
+            # Simula banco legado com tabela de produção já existente, ainda sem coluna de versão.
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_producao (
+                id_registro INTEGER PRIMARY KEY AUTOINCREMENT,
+                data TEXT NOT NULL, refeicao TEXT NOT NULL, id_preparacao_dia INTEGER NOT NULL,
+                nome_preparacao_snapshot TEXT NOT NULL, categoria_snapshot TEXT,
+                porcoes_planejadas REAL, porcoes_produzidas REAL,
+                porcoes_faltantes REAL NOT NULL DEFAULT 0,
+                faltou_preparacao INTEGER NOT NULL DEFAULT 0,
+                peso_por_porcao_g REAL, observacao TEXT, usuario TEXT NOT NULL,
+                criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL,
+                UNIQUE(data,refeicao,id_preparacao_dia))""")
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_producao_cubas (
+                id_cuba INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL,
+                identificacao TEXT NOT NULL, peso_sobra_kg REAL NOT NULL DEFAULT 0,
+                peso_desperdicio_kg REAL NOT NULL DEFAULT 0, observacao TEXT, ordem INTEGER NOT NULL DEFAULT 0)""")
             c.commit()
         finally:
             c.close()
@@ -119,11 +134,37 @@ class MobileTest(unittest.TestCase):
                             "peso_desperdicio_kg": 0.1}]}
         cod, salvo = self.chamar(self.t["coz"], "POST", "/api/menu-dia/producao", corpo)
         self.assertEqual(cod, 200, salvo)
+        self.assertEqual(salvo["versao_publicacao"], 1)
         cod, consulta = self.chamar(self.t["coz"], "GET", "/api/menu-dia/producao?data=" + dia)
         self.assertEqual(cod, 200, consulta)
         self.assertEqual(len(consulta["registros"]), 1)
         self.assertEqual(consulta["registros"][0]["porcoes_faltantes"], 4)
+        self.assertEqual(consulta["registros"][0]["versao_publicacao"], 1)
         self.assertEqual(consulta["registros"][0]["cubas"][0]["identificacao"], "Cuba 1")
+        # Uma nova publicação muda a versão associada à próxima conferência de produção.
+        snapshot["versao"] = 2
+        c = sv.conectar(self.db)
+        try:
+            c.execute("UPDATE menu_dia_publicacoes SET snapshot_json=? WHERE data=? AND refeicao=?",
+                      (json.dumps(snapshot), dia, "almoco"))
+            c.commit()
+        finally:
+            c.close()
+        cod, nova_versao = self.chamar(self.t["coz"], "POST", "/api/menu-dia/producao", corpo)
+        self.assertEqual(cod, 200, nova_versao)
+        self.assertEqual(nova_versao["versao_publicacao"], 2)
+        consulta = self.chamar(self.t["coz"], "GET", "/api/menu-dia/producao?data=" + dia)[1]
+        self.assertEqual(consulta["registros"][0]["versao_publicacao"], 2)
+        c = sv.conectar(self.db)
+        try:
+            historico = c.execute(
+                "SELECT versao_publicacao,dados_json,cubas_json FROM menu_dia_producao_historico "
+                "WHERE data=? AND refeicao=? ORDER BY versao_publicacao", (dia, "almoco")).fetchall()
+            self.assertEqual([x["versao_publicacao"] for x in historico], [1])
+            self.assertEqual(json.loads(historico[0]["dados_json"])["porcoes_produzidas"], 76)
+            self.assertEqual(json.loads(historico[0]["cubas_json"])[0]["identificacao"], "Cuba 1")
+        finally:
+            c.close()
         atualizado = {**corpo, "porcoes_produzidas": 78, "porcoes_faltantes": 2,
                       "cubas": [{"identificacao": "Cuba 2", "peso_sobra_kg": 0.2,
                                  "peso_desperdicio_kg": 0.05}]}
@@ -146,7 +187,8 @@ class MobileTest(unittest.TestCase):
 
     def test_menu_mobile_exibe_formulario_de_producao_apenas_a_perfis_autorizados(self):
         html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
-        self.assertIn("Produção registrada:", html)
+        self.assertIn("Produção registrada para a versão", html)
+        self.assertIn("registroVersaoAnterior", html)
         self.assertIn("salvarProducaoMobile", html)
         self.assertIn("adicionarCubaMobile", html)
         self.assertIn("Porções produzidas", html)

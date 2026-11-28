@@ -363,6 +363,19 @@ class TestComServidor(_Base):
         self.assertIsNone(self.reg("A01")["obs_nao"] or None)
 
 
+    def test_sincronizacao_automatica_publica_mapa_e_preserva_propostas_para_revisao(self):
+        primeira = im.sincronizar_automaticamente(self.db, self.mdb, DIA)
+        self.assertEqual(primeira["propostas_mapa"], 0)
+        self.assertGreaterEqual(primeira["leitos_enviados"], 1)
+
+        self.copa_salva({"A01": {"nome": "Maria Teste", "idade_anos": 70,
+                                  "dieta": "Branda", "pref_nao": "peixe"}})
+        segunda = im.sincronizar_automaticamente(self.db, self.mdb, DIA)
+        self.assertEqual(segunda["propostas_mapa"], 1)
+        # A sincronização de fundo não altera o prontuário: a equipe precisa aprovar a proposta.
+        self.assertIsNone(self.reg("A01")["obs_nao"])
+
+
 def _importar_mobile_ui():
     """Importa mobile_ui com tkinter/customtkinter trocados por mocks (sem janela) e restaura o resto do processo."""
     nomes = ("customtkinter", "tkinter", "tkinter.ttk", "tkinter.messagebox", "tkinter.filedialog")
@@ -431,6 +444,7 @@ class TestTela(_Base):
             ui.tree.selection.return_value = tuple(ui.propostas)
             ui._aplicar()
         self.assertEqual(self.reg("A02")["nome_paciente"], "Joao Teste")
+
 
 
 class TestCatalogoPedidosAlmox(unittest.TestCase):
@@ -599,10 +613,15 @@ class TestPublicarMenuDia(unittest.TestCase):
              mock.patch.object(ga, "obter_imagem_ficha", return_value=None):
             primeira = im.publicar_menu_dia("desktop.db", "mobile.db", DIA)
             segunda = im.publicar_menu_dia("desktop.db", "mobile.db", DIA)
+            preparacoes[0]["nome"] = "Arroz integral"
+            terceira = im.publicar_menu_dia("desktop.db", "mobile.db", DIA)
 
         self.assertEqual(primeira["total"], 6)
         self.assertTrue(any(x.get("alterado") for x in primeira["publicacoes"]))
+        self.assertEqual(next(x for x in primeira["publicacoes"] if x["refeicao"] == "almoco")["versao"], 1)
         self.assertTrue(all(not x.get("alterado") for x in segunda["publicacoes"]))
+        self.assertEqual(next(x for x in segunda["publicacoes"] if x["refeicao"] == "almoco")["versao"], 1)
+        self.assertEqual(next(x for x in terceira["publicacoes"] if x["refeicao"] == "almoco")["versao"], 2)
         conn = sqlite3.connect(caminho)
         conn.row_factory = sqlite3.Row
         row = conn.execute(
@@ -610,8 +629,14 @@ class TestPublicarMenuDia(unittest.TestCase):
             (DIA,)).fetchone()
         snapshot = json.loads(row["snapshot_json"])
         item = snapshot["preparacoes"][0]
+        self.assertEqual(snapshot["versao"], 2)
+        self.assertEqual(item["nome"], "Arroz integral")
         self.assertEqual(item["ficha"]["ingredientes"][0]["nome"], "Arroz")
         self.assertEqual(item["ficha"]["etapas_preparo"][0]["instrucao"], "Lavar")
+        historico = conn.execute(
+            "SELECT versao FROM menu_dia_publicacoes_historico WHERE data=? AND refeicao='almoco' ORDER BY versao",
+            (DIA,)).fetchall()
+        self.assertEqual([r["versao"] for r in historico], [1, 2])
         conn.close()
 
     def test_refeicao_invalida_e_rejeitada_antes_de_abrir_mobile(self):
