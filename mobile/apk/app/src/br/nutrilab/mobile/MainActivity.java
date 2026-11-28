@@ -255,7 +255,9 @@ public class MainActivity extends Activity {
     private void iniciarDownloadAutomatico(String url, String versao, long codigo, String sha256) {
         long existente = prefs.getLong(PREF_DOWNLOAD_ID, -1L);
         if (existente >= 0) {
-            if (consultarDownload(existente) != null) {
+            Cursor pendente = consultarDownload(existente);
+            if (pendente != null) {
+                pendente.close();
                 retomarDownloadPendente();
                 return;
             }
@@ -402,13 +404,12 @@ public class MainActivity extends Activity {
             android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             android.os.ParcelFileDescriptor descritor = dm.openDownloadedFile(id);
             if (descritor == null) return false;
-            InputStream in = new java.io.FileInputStream(descritor.getFileDescriptor());
+            InputStream in = new android.os.ParcelFileDescriptor.AutoCloseInputStream(descritor);
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] buffer = new byte[65536];
             int n;
             while ((n = in.read(buffer)) > 0) digest.update(buffer, 0, n);
             in.close();
-            descritor.close();
             StringBuilder hex = new StringBuilder();
             for (byte v : digest.digest()) hex.append(String.format(java.util.Locale.ROOT, "%02x", v & 0xff));
             return esperado.equalsIgnoreCase(hex.toString());
