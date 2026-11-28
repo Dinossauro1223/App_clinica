@@ -187,6 +187,77 @@ def listar_ofertas_nutricionais(caminho, id_paciente, inicio=None, fim=None):
     return sorted(eventos,key=lambda x:x["instante"])
 
 
+def relacionar_hgt_a_ofertas(medido_em, ofertas, janela_antes_min=30, janela_depois_min=120):
+    """Relaciona HGT a ofertas reais próximas no tempo, sem inferir causalidade."""
+    medido = datetime.fromisoformat(str(medido_em))
+    antes = float(janela_antes_min)
+    depois = float(janela_depois_min)
+    if antes < 0 or depois < 0:
+        raise ValueError("As janelas temporais não podem ser negativas.")
+    relacionados = []
+    for oferta in ofertas or []:
+        inicio = oferta.get("instante")
+        if not isinstance(inicio, datetime):
+            try:
+                inicio = datetime.fromisoformat(str(inicio))
+            except (TypeError, ValueError):
+                continue
+        if oferta.get("tipo_evento") == "enteral":
+            fim = oferta.get("fim_em")
+            try:
+                fim = datetime.fromisoformat(str(fim)) if fim else None
+            except (TypeError, ValueError):
+                continue
+            adm = {"inicio_em": inicio.isoformat(sep=" "),
+                   "fim_em": fim.isoformat(sep=" ") if fim else None}
+            rel = me.classificar_hgt_em_relacao_a_administracao(
+                medido.isoformat(sep=" "), adm, antes, depois)
+            classificacao = rel["classificacao"]
+            if classificacao == "durante":
+                distancia = rel["minutos_desde_inicio"]
+                descricao = f"durante dieta enteral ({distancia} min após início)"
+            elif classificacao == "antes":
+                distancia = abs(rel["minutos_desde_inicio"])
+                descricao = f"{distancia} min antes da dieta enteral"
+            elif classificacao == "apos_fim":
+                distancia = rel["minutos_desde_fim"]
+                descricao = f"{distancia} min após fim da dieta enteral"
+            elif classificacao == "apos_inicio":
+                distancia = rel["minutos_desde_inicio"]
+                descricao = f"{distancia} min após início da dieta enteral"
+            else:
+                continue
+        else:
+            delta = int((medido - inicio).total_seconds() / 60)
+            if not -antes <= delta <= depois:
+                continue
+            distancia = abs(delta)
+            if delta == 0:
+                descricao = "mesmo horário da oferta"
+            elif delta < 0:
+                descricao = f"{abs(delta)} min antes da oferta"
+            else:
+                descricao = f"{delta} min após a oferta"
+            classificacao = "proximo"
+        relacionados.append({
+            "oferta": oferta,
+            "classificacao": classificacao,
+            "distancia_min": distancia,
+            "descricao": descricao,
+        })
+    relacionados.sort(key=lambda x: (x["distancia_min"], x["oferta"]["instante"]))
+    return relacionados
+
+
+def relacionar_hgts_a_ofertas(registros_hgt, ofertas, janela_antes_min=30, janela_depois_min=120):
+    return {
+        int(registro[0]): relacionar_hgt_a_ofertas(
+            registro[2], ofertas, janela_antes_min, janela_depois_min
+        )
+        for registro in registros_hgt
+    }
+
+
 class PainelMonitoramentoGlicemico(ctk.CTkFrame):
     """Painel do perfil do paciente; eventos nutricionais reais podem ser acoplados por integração."""
 
@@ -214,11 +285,11 @@ class PainelMonitoramentoGlicemico(ctk.CTkFrame):
             "registrado no mapa. Oferta sem horário permanece fora do eixo temporal."
         ), text_color=tema.SUAVE, wraplength=900, justify="left").pack(anchor="w", padx=16)
 
-        self.tabela = ttk.Treeview(self, columns=("data", "valor", "contexto", "obs"),
+        self.tabela = ttk.Treeview(self, columns=("data", "valor", "contexto", "relacao", "obs"),
                                    show="headings", height=8)
         for col, titulo, largura in (
             ("data", "Data e hora", 150), ("valor", "HGT (mg/dL)", 110),
-            ("contexto", "Contexto", 130), ("obs", "Observações", 360)):
+            ("contexto", "Contexto", 130), ("relacao", "Relação temporal", 260), ("obs", "Observações", 300)):
             self.tabela.heading(col, text=titulo)
             self.tabela.column(col, width=largura, anchor="w")
         self.tabela.pack(fill="both", expand=True, padx=14, pady=8)
@@ -242,10 +313,20 @@ class PainelMonitoramentoGlicemico(ctk.CTkFrame):
         self.ofertas = listar_ofertas_nutricionais(self.caminho_banco,self.id_paciente)
         for item in self.tabela.get_children():
             self.tabela.delete(item)
+        self.relacoes_hgt = relacionar_hgts_a_ofertas(self.registros, self.ofertas)
         for r in self.registros:
             dt = datetime.fromisoformat(r[2]).strftime("%d/%m/%Y %H:%M")
+            rels = self.relacoes_hgt.get(int(r[0]), [])
+            if rels:
+                relacao = " | ".join(
+                    f'{rel["oferta"]["suplemento"]}: {rel["descricao"]}' for rel in rels[:3]
+                )
+                if len(rels) > 3:
+                    relacao += f" (+{len(rels)-3})"
+            else:
+                relacao = "Sem oferta próxima com horário"
             self.tabela.insert("", "end", iid=str(r[0]),
-                               values=(dt, f"{r[1]:g}", r[3], r[4] or "—"))
+                               values=(dt, f"{r[1]:g}", r[3], relacao, r[4] or "—"))
         for item in self.ofertas_tabela.get_children():
             self.ofertas_tabela.delete(item)
         for i,evento in enumerate(self.ofertas):
