@@ -119,11 +119,27 @@ class MobileTest(unittest.TestCase):
                             "peso_desperdicio_kg": 0.1}]}
         cod, salvo = self.chamar(self.t["coz"], "POST", "/api/menu-dia/producao", corpo)
         self.assertEqual(cod, 200, salvo)
+        self.assertEqual(salvo["versao_publicacao"], 1)
         cod, consulta = self.chamar(self.t["coz"], "GET", "/api/menu-dia/producao?data=" + dia)
         self.assertEqual(cod, 200, consulta)
         self.assertEqual(len(consulta["registros"]), 1)
         self.assertEqual(consulta["registros"][0]["porcoes_faltantes"], 4)
+        self.assertEqual(consulta["registros"][0]["versao_publicacao"], 1)
         self.assertEqual(consulta["registros"][0]["cubas"][0]["identificacao"], "Cuba 1")
+        # Uma nova publicação muda a versão associada à próxima conferência de produção.
+        snapshot["versao"] = 2
+        c = sv.conectar(self.db)
+        try:
+            c.execute("UPDATE menu_dia_publicacoes SET snapshot_json=? WHERE data=? AND refeicao=?",
+                      (json.dumps(snapshot), dia, "almoco"))
+            c.commit()
+        finally:
+            c.close()
+        cod, nova_versao = self.chamar(self.t["coz"], "POST", "/api/menu-dia/producao", corpo)
+        self.assertEqual(cod, 200, nova_versao)
+        self.assertEqual(nova_versao["versao_publicacao"], 2)
+        consulta = self.chamar(self.t["coz"], "GET", "/api/menu-dia/producao?data=" + dia)[1]
+        self.assertEqual(consulta["registros"][0]["versao_publicacao"], 2)
         atualizado = {**corpo, "porcoes_produzidas": 78, "porcoes_faltantes": 2,
                       "cubas": [{"identificacao": "Cuba 2", "peso_sobra_kg": 0.2,
                                  "peso_desperdicio_kg": 0.05}]}
@@ -146,7 +162,8 @@ class MobileTest(unittest.TestCase):
 
     def test_menu_mobile_exibe_formulario_de_producao_apenas_a_perfis_autorizados(self):
         html = (Path(__file__).resolve().parents[1] / "mobile" / "static" / "index.html").read_text(encoding="utf-8")
-        self.assertIn("Produção registrada:", html)
+        self.assertIn("Produção registrada para a versão", html)
+        self.assertIn("registroVersaoAnterior", html)
         self.assertIn("salvarProducaoMobile", html)
         self.assertIn("adicionarCubaMobile", html)
         self.assertIn("Porções produzidas", html)
