@@ -158,3 +158,42 @@ def gotas_por_minuto(taxa_ml_h, fator_gotas_ml):
     if taxa is None or fator is None or fator <= 0:
         return None
     return taxa / 60.0 / fator
+
+
+
+def resumir_administracoes_dia(caminho, id_paciente, data):
+    """Resume administrações enterais reais iniciadas e encerradas na mesma data.
+
+    Não distribui volume de eventos que atravessam a meia-noite, pois isso exigiria
+    inventar a parcela administrada em cada dia. Esses eventos são retornados como
+    pendentes para revisão manual.
+    """
+    try:
+        dia = datetime.strptime(str(data), "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        raise ValueError("Data inválida; use AAAA-MM-DD.") from None
+    inicio = f"{dia.isoformat()} 00:00:00"
+    fim = f"{dia.isoformat()} 23:59:59"
+    eventos = listar_administracoes(caminho, id_paciente, inicio, fim)
+    completos, pendentes = [], []
+    for evento in eventos:
+        inicio_evento = _dt(evento.get("inicio_em"), "o início da administração")
+        fim_evento = _dt(evento.get("fim_em"), "o fim da administração") if evento.get("fim_em") else None
+        if fim_evento is None or inicio_evento.date() != dia or fim_evento.date() != dia:
+            pendentes.append(evento)
+            continue
+        if evento.get("volume_administrado_ml") in (None, ""):
+            pendentes.append(evento)
+            continue
+        completos.append(evento)
+    total_volume = sum(float(e["volume_administrado_ml"]) for e in completos)
+    total_prescrito = sum(float(e["volume_prescrito_ml"]) for e in completos if e.get("volume_prescrito_ml") not in (None, ""))
+    return {
+        "data": dia.isoformat(),
+        "administracoes_completas": completos,
+        "administracoes_pendentes": pendentes,
+        "volume_administrado_ml": total_volume,
+        "volume_prescrito_ml": total_prescrito,
+        "cobertura_volume_pct": (total_volume / total_prescrito * 100) if total_prescrito > 0 else None,
+        "volume_calculavel": bool(completos) and not pendentes,
+    }
