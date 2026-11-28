@@ -1742,15 +1742,86 @@ class Manipulador(BaseHTTPRequestHandler):
         self.wfile.write(corpo)
 
     def _enviar_apk(self, arquivo):
-        corpo = arquivo.read_bytes()
-        self.send_response(200)
+        """Entrega o APK em blocos e aceita Range para retomar downloads interrompidos."""
+        tamanho = arquivo.stat().st_size
+        inicio, fim, codigo = 0, tamanho - 1, 200
+        faixa = self.headers.get("Range", "")
+        if faixa:
+            m = re.fullmatch(r"bytes=(\\d*)-(\\d*)", faixa.strip())
+            if not m or (not m.group(1) and not m.group(2)):
+                self.send_response(416)
+                self.send_header("Content-Range", "bytes */%d" % tamanho)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            if m.group(1):
+                inicio = int(m.group(1))
+                fim = min(int(m.group(2)), tamanho - 1) if m.group(2) else tamanho - 1
+            else:
+                sufixo = int(m.group(2))
+                inicio = max(0, tamanho - sufixo)
+            if inicio >= tamanho or fim < inicio:
+                self.send_response(416)
+                self.send_header("Content-Range", "bytes */%d" % tamanho)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            codigo = 206
+        comprimento = max(0, fim - inicio + 1)
+        self.send_response(codigo)
         self.send_header("Content-Type", "application/vnd.android.package-archive")
-        self.send_header("Content-Length", str(len(corpo)))
+        self.send_header("Content-Length", str(comprimento))
+        self.send_header("Accept-Ranges", "bytes")
+        if codigo == 206:
+            self.send_header("Content-Range", "bytes %d-%d/%d" % (inicio, fim, tamanho))
         self.send_header("Content-Disposition", 'attachment; filename="NutriLab-Mobile.apk"')
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
-        self.wfile.write(corpo)
+        with arquivo.open("rb") as origem:
+            origem.seek(inicio)
+            restante = comprimento
+            while restante:
+                bloco = origem.read(min(1024 * 1024, restante))
+                if not bloco:
+                    break
+                self.wfile.write(bloco)
+                restante -= len(bloco)
+
+    def _informacoes_atualizacao_mobile(self):
+        """Metadados da versão Android efetivamente publicada junto ao servidor."""
+        propriedades = AQUI / "version.properties"
+        apk = (AQUI / "apk" / "saida" / "NutriLab-Mobile.apk").resolve()
+        if not propriedades.is_file() or not apk.is_file() or AQUI.resolve() not in apk.parents:
+            return {"disponivel": False}
+        valores = {}
+        for linha in propriedades.read_text(encoding="utf-8").splitlines():
+            linha = linha.strip()
+            if linha and not linha.startswith("#") and "=" in linha:
+                chave, valor = linha.split("=", 1)
+                valores[chave.strip()] = valor.strip()
+        nome = valores.get("versionName", "")
+        codigo = int(valores.get("versionCode", "0"))
+        if not nome or codigo <= 0:
+            return {"disponivel": False}
+        stat = apk.stat()
+        chave_cache = (str(apk), stat.st_size, stat.st_mtime_ns)
+        cache = getattr(self, "_cache_metadados_apk", None)
+        if cache is None or cache.get("chave") != chave_cache:
+            digest = hashlib.sha256()
+            with apk.open("rb") as arquivo:
+                for bloco in iter(lambda: arquivo.read(1024 * 1024), b""):
+                    digest.update(bloco)
+            cache = {"chave": chave_cache, "sha256": digest.hexdigest()}
+            self._cache_metadados_apk = cache
+        return {
+            "disponivel": True,
+            "version_name": nome,
+            "version_code": codigo,
+            "size": stat.st_size,
+            "sha256": cache["sha256"],
+            "download_url": "/download/NutriLab-Mobile.apk",
+        }
 
     def _tratar(self, m):
         try:
@@ -1765,6 +1836,8 @@ class Manipulador(BaseHTTPRequestHandler):
                 if not apk.is_file() or AQUI.resolve() not in apk.parents:
                     raise Erro("APK não encontrado nesta instalação. Recompile o pacote do NutriLab.", 404)
                 return self._enviar_apk(apk)
+            if m == "GET" and u.path == "/api/mobile/update":
+                return self._enviar(200, self._informacoes_atualizacao_mobile())
             if m == "GET" and not u.path.startswith("/api/"):
                 raiz = (AQUI / "static").resolve()
                 if u.path in ("/", "/index.html"):

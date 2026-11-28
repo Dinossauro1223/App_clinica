@@ -3,6 +3,7 @@ package br.nutrilab.mobile;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.database.Cursor;
 import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
 import android.net.Uri;
@@ -36,6 +37,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.security.KeyStore;
+import java.security.MessageDigest;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -84,6 +86,13 @@ public class MainActivity extends Activity {
     private PermissionRequest pedidoCamera;
     private ValueCallback<Uri[]> retornoArquivo;
     private boolean abrirScannerPendente = false;
+    private boolean instaladorAcionadoNestaSessao = false;
+    private final AtomicBoolean verificacaoAtualizacaoEmAndamento = new AtomicBoolean(false);
+    private final Handler handlerAtualizacao = new Handler(Looper.getMainLooper());
+    private android.app.AlertDialog dialogDownload;
+    private android.widget.ProgressBar barraDownload;
+    private android.widget.TextView textoDownload;
+    private Runnable atualizarProgressoDownload;
 
     @Override
     protected void onCreate(Bundle estado) {
@@ -164,125 +173,301 @@ public class MainActivity extends Activity {
         });
         abrir();
         atualizarIdentidadeServidorSalvo();
-        verificarAtualizacao();
+        retomarDownloadPendente();
+        verificarAtualizacaoNoServidor();
     }
 
-    private static final String REPO_RELEASES = "https://api.github.com/repos/Dinossauro1223/App_clinica/releases/latest";
     private static final String APK_ASSET = "NutriLab-Mobile.apk";
     private static final String PREF_DOWNLOAD_ID = "update_apk_download_id";
+    private static final String PREF_DOWNLOAD_CODE = "update_apk_version_code";
+    private static final String PREF_DOWNLOAD_NAME = "update_apk_version_name";
+    private static final String PREF_DOWNLOAD_SHA = "update_apk_sha256";
+    private static final String PREF_DOWNLOAD_URL = "update_apk_url";
+    private static final String PREF_UPDATE_CHECK = "update_apk_last_check";
 
-    /** Consulta a release estável sem bloquear a abertura do mapa/interface. */
-    private void verificarAtualizacao() {
+    /** Consulta a versão do APK no servidor já vinculado ao aparelho, sem usar releases externas. */
+    private void verificarAtualizacaoNoServidor() {
+        if (prefs == null || !verificacaoAtualizacaoEmAndamento.compareAndSet(false, true)) return;
+        final String base = prefs.getString("servidor", "");
+        if (base == null || base.isEmpty()) {
+            verificacaoAtualizacaoEmAndamento.set(false);
+            return;
+        }
+        long agora = System.currentTimeMillis();
+        if (agora - prefs.getLong(PREF_UPDATE_CHECK, 0L) < 60000L) {
+            verificacaoAtualizacaoEmAndamento.set(false);
+            return;
+        }
         new Thread(new Runnable() {
             @Override public void run() {
                 HttpURLConnection c = null;
                 try {
-                    c = (HttpURLConnection) new URL(REPO_RELEASES).openConnection();
-                    c.setConnectTimeout(7000);
-                    c.setReadTimeout(7000);
-                    c.setRequestProperty("Accept", "application/vnd.github+json");
-                    c.setRequestProperty("User-Agent", "NutriLab-Android");
-                    if (c.getResponseCode() != 200) throw new Exception("GitHub HTTP " + c.getResponseCode());
+                    String identidadeSalva = prefs.getString("server_identity", "");
+                    String identidadeAtual = obterIdentidade(base);
+                    if (!identidadeSalva.isEmpty() && !identidadeSalva.equals(identidadeAtual)) {
+                        throw new Exception("O servidor respondeu com uma identidade diferente da vinculada ao aparelho.");
+                    }
+                    c = (HttpURLConnection) new URL(base + "/api/mobile/update").openConnection();
+                    c.setConnectTimeout(5000);
+                    c.setReadTimeout(10000);
+                    c.setRequestProperty("Accept", "application/json");
+                    if (c.getResponseCode() != 200) throw new Exception("Servidor HTTP " + c.getResponseCode());
                     BufferedReader br = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
                     StringBuilder body = new StringBuilder();
                     String line;
-                    while ((line = br.readLine()) != null) body.append(line);
+                    while ((line = br.readLine()) != null && body.length() < 12000) body.append(line);
                     br.close();
-                    JSONObject release = new JSONObject(body.toString());
-                    String latest = release.optString("tag_name", "").replaceFirst("^[vV]", "");
-                    String installed = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-                    if (latest.isEmpty()) throw new Exception("Release sem tag de versão.");
-                    if (compararVersoes(latest, installed) > 0) {
-                        org.json.JSONArray assets = release.optJSONArray("assets");
-                        String apkUrl = null;
-                        if (assets != null) {
-                            for (int i = 0; i < assets.length(); i++) {
-                                JSONObject asset = assets.getJSONObject(i);
-                                if (APK_ASSET.equals(asset.optString("name"))) {
-                                    apkUrl = asset.optString("browser_download_url");
-                                    break;
-                                }
-                            }
-                        }
-                        if (apkUrl == null || !apkUrl.startsWith("https://")) {
-                            throw new Exception("A release " + latest + " ainda não contém o APK.");
-                        }
-                        final String url = apkUrl;
+                    JSONObject dados = new JSONObject(body.toString());
+                    prefs.edit().putLong(PREF_UPDATE_CHECK, System.currentTimeMillis()).apply();
+                    if (!dados.optBoolean("disponivel", false)) return;
+                    long codigoRemoto = dados.optLong("version_code", 0L);
+                    String nomeRemoto = dados.optString("version_name", "");
+                    String sha = dados.optString("sha256", "");
+                    String caminho = dados.optString("download_url", "");
+                    if (codigoRemoto <= 0 || nomeRemoto.isEmpty() || sha.length() != 64
+                            || !caminho.equals("/download/NutriLab-Mobile.apk")) {
+                        throw new Exception("O servidor enviou metadados de atualização inválidos.");
+                    }
+                    long codigoInstalado = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+                    if (codigoRemoto > codigoInstalado) {
+                        final String url = base + caminho;
+                        final String nome = nomeRemoto;
+                        final long codigo = codigoRemoto;
+                        final String hash = sha;
                         runOnUiThread(new Runnable() {
-                            @Override public void run() { oferecerAtualizacao(installed, latest, url); }
+                            @Override public void run() {
+                                iniciarDownloadAutomatico(url, nome, codigo, hash);
+                            }
                         });
                     } else {
-                        limparDownloadsTemporarios();
+                        limparDownloadSeJaInstalado(codigoInstalado);
                     }
                 } catch (Exception e) {
-                    // Falha de rede/API nunca é interpretada como "já atualizado" e nunca apaga arquivos.
-                    android.util.Log.w("NutriLabUpdate", "Não foi possível verificar atualização", e);
+                    android.util.Log.w("NutriLabUpdate", "Não foi possível consultar atualização no servidor", e);
                 } finally {
                     if (c != null) c.disconnect();
+                    verificacaoAtualizacaoEmAndamento.set(false);
                 }
             }
-        }, "nutrilab-update-check").start();
+        }, "nutrilab-server-update-check").start();
     }
 
-    private int compararVersoes(String a, String b) {
-        String[] aa = a.split("\\."), bb = (b == null ? "0" : b).split("\\.");
-        for (int i = 0; i < Math.max(aa.length, bb.length); i++) {
-            int x = i < aa.length ? numeroVersao(aa[i]) : 0;
-            int y = i < bb.length ? numeroVersao(bb[i]) : 0;
-            if (x != y) return x > y ? 1 : -1;
+    private void iniciarDownloadAutomatico(String url, String versao, long codigo, String sha256) {
+        long existente = prefs.getLong(PREF_DOWNLOAD_ID, -1L);
+        if (existente >= 0) {
+            if (consultarDownload(existente) != null) {
+                retomarDownloadPendente();
+                return;
+            }
+            limparRegistroDownload(false);
         }
-        return 0;
-    }
-
-    private int numeroVersao(String s) {
-        try { return Integer.parseInt(s.replaceAll("[^0-9].*$", "")); }
-        catch (Exception e) { return 0; }
-    }
-
-    private void oferecerAtualizacao(String atual, String nova, final String url) {
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("Atualização do NutriLab")
-                .setMessage("Versão instalada: " + atual + "\\nNova versão: " + nova
-                        + "\\n\\nDeseja baixar o APK? A instalação será confirmada pelo Android. "
-                        + "Seus dados locais e a fila offline não serão apagados.")
-                .setNegativeButton("Depois", null)
-                .setPositiveButton("Baixar APK", (dialog, which) -> baixarApk(url, nova))
-                .show();
-    }
-
-    private void baixarApk(String url, String versao) {
         try {
             android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             android.app.DownloadManager.Request req = new android.app.DownloadManager.Request(Uri.parse(url));
-            req.setTitle("NutriLab Mobile " + versao);
-            req.setDescription("Baixando atualização oficial");
+            req.setTitle("Atualização do NutriLab Mobile " + versao);
+            req.setDescription("Baixando automaticamente do servidor vinculado");
             req.setMimeType("application/vnd.android.package-archive");
             req.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            req.setAllowedOverMetered(true);
+            req.setAllowedOverRoaming(false);
             req.setDestinationInExternalFilesDir(this, android.os.Environment.DIRECTORY_DOWNLOADS,
-                    "NutriLab-Mobile-" + versao + ".apk");
+                    "NutriLab-Mobile-" + codigo + ".apk");
             long id = dm.enqueue(req);
-            prefs.edit().putLong(PREF_DOWNLOAD_ID, id).apply();
-            new android.app.AlertDialog.Builder(this)
-                    .setTitle("Download iniciado")
-                    .setMessage("O Android avisará quando o APK estiver pronto. Toque na notificação para iniciar a instalação.")
-                    .setPositiveButton("OK", null).show();
+            prefs.edit().putLong(PREF_DOWNLOAD_ID, id)
+                    .putLong(PREF_DOWNLOAD_CODE, codigo)
+                    .putString(PREF_DOWNLOAD_NAME, versao)
+                    .putString(PREF_DOWNLOAD_SHA, sha256)
+                    .putString(PREF_DOWNLOAD_URL, url).apply();
+            mostrarProgressoDownload(id);
         } catch (Exception e) {
-            new android.app.AlertDialog.Builder(this).setTitle("Não foi possível baixar")
-                    .setMessage(e.getMessage()).setPositiveButton("OK", null).show();
+            android.util.Log.e("NutriLabUpdate", "Falha ao iniciar download", e);
+            avisar("Não foi possível iniciar a atualização. O NutriLab continuará funcionando com a versão instalada.");
         }
     }
 
-    /** Remove somente o registro/arquivo do DownloadManager criado por esta função. */
-    private void limparDownloadsTemporarios() {
+    /** Retorna o status do DownloadManager; null indica que o registro não existe mais. */
+    private android.database.Cursor consultarDownload(long id) {
+        try {
+            android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            android.database.Cursor c = dm.query(new android.app.DownloadManager.Query().setFilterById(id));
+            if (c != null && c.moveToFirst()) return c;
+            if (c != null) c.close();
+        } catch (Exception e) {
+            android.util.Log.w("NutriLabUpdate", "Não foi possível consultar download pendente", e);
+        }
+        return null;
+    }
+
+    /** DownloadManager mantém o trabalho mesmo após o processo do NutriLab ser encerrado. */
+    private void retomarDownloadPendente() {
+        long id = prefs == null ? -1L : prefs.getLong(PREF_DOWNLOAD_ID, -1L);
+        if (id < 0) return;
+        Cursor c = consultarDownload(id);
+        if (c == null) {
+            limparRegistroDownload(false);
+            return;
+        }
+        int status = c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS));
+        c.close();
+        if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
+            instalarDownloadConcluido(id);
+        } else if (status == android.app.DownloadManager.STATUS_FAILED) {
+            // Falha de transporte não equivale a bloqueio da instalação; o servidor será consultado novamente.
+            limparRegistroDownload(true);
+            verificarAtualizacaoNoServidor();
+        } else {
+            mostrarProgressoDownload(id);
+        }
+    }
+
+    private void mostrarProgressoDownload(final long id) {
+        if (isFinishing() || isDestroyed()) return;
+        if (dialogDownload != null && dialogDownload.isShowing()) return;
+        android.widget.LinearLayout painel = new android.widget.LinearLayout(this);
+        painel.setOrientation(android.widget.LinearLayout.VERTICAL);
+        painel.setPadding(48, 28, 48, 12);
+        textoDownload = new android.widget.TextView(this);
+        textoDownload.setText("Preparando download…");
+        painel.addView(textoDownload);
+        barraDownload = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        barraDownload.setMax(1000);
+        android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = 18;
+        painel.addView(barraDownload, lp);
+        dialogDownload = new android.app.AlertDialog.Builder(this)
+                .setTitle("Atualização do NutriLab Mobile")
+                .setMessage("O download continua em segundo plano se você fechar o aplicativo.")
+                .setView(painel)
+                .setNegativeButton("Continuar em segundo plano", (d, w) -> d.dismiss())
+                .create();
+        dialogDownload.setOnDismissListener(d -> {
+            handlerAtualizacao.removeCallbacks(atualizarProgressoDownload);
+            dialogDownload = null;
+        });
+        dialogDownload.show();
+        atualizarProgressoDownload = new Runnable() {
+            @Override public void run() {
+                Cursor c = consultarDownload(id);
+                if (c == null) {
+                    if (dialogDownload != null) dialogDownload.dismiss();
+                    return;
+                }
+                int status = c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS));
+                long recebido = c.getLong(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                long total = c.getLong(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                c.close();
+                if (barraDownload != null) {
+                    int progresso = total > 0 ? (int) Math.min(1000, recebido * 1000L / total) : 0;
+                    barraDownload.setIndeterminate(total <= 0);
+                    if (total > 0) barraDownload.setProgress(progresso);
+                }
+                if (textoDownload != null) {
+                    textoDownload.setText(total > 0
+                            ? android.text.format.Formatter.formatShortFileSize(MainActivity.this, recebido)
+                                + " de " + android.text.format.Formatter.formatShortFileSize(MainActivity.this, total)
+                            : "Aguardando dados do servidor…");
+                }
+                if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
+                    if (dialogDownload != null) dialogDownload.dismiss();
+                    instalarDownloadConcluido(id);
+                    return;
+                }
+                if (status == android.app.DownloadManager.STATUS_FAILED) {
+                    if (dialogDownload != null) dialogDownload.dismiss();
+                    limparRegistroDownload(true);
+                    avisar("O download da atualização falhou. Ao reconectar ao servidor, o NutriLab tentará novamente.");
+                    return;
+                }
+                handlerAtualizacao.postDelayed(this, 500);
+            }
+        };
+        handlerAtualizacao.post(atualizarProgressoDownload);
+    }
+
+    private boolean validarHashDownload(long id) {
+        String esperado = prefs.getString(PREF_DOWNLOAD_SHA, "");
+        if (esperado.length() != 64) return false;
+        try {
+            android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            InputStream in = dm.openDownloadedFile(id).getFileDescriptor() == null ? null
+                    : new java.io.FileInputStream(dm.openDownloadedFile(id).getFileDescriptor());
+            if (in == null) return false;
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[65536];
+            int n;
+            while ((n = in.read(buffer)) > 0) digest.update(buffer, 0, n);
+            in.close();
+            StringBuilder hex = new StringBuilder();
+            for (byte v : digest.digest()) hex.append(String.format(java.util.Locale.ROOT, "%02x", v & 0xff));
+            return esperado.equalsIgnoreCase(hex.toString());
+        } catch (Exception e) {
+            android.util.Log.e("NutriLabUpdate", "Falha ao validar APK baixado", e);
+            return false;
+        }
+    }
+
+    private void instalarDownloadConcluido(long id) {
+        if (instaladorAcionadoNestaSessao) return;
+        if (!validarHashDownload(id)) {
+            android.util.Log.e("NutriLabUpdate", "Hash do APK baixado não confere; descartando arquivo incompleto.");
+            limparRegistroDownload(true);
+            verificarAtualizacaoNoServidor();
+            return;
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Permitir instalação da atualização")
+                    .setMessage("O APK foi baixado e validado. Para instalar, permita que o NutriLab solicite a instalação desta atualização nas configurações do Android. O arquivo permanecerá salvo; não será necessário baixá-lo novamente.")
+                    .setNegativeButton("Agora não", null)
+                    .setPositiveButton("Abrir configuração", (d, w) -> {
+                        Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                    }).show();
+            return;
+        }
+        try {
+            android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            Uri uri = dm.getUriForDownloadedFile(id);
+            if (uri == null) throw new Exception("O Android não disponibilizou o arquivo baixado.");
+            Intent instalar = new Intent(Intent.ACTION_VIEW);
+            instalar.setDataAndType(uri, "application/vnd.android.package-archive");
+            instalar.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            instaladorAcionadoNestaSessao = true;
+            startActivity(instalar);
+        } catch (Exception e) {
+            instaladorAcionadoNestaSessao = false;
+            android.util.Log.e("NutriLabUpdate", "Não foi possível abrir o instalador", e);
+            avisar("O APK está salvo no aparelho, mas o Android não abriu o instalador. Abra o NutriLab novamente para tentar instalar sem novo download.");
+        }
+    }
+
+    private void limparDownloadSeJaInstalado(long codigoInstalado) {
+        long codigoBaixado = prefs.getLong(PREF_DOWNLOAD_CODE, -1L);
+        if (codigoBaixado > 0 && codigoInstalado >= codigoBaixado) limparRegistroDownload(true);
+    }
+
+    private void limparRegistroDownload(boolean removerArquivo) {
         long id = prefs.getLong(PREF_DOWNLOAD_ID, -1L);
-        if (id >= 0) {
+        if (removerArquivo && id >= 0) {
             try {
                 android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
                 dm.remove(id);
             } catch (Exception e) {
-                android.util.Log.w("NutriLabUpdate", "Falha ao limpar APK temporário", e);
+                android.util.Log.w("NutriLabUpdate", "Falha ao limpar registro do APK", e);
             }
-            prefs.edit().remove(PREF_DOWNLOAD_ID).apply();
+        }
+        prefs.edit().remove(PREF_DOWNLOAD_ID).remove(PREF_DOWNLOAD_CODE).remove(PREF_DOWNLOAD_NAME)
+                .remove(PREF_DOWNLOAD_SHA).remove(PREF_DOWNLOAD_URL).apply();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (prefs != null) {
+            retomarDownloadPendente();
+            verificarAtualizacaoNoServidor();
         }
     }
 
