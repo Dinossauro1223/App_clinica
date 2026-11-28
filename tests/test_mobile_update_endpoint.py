@@ -18,7 +18,7 @@ class TestAtualizacaoMobileServidor(unittest.TestCase):
         self.raiz = Path(self.tmp.name)
         (self.raiz / "apk" / "saida").mkdir(parents=True)
         (self.raiz / "version.properties").write_text(
-            "versionName=1.2.0\\nversionCode=30000002\\n", encoding="utf-8"
+            "\n".join(["versionName=1.2.0", "versionCode=30000002", ""]), encoding="utf-8"
         )
         self.apk = b"APK-DE-TESTE-" * 128
         (self.raiz / "apk" / "saida" / "NutriLab-Mobile.apk").write_bytes(self.apk)

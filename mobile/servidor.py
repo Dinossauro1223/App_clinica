@@ -1747,7 +1747,7 @@ class Manipulador(BaseHTTPRequestHandler):
         inicio, fim, codigo = 0, tamanho - 1, 200
         faixa = self.headers.get("Range", "")
         if faixa:
-            m = re.fullmatch(r"bytes=(\\d*)-(\\d*)", faixa.strip())
+            m = re.fullmatch(r"bytes=(\d*)-(\d*)", faixa.strip())
             if not m or (not m.group(1) and not m.group(2)):
                 self.send_response(416)
                 self.send_header("Content-Range", "bytes */%d" % tamanho)
