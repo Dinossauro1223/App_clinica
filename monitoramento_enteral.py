@@ -162,11 +162,12 @@ def gotas_por_minuto(taxa_ml_h, fator_gotas_ml):
 
 
 def resumir_administracoes_dia(caminho, id_paciente, data):
-    """Resume administrações enterais reais iniciadas e encerradas na mesma data.
+    """Resume eventos enterais que intersectam o dia solicitado.
 
-    Não distribui volume de eventos que atravessam a meia-noite, pois isso exigiria
-    inventar a parcela administrada em cada dia. Esses eventos são retornados como
-    pendentes para revisão manual.
+    Inclui administrações iniciadas antes da data e ainda sem término, para que
+    permaneçam visíveis como pendentes no resumo atual. Eventos abertos, sem volume
+    real ou que atravessam a meia-noite não têm o volume rateado automaticamente:
+    são retornados para revisão manual, sem inventar a parcela diária.
     """
     try:
         dia = datetime.strptime(str(data), "%Y-%m-%d").date()
