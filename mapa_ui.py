@@ -1415,7 +1415,7 @@ class DialogAdministracaoEnteral(_Janela):
             gpm = monitoramento_enteral.gotas_por_minuto(r.get("taxa_ml_h"), r.get("fator_gotas_ml"))
             self.tabela.insert("", "end", values=(
                 str(r.get("inicio_em",""))[:16].replace("T"," "),
-                str(r.get("fim_em") or "—")[:16].replace("T"," "),
+                "Em andamento · pendente" if not r.get("fim_em") else str(r.get("fim_em"))[:16].replace("T"," "),
                 "—" if r.get("volume_administrado_ml") is None else f'{r["volume_administrado_ml"]:g}',
                 "—" if r.get("taxa_ml_h") is None else f'{r["taxa_ml_h"]:g}',
                 r.get("via_administracao") or "—",
