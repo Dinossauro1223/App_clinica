@@ -264,6 +264,28 @@ class TestEvolucaoNutricional(unittest.TestCase):
         self.assertIn("1.500 kcal no período", texto)
         self.assertIn("150 kcal/h", texto)
 
+    def test_geracao_enteral_distingue_oferta_planejada_de_administracao_real(self):
+        dados = {
+            "antropometria": {"idade_anos": 50, "altura_m": 1.7, "altura_origem": "A",
+                "peso_kg": 70, "peso_origem": "A"},
+            "via": "Enteral", "metas": ev.calcular_metas(70, 25, 1.2),
+            "oferta": {"kcal_dia": 1500, "proteina_g_dia": 75, "volume_total_ml": 1000,
+                       "volume_meta_ml": 1166.6667},
+            "dieta_enteral": {"nome": "Fórmula fechada", "volume_por_etapa_ml": 1000,
+                              "etapas": 1, "kcal_100": 150, "ptn_100": 7.5},
+            "administracao_real": {
+                "volume_administrado_ml": 600,
+                "administracoes_pendentes": [],
+                "volume_prescrito_ml": 700,
+            },
+            "tne_motivos": [], "bomba": {"usa_bomba": False},
+        }
+        texto = ev.gerar_evolucao(dados)
+        self.assertIn("600 mL administrados", texto)
+        self.assertIn("900,0 kcal", texto)
+        self.assertIn("64,3% kcal", texto)
+        self.assertIn("48,0% PTN", texto)
+
     def test_geracao_enteral_com_dieta_e_sem_tempo_de_bomba_sem_bomba(self):
         dados = {
             "antropometria": {"data": "25/11/2026", "idade_anos": 72, "altura_m": 1.65,
