@@ -945,26 +945,55 @@ def publicar_menu_dia(db, mobile_db, data_iso, refeicao=None):
             c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_publicacoes (
                 data TEXT NOT NULL, refeicao TEXT NOT NULL, snapshot_json TEXT NOT NULL,
                 publicado_em TEXT NOT NULL, PRIMARY KEY(data,refeicao))""")
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_publicacoes_historico (
+                id_publicacao INTEGER PRIMARY KEY AUTOINCREMENT,
+                data TEXT NOT NULL, refeicao TEXT NOT NULL, versao INTEGER NOT NULL,
+                snapshot_json TEXT NOT NULL, publicado_em TEXT NOT NULL,
+                UNIQUE(data,refeicao,versao))""")
             alvos = {refeicao} if refeicao else validas
             for ref in sorted(alvos):
                 snapshot = {"esquema": 1, "data": data_iso, "refeicao": ref,
                             "publicado_em": _agora(), "preparacoes": agrupadas.get(ref, [])}
-                bruto = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
                 anterior = c.execute(
                     "SELECT snapshot_json FROM menu_dia_publicacoes WHERE data=? AND refeicao=?",
                     (data_iso, ref)).fetchone()
-                # Ignora o timestamp ao comparar para não criar nova versão sem mudança real.
+                historico = c.execute(
+                    "SELECT COALESCE(MAX(versao),0) AS versao FROM menu_dia_publicacoes_historico "
+                    "WHERE data=? AND refeicao=?", (data_iso, ref)).fetchone()
+                ultima_versao = int(historico["versao"] or 0)
+                # Migra a publicação legada para o histórico sem perder a versão já disponível.
+                if anterior and ultima_versao == 0:
+                    legado = json.loads(anterior["snapshot_json"])
+                    legado_versao = int(legado.get("versao") or 1)
+                    legado["versao"] = legado_versao
+                    legado_bruto = json.dumps(legado, ensure_ascii=False, separators=(",", ":"))
+                    c.execute("""INSERT OR IGNORE INTO menu_dia_publicacoes_historico
+                        (data,refeicao,versao,snapshot_json,publicado_em) VALUES(?,?,?,?,?)""",
+                        (data_iso, ref, legado_versao, legado_bruto,
+                         legado.get("publicado_em") or _agora()))
+                    c.execute("UPDATE menu_dia_publicacoes SET snapshot_json=? WHERE data=? AND refeicao=?",
+                              (legado_bruto, data_iso, ref))
+                    ultima_versao = legado_versao
+                    anterior = {"snapshot_json": legado_bruto}
+                # Timestamp não participa da comparação: publicação idêntica não cria versão nova.
                 if anterior:
                     antigo = json.loads(anterior["snapshot_json"])
                     if antigo.get("preparacoes") == snapshot["preparacoes"]:
-                        publicados.append({"data": data_iso, "refeicao": ref, "alterado": False})
+                        publicados.append({"data": data_iso, "refeicao": ref,
+                                           "versao": ultima_versao, "alterado": False})
                         continue
+                versao = ultima_versao + 1
+                snapshot["versao"] = versao
+                bruto = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
+                c.execute("""INSERT INTO menu_dia_publicacoes_historico
+                    (data,refeicao,versao,snapshot_json,publicado_em) VALUES(?,?,?,?,?)""",
+                    (data_iso, ref, versao, bruto, snapshot["publicado_em"]))
                 c.execute("""INSERT INTO menu_dia_publicacoes(data,refeicao,snapshot_json,publicado_em)
                     VALUES(?,?,?,?) ON CONFLICT(data,refeicao) DO UPDATE SET
                     snapshot_json=excluded.snapshot_json,publicado_em=excluded.publicado_em""",
                     (data_iso, ref, bruto, snapshot["publicado_em"]))
-                publicados.append({"data": data_iso, "refeicao": ref, "alterado": True,
-                                   "preparacoes": len(snapshot["preparacoes"])})
+                publicados.append({"data": data_iso, "refeicao": ref, "versao": versao,
+                                   "alterado": True, "preparacoes": len(snapshot["preparacoes"])})
             c.commit()
     except Exception:
         c.rollback()
