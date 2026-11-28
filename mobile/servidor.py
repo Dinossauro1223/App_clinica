@@ -1118,14 +1118,24 @@ def _rotear(c, ip, m, p, q, b, auth):
                 faltou_preparacao INTEGER NOT NULL DEFAULT 0 CHECK(faltou_preparacao IN (0,1)),
                 peso_por_porcao_g REAL, observacao TEXT, usuario TEXT NOT NULL,
                 criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL,
+                versao_publicacao INTEGER NOT NULL DEFAULT 1,
                 UNIQUE(data,refeicao,id_preparacao_dia)
             )""")
+            if "versao_publicacao" not in {r["name"] for r in c.execute("PRAGMA table_info(menu_dia_producao)")}:
+                c.execute("ALTER TABLE menu_dia_producao ADD COLUMN versao_publicacao INTEGER NOT NULL DEFAULT 1")
             c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_producao_cubas (
                 id_cuba INTEGER PRIMARY KEY AUTOINCREMENT,
                 id_registro INTEGER NOT NULL REFERENCES menu_dia_producao(id_registro) ON DELETE CASCADE,
                 identificacao TEXT NOT NULL, peso_sobra_kg REAL NOT NULL DEFAULT 0,
                 peso_desperdicio_kg REAL NOT NULL DEFAULT 0, observacao TEXT, ordem INTEGER NOT NULL DEFAULT 0
             )""")
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_producao_historico (
+                id_historico INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_registro INTEGER NOT NULL, data TEXT NOT NULL, refeicao TEXT NOT NULL,
+                id_preparacao_dia INTEGER NOT NULL, versao_publicacao INTEGER NOT NULL,
+                dados_json TEXT NOT NULL, cubas_json TEXT NOT NULL,
+                usuario TEXT NOT NULL, registrado_em TEXT NOT NULL,
+                UNIQUE(id_registro,versao_publicacao))""")
             d = dia_valido(b.get("data") or hoje())
             c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_publicacoes (
                 data TEXT NOT NULL, refeicao TEXT NOT NULL, snapshot_json TEXT NOT NULL,
@@ -1184,11 +1194,28 @@ def _rotear(c, ip, m, p, q, b, auth):
             categoria = str(preparacao.get("categoria") or "")[:80] or None
             agora_registro = agora()
             existente = c.execute(
-                "SELECT id_registro FROM menu_dia_producao WHERE data=? AND refeicao=? AND id_preparacao_dia=?",
+                "SELECT * FROM menu_dia_producao WHERE data=? AND refeicao=? AND id_preparacao_dia=?",
                 (d, ref, pid)
             ).fetchone()
             if existente:
                 rid = existente["id_registro"]
+                if int(existente["versao_publicacao"] or 1) != versao_publicacao:
+                    cubas_anteriores = [dict(x) for x in c.execute(
+                        "SELECT identificacao,peso_sobra_kg,peso_desperdicio_kg,observacao,ordem "
+                        "FROM menu_dia_producao_cubas WHERE id_registro=? ORDER BY ordem,id_cuba",
+                        (rid,)).fetchall()]
+                    dados_anteriores = {k: existente[k] for k in (
+                        "nome_preparacao_snapshot","categoria_snapshot","porcoes_planejadas",
+                        "porcoes_produzidas","porcoes_faltantes","faltou_preparacao",
+                        "peso_por_porcao_g","observacao")}
+                    c.execute("""INSERT OR IGNORE INTO menu_dia_producao_historico(
+                        id_registro,data,refeicao,id_preparacao_dia,versao_publicacao,
+                        dados_json,cubas_json,usuario,registrado_em
+                    ) VALUES(?,?,?,?,?,?,?,?,?)""",
+                        (rid,d,ref,pid,int(existente["versao_publicacao"] or 1),
+                         json.dumps(dados_anteriores,ensure_ascii=False),
+                         json.dumps(cubas_anteriores,ensure_ascii=False),
+                         existente["usuario"],existente["atualizado_em"]))
                 c.execute("""UPDATE menu_dia_producao SET nome_preparacao_snapshot=?,categoria_snapshot=?,
                     porcoes_planejadas=?,porcoes_produzidas=?,porcoes_faltantes=?,faltou_preparacao=?,
                     peso_por_porcao_g=?,observacao=?,usuario=?,atualizado_em=?,versao_publicacao=? WHERE id_registro=?""",
