@@ -108,6 +108,21 @@ class MobileTest(unittest.TestCase):
                 publicado_em TEXT NOT NULL, PRIMARY KEY(data,refeicao))""")
             c.execute("INSERT OR REPLACE INTO menu_dia_publicacoes VALUES(?,?,?,?)",
                       (dia, "almoco", json.dumps(snapshot), "2026-11-27T08:00:00-03:00"))
+            # Simula banco legado com tabela de produção já existente, ainda sem coluna de versão.
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_producao (
+                id_registro INTEGER PRIMARY KEY AUTOINCREMENT,
+                data TEXT NOT NULL, refeicao TEXT NOT NULL, id_preparacao_dia INTEGER NOT NULL,
+                nome_preparacao_snapshot TEXT NOT NULL, categoria_snapshot TEXT,
+                porcoes_planejadas REAL, porcoes_produzidas REAL,
+                porcoes_faltantes REAL NOT NULL DEFAULT 0,
+                faltou_preparacao INTEGER NOT NULL DEFAULT 0,
+                peso_por_porcao_g REAL, observacao TEXT, usuario TEXT NOT NULL,
+                criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL,
+                UNIQUE(data,refeicao,id_preparacao_dia))""")
+            c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_producao_cubas (
+                id_cuba INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL,
+                identificacao TEXT NOT NULL, peso_sobra_kg REAL NOT NULL DEFAULT 0,
+                peso_desperdicio_kg REAL NOT NULL DEFAULT 0, observacao TEXT, ordem INTEGER NOT NULL DEFAULT 0)""")
             c.commit()
         finally:
             c.close()
