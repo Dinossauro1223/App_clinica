@@ -208,6 +208,12 @@ class AppClinica(ctk.CTk):
                 ("🍲", "Fichas e consumo da cozinha", lambda: self.abrir_pagina_principal("Fichas e consumo", self.tela_gestao_alimentar_fichas)),
             ]),
         ]
+        if self._modo_testes:
+            # Evita que a cópia isolada acesse o servidor mobile da clínica em execução.
+            secoes_menu = [
+                (titulo, [item for item in itens if item[1] != "Mobile (copa)"])
+                for titulo, itens in secoes_menu
+            ]
         self.menu_lateral = BarraLateral(
             self, secoes=secoes_menu,
             config=("⚙️", "Configurações", lambda: self.abrir_pagina_principal("Configurações", self.tela_configuracoes)),
@@ -502,6 +508,12 @@ class AppClinica(ctk.CTk):
         self.mapa.mostrar_suplementos()
 
     def tela_mobile(self):
+        if getattr(self, "_modo_testes", False):
+            messagebox.showinfo(
+                "Ambiente de testes",
+                "O módulo mobile está desativado nesta cópia para impedir acesso ao servidor de produção."
+            )
+            return
         from mobile_ui import MobileUI
         MobileUI(self, caminho_do_banco(), get_base_path()).mostrar()
 

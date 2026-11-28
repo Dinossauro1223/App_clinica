@@ -66,6 +66,15 @@ class TestBasesTeste(unittest.TestCase):
         with self.assertRaises(base_testes.ErroBaseTeste):
             base_testes.abrir_base_teste(self.producao, banco_producao=self.producao)
 
+    def test_modo_de_testes_nao_acessa_servidor_mobile_da_producao(self):
+        fonte = Path(__file__).resolve().parents[1] / "main.py"
+        texto = fonte.read_text(encoding="utf-8")
+        self.assertIn("if not self._modo_testes:", texto)
+        self.assertIn("self._iniciar_servidor_mobile()", texto)
+        self.assertIn('if self._modo_testes:', texto)
+        self.assertIn('if getattr(self, "_modo_testes", False):', texto)
+        self.assertIn('NUTRILAB_MODO_TESTE', texto)
+
     def test_abre_copia_com_variavel_de_banco_isolada(self):
         copia = self.raiz / "copia.db"
         base_testes.exportar_base_teste(self.producao, copia)
