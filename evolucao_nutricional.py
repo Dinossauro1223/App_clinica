@@ -463,6 +463,33 @@ def gerar_evolucao(dados):
         linhas.append("**Adequação da meta:** " +
             f"Kcal/dia: {formatar_numero_pt(adeq['kcal_dia'])} kcal ({formatar_numero_pt(adeq['adequacao_kcal_pct'], 1)}% de adequação); " +
             f"PTN/dia: {formatar_numero_pt(adeq['proteina_g_dia'], 1)} g ({formatar_numero_pt(adeq['adequacao_proteina_pct'], 1)}% de adequação).")
+    administracao_real = dados.get("administracao_real") or {}
+    if enteral and administracao_real:
+        volume_real = administracao_real.get("volume_administrado_ml")
+        pendentes = administracao_real.get("administracoes_pendentes") or []
+        dieta_real = dados.get("dieta_enteral") or {}
+        if volume_real is not None and metas and dieta_real.get("kcal_100") is not None and dieta_real.get("ptn_100") is not None:
+            kcal_real = float(volume_real) * float(dieta_real["kcal_100"]) / 100
+            ptn_real = float(volume_real) * float(dieta_real["ptn_100"]) / 100
+            adeq_real = calcular_adequacao(kcal_real, ptn_real, metas["kcal_dia"], metas["proteina_g_dia"])
+            linhas.append(
+                "**Administração enteral real registrada:** "
+                f"{formatar_numero_pt(volume_real)} mL administrados; "
+                f"{formatar_numero_pt(kcal_real, 1)} kcal e {formatar_numero_pt(ptn_real, 1)} g de PTN; "
+                f"adequação real: {formatar_numero_pt(adeq_real['adequacao_kcal_pct'], 1)}% kcal e "
+                f"{formatar_numero_pt(adeq_real['adequacao_proteina_pct'], 1)}% PTN."
+            )
+        elif volume_real is not None:
+            linhas.append(
+                f"**Administração enteral real registrada:** {formatar_numero_pt(volume_real)} mL; "
+                "energia/proteína reais não calculáveis por ausência de composição completa da fórmula."
+            )
+        if pendentes:
+            linhas.append(
+                f"**Administração enteral pendente de conferência:** {len(pendentes)} evento(s) sem volume final "
+                "ou atravessando a meia-noite; o sistema não distribui esse volume entre dias automaticamente."
+            )
+
     linhas.append(f"**DVA:** {'Sim' if dados.get('dva') else 'Não'}.")
     linhas.append(f"**Via de alimentação:** {'Enteral' if enteral else 'Oral' if via == 'oral' else dados.get('via') or 'não informada'}.")
     if enteral:
