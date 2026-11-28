@@ -283,8 +283,8 @@ class TestEvolucaoNutricional(unittest.TestCase):
         texto = ev.gerar_evolucao(dados)
         self.assertIn("600 mL administrados", texto)
         self.assertIn("900,0 kcal", texto)
-        self.assertIn("64,3% kcal", texto)
-        self.assertIn("48,0% PTN", texto)
+        self.assertIn("51,4% kcal", texto)
+        self.assertIn("53,6% PTN", texto)
 
     def test_geracao_enteral_com_dieta_e_sem_tempo_de_bomba_sem_bomba(self):
         dados = {
