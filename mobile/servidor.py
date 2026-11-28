@@ -1085,8 +1085,11 @@ def _rotear(c, ip, m, p, q, b, auth):
                 faltou_preparacao INTEGER NOT NULL DEFAULT 0 CHECK(faltou_preparacao IN (0,1)),
                 peso_por_porcao_g REAL, observacao TEXT, usuario TEXT NOT NULL,
                 criado_em TEXT NOT NULL, atualizado_em TEXT NOT NULL,
+                versao_publicacao INTEGER NOT NULL DEFAULT 1,
                 UNIQUE(data,refeicao,id_preparacao_dia)
             )""")
+            if "versao_publicacao" not in {r["name"] for r in c.execute("PRAGMA table_info(menu_dia_producao)")}:
+                c.execute("ALTER TABLE menu_dia_producao ADD COLUMN versao_publicacao INTEGER NOT NULL DEFAULT 1")
             c.execute("""CREATE TABLE IF NOT EXISTS menu_dia_producao_cubas (
                 id_cuba INTEGER PRIMARY KEY AUTOINCREMENT,
                 id_registro INTEGER NOT NULL REFERENCES menu_dia_producao(id_registro) ON DELETE CASCADE,
@@ -1141,6 +1144,7 @@ def _rotear(c, ip, m, p, q, b, auth):
             if not publicado:
                 raise Erro("Não existe Menu do Dia publicado para esta refeição e data.", 404)
             snapshot = json.loads(publicado["snapshot_json"])
+            versao_publicacao = int(snapshot.get("versao") or 1)
             preparacao = next((x for x in snapshot.get("preparacoes", [])
                                if str(x.get("id_preparacao_dia")) == str(pid)), None)
             if not preparacao:
@@ -1187,23 +1191,24 @@ def _rotear(c, ip, m, p, q, b, auth):
                 rid = existente["id_registro"]
                 c.execute("""UPDATE menu_dia_producao SET nome_preparacao_snapshot=?,categoria_snapshot=?,
                     porcoes_planejadas=?,porcoes_produzidas=?,porcoes_faltantes=?,faltou_preparacao=?,
-                    peso_por_porcao_g=?,observacao=?,usuario=?,atualizado_em=? WHERE id_registro=?""",
+                    peso_por_porcao_g=?,observacao=?,usuario=?,atualizado_em=?,versao_publicacao=? WHERE id_registro=?""",
                     (nome, categoria, planejadas, produzidas, faltantes, int(nao_produzida), peso,
-                     str(b.get("observacao") or "")[:2000], u["nome"], agora_registro, rid))
+                     str(b.get("observacao") or "")[:2000], u["nome"], agora_registro, versao_publicacao, rid))
                 c.execute("DELETE FROM menu_dia_producao_cubas WHERE id_registro=?", (rid,))
             else:
                 rid = c.execute("""INSERT INTO menu_dia_producao(
                     data,refeicao,id_preparacao_dia,nome_preparacao_snapshot,categoria_snapshot,
                     porcoes_planejadas,porcoes_produzidas,porcoes_faltantes,faltou_preparacao,
-                    peso_por_porcao_g,observacao,usuario,criado_em,atualizado_em
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    peso_por_porcao_g,observacao,usuario,criado_em,atualizado_em,versao_publicacao
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (d, ref, pid, nome, categoria, planejadas, produzidas, faltantes,
                      int(nao_produzida), peso, str(b.get("observacao") or "")[:2000],
-                     u["nome"], agora_registro, agora_registro)).lastrowid
+                     u["nome"], agora_registro, agora_registro, versao_publicacao)).lastrowid
             c.executemany("""INSERT INTO menu_dia_producao_cubas(
                 id_registro,identificacao,peso_sobra_kg,peso_desperdicio_kg,observacao,ordem
             ) VALUES(?,?,?,?,?,?)""", [(rid, *x) for x in cubas])
             return {"ok": True, "id_registro": rid, "atualizado": bool(existente),
+                    "versao_publicacao": versao_publicacao,
                     "porcoes_planejadas": planejadas, "porcoes_produzidas": produzidas,
                     "porcoes_faltantes": faltantes, "cubas": len(cubas)}
     if (m, p) == ("GET", "/api/eu"):
