@@ -586,9 +586,6 @@ class MobileTest(unittest.TestCase):
 
 
 
-if __name__ == "__main__":
-    unittest.main()
-
     def test_menu_dia_publica_snapshot_versionado_e_producao_autorizada(self):
         data = sv.hoje()
         payload = {"data": data, "refeicao": "almoco", "itens": [
@@ -627,3 +624,6 @@ if __name__ == "__main__":
         self.assertEqual(self.chamar(self.t["cop"], "POST", "/api/nutri/menu-dia",
             {"data": data, "refeicao": "almoco", "itens": [{"chave": "x", "nome": "A"}]})[0], 403)
 
+
+if __name__ == "__main__":
+    unittest.main()
