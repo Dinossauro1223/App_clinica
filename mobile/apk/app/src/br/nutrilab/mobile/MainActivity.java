@@ -310,6 +310,16 @@ public class MainActivity extends Activity {
         int status = c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS));
         c.close();
         if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
+            long codigoBaixado = prefs.getLong(PREF_DOWNLOAD_CODE, -1L);
+            try {
+                long codigoInstalado = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+                if (codigoBaixado > 0 && codigoInstalado >= codigoBaixado) {
+                    limparRegistroDownload(true);
+                    return;
+                }
+            } catch (Exception e) {
+                android.util.Log.w("NutriLabUpdate", "Não foi possível comparar a versão instalada", e);
+            }
             instalarDownloadConcluido(id);
         } else if (status == android.app.DownloadManager.STATUS_FAILED) {
             // Falha de transporte não equivale a bloqueio da instalação; o servidor será consultado novamente.
@@ -390,14 +400,15 @@ public class MainActivity extends Activity {
         if (esperado.length() != 64) return false;
         try {
             android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-            InputStream in = dm.openDownloadedFile(id).getFileDescriptor() == null ? null
-                    : new java.io.FileInputStream(dm.openDownloadedFile(id).getFileDescriptor());
-            if (in == null) return false;
+            android.os.ParcelFileDescriptor descritor = dm.openDownloadedFile(id);
+            if (descritor == null) return false;
+            InputStream in = new java.io.FileInputStream(descritor.getFileDescriptor());
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] buffer = new byte[65536];
             int n;
             while ((n = in.read(buffer)) > 0) digest.update(buffer, 0, n);
             in.close();
+            descritor.close();
             StringBuilder hex = new StringBuilder();
             for (byte v : digest.digest()) hex.append(String.format(java.util.Locale.ROOT, "%02x", v & 0xff));
             return esperado.equalsIgnoreCase(hex.toString());
@@ -476,6 +487,11 @@ public class MainActivity extends Activity {
         handlerDescoberta.removeCallbacks(tentarRedescobrir);
         String url = prefs.getString("servidor", "");
         web.loadUrl(url.isEmpty() ? "file:///android_asset/config.html" : url);
+        if (!url.isEmpty()) {
+            handlerAtualizacao.postDelayed(new Runnable() {
+                @Override public void run() { verificarAtualizacaoNoServidor(); }
+            }, 1200);
+        }
     }
 
     /** Carrega uma cópia local da interface mantendo a origem do servidor para as chamadas /api. */
