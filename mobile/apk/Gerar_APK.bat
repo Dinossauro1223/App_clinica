@@ -49,7 +49,12 @@ echo.
 echo ===== NutriLab: gerando o APK  [Gerar_APK versao 23/11/2026 v4] =====
 echo Pasta deste arquivo: %~dp0
 echo.
-if not exist "%FONTE%\AndroidManifest.xml" goto :sem_app
+if not exist "%FONTE%\AndroidManifest.xml" goto :versao_invalida
+echo ERRO: mobile\version.properties precisa conter versionName e versionCode validos.
+pause
+exit /b 1
+
+:sem_app
 if not exist "%FERR%" mkdir "%FERR%"
 if not exist "%DL%" mkdir "%DL%"
 if exist "%LOG%" del /q "%LOG%"
@@ -145,16 +150,19 @@ mkdir "%OBJ%\classes"
 mkdir "%OBJ%\dex"
 if not exist "%SAIDA%" mkdir "%SAIDA%"
 set "VCODE="
-for /f %%i in ('powershell -NoProfile -Command "[int]((Get-Date -UFormat %%s)/60)"') do set "VCODE=%%i"
-if not defined VCODE set "VCODE=1"
+set "VNAME="
+for /f "tokens=1,* delims==" %%A in ('findstr /b "versionCode=" "%~dp0..\version.properties"') do set "VCODE=%%B"
+for /f "tokens=1,* delims==" %%A in ('findstr /b "versionName=" "%~dp0..\version.properties"') do set "VNAME=%%B"
+if not defined VCODE goto :versao_invalida
+if not defined VNAME goto :versao_invalida
 echo %VCODE%| findstr /r /x "[0-9][0-9]*" >nul
-if errorlevel 1 set "VCODE=1"
+if errorlevel 1 goto :versao_invalida
 
 set "PASSO=aapt2 compile - recursos"
 "%BT%\aapt2.exe" compile --dir "%APP%\res" -o "%OBJ%\res.zip" >>"%LOG%" 2>&1
 if errorlevel 1 goto :falha_build
 set "PASSO=aapt2 link - manifesto e paginas"
-"%BT%\aapt2.exe" link -o "%OBJ%\base.apk" -I "%AJAR%" --manifest "%APP%\AndroidManifest.xml" -A "%APP%\assets" --min-sdk-version 26 --target-sdk-version 34 --version-code %VCODE% --version-name 1.0 "%OBJ%\res.zip" >>"%LOG%" 2>&1
+"%BT%\aapt2.exe" link -o "%OBJ%\base.apk" -I "%AJAR%" --manifest "%APP%\AndroidManifest.xml" -A "%APP%\assets" --min-sdk-version 26 --target-sdk-version 34 --version-code %VCODE% --version-name %VNAME% "%OBJ%\res.zip" >>"%LOG%" 2>&1
 if errorlevel 1 goto :falha_build
 set "PASSO=javac - codigo Java"
 "%JAVA_HOME%\bin\javac.exe" -encoding UTF-8 --release 8 -classpath "%AJAR%;%ZXING%" -d "%OBJ%\classes" "%APP%\src\br\nutrilab\mobile\MainActivity.java" "%APP%\src\br\nutrilab\mobile\QRScannerActivity.java" >>"%LOG%" 2>&1

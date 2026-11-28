@@ -938,6 +938,11 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         offlineMode = false;
         handlerDescoberta.removeCallbacks(tentarRedescobrir);
+        handlerAtualizacao.removeCallbacksAndMessages(null);
+        if (dialogDownload != null) {
+            dialogDownload.dismiss();
+            dialogDownload = null;
+        }
         super.onDestroy();
     }
 }

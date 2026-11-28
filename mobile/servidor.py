@@ -1806,14 +1806,14 @@ class Manipulador(BaseHTTPRequestHandler):
             return {"disponivel": False}
         stat = apk.stat()
         chave_cache = (str(apk), stat.st_size, stat.st_mtime_ns)
-        cache = getattr(self, "_cache_metadados_apk", None)
+        cache = getattr(self.server, "_cache_metadados_apk", None)
         if cache is None or cache.get("chave") != chave_cache:
             digest = hashlib.sha256()
             with apk.open("rb") as arquivo:
                 for bloco in iter(lambda: arquivo.read(1024 * 1024), b""):
                     digest.update(bloco)
             cache = {"chave": chave_cache, "sha256": digest.hexdigest()}
-            self._cache_metadados_apk = cache
+            self.server._cache_metadados_apk = cache
         return {
             "disponivel": True,
             "version_name": nome,
