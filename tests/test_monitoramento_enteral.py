@@ -48,12 +48,17 @@ class TestMonitoramentoEnteral(unittest.TestCase):
             volume_prescrito_ml=300, volume_administrado_ml=300,
             via_administracao="bomba",
         )
+        me.salvar_administracao(
+            self.db, 7, "2026-11-26 22:00", None,
+            volume_prescrito_ml=200, volume_administrado_ml=None,
+            via_administracao="bomba",
+        )
         resumo = me.resumir_administracoes_dia(self.db, 7, "2026-11-27")
         self.assertEqual(resumo["volume_administrado_ml"], 450)
         self.assertEqual(resumo["volume_prescrito_ml"], 500)
         self.assertAlmostEqual(resumo["cobertura_volume_pct"], 90.0)
         self.assertFalse(resumo["volume_calculavel"])
-        self.assertEqual(len(resumo["administracoes_pendentes"]), 1)
+        self.assertEqual(len(resumo["administracoes_pendentes"]), 2)
 
     def test_volume_real_sem_registro_nao_vira_zero(self):
         resumo = me.resumir_administracoes_dia(self.db, 7, "2026-11-27")
