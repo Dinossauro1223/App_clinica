@@ -101,3 +101,24 @@ class TestMonitoramentoGlicemico(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_relaciona_hgt_com_suplemento_por_diferenca_em_minutos(self):
+        ofertas = [{"instante": datetime.fromisoformat("2026-11-27 08:00"),
+                    "suplemento": "Fórmula sintética", "tipo_evento": "suplemento"}]
+        rel = mg.relacionar_hgt_a_ofertas("2026-11-27 08:20", ofertas)
+        self.assertEqual(rel[0]["classificacao"], "proximo")
+        self.assertEqual(rel[0]["distancia_min"], 20)
+        self.assertIn("20 min após", rel[0]["descricao"])
+
+    def test_relaciona_hgt_durante_intervalo_enteral(self):
+        ofertas = [{"instante": datetime.fromisoformat("2026-11-27 08:00"),
+                    "fim_em": "2026-11-27 10:00", "suplemento": "Dieta enteral",
+                    "tipo_evento": "enteral"}]
+        rel = mg.relacionar_hgt_a_ofertas("2026-11-27 09:15", ofertas)
+        self.assertEqual(rel[0]["classificacao"], "durante")
+        self.assertEqual(rel[0]["distancia_min"], 75)
+
+    def test_hgt_sem_oferta_com_horario_fica_sem_relacao(self):
+        ofertas = [{"suplemento": "Sem horário", "tipo_evento": "suplemento"}]
+        self.assertEqual(mg.relacionar_hgt_a_ofertas("2026-11-27 08:20", ofertas), [])
