@@ -36,6 +36,18 @@ class TestEvolucaoNutricional(unittest.TestCase):
         self.assertEqual(plano["passos"][-1]["volume_total_ml"], 1200)
         self.assertTrue(plano["atinge_meta_no_prazo"])
 
+    def test_planejamento_administracao_enteral_calcula_bomba_e_gravidade(self):
+        bomba = ev.planejar_administracao_enteral(1200, 150, 12, usa_bomba=True)
+        self.assertEqual(bomba["velocidade_bomba_ml_h"], 100)
+        self.assertEqual(bomba["energia_total_kcal"], 1800)
+        self.assertEqual(bomba["energia_kcal_h"], 150)
+        self.assertNotIn("gotejamento_gotas_min", bomba)
+        gravidade = ev.planejar_administracao_enteral(1200, 150, 12, fator_gotas_ml=20)
+        self.assertEqual(gravidade["taxa_ml_h"], 100)
+        self.assertEqual(gravidade["gotejamento_gotas_min"], 33.3)
+        with self.assertRaises(ValueError):
+            ev.planejar_administracao_enteral(1200, 150, 0)
+
     def test_estimativa_bomba_nao_e_prescricao(self):
         self.assertEqual(ev.estimar_tempo_bomba(300), 30)
 
@@ -121,6 +133,110 @@ class TestEvolucaoNutricional(unittest.TestCase):
         self.assertEqual(aviso["horas_estimadas"], 30)
         self.assertIn("aproximadamente 30.0 horas", aviso["texto"])
 
+
+
+    def test_evolucao_registra_avaliacao_renal_sem_substituir_meta_prescrita(self):
+        renal = ev.avaliar_contexto_renal({
+            "referencia": "KDIGO 2024", "drc_confirmada": True, "tfge": 42,
+            "estagio": "G3b", "albuminuria_mg_g": 80,
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=60, idade_anos=65)
+        dados = {
+            "antropometria": {"data": "27/11/2026", "idade_anos": 65, "peso_kg": 60,
+                              "peso_origem": "A", "altura_m": 1.7, "altura_origem": "A"},
+            "via": "Oral", "metas": ev.calcular_metas(60, 30, 1.2),
+            "avaliacao_renal": renal
+        }
+        texto = ev.gerar_evolucao(dados)
+        self.assertIn("Avaliação renal", texto)
+        self.assertIn("KDIGO 2024", texto)
+        self.assertIn("0,8 g/kg/dia", texto)
+        self.assertIn("72 g", texto)
+        self.assertIn("PTN/dia: 72 g", texto)
+
+    def test_classificacao_tfge_e_albuminuria_kdigo(self):
+        self.assertEqual(ev.classificar_categoria_tfge(52), "G3a")
+        self.assertEqual(ev.classificar_categoria_tfge(29), "G4")
+        self.assertEqual(ev.classificar_albuminuria_mg_g(29.9), "A1")
+        self.assertEqual(ev.classificar_albuminuria_mg_g(30), "A2")
+        self.assertEqual(ev.classificar_albuminuria_mg_g(301), "A3")
+
+    def test_kdigo_2024_nao_dialise_recomenda_08_sem_alterar_meta(self):
+        r = ev.avaliar_contexto_renal({
+            "referencia": "KDIGO 2024", "drc_confirmada": True, "tfge": 42,
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=60, idade_anos=65)
+        self.assertEqual(r["estagio"], "G3b")
+        self.assertEqual(r["recomendacao_proteica"]["g_kg_dia"], 0.8)
+        self.assertEqual(r["recomendacao_proteica"]["g_dia"], 48)
+
+    def test_kdoqi_2020_separa_drc_sem_dialise_e_dialise(self):
+        sem_dm = ev.avaliar_contexto_renal({
+            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G4", "tfge": 25,
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=70, diabetes=False)
+        com_dm = ev.avaliar_contexto_renal({
+            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G3a", "tfge": 50,
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=70, diabetes=True)
+        hd = ev.avaliar_contexto_renal({
+            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G5",
+            "dialise": "hemodialise", "estabilidade_metabolica": "estavel",
+            "frequencia_dialise_semana": 3, "duracao_dialise_horas": 4, "inicio_dialise": "01/10/2026"
+        }, peso_kg=70)
+        self.assertEqual(sem_dm["recomendacao_proteica"]["g_kg_dia"], "0,55–0,60")
+        self.assertEqual(sem_dm["recomendacao_proteica"]["g_dia"], "38,5–42")
+        self.assertEqual(com_dm["recomendacao_proteica"]["g_kg_dia"], "0,6–0,8")
+        self.assertEqual(com_dm["recomendacao_proteica"]["g_dia"], "42–56")
+        self.assertEqual(hd["recomendacao_proteica"]["g_kg_dia"], "1,0–1,2")
+        self.assertEqual(hd["frequencia_dialise_semana"], 3)
+        self.assertEqual(hd["duracao_dialise_horas"], 4)
+        self.assertEqual(hd["inicio_dialise"], "01/10/2026")
+
+    def test_instabilidade_catabolismo_e_crianca_bloqueiam_restricao_automatica(self):
+        instavel = ev.avaliar_contexto_renal({
+            "referencia": "KDOQI 2020", "drc_confirmada": True, "estagio": "G4",
+            "dialise": "nao", "estabilidade_metabolica": "instavel"
+        }, peso_kg=50)
+        crianca = ev.avaliar_contexto_renal({
+            "referencia": "KDIGO 2024", "drc_confirmada": True, "estagio": "G4",
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=30, idade_anos=12)
+        self.assertIsNone(instavel["recomendacao_proteica"]["g_kg_dia"])
+        self.assertIsNone(crianca["recomendacao_proteica"]["g_kg_dia"])
+
+
+    def test_estagio_manual_sem_tfge_nao_define_categoria_ou_meta(self):
+        r = ev.avaliar_contexto_renal({
+            "referencia": "KDIGO 2024", "drc_confirmada": True, "estagio": "G4",
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=60)
+        self.assertIsNone(r["estagio"])
+        self.assertIsNone(r["recomendacao_proteica"]["g_kg_dia"])
+        self.assertTrue(any("TFGe do laudo" in aviso for aviso in r["avisos"]))
+
+    def test_lra_nao_usa_recomendacao_numerica_de_drc(self):
+        r = ev.avaliar_contexto_renal({
+            "referencia": "KDOQI 2020", "condicao_renal": "LRA",
+            "drc_confirmada": False, "estagio": "G4",
+            "dialise": "nao", "estabilidade_metabolica": "estavel"
+        }, peso_kg=60)
+        self.assertIsNone(r["recomendacao_proteica"]["g_kg_dia"])
+        self.assertIn("Lesão renal aguda", r["recomendacao_proteica"]["texto"])
+
+    def test_tfge_nao_aceita_infinito(self):
+        with self.assertRaises(ValueError):
+            ev.classificar_categoria_tfge(float("inf"))
+
+    def test_exames_isolados_nao_alteram_meta_proteica(self):
+        a = ev.avaliar_contexto_renal({
+            "referencia": "KDIGO 2024", "drc_confirmada": True, "estagio": "G4", "tfge": 25,
+            "dialise": "nao", "estabilidade_metabolica": "estavel",
+            "creatinina": 3.2, "ureia": 110, "albumina_serica": 2.8
+        }, peso_kg=60)
+        self.assertEqual(a["recomendacao_proteica"]["g_kg_dia"], 0.8)
+        self.assertEqual(len(a["avisos"]), 3)
+
     def test_antropometria_decimal_ptbr_e_peso_corrigido(self):
         texto = ev.formatar_antropometria({
             "data": "25/11/2026", "idade_anos": 72, "altura_m": 1.65, "altura_origem": "R",
@@ -129,6 +245,46 @@ class TestEvolucaoNutricional(unittest.TestCase):
         self.assertIn("PESO: 62 kg (A; corrigido)", texto)
         self.assertIn("IMC: 22,8 kg/m²", texto)
         self.assertNotIn("AJ:", texto)
+
+    def test_geracao_enteral_exibe_plano_de_dieta_fechada(self):
+        dados = {
+            "antropometria": {"idade_anos": 50, "altura_m": 1.7, "altura_origem": "A",
+                "peso_kg": 70, "peso_origem": "A"},
+            "via": "Enteral", "metas": ev.calcular_metas(70, 25, 1.2),
+            "oferta": {"kcal_dia": 1500, "proteina_g_dia": 60, "volume_total_ml": 1000,
+                       "volume_meta_ml": 1000},
+            "dieta_enteral": {"nome": "Fórmula fechada", "volume_por_etapa_ml": 1000,
+                              "etapas": 1, "tipo_formula": "fechada"},
+            "administracao_enteral": ev.planejar_administracao_enteral(
+                1000, 150, 10, usa_bomba=False, fator_gotas_ml=20),
+            "tne_motivos": [], "bomba": {"usa_bomba": False}}
+        texto = ev.gerar_evolucao(dados)
+        self.assertIn("Administração da dieta fechada", texto)
+        self.assertIn("33,3 gotas/min", texto)
+        self.assertIn("1.500 kcal no período", texto)
+        self.assertIn("150 kcal/h", texto)
+
+    def test_geracao_enteral_distingue_oferta_planejada_de_administracao_real(self):
+        dados = {
+            "antropometria": {"idade_anos": 50, "altura_m": 1.7, "altura_origem": "A",
+                "peso_kg": 70, "peso_origem": "A"},
+            "via": "Enteral", "metas": ev.calcular_metas(70, 25, 1.2),
+            "oferta": {"kcal_dia": 1500, "proteina_g_dia": 75, "volume_total_ml": 1000,
+                       "volume_meta_ml": 1166.6667},
+            "dieta_enteral": {"nome": "Fórmula fechada", "volume_por_etapa_ml": 1000,
+                              "etapas": 1, "kcal_100": 150, "ptn_100": 7.5},
+            "administracao_real": {
+                "volume_administrado_ml": 600,
+                "administracoes_pendentes": [],
+                "volume_prescrito_ml": 700,
+            },
+            "tne_motivos": [], "bomba": {"usa_bomba": False},
+        }
+        texto = ev.gerar_evolucao(dados)
+        self.assertIn("600 mL administrados", texto)
+        self.assertIn("900 kcal", texto)
+        self.assertIn("51,4% kcal", texto)
+        self.assertIn("53,6% PTN", texto)
 
     def test_geracao_enteral_com_dieta_e_sem_tempo_de_bomba_sem_bomba(self):
         dados = {

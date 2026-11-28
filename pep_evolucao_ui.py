@@ -19,6 +19,8 @@ import mapa_db as mdb
 import pep_db
 import pep_evolucao_db as evdb
 import tema
+import progressao_nutricional as progressao
+import monitoramento_enteral
 
 
 class FormEvolucaoUI(ctk.CTkFrame):
@@ -45,6 +47,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self._montar()
         self._preencher()
         self._atualizar_correcao()
+        self._atualizar_progressao_antropometrica()
 
     def _secao(self, pai, titulo):
         card = ctk.CTkFrame(pai, fg_color=tema.BRANCO, border_width=1,
@@ -75,6 +78,10 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.lbl_antropometria = ctk.CTkLabel(q, text="", justify="left", anchor="w",
                                                font=tema.fonte(12), text_color=tema.TEXTO)
         self.lbl_antropometria.pack(fill="x", padx=12, pady=(0, 4))
+        self.lbl_progressao = ctk.CTkLabel(
+            q, text="", justify="left", anchor="w", font=tema.fonte(11),
+            text_color=tema.TEXTO, wraplength=780)
+        self.lbl_progressao.pack(fill="x", padx=12, pady=(0, 8))
         self.lbl_correcao = ctk.CTkLabel(q, text="", justify="left", anchor="w",
                                          font=tema.fonte(11), text_color=tema.LARANJA_TEXTO,
                                          wraplength=760)
@@ -88,6 +95,76 @@ class FormEvolucaoUI(ctk.CTkFrame):
         self.lbl_metas.pack(anchor="w", padx=12, pady=(0, 10))
         self.e_kcal_kg.bind("<KeyRelease>", lambda _e: self._atualizar_metas())
         self.e_ptn_kg.bind("<KeyRelease>", lambda _e: self._atualizar_metas())
+
+        q_renal = self._secao(raiz, "Avaliação renal — KDIGO 2024 / KDOQI 2020")
+        linha = ctk.CTkFrame(q_renal, fg_color="transparent")
+        linha.pack(fill="x", padx=12, pady=(0, 5))
+        ctk.CTkLabel(linha, text="Referência:", width=85, anchor="w").pack(side="left")
+        self.cb_renal_ref = ctk.CTkComboBox(linha, values=["KDIGO 2024", "KDOQI 2020"],
+                                            width=150, state="readonly")
+        self.cb_renal_ref.set("KDIGO 2024")
+        self.cb_renal_ref.pack(side="left", padx=(0, 12))
+        ctk.CTkLabel(linha, text="DRC confirmada:", width=115, anchor="w").pack(side="left")
+        self.cb_drc_confirmada = ctk.CTkComboBox(linha, values=["—", "Sim", "Não"], width=90, state="readonly")
+        self.cb_drc_confirmada.set("Sim" if self.reg.get("drc") else "—")
+        self.cb_drc_confirmada.pack(side="left", padx=(0, 12))
+        self.cb_condicao_renal = ctk.CTkComboBox(
+            linha, values=["Não definida", "DRC", "LRA", "DRC + LRA"], width=130, state="readonly")
+        self.cb_condicao_renal.set("DRC" if self.reg.get("drc") else "Não definida")
+        self.cb_condicao_renal.pack(side="left", padx=(0, 8))
+        linha = ctk.CTkFrame(q_renal, fg_color="transparent")
+        linha.pack(fill="x", padx=12, pady=(0, 5))
+        ctk.CTkLabel(linha, text="Estágio G (TFGe):", width=115, anchor="w").pack(side="left")
+        self.cb_estagio_renal = ctk.CTkComboBox(linha, values=["—", "G1", "G2", "G3a", "G3b", "G4", "G5"],
+                                                width=90, state="disabled")
+        self.cb_estagio_renal.set("—")
+        self.cb_estagio_renal.pack(side="left", padx=(0, 8))
+        self.e_tfge = self._entry(linha, "TFGe (mL/min/1,73 m²)", "", 170)
+        self.e_tfge.bind("<KeyRelease>", lambda _e: self._atualizar_estagio_tfge())
+        self.e_albuminuria = self._entry(linha, "Albuminúria (mg/g)", "", 145)
+        self.cb_dialise = ctk.CTkComboBox(linha, values=["Não", "Hemodiálise", "Diálise peritoneal"],
+                                          width=175, state="readonly")
+        self.cb_dialise.set("Não")
+        self.cb_dialise.pack(side="left", padx=(0, 8), pady=(0, 8))
+        linha = ctk.CTkFrame(q_renal, fg_color="transparent")
+        linha.pack(fill="x", padx=12, pady=(0, 5))
+        self.e_frequencia_dialise = self._entry(linha, "sessões/semana", "", 120)
+        self.e_duracao_dialise = self._entry(linha, "horas/sessão", "", 115)
+        self.e_inicio_dialise = self._entry(linha, "início da diálise", "", 145)
+        self.cb_estabilidade_renal = ctk.CTkComboBox(
+            linha, values=["Não informada", "Estável", "Instável"], width=145, state="readonly")
+        self.cb_estabilidade_renal.set("Não informada")
+        self.cb_estabilidade_renal.pack(side="left", padx=(0, 8), pady=(0, 8))
+        linha = ctk.CTkFrame(q_renal, fg_color="transparent")
+        linha.pack(fill="x", padx=12, pady=(0, 5))
+        ctk.CTkLabel(linha, text="Catabolismo:").pack(side="left", padx=(0, 4))
+        self.cb_catabolismo = ctk.CTkComboBox(linha, values=["Não informado", "Sim", "Não"],
+                                              width=125, state="readonly")
+        self.cb_catabolismo.set("Não informado")
+        self.cb_catabolismo.pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(linha, text="Risco de desnutrição:").pack(side="left", padx=(0, 4))
+        self.cb_risco_desnutricao = ctk.CTkComboBox(linha, values=["Não informado", "Sim", "Não"],
+                                                    width=125, state="readonly")
+        self.cb_risco_desnutricao.set("Não informado")
+        self.cb_risco_desnutricao.pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(linha, text="Fragilidade/sarcopenia:").pack(side="left", padx=(0, 4))
+        self.cb_sarcopenia = ctk.CTkComboBox(linha, values=["Não informado", "Sim", "Não"],
+                                             width=125, state="readonly")
+        self.cb_sarcopenia.set("Não informado")
+        self.cb_sarcopenia.pack(side="left", padx=(0, 8))
+        linha = ctk.CTkFrame(q_renal, fg_color="transparent")
+        linha.pack(fill="x", padx=12, pady=(0, 5))
+        self.e_creatinina = self._entry(linha, "Creatinina (mg/dL)", "", 135)
+        self.e_ureia = self._entry(linha, "Ureia (mg/dL)", "", 115)
+        self.e_albumina_serica = self._entry(linha, "Albumina sérica (g/dL)", "", 150)
+        ctk.CTkButton(linha, text="Avaliar referência proteica", command=self._avaliar_renal,
+                      width=190, fg_color=tema.VERDE).pack(side="left", padx=(0, 8), pady=(0, 8))
+        self.lbl_renal = ctk.CTkLabel(q_renal, text="A avaliação renal não altera automaticamente a meta proteica.",
+                                      text_color=tema.SUAVE, wraplength=760, justify="left")
+        self.lbl_renal.pack(anchor="w", padx=12, pady=(0, 8))
+        ctk.CTkLabel(q_renal, text="TFGe deve vir do laudo. Creatinina, ureia e albumina sérica são apenas dados de apoio; não determinam isoladamente estágio ou meta proteica.",
+                     text_color=tema.SUAVE, wraplength=760, justify="left",
+                     font=tema.fonte(10)).pack(anchor="w", padx=12, pady=(0, 8))
 
         q = self._secao(raiz, "DVA e via de alimentação")
         linha = ctk.CTkFrame(q, fg_color="transparent")
@@ -155,6 +232,8 @@ class FormEvolucaoUI(ctk.CTkFrame):
         linha.pack(fill="x", padx=12, pady=(0, 6))
         self.var_bomba = tk.IntVar(value=0)
         ctk.CTkCheckBox(linha, text="Utiliza bomba de infusão", variable=self.var_bomba).pack(side="left", padx=(0, 16))
+        self.e_horas_adm = self._entry(linha, "tempo de administração (h)", "", largura=175)
+        self.e_fator_gotas = self._entry(linha, "fator do equipo (gotas/mL)", "", largura=190)
         self.var_progressao = tk.IntVar(value=0)
         ctk.CTkCheckBox(linha, text="Solicitar progressão enteral automática", variable=self.var_progressao).pack(side="left")
         linha = ctk.CTkFrame(self.q_enteral, fg_color="transparent")
@@ -269,13 +348,45 @@ class FormEvolucaoUI(ctk.CTkFrame):
         if dieta.get("nome") in self.formula_por_nome:
             self.cb_formula.set(dieta["nome"])
         _set = lambda e, v: (e.delete(0, "end"), e.insert(0, str(v)) if v not in (None, "") else None)
+        renal = dados.get("avaliacao_renal") or {}
+        self.cb_renal_ref.set(renal.get("referencia") or "KDIGO 2024")
+        self.cb_drc_confirmada.set("Sim" if renal.get("drc_confirmada") is True else
+                                   "Não" if renal.get("drc_confirmada") is False else
+                                   ("Sim" if self.reg.get("drc") else "—"))
+        self.cb_condicao_renal.set({"DRC": "DRC", "LRA": "LRA", "DRC + LRA": "DRC + LRA"}.get(
+            renal.get("condicao_renal"), "DRC" if self.reg.get("drc") else "Não definida"))
+        self.cb_estagio_renal.set(renal.get("estagio") or "—")
+        _set(self.e_tfge, renal.get("tfge_ml_min_173"))
+        self._atualizar_estagio_tfge()
+        _set(self.e_albuminuria, renal.get("albuminuria_mg_g"))
+        self.cb_dialise.set({"nao": "Não", "hemodialise": "Hemodiálise",
+                             "peritoneal": "Diálise peritoneal"}.get(renal.get("dialise"), "Não"))
+        _set(self.e_frequencia_dialise, renal.get("frequencia_dialise_semana"))
+        _set(self.e_duracao_dialise, renal.get("duracao_dialise_horas"))
+        _set(self.e_inicio_dialise, renal.get("inicio_dialise"))
+        self.cb_estabilidade_renal.set({"estavel": "Estável", "instavel": "Instável",
+                                        "nao_informada": "Não informada"}.get(
+                                            renal.get("estabilidade_metabolica"), "Não informada"))
+        for cb, chave in ((self.cb_catabolismo, "catabolismo"),
+                          (self.cb_risco_desnutricao, "risco_desnutricao"),
+                          (self.cb_sarcopenia, "fragilidade_sarcopenia")):
+            valor = renal.get(chave)
+            cb.set("Sim" if valor is True else "Não" if valor is False else "Não informado")
+        _set(self.e_creatinina, (renal.get("exames_apoio") or {}).get("creatinina"))
+        _set(self.e_ureia, (renal.get("exames_apoio") or {}).get("ureia"))
+        _set(self.e_albumina_serica, (renal.get("exames_apoio") or {}).get("albumina_serica"))
+        if renal:
+            self._avaliar_renal()
         _set(self.e_volume_etapa, dieta.get("volume_por_etapa_ml"))
         _set(self.e_etapas, dieta.get("etapas", 1))
         progressao = dados.get("progressao_enteral") or {}
         self.var_progressao.set(int(bool(progressao.get("solicitada"))))
         _set(self.e_incremento, progressao.get("incremento_por_etapa_ml", 10))
         _set(self.e_dias, progressao.get("dias_alvo", 4))
-        self.var_bomba.set(int(bool((dados.get("bomba") or {}).get("usa_bomba"))))
+        bomba_salva = dados.get("bomba") or {}
+        self.var_bomba.set(int(bool(bomba_salva.get("usa_bomba"))))
+        _set(self.e_horas_adm, bomba_salva.get("duracao_horas"))
+        _set(self.e_fator_gotas, bomba_salva.get("fator_gotas_ml"))
         self.var_tolerancia.set(int(bool(progressao.get("tolerancia", True))))
         self.var_restricao.set(int(bool(progressao.get("restricao", False))))
         metas = dados.get("metas") or {}
@@ -325,6 +436,80 @@ class FormEvolucaoUI(ctk.CTkFrame):
                   f"amputação: {regras.formatar_numero_pt(amputacao, 1)}%; " +
                   f"peso nutricional final: {regras.formatar_numero_pt(final, 1)} kg."))
 
+
+    @staticmethod
+    def _tri_bool(texto):
+        return True if texto == "Sim" else False if texto == "Não" else None
+
+    def _dados_renal(self):
+        texto_dialise = self.cb_dialise.get()
+        estabilidade = {"Estável": "estavel", "Instável": "instavel",
+                        "Não informada": "nao_informada"}.get(self.cb_estabilidade_renal.get(), "nao_informada")
+        dados = {
+            "referencia": self.cb_renal_ref.get(),
+            "condicao_renal": {"Não definida": "NAO_DEFINIDA"}.get(
+                self.cb_condicao_renal.get(), self.cb_condicao_renal.get()),
+            "drc_confirmada": self._tri_bool(self.cb_drc_confirmada.get()),
+            "estagio": None if self.cb_estagio_renal.get() == "—" else self.cb_estagio_renal.get(),
+            "tfge": self.e_tfge.get().strip() or None,
+            "albuminuria_mg_g": self.e_albuminuria.get().strip() or None,
+            "dialise": {"Não": "nao", "Hemodiálise": "hemodialise",
+                        "Diálise peritoneal": "peritoneal"}.get(texto_dialise, "nao"),
+            "frequencia_dialise_semana": self.e_frequencia_dialise.get().strip() or None,
+            "duracao_dialise_horas": self.e_duracao_dialise.get().strip() or None,
+            "inicio_dialise": self.e_inicio_dialise.get().strip() or None,
+            "estabilidade_metabolica": estabilidade,
+            "catabolismo": self._tri_bool(self.cb_catabolismo.get()),
+            "risco_desnutricao": self._tri_bool(self.cb_risco_desnutricao.get()),
+            "fragilidade_sarcopenia": self._tri_bool(self.cb_sarcopenia.get()),
+            "creatinina": self.e_creatinina.get().strip() or None,
+            "ureia": self.e_ureia.get().strip() or None,
+            "albumina_serica": self.e_albumina_serica.get().strip() or None,
+        }
+        preenchido = (dados["condicao_renal"] != "NAO_DEFINIDA" or
+                      dados["drc_confirmada"] is not None or dados["estagio"] or dados["tfge"] or
+                      dados["albuminuria_mg_g"] or dados["dialise"] != "nao" or
+                      dados["estabilidade_metabolica"] != "nao_informada" or
+                      any(dados[k] for k in ("creatinina", "ureia", "albumina_serica")))
+        if not preenchido:
+            return None
+        return regras.avaliar_contexto_renal(
+            dados, peso_kg=self._peso_nutricional(), idade_anos=self.reg.get("idade_anos"),
+            diabetes=bool(self.reg.get("dm")))
+
+    def _atualizar_estagio_tfge(self):
+        try:
+            faixa = regras.classificar_categoria_tfge(self.e_tfge.get().strip() or None)
+            self.cb_estagio_renal.set(faixa or "—")
+        except ValueError:
+            self.cb_estagio_renal.set("—")
+
+    def _avaliar_renal(self):
+        try:
+            renal = self._dados_renal()
+            if not renal:
+                self.lbl_renal.configure(text="Informe dados renais para avaliar a referência.")
+                return
+            rec = renal["recomendacao_proteica"]
+            gkg = rec.get("g_kg_dia")
+            gdia = rec.get("g_dia")
+            texto = rec["texto"]
+            if gkg is not None:
+                texto += f" Referência: {gkg} g/kg/dia"
+                if gdia is not None:
+                    gdia_txt = regras.formatar_numero_pt(gdia, 1) if isinstance(gdia, (int, float)) else str(gdia)
+                    texto += f" ({gdia_txt} g/dia)"
+                texto += "."
+            if renal["faixa_tfge"]:
+                texto += f" Faixa TFGe: {renal['faixa_tfge']}."
+            if renal["categoria_albuminuria"]:
+                texto += f" Albuminúria: {renal['categoria_albuminuria']}."
+            if renal["avisos"]:
+                texto += " " + " ".join(renal["avisos"])
+            self.lbl_renal.configure(text=texto)
+        except (ValueError, TypeError) as exc:
+            self.lbl_renal.configure(text=str(exc), text_color=tema.ERRO)
+
     def _atualizar_metas(self):
         try:
             peso = self._peso_nutricional()
@@ -347,6 +532,26 @@ class FormEvolucaoUI(ctk.CTkFrame):
         if peso in (None, ""):
             peso = self.reg.get("peso_kg")
         return float(peso) if peso not in (None, "") else None
+
+    def _atualizar_progressao_antropometrica(self):
+        """Exibe tendência do peso e faixas documentadas, sem fechar diagnóstico."""
+        id_paciente = self.reg.get("id_paciente")
+        if not id_paciente:
+            self.lbl_progressao.configure(
+                text="Progressão antropométrica: vincule o paciente para consultar o histórico.")
+            return
+        try:
+            historico = progressao.listar_pesos_historicos(self.db, id_paciente)
+            idade = self.reg.get("idade_anos")
+            if idade is None:
+                nascimento = self.paciente.get("data_nascimento") or self.reg.get("data_nascimento")
+                if nascimento:
+                    idade = regras.idade_em_anos(nascimento, self.reg.get("data"))
+            resultado = progressao.analisar_progressao_peso(historico, idade)
+            self.lbl_progressao.configure(text=progressao.formatar_progressao(resultado))
+        except (sqlite3.Error, ValueError, TypeError) as erro:
+            self.lbl_progressao.configure(
+                text=f"Progressão antropométrica indisponível: {erro}")
 
     def _antropometria(self):
         try:
@@ -384,6 +589,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             "altura_origem": self.reg.get("altura_origem") or "R",
             "peso_kg": peso,
             "peso_origem": self.reg.get("peso_origem") or "R",
+            "peso_medido_em": self.reg.get("peso_medido_em"),
             "peso_corrigido": bool(resultado.get("ajustou") or av.get("ajustou") or (
                 peso not in (None, "") and self.reg.get("peso_kg") not in (None, "") and
                 abs(float(peso) - float(self.reg["peso_kg"])) > 0.0001)),
@@ -425,6 +631,7 @@ class FormEvolucaoUI(ctk.CTkFrame):
             "observacoes": self.t_observacoes.get("1.0", "end-1c").strip(),
             "conduta": self.t_conduta.get("1.0", "end-1c").strip(),
         }
+        dados["avaliacao_renal"] = self._dados_renal()
         suplementacao = []
         for s, qtd, etapas in self.sup_fields:
             quantidade_txt = qtd.get().strip()
@@ -462,6 +669,34 @@ class FormEvolucaoUI(ctk.CTkFrame):
                     "kcal_100": ficha["kcal_100"], "ptn_100": ficha["ptn_100"],
                 }
                 dados["bomba"] = {"usa_bomba": bool(self.var_bomba.get()), "taxa_estimativa_ml_h": 10}
+                tipo_formula = str(ficha.get("tipo_formula") or "").strip().casefold()
+                dados["dieta_enteral"]["tipo_formula"] = tipo_formula or "nao_informado"
+                if tipo_formula == "fechada":
+                    horas_txt = self.e_horas_adm.get().strip()
+                    if not horas_txt:
+                        raise ValueError("Informe em quantas horas a dieta fechada será administrada.")
+                    fator_txt = self.e_fator_gotas.get().strip()
+                    if not self.var_bomba.get() and not fator_txt:
+                        raise ValueError("Informe o fator de gotas/mL indicado no equipo utilizado.")
+                    if self.var_bomba.get() and not fator_txt:
+                        fator_txt = "20"  # ignorado no cálculo da bomba
+                    # Dimensiona a administração pelo volume necessário para atingir a meta
+                    # energética, não apenas pelo volume parcial atualmente selecionado.
+                    administracao = regras.planejar_administracao_enteral(
+                        volume_meta, ficha["kcal_100"], horas_txt,
+                        usa_bomba=bool(self.var_bomba.get()), fator_gotas_ml=fator_txt)
+                    administracao["volume_etapas_atual_ml"] = oferta["volume_total_ml"]
+                    administracao["meta_kcal_dia"] = metas["kcal_dia"]
+                    dados["bomba"].update({"duracao_horas": float(horas_txt.replace(",", "."))})
+                    if not self.var_bomba.get():
+                        dados["bomba"]["fator_gotas_ml"] = float(fator_txt.replace(",", "."))
+                    dados["administracao_enteral"] = administracao
+                try:
+                    dados["administracao_real"] = monitoramento_enteral.resumir_administracoes_dia(
+                        self.db, self.reg["id_paciente"], self.reg["data"]
+                    )
+                except (AttributeError, ValueError, sqlite3.Error):
+                    dados["administracao_real"] = None
                 dados["progressao_enteral"] = {
                     "solicitada": bool(self.var_progressao.get()), "autorizada": False,
                     "volume_atual_ml": oferta["volume_total_ml"], "volume_meta_ml": volume_meta,

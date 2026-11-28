@@ -30,6 +30,7 @@ import tema
 from mapa_ui import MapaUI, DialogCurvasOMS
 from tela_boas_vindas import TelaBoasVindas
 from navegacao_ui import BarraLateral, PilhaAbasLaterais
+from referencias_ui import JanelaReferencias
 from condutas_alta_ui import PainelCondutasAlta, lembrar_condutas_pendentes
 import ambulatorial
 import pediatria_oms as oms
@@ -38,6 +39,8 @@ import ui_motion
 import ui_workers
 from backup_manager import BackupManager
 from ambulatorial_ui import PainelConsultaEstruturada, DialogoAssociacoesExames
+from monitoramento_glicemico import PainelMonitoramentoGlicemico
+from monitoramento_pressao import PainelMonitoramentoPressao
 
 
 def get_base_path():
@@ -206,7 +209,8 @@ class AppClinica(ctk.CTk):
         self.menu_lateral = BarraLateral(
             self, secoes=secoes_menu,
             config=("⚙️", "Configurações", lambda: self.abrir_pagina_principal("Configurações", self.tela_configuracoes)),
-            rodape="© 2026 Neis Bila de Alencar. Todos os direitos reservados."
+            rodape="© 2026 Neis Bila de Alencar. Todos os direitos reservados.",
+            referencias_comando=lambda: JanelaReferencias(self)
         )
         # Faixa persistente: o funcionário identifica o estado do servidor sem abrir Configurações.
         self._barra_status_conexao = ctk.CTkFrame(
@@ -1050,6 +1054,8 @@ class AppClinica(ctk.CTk):
         
         aba_hist = tabview_perfil.add("Histórico de Consultas")
         aba_exm = tabview_perfil.add("Exames e Arquivos")
+        aba_hgt = tabview_perfil.add("Monitoramento Glicêmico")
+        aba_pa = tabview_perfil.add("Pressão Arterial / HAS")
         
         ctk.CTkButton(aba_hist, text="Iniciar Nova Consulta", command=lambda: self.abrir_painel_lateral("Nova consulta", self.tela_consultas), fg_color=tema.VERDE, hover_color=tema.VERDE_HOVER, text_color=tema.BRANCO, font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
 
@@ -1119,6 +1125,18 @@ class AppClinica(ctk.CTk):
         self.scroll_arquivos.pack(fill="both", expand=True, padx=10, pady=10)
         self.carregar_lista_arquivos()
         conexao.close()
+
+        painel_hgt = PainelMonitoramentoGlicemico(
+            aba_hgt, caminho_do_banco(), self.paciente_atual_id,
+            fg_color=tema.FUNDO
+        )
+        painel_hgt.pack(fill="both", expand=True, padx=8, pady=8)
+
+        painel_pa = PainelMonitoramentoPressao(
+            aba_pa, caminho_do_banco(), self.paciente_atual_id,
+            fg_color=tema.FUNDO
+        )
+        painel_pa.pack(fill="both", expand=True, padx=8, pady=8)
 
     def gerar_pdf_evolucao(self, consulta_dados, exames_str):
         try:

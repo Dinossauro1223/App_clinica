@@ -12,10 +12,11 @@ class BarraLateral(ctk.CTkFrame):
     RECOLHIDA = 58
     EXPANDIDA = 250
 
-    def __init__(self, app, secoes, config, rodape="", persistir=True):
+    def __init__(self, app, secoes, config, rodape="", persistir=True, referencias_comando=None):
         super().__init__(app, width=self.RECOLHIDA, corner_radius=0, fg_color=tema.VERDE_ESC)
         self.app = app
         self.rodape = rodape
+        self.referencias_comando = referencias_comando
         try:
             if persistir:
                 from configuracoes_ui import _ler as _ler_preferencias, _salvar as _salvar_preferencias
@@ -54,11 +55,22 @@ class BarraLateral(ctk.CTkFrame):
 
         rod = ctk.CTkFrame(self, fg_color="transparent")
         rod.pack(side="bottom", fill="x")
+        # Créditos e acesso às referências permanecem lado a lado no rodapé.
+        self.rodape_linha = ctk.CTkFrame(rod, fg_color="transparent")
+        self.rodape_linha.pack(side="bottom", fill="x", padx=4, pady=(2, 8))
         self.lbl_rodape = ctk.CTkLabel(
-            rod, text="", font=ctk.CTkFont(size=10), text_color="#A9CBB8",
-            justify="left", anchor="w", wraplength=self.EXPANDIDA - 28
+            self.rodape_linha, text="", font=ctk.CTkFont(size=9),
+            text_color="#A9CBB8", justify="left", anchor="w", wraplength=105
         )
-        self.lbl_rodape.pack(side="bottom", fill="x", padx=14, pady=(2, 10))
+        self.lbl_rodape.pack(side="left", fill="x", expand=True, padx=(4, 2))
+        if callable(self.referencias_comando):
+            self.btn_referencias = ctk.CTkButton(
+                self.rodape_linha, text="📚 Referências", width=112, anchor="center", height=32,
+                corner_radius=7, fg_color="transparent", hover_color=tema.VERDE_HOVER,
+                text_color="#E8F2EC", font=ctk.CTkFont(size=10, weight="bold"),
+                command=self.referencias_comando,
+            )
+            self.btn_referencias.pack(side="right", padx=(2, 4))
         self._adicionar_item(rod, *config, rodape=True)
 
         self.rolagem = ctk.CTkScrollableFrame(
@@ -130,6 +142,13 @@ class BarraLateral(ctk.CTkFrame):
             lbl.configure(text=nome if aberta else "•", anchor="w" if aberta else "center")
         self.lbl_titulo.configure(text="NutriLab" if aberta else "")
         self.lbl_rodape.configure(text=self.rodape if aberta else "©")
+        if hasattr(self, "btn_referencias"):
+            self.btn_referencias.configure(
+                text="📚 Referências" if aberta else "📚",
+                width=112 if aberta else 34,
+                anchor="center",
+            )
+            self.lbl_rodape.configure(wraplength=105 if aberta else 16)
 
     def _abrir(self, aberta):
         self.configure(width=self.EXPANDIDA if aberta else self.RECOLHIDA)

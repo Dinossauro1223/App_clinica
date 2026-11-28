@@ -15,7 +15,7 @@ def _positivo(valor):
     return n if isfinite(n) and n > 0 else None
 
 
-def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None):
+def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None, meta_fibras_g=None):
     """Calcula aporte diário e participação nas metas.
 
     Cada item deve trazer qtd_dia, unidade ('ml' ou 'g') e composição por 100 unidades:
@@ -30,6 +30,8 @@ def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None):
     resultados = []
     totais = {c: 0.0 for c in campos}
     completos = {c: True for c in campos}
+    total_fibra = 0.0
+    fibra_completa = True
     pendencias = []
 
     for indice, item in enumerate(itens or [], 1):
@@ -58,11 +60,26 @@ def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None):
             else:
                 aporte[campo] = composicao * qtd / 100.0
                 totais[campo] += aporte[campo]
+        fibra_ref = item.get("fibra_g_100")
+        try:
+            fibra_ref = float(fibra_ref) if fibra_ref is not None else None
+        except (TypeError, ValueError):
+            fibra_ref = None
+        if fibra_ref is None or not isfinite(fibra_ref) or fibra_ref < 0 or qtd is None or not valido_un:
+            fibra_ofertada = None
+            fibra_completa = False
+        else:
+            fibra_ofertada = fibra_ref * qtd / 100.0
+            total_fibra += fibra_ofertada
         if motivos or any(aporte[c] is None for c in campos):
             pendencias.append({"nome": nome, "motivos": motivos or ["ficha técnica incompleta"]})
-        resultados.append({"nome": nome, "quantidade": qtd, "unidade": unidade or None, **aporte})
+        resultados.append({"nome": nome, "quantidade": qtd, "unidade": unidade or None,
+                           "fibra_g": round(fibra_ofertada, 4) if fibra_ofertada is not None else None,
+                           "tipo_fibra": item.get("tipo_fibra") or "nao_informado",
+                           "descricao_fibra": item.get("descricao_fibra"), **aporte})
 
     totais_saida = {c: (round(totais[c], 4) if completos[c] else None) for c in campos}
+    fibra_saida = round(total_fibra, 4) if fibra_completa else None
     kcal = totais_saida["kcal_100"]
     proteina = totais_saida["ptn_100"]
     return {
@@ -73,7 +90,172 @@ def calcular_oferta(itens, peso_kg=None, meta_kcal=None, meta_proteina_g=None):
         "peso_kg": peso,
         "percentual_meta_kcal": round(kcal / meta_e * 100, 2) if kcal is not None and meta_e else None,
         "percentual_meta_proteina": round(proteina / meta_p * 100, 2) if proteina is not None and meta_p else None,
+        "fibra_g_dia": fibra_saida,
+        "meta_fibras_g": _positivo(meta_fibras_g),
+        "percentual_meta_fibras": round(fibra_saida / _positivo(meta_fibras_g) * 100, 2)
+            if fibra_saida is not None and _positivo(meta_fibras_g) else None,
         "proteina_g_kg": round(proteina / peso, 3) if proteina is not None and peso else None,
         "completo": not pendencias,
         "pendencias": pendencias,
     }
+
+
+
+def _comparar_valor(atual, novo):
+    if atual is None or novo is None:
+        return {"atual": atual, "substituto": novo, "diferenca": None, "diferenca_percentual": None}
+    diferenca = round(novo - atual, 4)
+    percentual = round(diferenca / atual * 100, 2) if atual != 0 else None
+    return {"atual": atual, "substituto": novo, "diferenca": diferenca,
+            "diferenca_percentual": percentual}
+
+
+def resumir_osmolaridade_preparacoes(item):
+    preparacoes = item.get("preparacoes")
+    if not isinstance(preparacoes, list) or not preparacoes:
+        return {"status": "preparacoes_nao_informadas",
+                "mensagem": "A distribuição por preparação não foi informada; osmolaridade diária não será presumida.",
+                "preparacoes": []}
+    resultados = []
+    for indice, preparacao in enumerate(preparacoes, 1):
+        dose = preparacao.get("dose")
+        agua_misturada = preparacao.get("agua_adicionada_ml", 0)
+        calculo = calcular_osmolaridade_diluicao(item, dose, agua_misturada)
+        dose_ref = _positivo(item.get("dose_ref"))
+        volume_ref = _positivo(item.get("volume_final_ref_ml"))
+        unidade_dose = str(item.get("unidade_dose_ref") or "").strip().lower()
+        unidade_item = str(item.get("unidade") or "").strip().lower()
+        dose_num = _positivo(dose)
+        volume_final = None
+        if dose_ref and volume_ref and dose_num and unidade_dose == unidade_item:
+            agua_num = float(agua_misturada or 0)
+            if isfinite(agua_num) and agua_num >= 0:
+                volume_final = round(volume_ref * (dose_num / dose_ref) + agua_num, 1)
+        resultados.append({"numero": indice, "refeicao": preparacao.get("refeicao"),
+                           "dose": dose, "agua_adicionada_ml": agua_misturada,
+                           "agua_separada_ml": preparacao.get("agua_separada_ml"),
+                           "volume_final_ml": volume_final, **calculo})
+    completo = all(x.get("valor") is not None for x in resultados)
+    volume_completo = all(x.get("volume_final_ml") is not None for x in resultados)
+    return {"status": "calculada" if completo else "dados_incompletos",
+            "preparacoes": resultados,
+            "volume_final_total_ml": (round(sum(x["volume_final_ml"] for x in resultados), 1)
+                                      if volume_completo else None),
+            "agua_separada_total_ml": round(sum(
+                float(p.get("agua_separada_ml") or 0) for p in preparacoes), 1)}
+
+
+def comparar_substituicao(itens_atuais, id_substituido, substituto, *,
+                           peso_kg=None, meta_kcal=None, meta_proteina_g=None, meta_fibras_g=None):
+    """Compara o aporte diário antes/depois de trocar um suplemento.
+
+    preparacoes é uma lista de administrações independentes com dose,
+    agua_adicionada_ml (misturada) e agua_separada_ml (oferta separada).
+    Sem essa distribuição, a osmolaridade não é calculada por média diária.
+    """
+    itens = [dict(x) for x in (itens_atuais or [])]
+    atual = next((x for x in itens if x.get("id_suplemento") == id_substituido), None)
+    if atual is None:
+        raise ValueError("O suplemento que será substituído não foi encontrado na lista atual.")
+    novo_item = dict(substituto or {})
+    if _positivo(novo_item.get("qtd_dia")) is None:
+        raise ValueError("Informe a quantidade diária do suplemento substituto.")
+    if str(novo_item.get("unidade") or "").strip().lower() not in ("ml", "g"):
+        raise ValueError("A unidade do suplemento substituto deve ser mL ou g.")
+    depois_itens = [x for x in itens if x.get("id_suplemento") != id_substituido]
+    depois_itens.append(novo_item)
+    antes = calcular_oferta(itens, peso_kg, meta_kcal, meta_proteina_g, meta_fibras_g)
+    depois = calcular_oferta(depois_itens, peso_kg, meta_kcal, meta_proteina_g, meta_fibras_g)
+
+    def metricas(resultado):
+        totais = resultado["totais"]
+        kcal, ptn = totais["kcal_100"], totais["ptn_100"]
+        peso = resultado["peso_kg"]
+        return {
+            "energia_kcal_dia": kcal,
+            "energia_kcal_kg_dia": round(kcal / peso, 3) if kcal is not None and peso else None,
+            "proteina_g_dia": ptn,
+            "proteina_g_kg_dia": round(ptn / peso, 3) if ptn is not None and peso else None,
+            "sodio_mg_dia": totais["sod_100"],
+            "fibras_g_dia": resultado.get("fibra_g_dia"),
+            "percentual_meta_fibras": resultado.get("percentual_meta_fibras"),
+            "percentual_meta_energetica": resultado["percentual_meta_kcal"],
+            "percentual_meta_proteica": resultado["percentual_meta_proteina"],
+        }
+
+    m_antes, m_depois = metricas(antes), metricas(depois)
+    def volume_produto(lista):
+        if all(str(x.get("unidade") or "").strip().lower() == "ml" and _positivo(x.get("qtd_dia")) is not None
+               for x in lista):
+            return round(sum(float(x["qtd_dia"]) for x in lista), 1)
+        if not lista:
+            return 0.0
+        return None
+    m_antes["volume_produto_ml_dia"] = volume_produto(itens)
+    m_depois["volume_produto_ml_dia"] = volume_produto(depois_itens)
+    osm_atual = resumir_osmolaridade_preparacoes(atual)
+    osm_novo = resumir_osmolaridade_preparacoes(novo_item)
+    m_antes["volume_preparacao_final_ml_dia"] = osm_atual.get("volume_final_total_ml")
+    m_depois["volume_preparacao_final_ml_dia"] = osm_novo.get("volume_final_total_ml")
+    comparacoes = {k: _comparar_valor(m_antes[k], m_depois[k]) for k in m_antes}
+    def agua_total(lista, campo):
+        total = 0.0
+        chave_prep = "agua_adicionada_ml" if campo == "agua_ml" else "agua_separada_ml"
+        for item in lista:
+            preparacoes = item.get("preparacoes")
+            if isinstance(preparacoes, list) and preparacoes:
+                total += sum(float(p.get(chave_prep) or 0) for p in preparacoes)
+            else:
+                total += float(item.get(campo) or 0)
+        return round(total, 1)
+    return {
+        "suplemento_atual": {"id_suplemento": atual.get("id_suplemento"), "nome": atual.get("nome")},
+        "suplemento_substituto": {"id_suplemento": novo_item.get("id_suplemento"), "nome": novo_item.get("nome")},
+        "antes": m_antes, "depois": m_depois, "comparacoes": comparacoes,
+        "aporte_completo": antes["completo"] and depois["completo"],
+        "pendencias": {"antes": antes["pendencias"], "depois": depois["pendencias"]},
+        "agua_misturada_ml_dia": _comparar_valor(agua_total(itens, "agua_ml"),
+                                                  agua_total(depois_itens, "agua_ml")),
+        "agua_separada_ml_dia": _comparar_valor(agua_total(itens, "agua_separada_ml"),
+                                                 agua_total(depois_itens, "agua_separada_ml")),
+        "osmolaridade_atual": osm_atual,
+        "osmolaridade_substituto": osm_novo,
+        "alertas": [f"{rotulo} diminui após a substituição." for chave, rotulo in
+                    (("energia_kcal_dia", "A oferta energética"),
+                     ("proteina_g_dia", "A oferta proteica"))
+                    if comparacoes[chave]["diferenca"] is not None and comparacoes[chave]["diferenca"] < 0],
+    }
+
+
+def calcular_osmolaridade_diluicao(item, dose, agua_adicionada_ml=0):
+    """Estima mOsm/L para uma única preparação, nunca como média de diluições distintas.
+
+    Dose e água informadas devem corresponder ao mesmo preparo/refeição. Para
+    várias ofertas no dia, use resumir_osmolaridade_preparacoes, que calcula cada
+    preparo individualmente. Água administrada separadamente não entra na diluição.
+    """
+    unidade = str(item.get("unidade_osmolaridade") or "mOsm/L").strip()
+    if unidade != "mOsm/L":
+        return {"valor": None, "status": "unidade_incompativel", "mensagem": "A ficha informa mOsm/kg; não é possível converter para mOsm/L sem dados de densidade."}
+    osm, dose_ref, vol_ref, dose_atual = (_positivo(item.get("osmolaridade_ref")), _positivo(item.get("dose_ref")), _positivo(item.get("volume_final_ref_ml")), _positivo(dose))
+    if agua_adicionada_ml in (None, ""):
+        agua = 0.0
+    else:
+        try:
+            agua = float(agua_adicionada_ml)
+        except (TypeError, ValueError):
+            agua = None
+        if agua is None or not isfinite(agua) or agua < 0:
+            return {"valor": None, "status": "agua_invalida", "mensagem": "Quantidade de água inválida."}
+    if osm is None or dose_ref is None or vol_ref is None:
+        return {"valor": None, "status": "referencia_incompleta", "mensagem": "Informe osmolaridade, dose de referência e volume final de preparo da ficha técnica."}
+    if dose_atual is None:
+        return {"valor": None, "status": "dose_ausente", "mensagem": "Informe a quantidade do produto nesta preparação."}
+    if str(item.get("unidade_dose_ref") or "").strip().lower() != str(item.get("unidade") or "").strip().lower():
+        return {"valor": None, "status": "unidade_dose_incompativel", "mensagem": "A unidade da dose atual difere da unidade de referência da ficha."}
+    fator = dose_atual / dose_ref
+    osmoles = osm * (vol_ref / 1000.0) * fator
+    volume_final_ml = vol_ref * fator + agua
+    if volume_final_ml <= 0:
+        return {"valor": None, "status": "volume_invalido", "mensagem": "Volume final inválido."}
+    return {"valor": round(osmoles / (volume_final_ml / 1000.0), 1), "status": "estimada", "mensagem": "Estimativa matemática baseada na ficha de referência; não equivale a análise laboratorial.", "volume_final_ml": round(volume_final_ml, 1)}

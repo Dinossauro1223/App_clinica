@@ -97,6 +97,38 @@ class TestCalculoOfertaSuplementos(unittest.TestCase):
             self.assertIsNone(r["totais"]["kcal_100"])
             self.assertFalse(r["completo"])
 
+
+    def test_fibras_somam_por_dose_real_e_calculam_adequacao(self):
+        r = sc.calcular_oferta([
+            {"nome": "Fórmula mista", "qtd_dia": 250, "unidade": "ml",
+             "kcal_100": 100, "ptn_100": 4, "lip_100": 3, "carb_100": 12, "sod_100": 50,
+             "fibra_g_100": 2.4, "tipo_fibra": "mista"},
+            {"nome": "Módulo de fibra", "qtd_dia": 10, "unidade": "g",
+             "kcal_100": 200, "ptn_100": 0, "lip_100": 0, "carb_100": 50, "sod_100": 0,
+             "fibra_g_100": 80, "tipo_fibra": "soluvel"},
+        ], meta_fibras_g=25)
+        self.assertEqual(r["fibra_g_dia"], 14)
+        self.assertEqual(r["percentual_meta_fibras"], 56)
+        self.assertEqual(r["itens"][0]["fibra_g"], 6)
+        self.assertEqual(r["itens"][1]["fibra_g"], 8)
+
+    def test_ficha_sem_teor_de_fibras_nao_presume_zero(self):
+        r = sc.calcular_oferta([
+            {"nome": "Produto sem informação", "qtd_dia": 100, "unidade": "ml",
+             "kcal_100": 100, "ptn_100": 4, "lip_100": 3, "carb_100": 12, "sod_100": 50}
+        ], meta_fibras_g=25)
+        self.assertIsNone(r["fibra_g_dia"])
+        self.assertIsNone(r["percentual_meta_fibras"])
+
+    def test_zero_fibra_documentada_e_diferente_de_dado_ausente(self):
+        r = sc.calcular_oferta([
+            {"nome": "Produto sem fibras", "qtd_dia": 100, "unidade": "ml",
+             "kcal_100": 100, "ptn_100": 4, "lip_100": 3, "carb_100": 12, "sod_100": 50,
+             "fibra_g_100": 0, "tipo_fibra": "nao_informado"}
+        ], meta_fibras_g=25)
+        self.assertEqual(r["fibra_g_dia"], 0)
+        self.assertEqual(r["percentual_meta_fibras"], 0)
+
     def test_meta_e_peso_invalidos_nao_geram_divisao_por_zero(self):
         r = sc.calcular_oferta([
             {"nome": "A", "qtd_dia": 100, "unidade": "g", "kcal_100": 100, "ptn_100": 10,
@@ -109,3 +141,103 @@ class TestCalculoOfertaSuplementos(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestCalculoOsmolaridadeDiluicao(unittest.TestCase):
+    def setUp(self):
+        self.ficha = {"osmolaridade_ref": 300, "unidade_osmolaridade": "mOsm/L", "dose_ref": 100,
+                      "unidade_dose_ref": "ml", "volume_final_ref_ml": 100, "unidade": "ml"}
+
+    def test_calcula_osmolaridade_com_agua_adicionada(self):
+        r = sc.calcular_osmolaridade_diluicao(self.ficha, 100, 100)
+        self.assertEqual(r["status"], "estimada")
+        self.assertEqual(r["valor"], 150)
+        self.assertEqual(r["volume_final_ml"], 200)
+
+    def test_escalona_dose_e_volume_de_referencia(self):
+        r = sc.calcular_osmolaridade_diluicao(self.ficha, 50, 0)
+        self.assertEqual(r["valor"], 300)
+        self.assertEqual(r["volume_final_ml"], 50)
+        self.assertEqual(r["status"], "estimada")
+
+    def test_nao_calcula_sem_referencia_completa(self):
+        r = sc.calcular_osmolaridade_diluicao(dict(self.ficha, dose_ref=None), 100, 50)
+        self.assertIsNone(r["valor"])
+        self.assertEqual(r["status"], "referencia_incompleta")
+
+    def test_nao_converte_osmolalidade(self):
+        r = sc.calcular_osmolaridade_diluicao(dict(self.ficha, unidade_osmolaridade="mOsm/kg"), 100, 50)
+        self.assertIsNone(r["valor"])
+        self.assertEqual(r["status"], "unidade_incompativel")
+
+    def test_unidade_da_dose_deve_corresponder(self):
+        r = sc.calcular_osmolaridade_diluicao(dict(self.ficha, unidade_dose_ref="g"), 100, 50)
+        self.assertIsNone(r["valor"])
+        self.assertEqual(r["status"], "unidade_dose_incompativel")
+    def test_comparacao_substituicao_inclui_fibras(self):
+        atual = {"id_suplemento": 1, "nome": "A", "qtd_dia": 200, "unidade": "ml",
+                 "kcal_100": 100, "ptn_100": 4, "lip_100": 2, "carb_100": 10, "sod_100": 50,
+                 "fibra_g_100": 2, "tipo_fibra": "soluvel"}
+        novo = {"id_suplemento": 2, "nome": "B", "qtd_dia": 200, "unidade": "ml",
+                "kcal_100": 150, "ptn_100": 6, "lip_100": 3, "carb_100": 15, "sod_100": 80,
+                "fibra_g_100": 5, "tipo_fibra": "mista"}
+        r = sc.comparar_substituicao([atual], 1, novo, peso_kg=60, meta_fibras_g=25)
+        self.assertEqual(r["antes"]["fibras_g_dia"], 4)
+        self.assertEqual(r["depois"]["fibras_g_dia"], 10)
+        self.assertEqual(r["comparacoes"]["fibras_g_dia"]["diferenca"], 6)
+        self.assertEqual(r["comparacoes"]["percentual_meta_fibras"]["substituto"], 40)
+
+    def test_comparacao_substituicao_calcula_energia_proteina_e_peso(self):
+        atual = {"id_suplemento": 1, "nome": "A", "qtd_dia": 200, "unidade": "ml",
+                 "kcal_100": 100, "ptn_100": 4, "lip_100": 2, "carb_100": 10, "sod_100": 50,
+                 "agua_ml": 100, "agua_separada_ml": 200}
+        novo = {"id_suplemento": 2, "nome": "B", "qtd_dia": 200, "unidade": "ml",
+                "kcal_100": 150, "ptn_100": 6, "lip_100": 3, "carb_100": 15, "sod_100": 80,
+                "agua_ml": 50, "agua_separada_ml": 200}
+        r = sc.comparar_substituicao([atual], 1, novo, peso_kg=60,
+                                     meta_kcal=1800, meta_proteina_g=90)
+        self.assertEqual(r["antes"]["energia_kcal_dia"], 200)
+        self.assertEqual(r["depois"]["energia_kcal_dia"], 300)
+        self.assertEqual(r["comparacoes"]["energia_kcal_dia"]["diferenca"], 100)
+        self.assertEqual(r["depois"]["energia_kcal_kg_dia"], 5)
+        self.assertEqual(r["depois"]["proteina_g_kg_dia"], 0.2)
+        self.assertEqual(r["agua_misturada_ml_dia"]["diferenca"], -50)
+        self.assertEqual(r["agua_separada_ml_dia"]["diferenca"], 0)
+        self.assertEqual(r["osmolaridade_atual"]["status"], "preparacoes_nao_informadas")
+
+    def test_comparacao_osmolaridade_individual_por_preparacao(self):
+        ficha = {"id_suplemento": 1, "nome": "A", "qtd_dia": 100, "unidade": "ml",
+                 "kcal_100": 100, "ptn_100": 5, "lip_100": 1, "carb_100": 2, "sod_100": 3,
+                 "osmolaridade_ref": 300, "unidade_osmolaridade": "mOsm/L",
+                 "dose_ref": 100, "unidade_dose_ref": "ml", "volume_final_ref_ml": 100,
+                 "preparacoes": [{"dose": 50, "agua_adicionada_ml": 0},
+                                  {"dose": 50, "agua_adicionada_ml": 50, "agua_separada_ml": 100}]}
+        novo = dict(ficha, id_suplemento=2, nome="B", preparacoes=[
+            {"dose": 100, "agua_adicionada_ml": 100}])
+        r = sc.comparar_substituicao([ficha], 1, novo, peso_kg=50)
+        self.assertEqual(r["osmolaridade_atual"]["status"], "calculada")
+        self.assertEqual([p["valor"] for p in r["osmolaridade_atual"]["preparacoes"]], [300, 150])
+        self.assertEqual(r["osmolaridade_atual"]["agua_separada_total_ml"], 100)
+        self.assertEqual(r["osmolaridade_substituto"]["preparacoes"][0]["valor"], 150)
+        self.assertEqual(r["agua_misturada_ml_dia"]["atual"], 50)
+        self.assertEqual(r["agua_misturada_ml_dia"]["substituto"], 100)
+        self.assertEqual(r["agua_separada_ml_dia"]["atual"], 100)
+
+
+    def test_volume_final_por_preparacao_nao_depende_de_osmolaridade_disponivel(self):
+        ficha = {"id_suplemento": 1, "nome": "Pó", "qtd_dia": 10, "unidade": "g",
+                 "osmolaridade_ref": None, "unidade_osmolaridade": "mOsm/L",
+                 "dose_ref": 10, "unidade_dose_ref": "g", "volume_final_ref_ml": 100,
+                 "preparacoes": [{"dose": 5, "agua_adicionada_ml": 20}]}
+        resumo = sc.resumir_osmolaridade_preparacoes(ficha)
+        self.assertEqual(resumo["status"], "dados_incompletos")
+        self.assertEqual(resumo["volume_final_total_ml"], 70)
+
+    def test_comparacao_exige_item_e_dose_substituta(self):
+        with self.assertRaises(ValueError):
+            sc.comparar_substituicao([], 1, {"qtd_dia": 100, "unidade": "ml"})
+        with self.assertRaises(ValueError):
+            sc.comparar_substituicao([{"id_suplemento": 1}], 1,
+                                     {"qtd_dia": 0, "unidade": "ml"})
+
+

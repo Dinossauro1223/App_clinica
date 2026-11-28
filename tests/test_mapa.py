@@ -11,6 +11,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 import shutil
 import zipfile
 from contextlib import contextmanager
@@ -298,19 +299,20 @@ class TestBanco(unittest.TestCase):
         sup = next(s for s in mdb.listar_suplementos(self.db) if s["modulo"] == "Fórmula completa")
         reg = registro_base(
             self.db, self.leitos[0]["id_leito"], "2026-10-25", via="Enteral",
-            meta_kcal=1800.0, meta_proteina_g=90.0,
+            meta_kcal=1800.0, meta_proteina_g=90.0, meta_fibras_g=25.0,
             suplementos=[dict(id_suplemento=sup["id_suplemento"], nome=sup["nome"],
                               modulo=sup["modulo"], qtd_dia=500.0, unidade="ml")])
         mdb.salvar_registro(self.db, reg)
         salvo = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])
         self.assertEqual(salvo["via"], "Enteral")
-        self.assertEqual((salvo["meta_kcal"], salvo["meta_proteina_g"]), (1800.0, 90.0))
+        self.assertEqual((salvo["meta_kcal"], salvo["meta_proteina_g"], salvo["meta_fibras_g"]),
+                         (1800.0, 90.0, 25.0))
         # A separação visual/operacional deriva da via; a fórmula permanece como dieta enteral.
         self.assertEqual("Dieta enteral" if salvo["via"] == "Enteral" else "Suplementação oral",
                          "Dieta enteral")
 
     def test_meta_zero_ou_negativa_e_rejeitada(self):
-        for campo in ("meta_kcal", "meta_proteina_g"):
+        for campo in ("meta_kcal", "meta_proteina_g", "meta_fibras_g"):
             for valor in (0, -1):
                 with self.assertRaises(ValueError):
                     mdb.salvar_registro(self.db, registro_base(
@@ -324,7 +326,12 @@ class TestBanco(unittest.TestCase):
 
     def test_mapa_copia_historico(self):
         a, b = self.leitos[0]["id_leito"], self.leitos[1]["id_leito"]
-        mdb.salvar_registro(self.db, registro_base(self.db, a, "2026-10-24"))
+        sid = mdb.salvar_suplemento(self.db, dict(
+            nome="Módulo fibra teste", modulo="Módulo de fibras", emb_un="g",
+            fibra_g_100=80, tipo_fibra="soluvel", descricao_fibra="inulina", fonte_fibra="Ficha oficial"))
+        mdb.salvar_registro(self.db, registro_base(self.db, a, "2026-10-24",
+            meta_fibras_g=25, suplementos=[dict(id_suplemento=sid, nome="Módulo fibra teste",
+                modulo="Módulo de fibras", qtd_dia=5, unidade="g")]))
         mdb.salvar_registro(self.db, registro_base(self.db, b, "2026-10-24", nome_paciente="João Pedro", sexo="H"))
         self.assertEqual(mdb.ultima_data_com_registros(self.db, "2026-10-25"), "2026-10-24")
         self.assertEqual(mdb.copiar_mapa(self.db, "2026-10-24", "2026-10-25", self.setor), 2)
@@ -335,6 +342,10 @@ class TestBanco(unittest.TestCase):
         r24 = mdb.obter_registro(self.db, "2026-10-24", a)
         r25 = mdb.obter_registro(self.db, "2026-10-25", a)
         self.assertEqual(r24["id_paciente"], r25["id_paciente"])
+        self.assertEqual(r25["meta_fibras_g"], 25)
+        self.assertEqual((r25["suplementos"][0]["fibra_g_100"], r25["suplementos"][0]["tipo_fibra"],
+                          r25["suplementos"][0]["descricao_fibra"]),
+                         (80.0, "soluvel", "inulina"))
         hist = mdb.historico_paciente(self.db, id_paciente=r25["id_paciente"])
         self.assertEqual([h["data"] for h in hist], ["2026-10-25", "2026-10-24"])
         mdb.remover_registro(self.db, r25["id_registro"])
@@ -350,11 +361,27 @@ class TestBanco(unittest.TestCase):
 
     def test_suplementos(self):
         novo = mdb.salvar_suplemento(self.db, dict(nome="Módulo X", modulo="Módulo de fibras", preco="12,50",
-                                                    emb_qtd="200", emb_un="g", kcal_100="350", ptn_100="2,5"))
+                                                    emb_qtd="200", emb_un="g", kcal_100="350", ptn_100="2,5",
+                                                    osmolaridade_ref="300", unidade_osmolaridade="mOsm/L",
+                                                    dose_ref="20", unidade_dose_ref="g", volume_final_ref_ml="150",
+                                                    agua_recomendada_ml="130", fonte_osmolaridade="Ficha técnica 2026",
+            classificacao_nutricional="oligomerica", grau_hidrolise="parcialmente_hidrolisada",
+            proteinas_hidrolisadas="proteína do soro do leite", fonte_classificacao="Ficha fabricante 2026",
+            tipo_formula="fechada", fibra_g_100="8,5", tipo_fibra="mista",
+            descricao_fibra="inulina + fibra de soja", fonte_fibra="Ficha técnica fabricante"))
         s = [x for x in mdb.listar_suplementos(self.db) if x["id_suplemento"] == novo][0]
         self.assertEqual((s["preco"], s["emb_qtd"], s["kcal_100"], s["ptn_100"]), (12.5, 200.0, 350.0, 2.5))
+        self.assertEqual((s["osmolaridade_ref"], s["unidade_osmolaridade"], s["dose_ref"],
+                          s["unidade_dose_ref"], s["volume_final_ref_ml"], s["agua_recomendada_ml"]),
+                         (300.0, "mOsm/L", 20.0, "g", 150.0, 130.0))
+        self.assertEqual((s["classificacao_nutricional"], s["grau_hidrolise"], s["proteinas_hidrolisadas"], s["tipo_formula"]),
+                         ("oligomerica", "parcialmente_hidrolisada", "proteína do soro do leite", "fechada"))
+        self.assertEqual((s["fibra_g_100"], s["tipo_fibra"], s["descricao_fibra"], s["fonte_fibra"]),
+                         (8.5, "mista", "inulina + fibra de soja", "Ficha técnica fabricante"))
         self.assertIn("Módulo de fibras", mdb.listar_modulos(self.db))
-        mdb.salvar_suplemento(self.db, dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo", emb_un="ml"))
+        mdb.salvar_suplemento(self.db, dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo", emb_un="ml",
+            osmolaridade_ref="300", unidade_osmolaridade="mOsm/L", dose_ref="20", unidade_dose_ref="ml",
+            volume_final_ref_ml="150", agua_recomendada_ml="130", fonte_osmolaridade="Ficha técnica 2026"))
         self.assertIn("Novo módulo", mdb.listar_modulos(self.db))
         with self.assertRaises(ValueError):
             mdb.salvar_suplemento(self.db, dict(nome="Y", kcal_100="abc"))
@@ -362,7 +389,23 @@ class TestBanco(unittest.TestCase):
             mdb.salvar_suplemento(self.db, dict(nome="Y", emb_un="L"))
         # usado em registro: só desativa; não usado: exclui
         mdb.salvar_registro(self.db, registro_base(self.db, self.leitos[0]["id_leito"], "2026-10-25",
-                            suplementos=[dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo")]))
+                            suplementos=[dict(id_suplemento=novo, nome="Módulo X", modulo="Novo módulo",
+                                qtd_dia=20, unidade="g", agua_ml=130,
+                                preparacoes=[{"refeicao": "almoço", "dose": 10,
+                                              "agua_adicionada_ml": 65, "agua_separada_ml": 100},
+                                             {"refeicao": "jantar", "dose": 10,
+                                              "agua_adicionada_ml": 65, "agua_separada_ml": 0}])]))
+        salvo = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["suplementos"][0]
+        self.assertEqual((salvo["osmolaridade_ref"], salvo["dose_ref"], salvo["volume_final_ref_ml"],
+                          salvo["agua_recomendada_ml"], salvo["agua_ml"]), (300.0, 20.0, 150.0, 130.0, 130.0))
+        self.assertEqual((salvo["classificacao_nutricional"], salvo["grau_hidrolise"], salvo["tipo_formula"]),
+                         ("oligomerica", "parcialmente_hidrolisada", "fechada"))
+        self.assertEqual((salvo["fibra_g_100"], salvo["tipo_fibra"], salvo["descricao_fibra"], salvo["fonte_fibra"]),
+                         (8.5, "mista", "inulina + fibra de soja", "Ficha técnica fabricante"))
+        self.assertEqual(salvo["preparacoes"], [
+            {"refeicao": "almoço", "dose": 10, "agua_adicionada_ml": 65, "agua_separada_ml": 100},
+            {"refeicao": "jantar", "dose": 10, "agua_adicionada_ml": 65, "agua_separada_ml": 0},
+        ])
         self.assertFalse(mdb.remover_suplemento(self.db, novo))
         self.assertNotIn(novo, [x["id_suplemento"] for x in mdb.listar_suplementos(self.db)])
         outro = mdb.salvar_suplemento(self.db, dict(nome="Z"))
@@ -372,17 +415,32 @@ class TestBanco(unittest.TestCase):
         fd, legado = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         try:
-            with sqlite3.connect(legado) as c:
+            with closing(sqlite3.connect(legado)) as c, c:
+                c.execute("""CREATE TABLE Mapa_Suplementos (
+                    id_suplemento INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, modulo TEXT, preco REAL,
+                    emb_qtd REAL, emb_un TEXT DEFAULT 'ml', kcal_100 REAL, ptn_100 REAL, lip_100 REAL,
+                    carb_100 REAL, sod_100 REAL, observacao TEXT, ativo INTEGER DEFAULT 1)""")
                 c.execute("""CREATE TABLE Mapa_Registro_Suplementos (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, id_registro INTEGER NOT NULL,
                     id_suplemento INTEGER, nome TEXT NOT NULL, modulo TEXT, qtd_dia REAL,
                     unidade TEXT, ml_oferta REAL, agua_ml REAL,
                     refeicoes_json TEXT DEFAULT '[]', batido_fruta INTEGER DEFAULT 0)""")
             mdb.inicializar(legado)
-            with sqlite3.connect(legado) as c:
+            with closing(sqlite3.connect(legado)) as c, c:
                 colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registro_Suplementos)")}
+                colunas_catalogo = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Suplementos)")}
+                colunas_registro = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
             self.assertTrue({"kcal_100", "ptn_100", "lip_100", "carb_100", "sod_100",
-                             "ficha_observacao", "ficha_snapshot_em"}.issubset(colunas))
+                             "ficha_observacao", "ficha_snapshot_em", "osmolaridade_ref",
+                             "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
+                             "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade", "classificacao_nutricional",
+                             "grau_hidrolise", "proteinas_hidrolisadas", "fonte_classificacao", "tipo_formula",
+                             "fibra_g_100", "tipo_fibra", "descricao_fibra", "fonte_fibra"}.issubset(colunas))
+            self.assertTrue({"osmolaridade_ref", "unidade_osmolaridade", "dose_ref", "unidade_dose_ref",
+                             "volume_final_ref_ml", "agua_recomendada_ml", "fonte_osmolaridade", "classificacao_nutricional",
+                             "grau_hidrolise", "proteinas_hidrolisadas", "fonte_classificacao", "tipo_formula",
+                             "fibra_g_100", "tipo_fibra", "descricao_fibra", "fonte_fibra"}.issubset(colunas_catalogo))
+            self.assertIn("meta_fibras_g", colunas_registro)
         finally:
             try:
                 os.remove(legado)
@@ -424,7 +482,8 @@ class TestBanco(unittest.TestCase):
         sid = mdb.salvar_suplemento(self.db, dict(
             nome="Fórmula snapshot", modulo="Fórmula completa", emb_un="g",
             kcal_100=350, ptn_100=20, lip_100=10, carb_100=45, sod_100=120,
-            observacao="Ficha técnica versão A"))
+            observacao="Ficha técnica versão A", fibra_g_100=3,
+            tipo_fibra="soluvel", descricao_fibra="psyllium"))
         reg = registro_base(
             self.db, self.leitos[0]["id_leito"], "2026-10-25",
             suplementos=[dict(id_suplemento=sid, nome="Fórmula snapshot", modulo="Fórmula completa",
@@ -438,10 +497,13 @@ class TestBanco(unittest.TestCase):
         mdb.salvar_suplemento(self.db, dict(
             id_suplemento=sid, nome="Fórmula snapshot", modulo="Fórmula completa", emb_un="g",
             kcal_100=200, ptn_100=5, lip_100=3, carb_100=30, sod_100=80,
-            observacao="Ficha técnica versão B"))
+            observacao="Ficha técnica versão B", fibra_g_100=9,
+            tipo_fibra="insoluvel", descricao_fibra="celulose"))
         depois = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])["suplementos"][0]
         self.assertEqual((depois["kcal_100"], depois["ptn_100"], depois["ficha_observacao"]),
                          (350.0, 20.0, "Ficha técnica versão A"))
+        self.assertEqual((depois["fibra_g_100"], depois["tipo_fibra"], depois["descricao_fibra"]),
+                         (3.0, "soluvel", "psyllium"))
 
     def test_config(self):
         self.assertEqual(mdb.obter_config(self.db, "criterio", "lipschitz"), "lipschitz")
@@ -503,8 +565,14 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
             "progressao_enteral": {"autorizada": True, "incremento_por_etapa_ml": 10},
             "tne_motivos": []
         }
+        preparacoes = [
+            {"refeicao": "desjejum", "dose": 40, "agua_adicionada_ml": 20, "agua_separada_ml": 50},
+            {"refeicao": "ceia", "dose": 60, "agua_adicionada_ml": 30, "agua_separada_ml": 0},
+        ]
         reg = registro_base(self.db, self.leitos[0]["id_leito"], "2026-10-25",
-                            evolucao_json=json.dumps(dados, ensure_ascii=False))
+                            evolucao_json=json.dumps(dados, ensure_ascii=False),
+                            suplementos=[dict(nome="Fórmula teste", qtd_dia=100, unidade="ml",
+                                               agua_ml=50, preparacoes=preparacoes)])
         id_reg = mdb.salvar_registro(self.db, reg)
         obtido = mdb.obter_registro(self.db, "2026-10-25", self.leitos[0]["id_leito"])
         self.assertEqual(obtido["evolucao"], dados)
@@ -516,6 +584,7 @@ def popular_mes(db, ano=2026, mes=10, n_leitos=10, semente=7):
         self.assertEqual(mdb.copiar_mapa(self.db, "2026-10-25", "2026-10-26"), 1)
         copia = mdb.obter_registro(self.db, "2026-10-26", self.leitos[0]["id_leito"])
         self.assertEqual(copia["evolucao"], dados)
+        self.assertEqual(copia["suplementos"][0]["preparacoes"], preparacoes)
         mdb.remover_registro(self.db, copia["id_registro"])
         with conexao(self.db) as c:
             self.assertEqual(c.execute("SELECT COUNT(*) FROM Mapa_Evolucao_Dados WHERE id_registro=?",
@@ -826,12 +895,30 @@ class TestEscalasVisita(unittest.TestCase):
         self.assertEqual(__import__("json").loads(salvo["escalas_visita_json"]), respostas)
         self.assertEqual(salvo["tipo_dieta"], "Hipossódica")
 
+    def test_migracao_adiciona_horario_de_pesagem_em_banco_legado(self):
+        fd, legado = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            esquema_antigo = mdb._SCHEMA.replace(", peso_medido_em TEXT", "")
+            with closing(sqlite3.connect(legado)) as c, c:
+                c.executescript(esquema_antigo)
+            mdb.inicializar(legado)
+            with closing(sqlite3.connect(legado)) as c:
+                colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
+            self.assertIn("peso_medido_em", colunas)
+        finally:
+            try:
+                os.remove(legado)
+            except PermissionError:
+                pass
+
     def test_migracao_aditiva_e_idempotente(self):
         mdb.inicializar(self.db)
         mdb.inicializar(self.db)
         with conexao(self.db) as c:
             colunas = {r[1] for r in c.execute("PRAGMA table_info(Mapa_Registros)")}
         self.assertIn("escalas_visita_json", colunas)
+        self.assertIn("peso_medido_em", colunas)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ autorizados pelo nutricionista; não contém coeficientes clínicos presumidos.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from math import ceil
+from math import ceil, isfinite
 
 
 TNO_PERCENTUAIS = {"Ruim": 25, "Baixa": 50, "Regular": 75, "Boa": 100, "Ótima": 100}
@@ -21,8 +21,8 @@ def _numero(valor, nome, *, minimo=0):
         n = float(str(valor).replace(",", "."))
     except (TypeError, ValueError):
         raise ValueError(f"{nome} deve ser numérico.") from None
-    if n < minimo:
-        raise ValueError(f"{nome} deve ser maior ou igual a {minimo}.")
+    if not isfinite(n) or n < minimo:
+        raise ValueError(f"{nome} deve ser um número finito maior ou igual a {minimo}.")
     return n
 
 
@@ -58,6 +58,150 @@ def calcular_metas(peso_kg, kcal_kg, proteina_kg):
     ptn = _numero(proteina_kg, "Parâmetro g/kg", minimo=0.000001)
     return {"kcal_dia": peso * kcal, "proteina_g_dia": peso * ptn,
             "kcal_kg": kcal, "proteina_g_kg": ptn, "peso_referencia_kg": peso}
+
+
+
+def classificar_categoria_tfge(tfge_ml_min_173):
+    """Classifica a faixa de TFGe; G1/G2 isoladamente não confirmam DRC."""
+    if tfge_ml_min_173 in (None, ""):
+        return None
+    valor = _numero(tfge_ml_min_173, "TFGe")
+    if valor >= 90:
+        return "G1"
+    if valor >= 60:
+        return "G2"
+    if valor >= 45:
+        return "G3a"
+    if valor >= 30:
+        return "G3b"
+    if valor >= 15:
+        return "G4"
+    return "G5"
+
+
+def classificar_albuminuria_mg_g(valor_mg_g):
+    """Categorias KDIGO A1 (<30), A2 (30–300) e A3 (>300 mg/g)."""
+    if valor_mg_g in (None, ""):
+        return None
+    valor = _numero(valor_mg_g, "Albuminúria")
+    if valor < 30:
+        return "A1"
+    if valor <= 300:
+        return "A2"
+    return "A3"
+
+
+def avaliar_contexto_renal(dados, peso_kg=None, idade_anos=None, diabetes=False):
+    """Organiza dados renais e apresenta referência proteica sem alterar metas prescritas.
+
+    A TFGe é recebida do laudo; creatinina, ureia e albumina sérica são apenas
+    dados de apoio e não determinam estágio nem meta proteica isoladamente.
+    """
+    dados = dict(dados or {})
+    referencia = str(dados.get("referencia") or "KDIGO 2024").strip()
+    if referencia not in ("KDIGO 2024", "KDOQI 2020"):
+        raise ValueError("Referência renal inválida.")
+    tfge = _numero(dados["tfge"], "TFGe") if dados.get("tfge") not in (None, "") else None
+    faixa_tfge = classificar_categoria_tfge(tfge) if tfge is not None else None
+    estagio_informado = str(dados.get("estagio") or "").strip().upper()
+    if estagio_informado and estagio_informado not in ("G1", "G2", "G3A", "G3B", "G4", "G5"):
+        raise ValueError("Estágio renal inválido.")
+    # A categoria G é sempre derivada da TFGe do laudo, nunca da creatinina
+    # nem de um estágio digitado isoladamente.
+    estagio = faixa_tfge
+    if estagio_informado and faixa_tfge is None:
+        avisos_estagio_sem_tfge = True
+    else:
+        avisos_estagio_sem_tfge = False
+    albuminuria = (_numero(dados["albuminuria_mg_g"], "Albuminúria")
+                   if dados.get("albuminuria_mg_g") not in (None, "") else None)
+    categoria_albuminuria = classificar_albuminuria_mg_g(albuminuria) if albuminuria is not None else None
+    dialise = str(dados.get("dialise") or "nao").strip().lower()
+    frequencia_dialise = (_numero(dados["frequencia_dialise_semana"], "Frequência de diálise", minimo=0.000001)
+                          if dados.get("frequencia_dialise_semana") not in (None, "") else None)
+    duracao_dialise = (_numero(dados["duracao_dialise_horas"], "Duração da diálise", minimo=0.000001)
+                       if dados.get("duracao_dialise_horas") not in (None, "") else None)
+    inicio_dialise = str(dados.get("inicio_dialise") or "").strip() or None
+    if dialise not in ("nao", "hemodialise", "peritoneal"):
+        raise ValueError("Modalidade de diálise inválida.")
+    estabilidade = str(dados.get("estabilidade_metabolica") or "nao_informada").strip().lower()
+    if estabilidade not in ("estavel", "instavel", "nao_informada"):
+        raise ValueError("Estabilidade metabólica inválida.")
+    risco_desnutricao = dados.get("risco_desnutricao")
+    catabolismo = dados.get("catabolismo")
+    sarcopenia = dados.get("fragilidade_sarcopenia")
+    peso = _numero(peso_kg, "Peso nutricional", minimo=0.000001) if peso_kg not in (None, "") else None
+    idade = _numero(idade_anos, "Idade") if idade_anos not in (None, "") else None
+    recomendacao = {"status": "individualizar", "g_kg_dia": None, "g_dia": None,
+                    "texto": "Meta proteica deve ser definida individualmente; não há recomendação numérica automática para os dados informados."}
+    avisos = []
+    confirmada = dados.get("drc_confirmada") is True
+    condicao_renal = str(dados.get("condicao_renal") or
+                         ("DRC" if confirmada else "NAO_DEFINIDA")).strip().upper()
+    if condicao_renal not in ("DRC", "LRA", "DRC + LRA", "NAO_DEFINIDA"):
+        raise ValueError("Condição renal inválida.")
+    if faixa_tfge in ("G1", "G2") and not confirmada:
+        avisos.append("TFGe em G1/G2 isoladamente não confirma DRC; é necessário marcador de lesão renal e cronicidade.")
+    if tfge is not None and tfge < 60:
+        avisos.append("Confirme persistência por pelo menos 3 meses ou outro critério clínico para caracterização de DRC.")
+    if avisos_estagio_sem_tfge:
+        avisos.append("Estágio G não classificado: informe a TFGe do laudo; estágio digitado isoladamente não determina a categoria.")
+    elif estagio_informado and faixa_tfge and estagio_informado != faixa_tfge.upper():
+        avisos.append("Estágio informado difere da faixa calculada pela TFGe; prevalece a categoria calculada pelo laudo.")
+    if categoria_albuminuria:
+        avisos.append(f"Albuminúria: categoria {categoria_albuminuria} (mg/g). Interpretar junto à TFGe e à cronicidade.")
+    if condicao_renal in ("LRA", "DRC + LRA"):
+        recomendacao["texto"] = "Lesão renal aguda ou condição aguda associada: não aplicar automaticamente recomendações proteicas de DRC; individualizar conforme fase, catabolismo e terapia renal."
+    elif idade is not None and idade < 18:
+        recomendacao["texto"] = "Em crianças/adolescentes, não aplicar restrição proteica renal automática; considerar crescimento e avaliação especializada."
+    elif estabilidade != "estavel" or catabolismo is True:
+        recomendacao["texto"] = "Instabilidade metabólica ou catabolismo: não aplicar metas restritivas automáticas; individualizar com a equipe."
+    elif risco_desnutricao is True or sarcopenia is True:
+        recomendacao["texto"] = "Risco nutricional, fragilidade ou sarcopenia: evitar restrição automática e individualizar a meta proteica."
+    elif dialise in ("hemodialise", "peritoneal"):
+        if not confirmada:
+            recomendacao["texto"] = "Informe/valide DRC confirmada antes de aplicar referências proteicas de diálise da KDOQI."
+        elif referencia == "KDOQI 2020":
+            recomendacao.update(status="referencia", g_kg_dia="1,0–1,2",
+                                texto="KDOQI 2020: 1,0–1,2 g/kg/dia em adultos metabolicamente estáveis em hemodiálise ou diálise peritoneal.")
+        else:
+            recomendacao["texto"] = "KDIGO 2024 não define aqui uma meta numérica específica para diálise; individualizar. KDOQI 2020 pode ser consultada como referência alternativa."
+    elif estagio in ("G3a", "G3b", "G4", "G5") and confirmada:
+        if referencia == "KDIGO 2024":
+            recomendacao.update(status="referencia", g_kg_dia=0.8,
+                                texto="KDIGO 2024: aproximadamente 0,8 g/kg/dia em adultos com DRC G3–G5; evitar ingestão elevada (>1,3 g/kg/dia) em risco de progressão.")
+        elif diabetes:
+            recomendacao.update(status="referencia", g_kg_dia="0,6–0,8",
+                                texto="KDOQI 2020: 0,6–0,8 g/kg/dia em DRC G3–G5 com diabetes, sob supervisão próxima.")
+        else:
+            recomendacao.update(status="referencia", g_kg_dia="0,55–0,60",
+                                texto="KDOQI 2020: 0,55–0,60 g/kg/dia em DRC G3–G5 sem diabetes, metabolicamente estável e sob supervisão próxima.")
+    if isinstance(recomendacao.get("g_kg_dia"), (int, float)) and peso:
+        recomendacao["g_dia"] = round(recomendacao["g_kg_dia"] * peso, 1)
+    elif isinstance(recomendacao.get("g_kg_dia"), str) and peso:
+        partes = recomendacao["g_kg_dia"].replace(",", ".").split("–")
+        if len(partes) == 2:
+            minimo, maximo = (float(x) for x in partes)
+            recomendacao["g_dia"] = (
+                f"{formatar_numero_pt(minimo * peso, 1)}–{formatar_numero_pt(maximo * peso, 1)}"
+            )
+    if dados.get("creatinina") not in (None, ""):
+        avisos.append("Creatinina registrada como dado de apoio; não define isoladamente estágio ou meta proteica.")
+    if dados.get("ureia") not in (None, "") or dados.get("albumina_serica") not in (None, ""):
+        avisos.append("Ureia e albumina sérica são dados de apoio e não alteram automaticamente a meta proteica.")
+    return {
+        "referencia": referencia, "condicao_renal": condicao_renal,
+        "tfge_ml_min_173": tfge, "faixa_tfge": faixa_tfge,
+        "drc_confirmada": confirmada, "estagio": estagio,
+        "albuminuria_mg_g": albuminuria, "categoria_albuminuria": categoria_albuminuria,
+        "dialise": dialise, "frequencia_dialise_semana": frequencia_dialise,
+        "duracao_dialise_horas": duracao_dialise, "inicio_dialise": inicio_dialise,
+        "estabilidade_metabolica": estabilidade,
+        "catabolismo": catabolismo, "risco_desnutricao": risco_desnutricao,
+        "fragilidade_sarcopenia": sarcopenia, "recomendacao_proteica": recomendacao,
+        "avisos": avisos,
+        "exames_apoio": {k: dados.get(k) for k in ("creatinina", "ureia", "albumina_serica")},
+    }
 
 
 def calcular_adequacao(energia_ofertada, proteina_ofertada, meta_kcal, meta_proteina_g):
@@ -155,6 +299,29 @@ def estimar_tempo_bomba(volume_adicional_ml, taxa_estimativa_ml_h=10):
 
 
 
+def planejar_administracao_enteral(volume_total_ml, kcal_100ml, duracao_horas, *, usa_bomba=False, fator_gotas_ml=20):
+    """Calcula taxa de administração e energia ofertada no período informado.
+
+    O fator de gotas deve corresponder ao equipo utilizado. Bomba retorna mL/h;
+    gravidade retorna gotas/min. Resultado matemático, não prescrição de velocidade.
+    """
+    volume = _numero(volume_total_ml, "Volume total", minimo=0.000001)
+    kcal = _numero(kcal_100ml, "Energia por 100 mL", minimo=0.000001)
+    horas = _numero(duracao_horas, "Duração da administração", minimo=0.000001)
+    taxa_ml_h = volume / horas
+    energia_total = volume * kcal / 100
+    resultado = {"volume_total_ml": volume, "duracao_horas": horas,
+                 "energia_total_kcal": energia_total, "energia_kcal_h": energia_total / horas,
+                 "taxa_ml_h": taxa_ml_h, "usa_bomba": bool(usa_bomba)}
+    if usa_bomba:
+        resultado["velocidade_bomba_ml_h"] = round(taxa_ml_h, 1)
+    else:
+        fator = _numero(fator_gotas_ml, "Fator de gotas do equipo", minimo=0.000001)
+        resultado["fator_gotas_ml"] = fator
+        resultado["gotejamento_gotas_min"] = round(taxa_ml_h * fator / 60, 1)
+    return resultado
+
+
 def calcular_oferta_enteral(volume_por_etapa_ml, numero_etapas, kcal_100ml, proteina_100ml):
     """Calcula oferta diária a partir da composição cadastrada por 100 mL da fórmula."""
     volume_etapa = _numero(volume_por_etapa_ml, "Volume por etapa", minimo=0.000001)
@@ -241,6 +408,52 @@ def gerar_evolucao(dados):
         linhas.append("**Metas nutricionais:** " +
             f"Kcal/dia: {formatar_numero_pt(metas['kcal_dia'])} kcal ({formatar_numero_pt(metas['kcal_kg'], 1)} kcal/kg); " +
             f"PTN/dia: {formatar_numero_pt(metas['proteina_g_dia'], 1)} g ({formatar_numero_pt(metas['proteina_g_kg'], 1)} g/kg).")
+
+    renal = dados.get("avaliacao_renal") or {}
+    if renal:
+        partes_renais = [str(renal.get("condicao_renal") or "Condição renal não definida")]
+        if renal.get("tfge_ml_min_173") is not None:
+            partes_renais.append(
+                f"TFGe: {formatar_numero_pt(renal['tfge_ml_min_173'], 1)} mL/min/1,73 m²"
+                + (f" ({renal['faixa_tfge']})" if renal.get("faixa_tfge") else ""))
+        if renal.get("estagio"):
+            partes_renais.append(f"estágio informado: {renal['estagio']}")
+        if renal.get("categoria_albuminuria"):
+            partes_renais.append(f"albuminúria: {renal['categoria_albuminuria']}")
+        if renal.get("dialise") in ("hemodialise", "peritoneal"):
+            modalidade = "hemodiálise" if renal["dialise"] == "hemodialise" else "diálise peritoneal"
+            detalhe_dialise = modalidade
+            if renal.get("frequencia_dialise_semana") is not None:
+                detalhe_dialise += f", {formatar_numero_pt(renal['frequencia_dialise_semana'], 1)} sessões/semana"
+            if renal.get("duracao_dialise_horas") is not None:
+                detalhe_dialise += f", {formatar_numero_pt(renal['duracao_dialise_horas'], 1)} h/sessão"
+            if renal.get("inicio_dialise"):
+                detalhe_dialise += f", início em {renal['inicio_dialise']}"
+            partes_renais.append(detalhe_dialise)
+        linhas.append("**Avaliação renal:** " + "; ".join(partes_renais) + ".")
+        recomendacao_renal = renal.get("recomendacao_proteica") or {}
+        if recomendacao_renal.get("texto"):
+            texto_recomendacao = recomendacao_renal["texto"]
+            if recomendacao_renal.get("g_kg_dia") is not None:
+                texto_recomendacao += f" Referência: {recomendacao_renal['g_kg_dia']} g/kg/dia"
+                if recomendacao_renal.get("g_dia") is not None:
+                    gdia = recomendacao_renal["g_dia"]
+                    gdia_txt = formatar_numero_pt(gdia, 1) if isinstance(gdia, (int, float)) else str(gdia)
+                    texto_recomendacao += f" ({gdia_txt} g/dia)"
+                texto_recomendacao += "."
+            linhas.append("**Referência proteica renal (não substitui a meta prescrita):** " + texto_recomendacao)
+        if renal.get("avisos"):
+            linhas.append("**Observações renais:** " + " ".join(renal["avisos"]))
+        exames = renal.get("exames_apoio") or {}
+        exames_txt = []
+        for chave, rotulo, unidade in (("creatinina", "creatinina", "mg/dL"),
+                                       ("ureia", "ureia", "mg/dL"),
+                                       ("albumina_serica", "albumina sérica", "g/dL")):
+            if exames.get(chave) not in (None, ""):
+                exames_txt.append(f"{rotulo}: {exames[chave]} {unidade}")
+        if exames_txt:
+            linhas.append("**Exames renais de apoio:** " + "; ".join(exames_txt) + ".")
+
     via = str(dados.get("via") or "").strip().casefold()
     enteral = via == "enteral"
     oferta = dados.get("oferta")
@@ -250,6 +463,33 @@ def gerar_evolucao(dados):
         linhas.append("**Adequação da meta:** " +
             f"Kcal/dia: {formatar_numero_pt(adeq['kcal_dia'])} kcal ({formatar_numero_pt(adeq['adequacao_kcal_pct'], 1)}% de adequação); " +
             f"PTN/dia: {formatar_numero_pt(adeq['proteina_g_dia'], 1)} g ({formatar_numero_pt(adeq['adequacao_proteina_pct'], 1)}% de adequação).")
+    administracao_real = dados.get("administracao_real") or {}
+    if enteral and administracao_real:
+        volume_real = administracao_real.get("volume_administrado_ml")
+        pendentes = administracao_real.get("administracoes_pendentes") or []
+        dieta_real = dados.get("dieta_enteral") or {}
+        if volume_real is not None and metas and dieta_real.get("kcal_100") is not None and dieta_real.get("ptn_100") is not None:
+            kcal_real = float(volume_real) * float(dieta_real["kcal_100"]) / 100
+            ptn_real = float(volume_real) * float(dieta_real["ptn_100"]) / 100
+            adeq_real = calcular_adequacao(kcal_real, ptn_real, metas["kcal_dia"], metas["proteina_g_dia"])
+            linhas.append(
+                "**Administração enteral real registrada:** "
+                f"{formatar_numero_pt(volume_real)} mL administrados; "
+                f"{formatar_numero_pt(kcal_real, 1)} kcal e {formatar_numero_pt(ptn_real, 1)} g de PTN; "
+                f"adequação real: {formatar_numero_pt(adeq_real['adequacao_kcal_pct'], 1)}% kcal e "
+                f"{formatar_numero_pt(adeq_real['adequacao_proteina_pct'], 1)}% PTN."
+            )
+        elif volume_real is not None:
+            linhas.append(
+                f"**Administração enteral real registrada:** {formatar_numero_pt(volume_real)} mL; "
+                "energia/proteína reais não calculáveis por ausência de composição completa da fórmula."
+            )
+        if pendentes:
+            linhas.append(
+                f"**Administração enteral pendente de conferência:** {len(pendentes)} evento(s) sem volume final "
+                "ou atravessando a meia-noite; o sistema não distribui esse volume entre dias automaticamente."
+            )
+
     linhas.append(f"**DVA:** {'Sim' if dados.get('dva') else 'Não'}.")
     linhas.append(f"**Via de alimentação:** {'Enteral' if enteral else 'Oral' if via == 'oral' else dados.get('via') or 'não informada'}.")
     if enteral:
@@ -276,7 +516,29 @@ def gerar_evolucao(dados):
                 f"{formatar_numero_pt(incremento)} mL/dia até atingir {formatar_numero_pt(meta)} mL/dia.{detalhe}")
         elif not bomba.get("usa_bomba"):
             linhas.append("**Evolução da dieta:** Progressão de aproximadamente 30–40 mL/dia, conforme tolerância e conduta nutricional.")
-        if bomba.get("usa_bomba") and oferta and oferta.get("volume_total_ml") is not None and oferta.get("volume_meta_ml") is not None:
+        administracao = dados.get("administracao_enteral") or {}
+        if administracao:
+            if administracao.get("usa_bomba"):
+                taxa_txt = f"velocidade da bomba: {formatar_numero_pt(administracao['velocidade_bomba_ml_h'], 1)} mL/h"
+            else:
+                taxa_txt = (f"gotejamento estimado: {formatar_numero_pt(administracao['gotejamento_gotas_min'], 1)} gotas/min "
+                            f"(equipo de {formatar_numero_pt(administracao['fator_gotas_ml'], 1)} gotas/mL)")
+            volume_atual = administracao.get("volume_etapas_atual_ml")
+            diferenca_volume = (administracao["volume_total_ml"] - volume_atual
+                                if volume_atual is not None else None)
+            contexto_volume = ""
+            if diferenca_volume is not None and abs(diferenca_volume) > 0.1:
+                contexto_volume = (
+                    f" Oferta atualmente cadastrada: {formatar_numero_pt(volume_atual)} mL/dia; "
+                    f"diferença até o volume-meta: {formatar_numero_pt(diferenca_volume)} mL/dia."
+                )
+            linhas.append("**Administração da dieta fechada — planejamento do volume-meta:** " +
+                f"{formatar_numero_pt(administracao['volume_total_ml'])} mL em {formatar_numero_pt(administracao['duracao_horas'], 1)} h; " +
+                f"{taxa_txt}; {formatar_numero_pt(administracao['energia_total_kcal'])} kcal no período " +
+                f"({formatar_numero_pt(administracao['energia_kcal_h'], 1)} kcal/h)." +
+                contexto_volume +
+                " Estimativa matemática para o volume-meta; não altera a prescrição atual. Validar volume, velocidade e tolerância clinicamente.")
+        if bomba.get("usa_bomba") and not administracao and oferta and oferta.get("volume_total_ml") is not None and oferta.get("volume_meta_ml") is not None:
             aviso = aviso_bomba(oferta["volume_total_ml"], oferta["volume_meta_ml"], True,
                                 bomba.get("taxa_estimativa_ml_h", 10))
             if aviso:
